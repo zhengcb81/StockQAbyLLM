@@ -1,0 +1,212 @@
+# GitHub Actions Release Workflow
+# Automated release and publishing for StockQAbyLLM project
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v0.2.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    name: Validate Release
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest pytest-cov mypy black pylint bandit
+
+    - name: Run pre-release validation
+      run: |
+        # All tests must pass
+        pytest tests/ -v --cov=src --cov-fail-under=70
+
+        # Type checking must pass
+        mypy src/ --strict
+
+        # Code quality gate
+        pylint src/ --fail-under=8.0
+
+        # Format check
+        black --check src/ tests/
+
+        # Security scan
+        bandit -r src/ -f screen
+
+  build:
+    name: Build Release
+    runs-on: ubuntu-latest
+    needs: validate
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install build dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install build setuptools wheel
+
+    - name: Build package
+      run: |
+        python -m build
+
+    - name: Store distribution packages
+      uses: actions/upload-artifact@v3
+      with:
+        name: dist-packages
+        path: dist/
+
+  test-release:
+    name: Test Release Build
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Download distribution packages
+      uses: actions/download-artifact@v3
+      with:
+        name: dist-packages
+        path: dist/
+
+    - name: Install from wheel
+      run: |
+        pip install dist/*.whl
+
+    - name: Verify installation
+      run: |
+        python -c "import src; print('Package installed successfully')"
+        python -m pytest tests/ -v
+
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [validate, build, test-release]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Download distribution packages
+      uses: actions/download-artifact@v3
+      with:
+        name: dist-packages
+        path: dist/
+
+    - name: Extract version from tag
+      id: version
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+    - name: Generate changelog
+      id: changelog
+      run: |
+        # Get commits since last tag
+        PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+        if [ -z "$PREV_TAG" ]; then
+          COMMITS=$(git log --pretty=format:"- %s" HEAD)
+        else
+          COMMITS=$(git log --pretty=format:"- %s" ${PREV_TAG}..HEAD)
+        fi
+
+        # Create changelog
+        cat > release_notes.md << EOF
+        # Release ${{ steps.version.outputs.version }}
+
+        ## Changes
+
+        $COMMITS
+
+        ## Installation
+
+        \`\`\`bash
+        pip install stockqa-by-llm==${{ steps.version.outputs.version }}
+        \`\`\`
+
+        ## Verification
+
+        \`\`\`bash
+        python -c "import src; print('Installation successful')"
+        \`\`\`
+        EOF
+
+        echo "notes<<EOF" >> $GITHUB_OUTPUT
+        cat release_notes.md >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.version.outputs.version }}
+        name: Release ${{ steps.version.outputs.version }}
+        body: ${{ steps.changelog.outputs.notes }}
+        draft: false
+        prerelease: false
+        files: |
+          dist/*.whl
+          dist/*.tar.gz
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-pypi:
+    name: Publish to PyPI (if configured)
+    runs-on: ubuntu-latest
+    needs: create-release
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download distribution packages
+      uses: actions/download-artifact@v3
+      with:
+        name: dist-packages
+        path: dist/
+
+    - name: Publish to PyPI
+      if: vars.PYPI_API_TOKEN != ''
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        password: ${{ vars.PYPI_API_TOKEN }}
+        skip-existing: true

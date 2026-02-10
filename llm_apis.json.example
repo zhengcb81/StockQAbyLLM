@@ -1,0 +1,63 @@
+{
+  "_comment": "LLM API 配置文件示例",
+  "_note": "推荐使用环境变量存储 API 密钥，而不是直接写入此文件",
+  "_env_instructions": "创建 .env 文件并设置对应的环境变量，例如: DEEPSEEK_API_KEY=your_key_here",
+  "default_provider": "deepseek",
+  "providers": {
+    "deepseek": {
+      "name": "DeepSeek",
+      "enabled": true,
+      "api_key": "",
+      "_api_key_note": "推荐使用环境变量: DEEPSEEK_API_KEY",
+      "base_url": "https://api.deepseek.com/v1/chat/completions",
+      "model": "deepseek-chat",
+      "timeout": 60,
+      "max_retries": 3,
+      "description": "DeepSeek API - 主要使用"
+    },
+    "minimax": {
+      "name": "MiniMax",
+      "enabled": false,
+      "api_key": "",
+      "_api_key_note": "推荐使用环境变量: MINIMAX_API_KEY",
+      "base_url": "https://api.minimax.chat/v1/text/chatcompletion",
+      "model": "abab6.5s-chat",
+      "timeout": 60,
+      "max_retries": 3,
+      "description": "MiniMax API - 备用"
+    },
+    "glm": {
+      "name": "智谱GLM",
+      "enabled": false,
+      "api_key": "",
+      "_api_key_note": "推荐使用环境变量: GLM_API_KEY 或 ZHIPU_API_KEY",
+      "base_url": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+      "model": "glm-4",
+      "timeout": 60,
+      "max_retries": 3,
+      "description": "智谱GLM API - 备用"
+    },
+    "mimo": {
+      "name": "小米MiMo",
+      "enabled": false,
+      "api_key": "",
+      "_api_key_note": "推荐使用环境变量: MIMO_API_KEY",
+      "base_url": "",
+      "model": "",
+      "timeout": 60,
+      "max_retries": 3,
+      "description": "小米MiMo API - 备用（请填写base_url和model）"
+    },
+    "openai": {
+      "name": "OpenAI",
+      "enabled": false,
+      "api_key": "",
+      "_api_key_note": "推荐使用环境变量: OPENAI_API_KEY",
+      "base_url": "https://api.openai.com/v1/chat/completions",
+      "model": "gpt-4",
+      "timeout": 60,
+      "max_retries": 3,
+      "description": "OpenAI API - 可选"
+    }
+  }
+}

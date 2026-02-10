@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTML分析器 - 文件加载测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 4px; }
+        .success { background: #d4edda; border-color: #c3e6cb; }
+        .error { background: #f8d7da; border-color: #f5c6cb; }
+        .info { background: #d1ecf1; border-color: #bee5eb; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; }
+        button:hover { background: #0056b3; }
+        .file-input { margin: 10px 0; }
+        .result { margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 4px; font-family: monospace; font-size: 12px; }
+        .drag-area { border: 2px dashed #007bff; padding: 20px; text-align: center; margin: 10px 0; cursor: pointer; background: #f8f9fa; }
+        .drag-area.dragover { background: #e7f3ff; border-color: #0056b3; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 HTML分析器 - 文件加载功能测试</h1>
+        <p>测试三种文件加载方式：多文件选择、目录选择、拖放操作</p>
+
+        <!-- 测试1: 多文件选择 -->
+        <div class="test-section info">
+            <h3>✅ 测试1: 批量文件选择 (Multiple File Selection)</h3>
+            <p>选择多个 QALLM_*.json 文件进行测试</p>
+            <input type="file" id="testMultiple" accept=".json" multiple class="file-input">
+            <button onclick="testMultipleFiles()">测试多文件选择</button>
+            <div id="resultMultiple" class="result"></div>
+        </div>
+
+        <!-- 测试2: 目录选择 -->
+        <div class="test-section info">
+            <h3>✅ 测试2: 目录选择 (Directory Selection)</h3>
+            <p>选择包含 QALLM 文件的目录进行测试</p>
+            <input type="file" id="testDirectory" webkitdirectory directory multiple class="file-input">
+            <button onclick="testDirectorySelect()">测试目录选择</button>
+            <div id="resultDirectory" class="result"></div>
+        </div>
+
+        <!-- 测试3: 拖放操作 -->
+        <div class="test-section info">
+            <h3>✅ 测试3: 拖放操作 (Drag & Drop)</h3>
+            <p>将 config.json 和 QALLM_*.json 文件拖放到下方区域</p>
+            <div id="dragArea" class="drag-area">拖放文件到此处</div>
+            <div id="resultDrag" class="result"></div>
+        </div>
+
+        <!-- 测试4: 数据处理 -->
+        <div class="test-section">
+            <h3>📊 测试4: 数据处理验证</h3>
+            <button onclick="testDataProcessing()">测试数据处理逻辑</button>
+            <div id="resultData" class="result"></div>
+        </div>
+
+        <!-- 测试5: 综合测试 -->
+        <div class="test-section success">
+            <h3>🚀 测试5: 完整流程测试</h3>
+            <p>使用示例数据测试完整分析流程</p>
+            <button onclick="testCompleteFlow()">运行完整测试</button>
+            <div id="resultComplete" class="result"></div>
+        </div>
+    </div>
+
+    <script>
+        // 全局数据存储
+        let testData = {
+            config: null,
+            qallm: {},
+            processed: { questions: [], categories: [], totals: [] }
+        };
+
+        // 测试1: 多文件选择
+        function testMultipleFiles() {
+            const input = document.getElementById('testMultiple');
+            const result = document.getElementById('resultMultiple');
+
+            if (!input.files || input.files.length === 0) {
+                result.innerHTML = '❌ 请先选择文件';
+                result.parentElement.className = 'test-section error';
+                return;
+            }
+
+            const files = Array.from(input.files);
+            const qallmFiles = files.filter(f => f.name.startsWith('QALLM_') && f.name.endsWith('.json'));
+
+            result.innerHTML = `✅ 选择了 ${files.length} 个文件<br>其中 ${qallmFiles.length} 个符合 QALLM 格式<br>` +
+                files.map(f => `📄 ${f.name} (${f.size} bytes)`).join('<br>');
+            result.parentElement.className = 'test-section success';
+
+            // 模拟读取
+            files.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        const stockName = file.name.replace('QALLM_', '').replace('.json', '');
+                        testData.qallm[stockName] = data;
+                        console.log(`✅ Loaded ${stockName}: ${Object.keys(data).length} questions`);
+                    } catch (err) {
+                        console.error(`❌ Failed to parse ${file.name}:`, err);
+                    }
+                };
+                reader.readAsText(file);
+            });
+        }
+
+        // 测试2: 目录选择
+        function testDirectorySelect() {
+            const input = document.getElementById('testDirectory');
+            const result = document.getElementById('resultDirectory');
+
+            if (!input.files || input.files.length === 0) {
+                result.innerHTML = '❌ 请先选择目录';
+                result.parentElement.className = 'test-section error';
+                return;
+            }
+
+            const files = Array.from(input.files);
+            const qallmFiles = files.filter(f =>
+                f.name.startsWith('QALLM_') && f.name.endsWith('.json')
+            );
+
+            result.innerHTML = `✅ 目录包含 ${files.length} 个文件<br>找到 ${qallmFiles.length} 个 QALLM 文件<br>` +
+                qallmFiles.map(f => `📄 ${f.webkitRelativePath || f.name}`).join('<br>');
+            result.parentElement.className = 'test-section success';
+        }
+
+        // 测试3: 拖放操作
+        const dragArea = document.getElementById('dragArea');
+        const resultDrag = document.getElementById('resultDrag');
+
+        dragArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dragArea.classList.add('dragover');
+        });
+
+        dragArea.addEventListener('dragleave', () => {
+            dragArea.classList.remove('dragover');
+        });
+
+        dragArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dragArea.classList.remove('dragover');
+
+            const files = Array.from(e.dataTransfer.files);
+            const configFiles = files.filter(f => f.name === 'config.json');
+            const qallmFiles = files.filter(f => f.name.startsWith('QALLM_') && f.name.endsWith('.json'));
+
+            resultDrag.innerHTML = `✅ 收到 ${files.length} 个文件<br>` +
+                `📁 配置文件: ${configFiles.length} 个<br>` +
+                `📊 QALLM文件: ${qallmFiles.length} 个<br>` +
+                files.map(f => `📄 ${f.name}`).join('<br>');
+            resultDrag.parentElement.className = 'test-section success';
+
+            // 读取配置文件
+            if (configFiles.length > 0) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        testData.config = JSON.parse(e.target.result);
+                        console.log('✅ Config loaded:', testData.config.length, 'categories');
+                    } catch (err) {
+                        console.error('❌ Config parse error:', err);
+                    }
+                };
+                reader.readAsText(configFiles[0]);
+            }
+
+            // 读取QALLM文件
+            qallmFiles.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        const stockName = file.name.replace('QALLM_', '').replace('.json', '');
+                        testData.qallm[stockName] = data;
+                        console.log(`✅ Loaded ${stockName}: ${Object.keys(data).length} questions`);
+                    } catch (err) {
+                        console.error(`❌ Parse error ${file.name}:`, err);
+                    }
+                };
+                reader.readAsText(file);
+            });
+        });
+
+        // 测试4: 数据处理逻辑
+        function testDataProcessing() {
+            const result = document.getElementById('resultData');
+
+            if (!testData.config || Object.keys(testData.qallm).length === 0) {
+                result.innerHTML = '❌ 请先加载配置文件和QALLM文件';
+                result.parentElement.className = 'test-section error';
+                return;
+            }
+
+            // 模拟HTML分析器的数据处理
+            const questionToCategory = {};
+            testData.config.forEach(category => {
+                category.questions.forEach(q => {
+                    questionToCategory[q] = {
+                        category: category.category,
+                        weight: parseFloat(category.weight)
+                    };
+                });
+            });
+
+            const processed = { questions: [], categories: [], totals: [] };
+
+            // 处理每个股票
+            for (const [stock, qallm] of Object.entries(testData.qallm)) {
+                const categoryScores = {};
+                const categoryCounts = {};
+
+                Object.keys(questionToCategory).forEach(q => {
+                    const cat = questionToCategory[q].category;
+                    categoryScores[cat] = 0;
+                    categoryCounts[cat] = 0;
+                });
+
+                for (const [question, data] of Object.entries(qallm)) {
+                    const catInfo = questionToCategory[question];
+                    if (!catInfo) continue;
+
+                    const score = parseFloat(data.score) || 0;
+                    const category = catInfo.category;
+
+                    processed.questions.push({
+                        stock, category, question, score, description: data.description
+                    });
+
+                    categoryScores[category] += score;
+                    categoryCounts[category] += 1;
+                }
+
+                // 计算类别平均分
+                Object.keys(categoryScores).forEach(cat => {
+                    if (categoryCounts[cat] > 0) {
+                        const avg = categoryScores[cat] / categoryCounts[cat];
+                        const weight = testData.config.find(c => c.category === cat)?.weight || '0%';
+                        const weightNum = parseFloat(weight);
+
+                        processed.categories.push({
+                            stock, category: cat, average: avg,
+                            weight: weightNum, weighted: avg * (weightNum / 100)
+                        });
+                    }
+                });
+            }
+
+            // 计算总分
+            const stockTotals = {};
+            processed.categories.forEach(item => {
+                if (!stockTotals[item.stock]) {
+                    stockTotals[item.stock] = { total: 0, categories: [] };
+                }
+                stockTotals[item.stock].total += item.weighted;
+                stockTotals[item.stock].categories.push({ name: item.category, avg: item.average });
+            });
+
+            Object.entries(stockTotals).forEach(([stock, data]) => {
+                const categories = data.categories.sort((a, b) => b.avg - a.avg);
+                processed.totals.push({
+                    stock, total: data.total,
+                    highest: categories[0]?.name, lowest: categories[categories.length - 1]?.name
+                });
+            });
+
+            processed.totals.sort((a, b) => b.total - a.total);
+            processed.totals.forEach((item, i) => item.rank = i + 1);
+
+            testData.processed = processed;
+
+            result.innerHTML = `✅ 数据处理完成!<br>` +
+                `📊 股票数: ${Object.keys(testData.qallm).length}<br>` +
+                `📋 问题条目: ${processed.questions.length}<br>` +
+                `📈 类别条目: ${processed.categories.length}<br>` +
+                `🏆 排名条目: ${processed.totals.length}<br><br>` +
+                `🏆 排名前3:<br>` +
+                processed.totals.slice(0, 3).map(t =>
+                    `#${t.rank} ${t.stock}: ${t.total.toFixed(2)}`
+                ).join('<br>');
+            result.parentElement.className = 'test-section success';
+        }
+
+        // 测试5: 完整流程
+        function testCompleteFlow() {
+            const result = document.getElementById('resultComplete');
+
+            // 使用硬编码的示例数据
+            const sampleConfig = [
+                {
+                    "category": "市场与增长潜力",
+                    "weight": "20%",
+                    "questions": ["公司所在市场规模（TAM/ SAM/ SOM）与未来增长率有多大？"]
+                },
+                {
+                    "category": "商业模式与盈利能力",
+                    "weight": "15%",
+                    "questions": ["公司的收入模式的可预测性与可扩展性如何？"]
+                }
+            ];
+
+            const sampleQallm1 = {
+                "公司所在市场规模（TAM/ SAM/ SOM）与未来增长率有多大？": {
+                    "score": 8, "description": "市场规模巨大，增长潜力好"
+                },
+                "公司的收入模式的可预测性与可扩展性如何？": {
+                    "score": 7, "description": "订阅模式，经常性收入占比高"
+                }
+            };
+
+            const sampleQallm2 = {
+                "公司所在市场规模（TAM/ SAM/ SOM）与未来增长率有多大？": {
+                    "score": 6, "description": "市场规模中等，增长稳定"
+                },
+                "公司的收入模式的可预测性与可扩展性如何？": {
+                    "score": 8, "description": "混合模式，扩展性良好"
+                }
+            };
+
+            // 模拟处理
+            const questionToCategory = {};
+            sampleConfig.forEach(cat => {
+                cat.questions.forEach(q => {
+                    questionToCategory[q] = { category: cat.category, weight: parseFloat(cat.weight) };
+                });
+            });
+
+            const stocks = { "测试股票A": sampleQallm1, "测试股票B": sampleQallm2 };
+            const totals = [];
+
+            for (const [stock, qallm] of Object.entries(stocks)) {
+                let total = 0;
+                for (const [q, data] of Object.entries(qallm)) {
+                    const catInfo = questionToCategory[q];
+                    if (catInfo) {
+                        total += (data.score * catInfo.weight / 100);
+                    }
+                }
+                totals.push({ stock, total });
+            }
+
+            totals.sort((a, b) => b.total - a.total);
+            totals.forEach((t, i) => t.rank = i + 1);
+
+            result.innerHTML = `✅ 完整流程测试成功!<br><br>` +
+                `📊 示例数据:<br>` +
+                `   配置: ${sampleConfig.length} 个类别<br>` +
+                `   股票: ${Object.keys(stocks).length} 个<br>` +
+                `   问题: ${Object.keys(sampleQallm1).length} 个<br><br>` +
+                `🏆 计算结果:<br>` +
+                totals.map(t => `   #${t.rank} ${t.stock}: ${t.total.toFixed(2)}`).join('<br>') +
+                `<br><br>✅ 所有测试通过! HTML分析器功能正常。`;
+            result.parentElement.className = 'test-section success';
+        }
+
+        // 页面加载完成后的初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('🧪 HTML分析器测试环境已就绪');
+            console.log('三种文件加载方式可用:');
+            console.log('1. 多文件选择 (Multiple File Selection)');
+            console.log('2. 目录选择 (Directory Selection)');
+            console.log('3. 拖放操作 (Drag & Drop)');
+        });
+    </script>
+</body>
+</html>

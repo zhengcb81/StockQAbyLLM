@@ -1,0 +1,1625 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>股票QALLM对比分析器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .file-section {
+            padding: 30px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .file-input-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .file-input-wrapper {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            border: 2px dashed #667eea;
+            transition: all 0.3s ease;
+        }
+
+        .file-input-wrapper:hover {
+            border-color: #764ba2;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+        }
+
+        .file-input-wrapper label {
+            display: block;
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .file-input-wrapper input[type="file"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        .file-input-wrapper input[type="file"]::-webkit-file-upload-button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 14px;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .btn:disabled {
+            background: #e9ecef;
+            color: #6c757d;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .status-section {
+            padding: 20px 30px;
+            background: #fff3cd;
+            border-bottom: 1px solid #ffeaa7;
+            display: none;
+        }
+
+        .status-section.active {
+            display: block;
+        }
+
+        .status-message {
+            font-size: 14px;
+            color: #856404;
+            font-weight: 500;
+        }
+
+        .results-section {
+            padding: 30px;
+            display: none;
+        }
+
+        .results-section.active {
+            display: block;
+        }
+
+        .summary-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+
+        .summary-item {
+            text-align: center;
+        }
+
+        .summary-item .value {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .summary-item .label {
+            font-size: 12px;
+            opacity: 0.9;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .sort-controls {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+        }
+
+        .sort-controls span {
+            font-weight: 600;
+            color: #6c757d;
+            margin-right: 5px;
+        }
+
+        .sort-btn {
+            padding: 6px 12px;
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .sort-btn:hover {
+            background: #e9ecef;
+            border-color: #667eea;
+        }
+
+        .sort-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .sort-btn.active.asc::after {
+            content: " ↑";
+        }
+
+        .sort-btn.active.desc::after {
+            content: " ↓";
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            background: white;
+            margin-bottom: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        thead {
+            background: #f8f9fa;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        th {
+            padding: 12px;
+            text-align: center;
+            font-weight: 600;
+            color: #495057;
+            border-bottom: 2px solid #dee2e6;
+            white-space: nowrap;
+            background: #f8f9fa;
+        }
+
+        th.sortable {
+            cursor: pointer;
+            user-select: none;
+        }
+
+        th.sortable:hover {
+            background: #e9ecef;
+            color: #667eea;
+        }
+
+        th.sortable.active {
+            background: #667eea;
+            color: white;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #e9ecef;
+            text-align: center;
+        }
+
+        td:first-child {
+            font-weight: 600;
+            text-align: left;
+            background: #f8f9fa;
+            position: sticky;
+            left: 0;
+            z-index: 5;
+        }
+
+        tbody tr:hover {
+            background: #f8f9fa;
+        }
+
+        tbody tr:hover td:first-child {
+            background: #e9ecef;
+        }
+
+        .score-high {
+            color: #28a745;
+            font-weight: 600;
+            background: #d4edda;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .score-medium {
+            color: #ffc107;
+            font-weight: 600;
+            background: #fff3cd;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .score-low {
+            color: #dc3545;
+            font-weight: 600;
+            background: #f8d7da;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .rank-1 {
+            background: #ffd700 !important;
+            font-weight: 700;
+        }
+
+        .rank-2 {
+            background: #c0c0c0 !important;
+            font-weight: 600;
+        }
+
+        .rank-3 {
+            background: #cd7f32 !important;
+            font-weight: 600;
+        }
+
+        .category-header {
+            background: #e7f3ff !important;
+            color: #0066cc !important;
+        }
+
+        .info-message {
+            background: #d1ecf1;
+            color: #0c5460;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+            border-left: 4px solid #17a2b8;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+            border-left: 4px solid #dc3545;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+
+        .loading::after {
+            content: "...";
+            animation: loading 1.5s infinite;
+        }
+
+        @keyframes loading {
+            0%, 20% { content: "."; }
+            40% { content: ".."; }
+            60%, 100% { content: "..."; }
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .file-info {
+            font-size: 12px;
+            color: #6c757d;
+            margin-top: 5px;
+            font-style: italic;
+        }
+
+        .drag-drop-area {
+            border: 2px dashed #667eea;
+            padding: 20px;
+            text-align: center;
+            border-radius: 4px;
+            background: #f8f9fa;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .drag-drop-area:hover,
+        .drag-drop-area.dragover {
+            background: #e7f3ff;
+            border-color: #764ba2;
+            transform: translateY(-2px);
+        }
+
+        @media (max-width: 768px) {
+            .file-input-group {
+                grid-template-columns: 1fr;
+            }
+
+            .header h1 {
+                font-size: 22px;
+            }
+
+            .controls {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+            }
+
+            .summary-card {
+                grid-template-columns: 1fr;
+            }
+
+            table {
+                font-size: 11px;
+            }
+
+            th, td {
+                padding: 8px 6px;
+            }
+        }
+
+        .tab-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .tab-btn {
+            padding: 10px 20px;
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .tab-btn:hover {
+            background: #e9ecef;
+        }
+
+        .tab-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 股票QALLM对比分析器</h1>
+            <p>多股票横向对比分析 - 按问题/类别维度排名</p>
+        </div>
+
+        <div class="file-section">
+            <div class="file-input-group">
+                <div class="file-input-wrapper">
+                    <label for="configFile">📁 选择配置文件 (config.json)</label>
+                    <input type="file" id="configFile" accept=".json">
+                    <div class="file-info" id="configInfo">包含类别、权重和问题定义</div>
+                </div>
+                <div class="file-input-wrapper">
+                    <label for="qallmFiles">📈 选择QALLM报告 (可多选)</label>
+                    <input type="file" id="qallmFiles" accept=".json" multiple>
+                    <div class="file-info" id="qallmInfo">QALLM_股票名称.json 文件</div>
+                </div>
+            </div>
+            <div class="file-input-group">
+                <div class="file-input-wrapper">
+                    <label for="directoryInput">📂 选择目录自动加载</label>
+                    <input type="file" id="directoryInput" webkitdirectory directory multiple>
+                    <div class="file-info" id="directoryInfo">自动读取目录下所有 QALLM_*.json 文件</div>
+                </div>
+                <div class="file-input-wrapper">
+                    <label for="dragDropArea">🎯 拖放文件到此处</label>
+                    <div id="dragDropArea" class="drag-drop-area">
+                        拖放 config.json 和 QALLM_*.json 文件到此处
+                    </div>
+                </div>
+            </div>
+            <div class="controls">
+                <button class="btn btn-primary" id="analyzeBtn" disabled>开始对比分析</button>
+                <button class="btn btn-secondary" id="resetBtn">重置</button>
+                <button class="btn btn-success" id="sampleBtn">加载示例数据</button>
+            </div>
+            <div class="info-message" style="margin-top: 15px;">
+                <strong>💡 文件加载方式说明：</strong><br>
+                <strong>多选文件：</strong> 按住 Ctrl/Cmd 键选择多个 QALLM_*.json 文件<br>
+                <strong>目录选择：</strong> 选择包含文件的目录，自动加载所有 QALLM_*.json 文件<br>
+                <strong>拖放操作：</strong> 将 config.json 和 QALLM_*.json 文件拖放到拖放区域<br>
+                <strong>目的：</strong> 支持同时分析多个股票的报告，便于横向比较
+            </div>
+        </div>
+
+        <div class="status-section" id="statusSection">
+            <div class="status-message" id="statusMessage"></div>
+        </div>
+
+        <div class="results-section" id="resultsSection">
+            <div class="summary-card" id="summaryCard"></div>
+
+            <div class="tab-buttons">
+                <button class="tab-btn active" data-tab="comparison">📊 对比总表</button>
+                <button class="tab-btn" data-tab="questions">📋 详细问题</button>
+                <button class="tab-btn" data-tab="categories">📈 类别分析</button>
+            </div>
+
+            <div class="tab-content active" id="comparison-tab">
+                <div class="sort-controls">
+                    <span>排序:</span>
+                    <button class="sort-btn" data-sort="stock">股票名称</button>
+                    <button class="sort-btn" data-sort="total">总分</button>
+                    <button class="sort-btn" data-sort="average">平均分</button>
+                </div>
+                <div class="table-wrapper" id="comparisonTableWrapper">
+                    <!-- 动态生成的对比表格 -->
+                </div>
+            </div>
+
+            <div class="tab-content" id="questions-tab">
+                <div class="sort-controls">
+                    <span>排序:</span>
+                    <button class="sort-btn" data-sort="stock">股票</button>
+                    <button class="sort-btn" data-sort="category">类别</button>
+                    <button class="sort-btn" data-sort="score">得分</button>
+                </div>
+                <div class="table-wrapper">
+                    <table id="questionsTable">
+                        <thead>
+                            <tr>
+                                <th>股票名称</th>
+                                <th>类别</th>
+                                <th>问题</th>
+                                <th>得分</th>
+                                <th>描述</th>
+                            </tr>
+                        </thead>
+                        <tbody id="questionsBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="tab-content" id="categories-tab">
+                <div class="sort-controls">
+                    <span>排序:</span>
+                    <button class="sort-btn" data-sort="stock">股票</button>
+                    <button class="sort-btn" data-sort="category">类别</button>
+                    <button class="sort-btn" data-sort="average">平均分</button>
+                    <button class="sort-btn" data-sort="weighted">加权分</button>
+                </div>
+                <div class="table-wrapper">
+                    <table id="categoriesTable">
+                        <thead>
+                            <tr>
+                                <th>股票名称</th>
+                                <th>类别</th>
+                                <th>平均分</th>
+                                <th>权重</th>
+                                <th>加权得分</th>
+                            </tr>
+                        </thead>
+                        <tbody id="categoriesBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局数据存储
+        let configData = null;
+        let qallmData = {};
+        let processedData = {
+            questions: [],
+            categories: [],
+            totals: [],
+            comparison: []  // 新增：对比表格数据
+        };
+
+        // 当前排序状态
+        let currentSort = {
+            comparison: { field: null, direction: 'asc' },
+            questions: { field: null, direction: 'asc' },
+            categories: { field: null, direction: 'asc' }
+        };
+
+        // DOM 元素
+        const configFile = document.getElementById('configFile');
+        const qallmFiles = document.getElementById('qallmFiles');
+        const directoryInput = document.getElementById('directoryInput');
+        const dragDropArea = document.getElementById('dragDropArea');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const sampleBtn = document.getElementById('sampleBtn');
+        const statusSection = document.getElementById('statusSection');
+        const statusMessage = document.getElementById('statusMessage');
+        const resultsSection = document.getElementById('resultsSection');
+        const configInfo = document.getElementById('configInfo');
+        const qallmInfo = document.getElementById('qallmInfo');
+        const directoryInfo = document.getElementById('directoryInfo');
+
+        // 事件监听器
+        configFile.addEventListener('change', handleConfigFile);
+        qallmFiles.addEventListener('change', handleQallmFiles);
+        directoryInput.addEventListener('change', handleDirectorySelect);
+        analyzeBtn.addEventListener('click', analyzeData);
+        resetBtn.addEventListener('click', resetAll);
+        sampleBtn.addEventListener('click', loadSampleData);
+
+        // 拖放事件
+        dragDropArea.addEventListener('click', () => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.multiple = true;
+            input.accept = '.json';
+            input.style.display = 'none';
+            document.body.appendChild(input);
+            input.click();
+            input.addEventListener('change', (e) => {
+                handleDragDropFiles(e.target.files);
+                document.body.removeChild(input);
+            });
+        });
+
+        dragDropArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dragDropArea.classList.add('dragover');
+        });
+
+        dragDropArea.addEventListener('dragleave', () => {
+            dragDropArea.classList.remove('dragover');
+        });
+
+        dragDropArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dragDropArea.classList.remove('dragover');
+            handleDragDropFiles(e.dataTransfer.files);
+        });
+
+        // 标签切换
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const tabName = e.target.dataset.tab;
+                switchTab(tabName);
+            });
+        });
+
+        // 排序按钮（表格列头点击）
+        document.addEventListener('click', (e) => {
+            if (e.target.tagName === 'TH' && e.target.classList.contains('sortable')) {
+                const tableWrapper = e.target.closest('.table-wrapper');
+                const sortField = e.target.dataset.sort;
+                handleTableSort(tableWrapper, sortField, e.target);
+            }
+        });
+
+        // 排序控制按钮
+        document.querySelectorAll('.sort-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const tabContent = e.target.closest('.tab-content');
+                const tabName = tabContent.id.replace('-tab', '');
+                const field = e.target.dataset.sort;
+                handleSort(tabName, field, e.target);
+            });
+        });
+
+        // 初始化按钮状态
+        checkAnalyzeButton();
+
+        // 文件处理函数
+        function handleConfigFile(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    configData = JSON.parse(event.target.result);
+                    configInfo.textContent = `[OK] 已加载: ${file.name}`;
+                    configInfo.style.color = '#28a745';
+
+                    const categoryCount = Array.isArray(configData) ? configData.length : 0;
+                    const questionCount = Array.isArray(configData)
+                        ? configData.reduce((sum, cat) => sum + (cat.questions?.length || 0), 0)
+                        : 0;
+
+                    showStatus(`配置文件加载成功: ${categoryCount}个类别, ${questionCount}个问题`, 'success');
+
+                    const hasQallm = Object.keys(qallmData).length > 0;
+                    if (hasQallm) {
+                        showStatus(`准备就绪！已加载配置文件和 ${Object.keys(qallmData).length} 个股票数据`, 'success');
+                    }
+
+                    checkAnalyzeButton();
+                } catch (error) {
+                    showError('配置文件格式错误: ' + error.message);
+                    configInfo.textContent = '[ERROR] 文件格式错误';
+                    configInfo.style.color = '#dc3545';
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function handleQallmFiles(e) {
+            const files = Array.from(e.target.files);
+            if (files.length === 0) return;
+            processFileList(files, 'direct');
+        }
+
+        function extractStockName(filename) {
+            const match = filename.match(/QALLM_(.+)\\.json$/i);
+            if (match) return match[1];
+            return filename.replace(/\\.json$/i, '');
+        }
+
+        function updateQallmInfo(total, loaded, errors, source = 'direct') {
+            let infoElement = qallmInfo;
+            if (source === 'directory') {
+                infoElement = directoryInfo;
+            } else if (source === 'dragdrop') {
+                infoElement = qallmInfo;
+            }
+
+            if (loaded + errors < total) {
+                infoElement.textContent = `[...] 加载中... ${loaded + errors}/${total}`;
+                infoElement.style.color = '#17a2b8';
+            } else if (loaded + errors === total) {
+                if (errors === 0) {
+                    infoElement.textContent = `[OK] 已加载 ${loaded} 个文件`;
+                    infoElement.style.color = '#28a745';
+                    showStatus(`成功加载 ${loaded} 个QALLM报告文件`, 'success');
+                } else {
+                    infoElement.textContent = `[!] 成功 ${loaded}, 失败 ${errors}`;
+                    infoElement.style.color = '#ffc107';
+                    showStatus(`部分文件加载失败: ${errors} 个错误`, 'error');
+                }
+
+                const hasConfig = configData !== null;
+                const hasQallm = Object.keys(qallmData).length > 0;
+
+                if (hasConfig && hasQallm) {
+                    showStatus(`准备就绪！已加载配置文件和 ${Object.keys(qallmData).length} 个股票数据`, 'success');
+                } else if (hasQallm) {
+                    showStatus(`已加载 ${Object.keys(qallmData).length} 个股票数据，请继续加载配置文件`, 'info');
+                }
+            }
+
+            checkAnalyzeButton();
+        }
+
+        function handleDirectorySelect(e) {
+            const files = Array.from(e.target.files);
+            if (files.length === 0) return;
+
+            const qallmFiles = files.filter(file =>
+                file.name.startsWith('QALLM_') && file.name.endsWith('.json')
+            );
+
+            if (qallmFiles.length === 0) {
+                showError('目录中没有找到 QALLM_*.json 文件');
+                directoryInfo.textContent = '[ERROR] 未找到符合条件的文件';
+                directoryInfo.style.color = '#dc3545';
+                return;
+            }
+
+            processFileList(qallmFiles, 'directory');
+        }
+
+        function handleDragDropFiles(fileList) {
+            const files = Array.from(fileList);
+            if (files.length === 0) return;
+
+            let configFiles = [];
+            let qallmFiles = [];
+
+            files.forEach(file => {
+                if (file.name === 'config.json') {
+                    configFiles.push(file);
+                } else if (file.name.startsWith('QALLM_') && file.name.endsWith('.json')) {
+                    qallmFiles.push(file);
+                }
+            });
+
+            if (configFiles.length === 0 && qallmFiles.length === 0) {
+                showError('拖放的文件不符合要求，请确保包含 config.json 和/或 QALLM_*.json 文件');
+                return;
+            }
+
+            showStatus(`正在处理 ${configFiles.length} 个配置文件和 ${qallmFiles.length} 个QALLM文件...`, 'info');
+
+            if (configFiles.length > 0) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        configData = JSON.parse(event.target.result);
+                        configInfo.textContent = `[OK] 已加载: ${configFiles[0].name}`;
+                        configInfo.style.color = '#28a745';
+
+                        const categoryCount = Array.isArray(configData) ? configData.length : 0;
+                        const questionCount = Array.isArray(configData)
+                            ? configData.reduce((sum, cat) => sum + (cat.questions?.length || 0), 0)
+                            : 0;
+                        showStatus(`配置文件加载成功: ${categoryCount}个类别, ${questionCount}个问题`, 'success');
+
+                        checkAnalyzeButton();
+                    } catch (error) {
+                        showError('配置文件格式错误: ' + error.message);
+                        configInfo.textContent = '[ERROR] 文件格式错误';
+                        configInfo.style.color = '#dc3545';
+                    }
+                };
+                reader.readAsText(configFiles[0]);
+            }
+
+            if (qallmFiles.length > 0) {
+                processFileList(qallmFiles, 'dragdrop');
+            }
+        }
+
+        function processFileList(files, source) {
+            let loaded = 0;
+            let errors = 0;
+
+            files.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const data = JSON.parse(event.target.result);
+                        const stockName = extractStockName(file.name);
+                        qallmData[stockName] = data;
+                        loaded++;
+                        updateQallmInfo(files.length, loaded, errors, source);
+                    } catch (error) {
+                        errors++;
+                        updateQallmInfo(files.length, loaded, errors, source);
+                    }
+                    checkAnalyzeButton();
+                };
+                reader.readAsText(file);
+            });
+        }
+
+        function checkAnalyzeButton() {
+            const hasConfig = configData !== null;
+            const hasQallm = Object.keys(qallmData).length > 0;
+            const shouldEnable = hasConfig && hasQallm;
+
+            analyzeBtn.disabled = !shouldEnable;
+
+            if (!shouldEnable) {
+                let missing = [];
+                if (!hasConfig) missing.push('配置文件');
+                if (!hasQallm) missing.push('QALLM报告');
+
+                if (missing.length > 0) {
+                    analyzeBtn.textContent = `[!] 需要: ${missing.join(' + ')}`;
+                    analyzeBtn.title = `请先加载: ${missing.join(' 和 ')}`;
+                    analyzeBtn.style.opacity = '0.6';
+                } else {
+                    analyzeBtn.textContent = '准备就绪';
+                    analyzeBtn.title = '可以开始分析';
+                    analyzeBtn.style.opacity = '0.8';
+                }
+            } else {
+                analyzeBtn.textContent = `[▶] 开始对比分析 (${Object.keys(qallmData).length}个股票)`;
+                analyzeBtn.title = '开始对比分析';
+                analyzeBtn.style.opacity = '1';
+            }
+
+            showLoadingStatus();
+        }
+
+        function showLoadingStatus() {
+            const hasConfig = configData !== null;
+            const hasQallm = Object.keys(qallmData).length > 0;
+
+            if (!hasConfig && !hasQallm) {
+                return;
+            }
+
+            let statusText = '当前状态: ';
+            let details = [];
+
+            if (hasConfig) {
+                const categoryCount = Array.isArray(configData) ? configData.length : 0;
+                const questionCount = Array.isArray(configData)
+                    ? configData.reduce((sum, cat) => sum + (cat.questions?.length || 0), 0)
+                    : 0;
+                details.push(`配置文件 (${categoryCount}类${questionCount}题)`);
+            }
+
+            if (hasQallm) {
+                const stockCount = Object.keys(qallmData).length;
+                details.push(`${stockCount}个股票数据`);
+            }
+
+            statusText += details.join(' + ');
+
+            if (statusSection && statusMessage) {
+                statusMessage.textContent = statusText;
+                statusSection.classList.add('active');
+                statusSection.style.background = '#e7f3ff';
+                statusSection.style.borderColor = '#bee5eb';
+                statusMessage.style.color = '#0c5460';
+            }
+        }
+
+        // 数据分析主函数
+        function analyzeData() {
+            showStatus('正在分析数据...', 'info');
+
+            try {
+                // 1. 构建问题到类别的映射
+                const questionToCategory = buildQuestionCategoryMap();
+
+                // 2. 处理每个股票的数据
+                processedData = {
+                    questions: [],
+                    categories: [],
+                    totals: [],
+                    comparison: []
+                };
+
+                for (const [stockName, qallm] of Object.entries(qallmData)) {
+                    processStock(stockName, qallm, questionToCategory);
+                }
+
+                // 3. 计算总分和排名
+                calculateTotals();
+
+                // 4. 构建对比表格数据
+                buildComparisonTable();
+
+                // 5. 显示结果
+                displayResults();
+
+                showStatus(`分析完成！处理了 ${Object.keys(qallmData).length} 个股票`, 'success');
+            } catch (error) {
+                showError('分析失败: ' + error.message);
+                console.error(error);
+            }
+        }
+
+        function buildQuestionCategoryMap() {
+            const map = {};
+            if (!configData || !Array.isArray(configData)) return map;
+
+            configData.forEach(category => {
+                if (category.questions && Array.isArray(category.questions)) {
+                    category.questions.forEach(question => {
+                        map[question] = {
+                            category: category.category,
+                            weight: parseFloat(category.weight) || 0
+                        };
+                    });
+                }
+            });
+
+            return map;
+        }
+
+        function processStock(stockName, qallm, questionToCategory) {
+            const categoryScores = {};
+            const categoryCounts = {};
+
+            Object.keys(questionToCategory).forEach(q => {
+                const cat = questionToCategory[q].category;
+                categoryScores[cat] = 0;
+                categoryCounts[cat] = 0;
+            });
+
+            for (const [question, data] of Object.entries(qallm)) {
+                const categoryInfo = questionToCategory[question];
+                if (!categoryInfo) continue;
+
+                const score = parseFloat(data.score) || 0;
+                const category = categoryInfo.category;
+
+                processedData.questions.push({
+                    stock: stockName,
+                    category: category,
+                    question: question,
+                    score: score,
+                    description: data.description || ''
+                });
+
+                categoryScores[category] += score;
+                categoryCounts[category] += 1;
+            }
+
+            const categoryAverages = {};
+            const categoryWeights = {};
+
+            Object.keys(categoryScores).forEach(cat => {
+                if (categoryCounts[cat] > 0) {
+                    const avg = categoryScores[cat] / categoryCounts[cat];
+                    categoryAverages[cat] = avg;
+
+                    const weight = configData.find(c => c.category === cat)?.weight || '0%';
+                    categoryWeights[cat] = parseFloat(weight) || 0;
+
+                    processedData.categories.push({
+                        stock: stockName,
+                        category: cat,
+                        average: avg,
+                        weight: categoryWeights[cat],
+                        weighted: avg * (categoryWeights[cat] / 100)
+                    });
+                }
+            });
+        }
+
+        function calculateTotals() {
+            const stockTotals = {};
+
+            processedData.categories.forEach(item => {
+                if (!stockTotals[item.stock]) {
+                    stockTotals[item.stock] = {
+                        total: 0,
+                        sumWeights: 0,
+                        categories: []
+                    };
+                }
+                stockTotals[item.stock].total += item.weighted;
+                stockTotals[item.stock].sumWeights += item.weight;
+                stockTotals[item.stock].categories.push({
+                    name: item.category,
+                    avg: item.average
+                });
+            });
+
+            const totalsArray = Object.entries(stockTotals).map(([stock, data]) => {
+                const categories = data.categories.sort((a, b) => b.avg - a.avg);
+                return {
+                    stock: stock,
+                    total: data.total,
+                    highest: categories[0]?.name || 'N/A',
+                    lowest: categories[categories.length - 1]?.name || 'N/A'
+                };
+            }).sort((a, b) => b.total - a.total);
+
+            totalsArray.forEach((item, index) => {
+                item.rank = index + 1;
+                processedData.totals.push(item);
+            });
+        }
+
+        function buildComparisonTable() {
+            // 获取所有问题和类别
+            const allQuestions = [];
+            const allCategories = [];
+
+            if (configData && Array.isArray(configData)) {
+                configData.forEach(cat => {
+                    if (cat.questions) {
+                        cat.questions.forEach(q => {
+                            allQuestions.push({ question: q, category: cat.category });
+                        });
+                    }
+                    allCategories.push(cat.category);
+                });
+            }
+
+            // 为每个股票构建一行数据
+            for (const [stockName, qallm] of Object.entries(qallmData)) {
+                const row = {
+                    stock: stockName,
+                    scores: {},
+                    categoryAverages: {},
+                    categoryWeighted: {},
+                    total: 0,
+                    average: 0
+                };
+
+                // 填充问题得分
+                allQuestions.forEach(({ question, category }) => {
+                    if (qallm[question]) {
+                        row.scores[question] = parseFloat(qallm[question].score) || 0;
+                    } else {
+                        row.scores[question] = 0;
+                    }
+                });
+
+                // 计算类别平均分和加权分
+                const categoryScores = {};
+                const categoryCounts = {};
+
+                allCategories.forEach(cat => {
+                    categoryScores[cat] = 0;
+                    categoryCounts[cat] = 0;
+                });
+
+                // 从问题得分计算类别
+                allQuestions.forEach(({ question, category }) => {
+                    if (row.scores[question] > 0) {
+                        categoryScores[category] += row.scores[question];
+                        categoryCounts[category] += 1;
+                    }
+                });
+
+                let totalWeighted = 0;
+                let totalWeight = 0;
+
+                allCategories.forEach(cat => {
+                    if (categoryCounts[cat] > 0) {
+                        const avg = categoryScores[cat] / categoryCounts[cat];
+                        row.categoryAverages[cat] = avg;
+
+                        const weight = configData.find(c => c.category === cat)?.weight || '0%';
+                        const weightNum = parseFloat(weight);
+                        const weighted = avg * (weightNum / 100);
+
+                        row.categoryWeighted[cat] = weighted;
+                        totalWeighted += weighted;
+                        totalWeight += weightNum;
+                    } else {
+                        row.categoryAverages[cat] = 0;
+                        row.categoryWeighted[cat] = 0;
+                    }
+                });
+
+                row.total = totalWeighted;
+                row.average = totalWeight > 0 ? (totalWeighted / totalWeight) * 100 : 0;
+
+                processedData.comparison.push(row);
+            }
+
+            // 按总分排序
+            processedData.comparison.sort((a, b) => b.total - a.total);
+        }
+
+        // 显示结果
+        function displayResults() {
+            displaySummary();
+            displayComparisonTable();
+            displayQuestionsTable();
+            displayCategoriesTable();
+            resultsSection.classList.add('active');
+        }
+
+        function displaySummary() {
+            const summaryCard = document.getElementById('summaryCard');
+            const stockCount = Object.keys(qallmData).length;
+            const questionCount = processedData.questions.length;
+            const avgScore = processedData.totals.length > 0
+                ? (processedData.totals.reduce((sum, item) => sum + item.total, 0) / processedData.totals.length).toFixed(2)
+                : '0.00';
+
+            summaryCard.innerHTML = `
+                <div class="summary-item">
+                    <div class="value">${stockCount}</div>
+                    <div class="label">股票数量</div>
+                </div>
+                <div class="summary-item">
+                    <div class="value">${questionCount}</div>
+                    <div class="label">问题总数</div>
+                </div>
+                <div class="summary-item">
+                    <div class="value">${avgScore}</div>
+                    <div class="label">平均总分</div>
+                </div>
+                <div class="summary-item">
+                    <div class="value">${configData ? configData.length : 0}</div>
+                    <div class="label">分析类别</div>
+                </div>
+            `;
+        }
+
+        function displayComparisonTable() {
+            const wrapper = document.getElementById('comparisonTableWrapper');
+            if (!processedData.comparison.length) {
+                wrapper.innerHTML = '<div class="error-message">没有可用的对比数据</div>';
+                return;
+            }
+
+            // 获取所有问题和类别
+            const allQuestions = [];
+            const allCategories = [];
+
+            if (configData && Array.isArray(configData)) {
+                configData.forEach(cat => {
+                    if (cat.questions) {
+                        cat.questions.forEach(q => {
+                            allQuestions.push({ question: q, category: cat.category });
+                        });
+                    }
+                    allCategories.push(cat.category);
+                });
+            }
+
+            // 构建表格HTML
+            let html = '<table><thead><tr>';
+
+            // 股票名称列
+            html += '<th class="sortable" data-sort="stock">股票名称</th>';
+
+            // 问题列（每个问题一列）
+            allQuestions.forEach(({ question, category }) => {
+                html += `<th class="sortable category-header" data-sort="q_${question}">${question.substring(0, 20)}${question.length > 20 ? '...' : ''}</th>`;
+            });
+
+            // 类别平均分列
+            allCategories.forEach(cat => {
+                html += `<th class="sortable" data-sort="cat_${cat}">${cat}(平均)</th>`;
+            });
+
+            // 类别加权分列
+            allCategories.forEach(cat => {
+                html += `<th class="sortable" data-sort="w_${cat}">${cat}(加权)</th>`;
+            });
+
+            // 总分列
+            html += '<th class="sortable" data-sort="total">总分</th>';
+            html += '<th class="sortable" data-sort="average">平均分</th>';
+
+            html += '</tr></thead><tbody>';
+
+            // 数据行
+            processedData.comparison.forEach((row, index) => {
+                const rankClass = index < 3 ? `rank-${index + 1}` : '';
+                html += `<tr class="${rankClass}">`;
+
+                // 股票名称
+                html += `<td><strong>${row.stock}</strong></td>`;
+
+                // 问题得分
+                allQuestions.forEach(({ question }) => {
+                    const score = row.scores[question] || 0;
+                    const scoreClass = getScoreClass(score);
+                    html += `<td><span class="${scoreClass}">${score}</span></td>`;
+                });
+
+                // 类别平均分
+                allCategories.forEach(cat => {
+                    const avg = row.categoryAverages[cat] || 0;
+                    const scoreClass = getScoreClass(avg);
+                    html += `<td><span class="${scoreClass}">${avg.toFixed(2)}</span></td>`;
+                });
+
+                // 类别加权分
+                allCategories.forEach(cat => {
+                    const weighted = row.categoryWeighted[cat] || 0;
+                    html += `<td><strong>${weighted.toFixed(2)}</strong></td>`;
+                });
+
+                // 总分和平均分
+                html += `<td><strong class="score-high">${row.total.toFixed(2)}</strong></td>`;
+                html += `<td><strong>${row.average.toFixed(2)}</strong></td>`;
+
+                html += '</tr>';
+            });
+
+            html += '</tbody></table>';
+            wrapper.innerHTML = html;
+        }
+
+        function displayQuestionsTable() {
+            const tbody = document.getElementById('questionsBody');
+            tbody.innerHTML = '';
+
+            processedData.questions.forEach(item => {
+                const row = tbody.insertRow();
+                const scoreClass = getScoreClass(item.score);
+
+                row.innerHTML = `
+                    <td><strong>${item.stock}</strong></td>
+                    <td>${item.category}</td>
+                    <td>${item.question.substring(0, 30)}${item.question.length > 30 ? '...' : ''}</td>
+                    <td><span class="${scoreClass}">${item.score}</span></td>
+                    <td>${item.description.substring(0, 40)}${item.description.length > 40 ? '...' : ''}</td>
+                `;
+            });
+        }
+
+        function displayCategoriesTable() {
+            const tbody = document.getElementById('categoriesBody');
+            tbody.innerHTML = '';
+
+            processedData.categories.forEach(item => {
+                const row = tbody.insertRow();
+                const scoreClass = getScoreClass(item.average);
+
+                row.innerHTML = `
+                    <td><strong>${item.stock}</strong></td>
+                    <td>${item.category}</td>
+                    <td><span class="${scoreClass}">${item.average.toFixed(2)}</span></td>
+                    <td>${item.weight}%</td>
+                    <td><strong>${item.weighted.toFixed(2)}</strong></td>
+                `;
+            });
+        }
+
+        function getScoreClass(score) {
+            if (score >= 8) return 'score-high';
+            if (score >= 6) return 'score-medium';
+            return 'score-low';
+        }
+
+        // 表格列头排序（点击表头）
+        function handleTableSort(tableWrapper, field, thElement) {
+            // 找到对应的tab
+            const tabContent = tableWrapper.closest('.tab-content');
+            const tabName = tabContent.id.replace('-tab', '');
+
+            // 获取当前排序状态
+            const sortState = currentSort[tabName];
+
+            // 切换排序方向
+            if (sortState.field === field) {
+                sortState.direction = sortState.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortState.field = field;
+                sortState.direction = 'asc';
+            }
+
+            // 更新表头样式
+            const allTh = tableWrapper.querySelectorAll('th.sortable');
+            allTh.forEach(th => {
+                th.classList.remove('active', 'asc', 'desc');
+            });
+            thElement.classList.add('active', sortState.direction);
+
+            // 执行排序
+            if (tabName === 'comparison') {
+                sortComparisonTable(field, sortState.direction);
+            }
+        }
+
+        function sortComparisonTable(field, direction) {
+            const multiplier = direction === 'asc' ? 1 : -1;
+
+            processedData.comparison.sort((a, b) => {
+                let aVal, bVal;
+
+                if (field === 'stock') {
+                    aVal = a.stock;
+                    bVal = b.stock;
+                    return aVal.localeCompare(bVal) * multiplier;
+                } else if (field === 'total') {
+                    aVal = a.total;
+                    bVal = b.total;
+                    return (aVal - bVal) * multiplier;
+                } else if (field === 'average') {
+                    aVal = a.average;
+                    bVal = b.average;
+                    return (aVal - bVal) * multiplier;
+                } else if (field.startsWith('q_')) {
+                    const question = field.substring(2);
+                    aVal = a.scores[question] || 0;
+                    bVal = b.scores[question] || 0;
+                    return (aVal - bVal) * multiplier;
+                } else if (field.startsWith('cat_')) {
+                    const cat = field.substring(4);
+                    aVal = a.categoryAverages[cat] || 0;
+                    bVal = b.categoryAverages[cat] || 0;
+                    return (aVal - bVal) * multiplier;
+                } else if (field.startsWith('w_')) {
+                    const cat = field.substring(2);
+                    aVal = a.categoryWeighted[cat] || 0;
+                    bVal = b.categoryWeighted[cat] || 0;
+                    return (aVal - bVal) * multiplier;
+                }
+
+                return 0;
+            });
+
+            displayComparisonTable();
+        }
+
+        // 控制按钮排序
+        function handleSort(dataType, field, button) {
+            const sortState = currentSort[dataType];
+
+            if (sortState.field === field) {
+                sortState.direction = sortState.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortState.field = field;
+                sortState.direction = 'asc';
+            }
+
+            updateSortButtons(dataType, field, sortState.direction);
+            sortData(dataType, field, sortState.direction);
+        }
+
+        function updateSortButtons(dataType, field, direction) {
+            const tabContent = document.getElementById(`${dataType}-tab`);
+            const buttons = tabContent.querySelectorAll('.sort-btn');
+
+            buttons.forEach(btn => {
+                btn.classList.remove('active', 'asc', 'desc');
+                if (btn.dataset.sort === field) {
+                    btn.classList.add('active', direction);
+                }
+            });
+        }
+
+        function sortData(dataType, field, direction) {
+            const multiplier = direction === 'asc' ? 1 : -1;
+
+            processedData[dataType].sort((a, b) => {
+                let aVal = a[field];
+                let bVal = b[field];
+
+                if (typeof aVal === 'string') {
+                    return aVal.localeCompare(bVal) * multiplier;
+                }
+
+                return (aVal - bVal) * multiplier;
+            });
+
+            if (dataType === 'questions') displayQuestionsTable();
+            else if (dataType === 'categories') displayCategoriesTable();
+        }
+
+        // 标签切换
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+        }
+
+        // 状态显示
+        function showStatus(message, type = 'info') {
+            statusMessage.textContent = message;
+            statusSection.classList.add('active');
+
+            if (type === 'success') {
+                statusSection.style.background = '#d4edda';
+                statusSection.style.borderColor = '#c3e6cb';
+                statusMessage.style.color = '#155724';
+            } else if (type === 'error') {
+                statusSection.style.background = '#f8d7da';
+                statusSection.style.borderColor = '#f5c6cb';
+                statusMessage.style.color = '#721c24';
+            } else {
+                statusSection.style.background = '#fff3cd';
+                statusSection.style.borderColor = '#ffeaa7';
+                statusMessage.style.color = '#856404';
+            }
+        }
+
+        function showError(message) {
+            showStatus(message, 'error');
+        }
+
+        // 重置功能
+        function resetAll() {
+            configData = null;
+            qallmData = {};
+            processedData = { questions: [], categories: [], totals: [], comparison: [] };
+            currentSort = {
+                comparison: { field: null, direction: 'asc' },
+                questions: { field: null, direction: 'asc' },
+                categories: { field: null, direction: 'asc' }
+            };
+
+            configFile.value = '';
+            qallmFiles.value = '';
+            directoryInput.value = '';
+
+            configInfo.textContent = '包含类别、权重和问题定义';
+            configInfo.style.color = '#6c757d';
+            qallmInfo.textContent = 'QALLM_股票名称.json 文件';
+            qallmInfo.style.color = '#6c757d';
+            directoryInfo.textContent = '自动读取目录下所有 QALLM_*.json 文件';
+            directoryInfo.style.color = '#6c757d';
+
+            statusSection.classList.remove('active');
+            resultsSection.classList.remove('active');
+            analyzeBtn.disabled = true;
+
+            document.getElementById('questionsBody').innerHTML = '';
+            document.getElementById('categoriesBody').innerHTML = '';
+            document.getElementById('comparisonTableWrapper').innerHTML = '';
+            document.getElementById('summaryCard').innerHTML = '';
+        }
+
+        // 示例数据加载
+        function loadSampleData() {
+            const sampleConfig = [
+                {
+                    "category": "市场与增长潜力",
+                    "weight": "20%",
+                    "questions": [
+                        "公司所在市场规模（TAM/ SAM/ SOM）与未来增长率有多大？",
+                        "公司在目标市场的增长路径是否明确且可复制？",
+                        "公司产品/服务的市场渗透率及上升空间有多大？"
+                    ]
+                },
+                {
+                    "category": "商业模式与盈利能力",
+                    "weight": "15%",
+                    "questions": [
+                        "公司的收入模式的可预测性与可扩展性如何？",
+                        "公司的单位经济（毛利率、贡献边际）是否健康？"
+                    ]
+                },
+                {
+                    "category": "竞争优势 / 护城河",
+                    "weight": "20%",
+                    "questions": [
+                        "公司的产品/技术的独特性与难以复制程度如何？",
+                        "公司的客户转移成本与粘性如何？"
+                    ]
+                }
+            ];
+
+            const sampleQallm1 = {
+                "公司所在市场规模（TAM/ SAM/ SOM）与未来增长率有多大？": { "score": 8, "description": "市场规模巨大，未来5年预计年增长率15%以上" },
+                "公司在目标市场的增长路径是否明确且可复制？": { "score": 7, "description": "有清晰的增长路径，已在多个区域验证成功" },
+                "公司产品/服务的市场渗透率及上升空间有多大？": { "score": 9, "description": "当前渗透率仅10%，上升空间巨大" },
+                "公司的收入模式的可预测性与可扩展性如何？": { "score": 8, "description": "订阅模式，经常性收入占比80%，可扩展性强" },
+                "公司的单位经济（毛利率、贡献边际）是否健康？": { "score": 7, "description": "毛利率65%，LTV/CAC比率为5:1，单位经济健康" },
+                "公司的产品/技术的独特性与难以复制程度如何？": { "score": 9, "description": "拥有核心专利技术，技术壁垒高" },
+                "公司的客户转移成本与粘性如何？": { "score": 8, "description": "高粘性，客户平均使用周期3年以上" }
+            };
+
+            const sampleQallm2 = {
+                "公司所在市场规模（TAM/ SAM/ SOM）与未来增长率有多大？": { "score": 7, "description": "市场规模中等，未来5年预计年增长率10%" },
+                "公司在目标市场的增长路径是否明确且可复制？": { "score": 6, "description": "增长路径基本清晰，但复制性有待验证" },
+                "公司产品/服务的市场渗透率及上升空间有多大？": { "score": 8, "description": "渗透率15%，仍有较好上升空间" },
+                "公司的收入模式的可预测性与可扩展性如何？": { "score": 6, "description": "混合模式，经常性收入占比60%" },
+                "公司的单位经济（毛利率、贡献边际）是否健康？": { "score": 7, "description": "毛利率58%，LTV/CAC比率为4:1" },
+                "公司的产品/技术的独特性与难以复制程度如何？": { "score": 6, "description": "技术有一定独特性，但面临竞争" },
+                "公司的客户转移成本与粘性如何？": { "score": 7, "description": "中等粘性，客户平均使用周期2年" }
+            };
+
+            const sampleQallm3 = {
+                "公司所在市场规模（TAM/ SAM/ SOM）与未来增长率有多大？": { "score": 9, "description": "市场规模巨大且增长稳定" },
+                "公司在目标市场的增长路径是否明确且可复制？": { "score": 8, "description": "增长路径非常清晰，复制性强" },
+                "公司产品/服务的市场渗透率及上升空间有多大？": { "score": 7, "description": "渗透率25%，仍有上升空间" },
+                "公司的收入模式的可预测性与可扩展性如何？": { "score": 9, "description": "高度可预测，扩展性极佳" },
+                "公司的单位经济（毛利率、贡献边际）是否健康？": { "score": 8, "description": "毛利率70%，LTV/CAC比率为6:1" },
+                "公司的产品/技术的独特性与难以复制程度如何？": { "score": 7, "description": "技术独特，但有潜在竞争" },
+                "公司的客户转移成本与粘性如何？": { "score": 9, "description": "极高粘性，客户几乎不会流失" }
+            };
+
+            configData = sampleConfig;
+            qallmData = {
+                "华锐精密": sampleQallm1,
+                "苏试试验": sampleQallm2,
+                "中密控股": sampleQallm3
+            };
+
+            configInfo.textContent = `[OK] 示例配置已加载`;
+            configInfo.style.color = '#28a745';
+            qallmInfo.textContent = `[OK] 示例数据已加载 (3个股票)`;
+            qallmInfo.style.color = '#28a745';
+            analyzeBtn.disabled = false;
+
+            showStatus('示例数据已加载，点击"开始对比分析"查看结果', 'success');
+        }
+
+        // 键盘快捷键
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && e.ctrlKey) {
+                if (!analyzeBtn.disabled) {
+                    analyzeData();
+                }
+            } else if (e.key === 'Escape') {
+                resetAll();
+            }
+        });
+    </script>
+</body>
+</html>
