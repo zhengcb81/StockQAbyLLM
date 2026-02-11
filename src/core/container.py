@@ -1,10 +1,12 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """依赖注入容器。
 
 该模块提供简单的依赖注入容器，支持服务注册和解析。
+遵循显式依赖注入原则，不推荐使用全局容器。
 """
 
 from typing import Any, Callable, Dict, List, Optional, Type, TypeVar
-from functools import wraps
 
 from src.utils.logger import get_logger
 
@@ -57,14 +59,18 @@ class Container:
             raise ContainerError(f"服务已注册: {service_type.__name__}")
 
         if factory is None:
-            factory = service_type
-
-        self._services[service_type] = factory
+            # 使用类型本身作为工厂
+            if isinstance(service_type, type):
+                self._services[service_type] = service_type
+            else:
+                raise ContainerError(f"服务类型必须是类或提供工厂函数: {service_type}")
+        else:
+            self._services[service_type] = factory
 
         if singleton:
             self._singleton_types.add(service_type)
 
-        logger.debug(f"服务已注册: {service_type.__name__} (单例: {singleton})")
+        logger.debug("服务已注册: %s (单例: %s)", service_type.__name__, singleton)
 
     def resolve(self, service_type: Type[T]) -> T:
         """解析服务。
@@ -84,54 +90,37 @@ class Container:
         # 如果是单例且已创建，返回缓存的实例
         if service_type in self._singleton_types:
             if service_type in self._singletons:
-                logger.debug(f"返回单例实例: {service_type.__name__}")
+                logger.debug("返回单例实例: %s", service_type.__name__)
                 return self._singletons[service_type]  # type: ignore[no-any-return]
 
         # 创建新实例
         factory = self._services[service_type]
-        instance = factory()
+        try:
+            instance = factory()
+        except Exception as e:
+            logger.error("解析服务 %s 时出错: %s", service_type.__name__, e)
+            raise ContainerError(f"解析服务 {service_type.__name__} 失败: {str(e)}") from e
 
         # 如果是单例，缓存实例
         if service_type in self._singleton_types:
             self._singletons[service_type] = instance
-            logger.debug(f"创建并缓存单例实例: {service_type.__name__}")
+            logger.debug("创建并缓存单例实例: %s", service_type.__name__)
 
         return instance  # type: ignore[no-any-return]
 
     def try_resolve(self, service_type: Type[T]) -> Optional[T]:
-        """尝试解析服务。
-
-        Args:
-            service_type: 服务类型
-
-        Returns:
-            服务实例，如果未注册返回 None
-        """
+        """尝试解析服务。"""
         try:
             return self.resolve(service_type)
         except ContainerError:
             return None
 
     def is_registered(self, service_type: Type[Any]) -> bool:
-        """检查服务是否已注册。
-
-        Args:
-            service_type: 服务类型
-
-        Returns:
-            如果已注册返回 True
-        """
+        """检查服务是否已注册。"""
         return service_type in self._services
 
     def unregister(self, service_type: Type[Any]) -> None:
-        """注销服务。
-
-        Args:
-            service_type: 服务类型
-
-        Raises:
-            ContainerError: 如果服务未注册
-        """
+        """注销服务。"""
         if service_type not in self._services:
             raise ContainerError(f"服务未注册: {service_type.__name__}")
 
@@ -139,7 +128,7 @@ class Container:
         self._singleton_types.discard(service_type)
         self._singletons.pop(service_type, None)
 
-        logger.debug(f"服务已注销: {service_type.__name__}")
+        logger.debug("服务已注销: %s", service_type.__name__)
 
     def clear(self) -> None:
         """清除所有注册的服务。"""
@@ -149,63 +138,5 @@ class Container:
         logger.debug("容器已清除")
 
     def get_registered_services(self) -> List[Type[Any]]:
-        """获取所有已注册的服务类型。
-
-        Returns:
-            已注册的服务类型列表
-        """
+        """获取所有已注册的服务类型。"""
         return list(self._services.keys())
-
-
-# 全局容器实例
-_container: Optional[Container] = None
-
-
-def get_container() -> Container:
-    """获取全局容器实例。
-
-    Returns:
-        全局容器实例
-    """
-    global _container
-    if _container is None:
-        _container = Container()
-    return _container
-
-
-def reset_container() -> None:
-    """重置全局容器实例。"""
-    global _container
-    if _container is not None:
-        _container.clear()
-    _container = None
-    logger.debug("全局容器已重置")
-
-
-def inject(service_type: Type[T]) -> Callable[..., Any]:
-    """依赖注入装饰器。
-
-    用于自动注入依赖到函数或方法。
-
-    Args:
-        service_type: 要注入的服务类型
-
-    Returns:
-        装饰器函数
-
-    Example:
-        >>> @inject(SearchService)
-        ... def process(service: SearchService):
-        ...     return service.search("query")
-    """
-
-    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
-        @wraps(func)
-        def wrapper(*args: Any, **kwargs: Any) -> Any:
-            container = get_container()
-            service = container.resolve(service_type)
-            return func(service, *args, **kwargs)
-
-        return wrapper
-
-    return decorator

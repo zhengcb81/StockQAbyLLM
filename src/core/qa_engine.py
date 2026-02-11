@@ -9,8 +9,9 @@ from src.core.models import Question, Answer, QAResult, QABatchResult
 from src.interfaces.search_provider import SearchProvider
 from src.services.answer_generator import AnswerGenerator
 from src.core.exceptions import ProcessingError, ValidationError
+from src.interfaces.progress_reporter import ProgressReporter
+from src.utils.console_reporter import ConsoleReporter
 from src.config.settings import (
-    DISPLAY_LINE_WIDTH,
     DISPLAY_QUESTION_TRUNCATE,
     DISPLAY_TITLE_TRUNCATE,
 )
@@ -30,17 +31,24 @@ class QAEngine:
     """
 
     def __init__(
-        self, search_provider: SearchProvider, answer_generator: Optional[AnswerGenerator] = None
+        self,
+        search_provider: SearchProvider,
+        answer_generator: Optional[AnswerGenerator] = None,
+        progress_reporter: Optional[ProgressReporter] = None,
     ):
         """初始化 Q&A 引擎。
 
         Args:
             search_provider: 搜索提供者实例
-            answer_generator: 答案生成器实例（可选，默认创建新实例）
+            answer_generator: 答案生成器实例（可选）
+            progress_reporter: 进度报告器实例（可选）
         """
         self.search_provider = search_provider
         self.answer_generator = answer_generator or AnswerGenerator()
-        logger.info(f"QAEngine 初始化完成（搜索提供者: {search_provider.get_provider_name()}）")
+        self.progress_reporter = progress_reporter or ConsoleReporter()
+        logger.info(
+            "QAEngine 初始化完成（搜索提供者: %s）", search_provider.get_provider_name()
+        )
 
     def process_question(self, question_text: str) -> QAResult:
         """处理单个问题。
@@ -55,23 +63,23 @@ class QAEngine:
             ValidationError: 问题验证失败
             ProcessingError: 问题处理失败
         """
-        logger.debug(f"处理单个问题: {question_text[:DISPLAY_QUESTION_TRUNCATE]}...")
+        logger.debug("处理单个问题: %s...", question_text[:DISPLAY_QUESTION_TRUNCATE])
 
         # 验证并创建问题对象
         try:
             question = Question(text=question_text)
         except ValueError as e:
-            raise ValidationError(message=f"问题验证失败: {str(e)}", field="question")
+            raise ValidationError(message=f"问题验证失败: {str(e)}", field="question") from e
 
         # 执行搜索
         try:
             search_results = self.search_provider.search(question.text)
-            logger.debug(f"搜索完成，返回 {len(search_results)} 个结果")
+            logger.debug("搜索完成，返回 %d 个结果", len(search_results))
         except ProcessingError:
             raise
         except (ValueError, RuntimeError) as e:
-            logger.error(f"搜索失败: {e}")
-            raise ProcessingError(message=f"搜索执行失败: {str(e)}", question=question.text)
+            logger.error("搜索失败: %s", e)
+            raise ProcessingError(message=f"搜索执行失败: {str(e)}", question=question.text) from e
 
         # 生成答案
         try:
@@ -79,12 +87,12 @@ class QAEngine:
         except ProcessingError:
             raise
         except RuntimeError as e:
-            logger.error(f"答案生成失败: {e}")
-            raise ProcessingError(message=f"答案生成失败: {str(e)}", question=question.text)
+            logger.error("答案生成失败: %s", e)
+            raise ProcessingError(message=f"答案生成失败: {str(e)}", question=question.text) from e
 
         # 创建结果对象
         result = QAResult(question=question, answer=answer)
-        logger.debug(f"问题处理完成: {question.text[:DISPLAY_TITLE_TRUNCATE]}...")
+        logger.debug("问题处理完成: %s...", question.text[:DISPLAY_TITLE_TRUNCATE])
 
         return result
 
@@ -104,46 +112,31 @@ class QAEngine:
             raise ValidationError(message="问题列表不能为空")
 
         batch_result = QABatchResult(total_questions=len(question_texts))
-        logger.info(f"开始批量处理 {len(question_texts)} 个问题")
+        logger.info("开始批量处理 %d 个问题", len(question_texts))
 
-        # 添加控制台进度显示
-        print(f"\n{'=' * DISPLAY_LINE_WIDTH}")
-        print(f"开始处理 {len(question_texts)} 个问题...")
-        print(f"{'=' * DISPLAY_LINE_WIDTH}\n")
+        # 使用进度报告器
+        self.progress_reporter.start_batch(len(question_texts))
 
         for i, question_text in enumerate(question_texts, 1):
-            # 显示当前进度（控制台）
-            progress_pct = (i - 1) / len(question_texts) * 100
-            print(
-                f"\r[{i}/{len(question_texts)}] 进度: {progress_pct:.1f}% - "
-                f"正在处理: {question_text[:DISPLAY_QUESTION_TRUNCATE]}...",
-                end="",
-                flush=True,
-            )
+            # 更新进度
+            msg = f"正在处理: {question_text[:DISPLAY_QUESTION_TRUNCATE]}..."
+            self.progress_reporter.update_progress(i, len(question_texts), msg)
 
             try:
                 result = self.process_question(question_text)
                 batch_result.add_result(result)
-                logger.info(f"[{i}/{len(question_texts)}] 处理成功")
+                logger.info("[%d/%d] 处理成功", i, len(question_texts))
 
-                # 显示完成标记（控制台）
-                print(
-                    f"\r[{i}/{len(question_texts)}] 进度: {i / len(question_texts) * 100:.1f}% - "
-                    f"[OK] 完成: {question_text[:DISPLAY_QUESTION_TRUNCATE]}...  ",
-                    end="",
-                    flush=True,
-                )
+                # 更新进度（成功）
+                done_msg = f"[OK] 完成: {question_text[:DISPLAY_QUESTION_TRUNCATE]}...  "
+                self.progress_reporter.update_progress(i, len(question_texts), done_msg)
 
             except (ValidationError, ProcessingError) as e:
-                logger.error(f"[{i}/{len(question_texts)}] 处理失败: {e}")
+                logger.error("[%d/%d] 处理失败: %s", i, len(question_texts), e)
 
-                # 显示失败标记（控制台）
-                print(
-                    f"\r[{i}/{len(question_texts)}] 进度: {i / len(question_texts) * 100:.1f}% - "
-                    f"[FAIL] 失败: {question_text[:DISPLAY_QUESTION_TRUNCATE]}...  ",
-                    end="",
-                    flush=True,
-                )
+                # 更新进度（失败）
+                fail_msg = f"[FAIL] 失败: {question_text[:DISPLAY_QUESTION_TRUNCATE]}...  "
+                self.progress_reporter.update_progress(i, len(question_texts), fail_msg)
 
                 # 添加错误结果，继续处理下一个问题
                 try:
@@ -155,12 +148,11 @@ class QAEngine:
                     batch_result.add_result(error_result)
                 except (ConnectionError, TimeoutError):
                     # 如果连错误结果都无法创建，跳过此问题
-                    logger.error(f"[{i}/{len(question_texts)}] 无法创建错误结果，跳过")
+                    logger.error("[%d/%d] 无法创建错误结果，跳过", i, len(question_texts))
 
-        print(f"\n\n{'=' * DISPLAY_LINE_WIDTH}")
-        print(f"所有问题处理完成！")
-        print(f"{'=' * DISPLAY_LINE_WIDTH}\n")
-        logger.info(f"批量处理完成，成功: {batch_result.processed_count}/{len(question_texts)}")
+        self.progress_reporter.finish_batch(
+            f"批量处理完成，成功: {batch_result.processed_count}/{len(question_texts)}"
+        )
         return batch_result
 
     def output_results(
@@ -184,7 +176,7 @@ class QAEngine:
             output_path.parent.mkdir(parents=True, exist_ok=True)
             with open(output_path, "w", encoding="utf-8") as f:
                 f.write(json_output)
-            logger.info(f"[OK] 结果已保存到: {output_file}")
+            logger.info("[OK] 结果已保存到: %s", output_file)
         else:
             print(json_output)
             logger.info("[OK] 结果已输出到控制台")

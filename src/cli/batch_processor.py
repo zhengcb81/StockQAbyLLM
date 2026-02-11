@@ -61,7 +61,7 @@ def load_existing_answers(output_path: Path) -> Optional[Dict[str, Any]]:
         logger.info(f"  发现现有文件，已加载 {len(existing_answers)} 个已有答案")
         return existing_answers
     except (OSError, json.JSONDecodeError) as e:
-        logger.warning(f"  读取现有文件失败: {e}，将作为新文件处理")
+        logger.warning("  读取现有文件失败: %s，将作为新文件处理", e)
         return None
 
 
@@ -87,7 +87,7 @@ def calculate_questions_to_process(
             logger.info(f"  跳过 {len(skipped_questions)} 个已有问题")
 
         if not new_questions:
-            logger.info(f" 所有问题均已存在，无需处理")
+            logger.info(" 所有问题均已存在，无需处理")
             return [], skipped_questions, False
 
         logger.info(f"  需要处理 {len(new_questions)} 个新问题")
@@ -158,14 +158,14 @@ def log_repair_result(repair_result: RepairResult) -> None:
                 f"    - 多余: {len(repair_result.validation_result.extra_questions)} 个 (已移除)"
             )
             if repair_result.backup_created:
-                logger.info(f"    - 备份: {repair_result.backup_path}")
+                logger.info("    - 备份: %s", repair_result.backup_path)
 
         if repair_result.validation_result.incomplete_answers:
             logger.info(
                 f"    - 不完整答案: {len(repair_result.validation_result.incomplete_answers)} 个"
             )
     else:
-        logger.info(f"  [验证] [OK] 验证通过，所有问题完整匹配")
+        logger.info("  [验证] [OK] 验证通过，所有问题完整匹配")
 
 
 def process_single_stock_with_retry(
@@ -222,7 +222,7 @@ def process_single_stock_with_retry(
             if retry < max_retries - 1:
                 wait_time = (retry + 1) * DEFAULT_RETRY_DELAY
                 logger.warning(f"  处理失败 (尝试 {retry + 1}/{max_retries}): {e}")
-                logger.info(f"  等待 {wait_time} 秒后重试...")
+                logger.info("  等待 %s 秒后重试...", wait_time)
                 time.sleep(wait_time)
             else:
                 logger.error(f"  [ERROR] {stock} 处理失败，已重试 {max_retries} 次")
@@ -301,7 +301,7 @@ def log_success_result(
         questions_to_process: 处理的问题列表
     """
     logger.info(f"\n[OK] {stock} 处理成功！")
-    logger.info(f"  输出文件: {output_path}")
+    logger.info("  输出文件: %s", output_path)
 
     # 显示简要统计
     stats = {
@@ -310,5 +310,5 @@ def log_success_result(
         "error_count": 0,
     }
     avg_score = sum(r.answer.score for r in batch_result.results) / len(batch_result.results)
-    logger.info(f"  平均评分: {avg_score:.1f}/10")
+    logger.info("  平均评分: %.1f/10", avg_score)
     logger.info(f"  处理问题数: {stats['total_questions']} (新处理: {len(questions_to_process)})")

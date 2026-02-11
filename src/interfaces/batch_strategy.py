@@ -108,7 +108,7 @@ class SerialStrategy(BatchStrategy[T, R]):
                 results.append(result)
                 success_count += 1
             except Exception as e:
-                logger.error(f"处理第 {i} 个项目时出错: {e}")
+                logger.error("处理第 %d 个项目时出错: %s", i, e)
                 error_count += 1
 
             if on_progress:
@@ -174,7 +174,7 @@ class ChunkedStrategy(BatchStrategy[T, R]):
                     results.append(result)
                     success_count += 1
                 except Exception as e:
-                    logger.error(f"处理项目时出错: {e}")
+                    logger.error("处理项目时出错: %s", e)
                     error_count += 1
 
                 if on_progress:
@@ -269,7 +269,7 @@ class AsyncStrategy(BatchStrategy[T, R]):
                     success_count += 1
                     return result  # type: ignore[no-any-return]
                 except Exception as e:
-                    logger.error(f"处理第 {index} 个项目时出错: {e}")
+                    logger.error("处理第 %s 个项目时出错: %s", index, e)
                     error_count += 1
                     return None
                 finally:

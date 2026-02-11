@@ -42,7 +42,7 @@ def load_stock_list(file_path: str) -> list[str]:
         FileNotFoundError: 文件不存在
         ValueError: 文件为空或格式错误
     """
-    logger.info(f"正在加载股票列表: {file_path}")
+    logger.info("正在加载股票列表: %s", file_path)
 
     try:
         with open(file_path, "r", encoding="utf-8") as f:
@@ -55,10 +55,10 @@ def load_stock_list(file_path: str) -> list[str]:
         return stocks
 
     except FileNotFoundError:
-        logger.error(f"股票列表文件不存在: {file_path}")
+        logger.error("股票列表文件不存在: %s", file_path)
         raise
     except OSError as e:
-        logger.error(f"加载股票列表失败: {e}")
+        logger.error("加载股票列表失败: %s", e)
         raise
 
 
@@ -178,14 +178,14 @@ def log_final_results(results: dict[str, Any], start_time: float, output_dir: st
     logger.info(f"处理失败: {results['failed_count']}")
     if "skipped_count" in results:
         logger.info(f"已跳过: {results['skipped_count']}")
-    logger.info(f"总耗时: {elapsed_time:.1f} 秒")
+    logger.info("总耗时: %.1f 秒", elapsed_time)
 
     if results["failed_stocks"]:
         logger.warning("\n失败的股票:")
         for item in results["failed_stocks"]:
             logger.warning(f"  - {item['stock']}: {item['error']}")
 
-    logger.info(f"\n输出文件位置: {output_dir}")
+    logger.info("\n输出文件位置: %s", output_dir)
 
 
 class LLMRunner:
@@ -235,7 +235,7 @@ class LLMRunner:
 
         self.logger.info("=" * 70)
         if company:
-            self.logger.info(f"公司分析 - {company}")
+            self.logger.info("公司分析 - %s", company)
             self.logger.info("=" * 70)
             return self._run_single_company(
                 company=company,
@@ -245,7 +245,7 @@ class LLMRunner:
                 config_format=config_format,
             )
         else:
-            self.logger.info(f"批量股票分析模式")
+            self.logger.info("批量股票分析模式")
             self.logger.info("=" * 70)
             # batch_file is guaranteed to be non-None here due to the validation above
             return self._run_batch_mode(
@@ -284,7 +284,7 @@ class LLMRunner:
 
             self.logger.info(f"\n成功加载 {len(questions)} 个问题")
             self.logger.info(f"配置文件: {config} ({config_format}格式)")
-            self.logger.info(f"输出文件: {output}\n")
+            self.logger.info("输出文件: %s\n", output)
 
             # 初始化LLM提供者（从配置文件读取 API 密钥）
             # provider is required here since it's a required parameter for the LLM mode
@@ -333,7 +333,7 @@ class LLMRunner:
             print("=" * 70)
             print(f"[OK] 处理问题数: {stats['total_questions']}")
             print(f"[OK] 成功处理: {stats['success_count']}")
-            print(f"[OK] 处理成功率: 100%")
+            print("[OK] 处理成功率: 100%")
             print(f"[OK] 完整报告已保存到: {output}")
 
             # 计算平均评分

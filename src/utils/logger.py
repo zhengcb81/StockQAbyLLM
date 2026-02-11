@@ -4,10 +4,9 @@
 支持文件和控制台双输出，使用结构化格式。
 """
 
-import logging
 import sys
+import logging
 from pathlib import Path
-from typing import Optional
 from datetime import datetime
 
 # 日志目录

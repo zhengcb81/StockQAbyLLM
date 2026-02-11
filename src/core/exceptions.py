@@ -111,7 +111,7 @@ class ProcessingError(StockQAError):
         super().__init__(message, details)
 
 
-class FileNotFoundError(ConfigError):
+class ProjectFileNotFoundError(ConfigError):
     """配置文件未找到错误。
 
     当指定的配置文件不存在时抛出。

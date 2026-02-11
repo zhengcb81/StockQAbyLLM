@@ -6,6 +6,8 @@ readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
     "httpx>=0.25.0",
+    "requests>=2.31.0",
+    "aiohttp>=3.13.3",
 ]
 license = {text = "MIT"}
 authors = [
@@ -41,10 +43,10 @@ dev = [
 
 # Quality Gates Configuration
 [project.quality-gates]
-# Coverage gate: minimum 70% coverage required
-coverage_minimum = 70
-# Pylint gate: minimum 8.0/10 score required
-pylint_minimum = 8.0
+# Coverage gate: minimum 87% coverage required
+coverage_minimum = 87
+# Pylint gate: minimum 9.0/10 score required
+pylint_minimum = 9.0
 # Mypy gate: must use --strict mode (0 errors allowed)
 mypy_strict = true
 # Complexity gate: no function with cyclomatic complexity > 15

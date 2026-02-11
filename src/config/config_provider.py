@@ -79,31 +79,3 @@ class ConfigProvider(ABC):
             f"{self.__class__.__name__}(path='{self.config_path}', "
             f"questions={len(self._questions)})"
         )
-
-
-def create_config_provider(config_path: str) -> ConfigProvider:
-    """根据配置文件自动创建合适的配置提供者。
-
-    支持自动检测文件格式：
-    1. .json 扩展名 → JSONConfigManager
-    2. .txt 或其他扩展名 → ConfigManager
-    3. 也可以根据文件内容自动检测
-
-    Args:
-        config_path: 配置文件路径
-
-    Returns:
-        合适的配置提供者实例
-    """
-    path = Path(config_path)
-
-    # 基于文件扩展名的检测
-    if path.suffix.lower() == ".json":
-        from .json_config_manager import JSONConfigManager
-
-        return JSONConfigManager(config_path)
-    else:
-        # 默认使用文本配置管理器
-        from .config_manager import ConfigManager
-
-        return ConfigManager(config_path)

@@ -57,7 +57,7 @@ class TestLLMProviderInit:
 class TestLLMProviderSearch:
     """测试 LLMProvider 搜索功能。"""
 
-    @patch("src.providers.llm_provider.http_client_manager")
+    @patch("src.providers.llm_client.http_client_manager")
     def test_search_with_valid_response(self, mock_http_client_manager):
         """测试使用有效响应的搜索。"""
         # 模拟 Session 和 post 方法
@@ -82,7 +82,7 @@ class TestLLMProviderSearch:
         # 验证调用了 session.post
         mock_session.post.assert_called_once()
 
-    @patch("src.providers.llm_provider.http_client_manager")
+    @patch("src.providers.llm_client.http_client_manager")
     def test_search_with_api_error(self, mock_http_client_manager):
         """测试 API 错误处理。"""
         import requests
@@ -157,7 +157,7 @@ class TestLLMProviderResponseParsing:
 class TestLLMProviderRetryLogic:
     """测试重试逻辑。"""
 
-    @patch("src.providers.llm_provider.http_client_manager")
+    @patch("src.providers.llm_client.http_client_manager")
     def test_retry_on_timeout(self, mock_http_client_manager):
         """测试超时重试。
 

@@ -262,10 +262,10 @@ class OutputValidator:
 
         try:
             shutil.copy2(output_path, backup_path)
-            self.logger.info(f"  备份文件已创建: {backup_path}")
+            self.logger.info("  备份文件已创建: %s", backup_path)
             return backup_path
         except OSError as e:
-            self.logger.error(f"  创建备份失败: {e}")
+            self.logger.error("  创建备份失败: %s", e)
             return None
 
     def _remove_extra_questions(self, output_path: Path, extra_questions: List[str]) -> bool:
@@ -294,11 +294,11 @@ class OutputValidator:
             with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(output_data, f, ensure_ascii=False, indent=4)
 
-            self.logger.info(f"  已移除 {removed_count} 个多余问题")
+            self.logger.info("  已移除 %d 个多余问题", removed_count)
             return True
 
         except (OSError, ValueError, TypeError) as e:
-            self.logger.error(f"  移除多余问题失败: {e}")
+            self.logger.error("  移除多余问题失败: %s", e)
             return False
 
     def _repair_missing_questions(

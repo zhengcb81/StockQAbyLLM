@@ -126,9 +126,9 @@ class TestJSONConfigErrorScenarios:
         """
         config_file = tmp_path / "nonexistent.json"
 
-        from src.core.exceptions import FileNotFoundError
+        from src.core.exceptions import ProjectFileNotFoundError
 
-        with pytest.raises(FileNotFoundError):
+        with pytest.raises(ProjectFileNotFoundError):
             manager = JSONConfigManager(str(config_file))
             manager.load_questions()
 

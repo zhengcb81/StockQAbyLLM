@@ -5,10 +5,9 @@
 """
 
 import json
-from pathlib import Path
 from typing import List, Dict, Any
 
-from ..core.exceptions import ConfigError, EmptyConfigError, FileNotFoundError
+from ..core.exceptions import ConfigError, EmptyConfigError, ProjectFileNotFoundError
 from ..utils.logger import get_logger
 from ..utils.cache import file_cache
 from .config_provider import ConfigProvider
@@ -23,14 +22,6 @@ class JSONConfigManager(ConfigProvider):
     从所有categories的questions列表中提取问题。
     """
 
-    def __init__(self, config_path: str):
-        """初始化JSON配置管理器。
-
-        Args:
-            config_path: JSON配置文件的路径
-        """
-        super().__init__(config_path)
-
     def load_questions(self) -> List[str]:
         """从JSON配置文件加载问题列表。
 
@@ -38,20 +29,20 @@ class JSONConfigManager(ConfigProvider):
             问题文本列表
 
         Raises:
-            FileNotFoundError: 配置文件不存在
+            ProjectFileNotFoundError: 配置文件不存在
             EmptyConfigError: 配置文件为空或没有问题
             ConfigError: 配置文件读取或解析失败
         """
-        logger.info(f"正在加载JSON配置文件: {self.config_path}")
+        logger.info("正在加载JSON配置文件: %s", self.config_path)
 
         # 检查文件是否存在
         if not self.config_path.exists():
-            logger.error(f"配置文件不存在: {self.config_path}")
-            raise FileNotFoundError(str(self.config_path))
+            logger.error("配置文件不存在: %s", self.config_path)
+            raise ProjectFileNotFoundError(str(self.config_path))
 
         # 检查是否为文件
         if not self.config_path.is_file():
-            logger.error(f"路径不是文件: {self.config_path}")
+            logger.error("路径不是文件: %s", self.config_path)
             raise ConfigError(f"路径不是文件: {self.config_path}")
 
         try:
@@ -63,7 +54,7 @@ class JSONConfigManager(ConfigProvider):
 
             # 检查是否为空
             if not questions:
-                logger.warning(f"配置文件中没有找到问题: {self.config_path}")
+                logger.warning("配置文件中没有找到问题: %s", self.config_path)
                 raise EmptyConfigError(str(self.config_path))
 
             # 保存问题列表
@@ -73,7 +64,7 @@ class JSONConfigManager(ConfigProvider):
             return questions
 
         except json.JSONDecodeError as e:
-            logger.error(f"JSON解析错误: {self.config_path} - {e}")
+            logger.error("JSON解析错误: %s - %s", self.config_path, e)
             raise ConfigError(
                 message=f"JSON格式错误，请检查文件语法",
                 file_path=str(self.config_path),
@@ -81,24 +72,24 @@ class JSONConfigManager(ConfigProvider):
             )
         except EmptyConfigError:
             raise
-        except FileNotFoundError:
+        except ProjectFileNotFoundError:
             raise
         except UnicodeDecodeError as e:
-            logger.error(f"文件编码错误: {self.config_path} - {e}")
+            logger.error("文件编码错误: %s - %s", self.config_path, e)
             raise ConfigError(
                 message=f"文件编码错误，请确保文件为 UTF-8 编码",
                 file_path=str(self.config_path),
                 details={"encoding_error": str(e)},
             )
         except PermissionError as e:
-            logger.error(f"文件权限错误: {self.config_path} - {e}")
+            logger.error("文件权限错误: %s - %s", self.config_path, e)
             raise ConfigError(
                 message=f"无权限读取配置文件",
                 file_path=str(self.config_path),
                 details={"permission_error": str(e)},
             )
         except OSError as e:
-            logger.error(f"读取JSON配置文件时发生未知错误: {self.config_path} - {e}")
+            logger.error("读取JSON配置文件时发生未知错误: %s - %s", self.config_path, e)
             raise ConfigError(
                 message=f"读取配置文件失败: {str(e)}", file_path=str(self.config_path)
             )
@@ -145,7 +136,7 @@ class JSONConfigManager(ConfigProvider):
                 if isinstance(item, dict) and "questions" in item:
                     questions.extend(self._extract_questions_from_category(item))
                 else:
-                    logger.warning(f"跳过无效的配置项: {item}")
+                    logger.warning("跳过无效的配置项: %s", item)
 
         else:
             raise ConfigError(f"不支持的JSON数据类型: {type(config_data)}")
@@ -174,7 +165,7 @@ class JSONConfigManager(ConfigProvider):
             if isinstance(q, str) and q.strip():
                 questions.append(q.strip())
             else:
-                logger.warning(f"跳过无效的问题: {q}")
+                logger.warning("跳过无效的问题: %s", q)
 
         return questions
 
@@ -207,7 +198,7 @@ class JSONConfigManager(ConfigProvider):
                 raise ConfigError(message=f"问题 {i} 为空", details={"question_index": i})
 
             if len(question) > 1000:
-                logger.warning(f"问题 {i} 长度超过 1000 字符")
+                logger.warning("问题 %d 长度超过 1000 字符", i)
 
         logger.info(f"所有 {len(questions)} 个问题验证通过")
         return True

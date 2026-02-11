@@ -7,7 +7,7 @@ import pytest
 from pathlib import Path
 
 from src.config.config_manager import ConfigManager
-from src.core.exceptions import FileNotFoundError, EmptyConfigError, ConfigError
+from src.core.exceptions import ProjectFileNotFoundError, EmptyConfigError, ConfigError
 
 
 class TestConfigManager:
@@ -32,7 +32,7 @@ class TestConfigManager:
         """测试加载不存在的文件。"""
         manager = ConfigManager("nonexistent.txt")
 
-        with pytest.raises(FileNotFoundError):
+        with pytest.raises(ProjectFileNotFoundError):
             manager.load_questions()
 
     def test_load_empty_config(self, empty_config_file):

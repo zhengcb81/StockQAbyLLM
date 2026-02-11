@@ -8,29 +8,21 @@
 
 import sys
 import argparse
-import json
-from pathlib import Path
-from typing import List, Dict, Any, Optional
-from datetime import datetime
 import time
+from pathlib import Path
+from typing import List, Dict, Any
 
 # 添加 src 到 Python 路径
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from src.core.qa_engine import QAEngine
-from src.config.config_manager import ConfigManager
-from src.config.json_config_manager import JSONConfigManager
-from src.services.answer_generator import AnswerGenerator
-from src.providers.llm_provider import LLMProvider
+# pylint: disable=wrong-import-position
 from src.utils.logger import get_logger
-from src.utils.output_validator import validate_and_repair_output
 from src.cli.batch_processor import (
     load_questions,
     load_existing_answers,
     calculate_questions_to_process,
     validate_and_repair_existing_file,
     process_single_stock_with_retry,
-    log_success_result
 )
 
 logger = get_logger(__name__)
@@ -49,23 +41,23 @@ def load_stock_list(file_path: str) -> List[str]:
         FileNotFoundError: 文件不存在
         ValueError: 文件为空或格式错误
     """
-    logger.info(f"正在加载股票列表: {file_path}")
+    logger.info("正在加载股票列表: %s", file_path)
 
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             stocks = [line.strip() for line in f if line.strip()]
 
         if not stocks:
             raise ValueError(f"股票列表文件为空: {file_path}")
 
-        logger.info(f"成功加载 {len(stocks)} 个股票: {', '.join(stocks)}")
+        logger.info("成功加载 %d 个股票: %s", len(stocks), ", ".join(stocks))
         return stocks
 
     except FileNotFoundError:
-        logger.error(f"股票列表文件不存在: {file_path}")
+        logger.error("股票列表文件不存在: %s", file_path)
         raise
     except OSError as e:
-        logger.error(f"加载股票列表失败: {e}")
+        logger.error("加载股票列表失败: %s", e)
         raise
 
 
@@ -76,7 +68,7 @@ def process_batch_stocks(
     output_dir: str,
     max_retries: int = 3,
     override: bool = False,
-    config_format: str = 'json'
+    config_format: str = "json",
 ) -> Dict[str, Any]:
     """批量处理多个股票（问题级别override）。
 
@@ -93,26 +85,26 @@ def process_batch_stocks(
         处理结果统计字典
     """
     start_time = time.time()
-    results = {
-        'total_stocks': len(stocks),
-        'success_count': 0,
-        'failed_count': 0,
-        'failed_stocks': [],
-        'output_files': []
+    results: Dict[str, Any] = {
+        "total_stocks": len(stocks),
+        "success_count": 0,
+        "failed_count": 0,
+        "failed_stocks": [],
+        "output_files": [],
     }
 
-    logger.info(f"\n{'=' * 70}")
-    logger.info(f"开始批量处理 {len(stocks)} 个股票")
-    logger.info(f"{'=' * 70}\n")
+    logger.info("\n%s", "=" * 70)
+    logger.info("开始批量处理 %d 个股票", len(stocks))
+    logger.info("%s\n", "=" * 70)
 
     # 加载问题（所有股票共享）
     questions = load_questions(config_file, config_format)
 
     # 依次处理每个股票
     for idx, stock in enumerate(stocks, 1):
-        logger.info(f"\n{'=' * 70}")
-        logger.info(f"[{idx}/{len(stocks)}] 正在处理: {stock}")
-        logger.info(f"{'=' * 70}")
+        logger.info("\n%s", "=" * 70)
+        logger.info("[%d/%d] 正在处理: %s", idx, len(stocks), stock)
+        logger.info("%s", "=" * 70)
 
         # 检查输出文件是否已存在，读取现有答案
         output_filename = f"QALLM_{stock}.json"
@@ -120,12 +112,12 @@ def process_batch_stocks(
         existing_answers = load_existing_answers(output_path)
 
         # 计算需要处理的问题
-        questions_to_process, skipped_questions, needs_processing = calculate_questions_to_process(
+        questions_to_process, _, needs_processing = calculate_questions_to_process(
             questions, existing_answers, override
         )
 
         if not needs_processing:
-            results['skipped_count'] = results.get('skipped_count', 0) + 1
+            results["skipped_count"] = results.get("skipped_count", 0) + 1
             # 验证现有文件
             validate_and_repair_existing_file(output_path, questions, stock, provider_name)
             continue
@@ -139,18 +131,17 @@ def process_batch_stocks(
             existing_answers=existing_answers,
             override=override,
             max_retries=max_retries,
-            all_questions=questions
+            all_questions=questions,
         )
 
         if success:
-            results['success_count'] += 1
-            results['output_files'].append(str(output_path))
+            results["success_count"] += 1
+            results["output_files"].append(str(output_path))
         else:
-            results['failed_count'] += 1
-            results['failed_stocks'].append({
-                'stock': stock,
-                'error': str(error) if error else 'Unknown error'
-            })
+            results["failed_count"] += 1
+            results["failed_stocks"].append(
+                {"stock": stock, "error": str(error) if error else "Unknown error"}
+            )
 
     # 显示最终统计
     log_final_results(results, start_time, output_dir)
@@ -166,22 +157,22 @@ def log_final_results(results: Dict[str, Any], start_time: float, output_dir: st
         output_dir: 输出目录
     """
     elapsed_time = time.time() - start_time
-    logger.info(f"\n{'=' * 70}")
+    logger.info("\n%s", "=" * 70)
     logger.info("批量处理完成")
-    logger.info(f"{'=' * 70}")
-    logger.info(f"总股票数: {results['total_stocks']}")
-    logger.info(f"成功处理: {results['success_count']}")
-    logger.info(f"处理失败: {results['failed_count']}")
-    if 'skipped_count' in results:
-        logger.info(f"已跳过: {results['skipped_count']}")
-    logger.info(f"总耗时: {elapsed_time:.1f} 秒")
+    logger.info("%s", "=" * 70)
+    logger.info("总股票数: %d", results["total_stocks"])
+    logger.info("成功处理: %d", results["success_count"])
+    logger.info("处理失败: %d", results["failed_count"])
+    if "skipped_count" in results:
+        logger.info("已跳过: %d", results["skipped_count"])
+    logger.info("总耗时: %.1f 秒", elapsed_time)
 
-    if results['failed_stocks']:
+    if results["failed_stocks"]:
         logger.warning("\n失败的股票:")
-        for item in results['failed_stocks']:
-            logger.warning(f"  - {item['stock']}: {item['error']}")
+        for item in results["failed_stocks"]:
+            logger.warning("  - %s: %s", item["stock"], item["error"])
 
-    logger.info(f"\n输出文件位置: {output_dir}")
+    logger.info("\n输出文件位置: %s", output_dir)
 
 
 def main():
@@ -212,62 +203,58 @@ def main():
 
 配置文件：
   API 密钥请在 llm_apis.json 中配置
-        """
+        """,
     )
 
     parser.add_argument(
-        "--company", "-c",
-        type=str,
-        help="要分析的公司名称（如：海康威视、腾讯控股等）"
+        "--company", "-c", type=str, help="要分析的公司名称（如：海康威视、腾讯控股等）"
     )
 
     parser.add_argument(
-        "--provider", "-p",
+        "--provider",
+        "-p",
         type=str,
         default=None,
-        help="指定使用的 LLM 提供商（如：deepseek, minimax, glm），默认使用配置文件中的默认提供商"
+        help="指定使用的 LLM 提供商（如：deepseek, minimax, glm），默认使用配置文件中的默认提供商",
     )
 
     parser.add_argument(
-        "--config", "-f",
+        "--config",
+        "-f",
         type=str,
         default="config.json",
-        help="问题配置文件路径（默认：config.json）"
+        help="问题配置文件路径（默认：config.json）",
     )
 
     parser.add_argument(
-        "--output", "-o",
+        "--output",
+        "-o",
         type=str,
         default="outputs/analysis_result.json",
-        help="输出JSON文件路径（默认：outputs/analysis_result.json）"
+        help="输出JSON文件路径（默认：outputs/analysis_result.json）",
     )
 
     parser.add_argument(
-        "--batch", "-b",
+        "--batch",
+        "-b",
         type=str,
-        metavar='FILE',
-        help="批量处理模式：从文件读取股票列表（每行一个股票名称）"
+        metavar="FILE",
+        help="批量处理模式：从文件读取股票列表（每行一个股票名称）",
     )
 
     parser.add_argument(
-        "--override",
-        action="store_true",
-        help="覆盖已存在的输出文件（默认：跳过已存在的文件）"
+        "--override", action="store_true", help="覆盖已存在的输出文件（默认：跳过已存在的文件）"
     )
 
     parser.add_argument(
         "--config-format",
         type=str,
-        choices=['json', 'txt'],
-        default='json',
-        help="指定配置文件格式（json 或 txt，默认：json）"
+        choices=["json", "txt"],
+        default="json",
+        help="指定配置文件格式（json 或 txt，默认：json）",
     )
 
-    parser.add_argument(
-        "--verbose", "-v",
-        action="store_true",
-        help="启用详细日志输出"
-    )
+    parser.add_argument("--verbose", "-v", action="store_true", help="启用详细日志输出")
 
     args = parser.parse_args()
 
@@ -281,6 +268,7 @@ def main():
     # 使用新的 LLMRunner
     try:
         from src.runners.llm_runner import LLMRunner
+
         runner = LLMRunner(verbose=args.verbose)
         return runner.run(
             company=args.company,
@@ -289,13 +277,13 @@ def main():
             config=args.config,
             output=args.output,
             override=args.override,
-            config_format=args.config_format
+            config_format=args.config_format,
         )
-    except Exception as e:
-        logger.error(f"运行失败: {e}", exc_info=True)
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.error("运行失败: %s", e, exc_info=True)
         return 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     exit_code = main()
     sys.exit(exit_code)

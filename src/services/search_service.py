@@ -27,7 +27,7 @@ class SearchService(SearchProvider):
             provider_name: 提供者名称（默认：'web_search'）
         """
         self.provider_name = provider_name
-        logger.debug(f"初始化搜索服务: {provider_name}")
+        logger.debug("初始化搜索服务: %s", provider_name)
 
     def search(self, query: str) -> List[SearchResult]:
         """执行搜索（占位符实现）。
@@ -63,7 +63,7 @@ class SearchService(SearchProvider):
         except ProcessingError:
             raise
         except (ConnectionError, TimeoutError, RuntimeError) as e:
-            logger.error(f"搜索失败: {e}")
+            logger.error("搜索失败: %s", e)
             raise ProcessingError(message=f"搜索执行失败: {str(e)}", question=query)
 
     def get_provider_name(self) -> str:

@@ -88,14 +88,13 @@ class TestLLMErrorRecovery:
         """测试 API 超时重试机制配置。
 
         这个测试验证 LLM 提供者配置了重试机制。
-        注意：max_retries 仅在提供者配置存在时设置。
         """
         from src.providers.llm_provider import LLMProvider
+        from src.config.settings import DEFAULT_MAX_RETRIES
 
-        # 测试1：当提供者配置不存在时，不设置 max_retries
+        # 测试1：验证 max_retries 默认值
         provider = LLMProvider(provider_name="test")
-        # 没有配置时，max_retries 属性不存在
-        assert not hasattr(provider, "max_retries")
+        assert provider.max_retries == DEFAULT_MAX_RETRIES
 
         # 测试2：_call_llm_api 方法使用默认的重试机制
         # 当 max_retries 参数未提供时，默认使用 10 次重试

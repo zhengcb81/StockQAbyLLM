@@ -30,19 +30,19 @@ class LLMConfig:
     def _load_config(self) -> None:
         """从文件加载配置。"""
         if not self.config_file.exists():
-            logger.warning(f"配置文件不存在: {self.config_file}")
+            logger.warning("配置文件不存在: %s", self.config_file)
             self.config = {"default_provider": "deepseek", "providers": {}}
             return
 
         try:
             with open(self.config_file, "r", encoding="utf-8") as f:
                 self.config = json.load(f)
-            logger.info(f"成功加载 LLM 配置文件: {self.config_file}")
+            logger.info("成功加载 LLM 配置文件: %s", self.config_file)
         except json.JSONDecodeError as e:
-            logger.error(f"配置文件 JSON 格式错误: {e}")
+            logger.error("配置文件 JSON 格式错误: %s", e)
             self.config = {"default_provider": "deepseek", "providers": {}}
         except (OSError, ValueError) as e:
-            logger.error(f"加载配置文件失败: {e}")
+            logger.error("加载配置文件失败: %s", e)
             self.config = {"default_provider": "deepseek", "providers": {}}
 
     def get_default_provider(self) -> str:
@@ -85,16 +85,16 @@ class LLMConfig:
         """
         config = self.get_provider_config(provider_name)
         if not config:
-            logger.warning(f"提供者配置不存在: {provider_name}")
+            logger.warning("提供者配置不存在: %s", provider_name)
             return None
 
         if not config.get("enabled", False):
-            logger.warning(f"提供者未启用: {provider_name}")
+            logger.warning("提供者未启用: %s", provider_name)
             return None
 
         api_key = cast(Optional[str], config.get("api_key", ""))
         if not api_key:
-            logger.warning(f"提供者 API 密钥为空: {provider_name}")
+            logger.warning("提供者 API 密钥为空: %s", provider_name)
             return None
 
         return api_key

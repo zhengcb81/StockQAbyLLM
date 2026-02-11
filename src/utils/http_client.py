@@ -5,7 +5,6 @@
 提供同步和异步 HTTP 客户端，支持连接池和重试机制。
 """
 
-import asyncio
 from typing import Optional
 import httpx
 import requests

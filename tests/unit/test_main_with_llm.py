@@ -82,11 +82,8 @@ class TestProcessBatchStocksOverride:
     @pytest.fixture
     def mock_qa_engine(self):
         """模拟 QA 引擎。"""
-        # 需要在多个位置进行 patch，因为代码在不同模块中导入了 QAEngine
-        with patch("src.cli.batch_processor.QAEngine") as mock1, patch(
-            "main_with_llm.QAEngine"
-        ) as mock2:
-
+        # 只需要在 batch_processor 中进行 patch
+        with patch("src.cli.batch_processor.QAEngine") as mock1:
             engine_instance = Mock()
 
             # 创建单个问题的结果，用于 process_question
@@ -164,12 +161,9 @@ class TestProcessBatchStocksOverride:
 
             engine_instance.output_results = Mock(side_effect=mock_output_results)
 
-            # 添加 add_result 方法支持
             engine_instance.add_result = Mock()
 
             mock1.return_value = engine_instance
-            mock2.return_value = engine_instance
-
             yield mock1
 
     @pytest.fixture

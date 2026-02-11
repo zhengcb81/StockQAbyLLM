@@ -10,7 +10,7 @@ from src.config.config_manager import ConfigManager
 from src.core.exceptions import (
     ConfigError,
     EmptyConfigError,
-    FileNotFoundError,
+    ProjectFileNotFoundError,
     ValidationError,
     ProcessingError,
 )
@@ -26,7 +26,7 @@ class TestErrorHandling:
         """测试配置文件未找到错误。"""
         manager = ConfigManager("nonexistent_file.txt")
 
-        with pytest.raises(FileNotFoundError) as exc_info:
+        with pytest.raises(ProjectFileNotFoundError) as exc_info:
             manager.load_questions()
 
         assert "配置文件不存在" in str(exc_info.value)

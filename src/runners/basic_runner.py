@@ -6,7 +6,6 @@
 """
 
 import sys
-from pathlib import Path
 from typing import Optional
 
 from src.core.qa_engine import QAEngine
@@ -47,7 +46,7 @@ class BasicRunner:
 
         try:
             # 加载配置
-            self.logger.info(f"正在从配置文件加载问题: {config_path}")
+            self.logger.info("正在从配置文件加载问题: %s", config_path)
             config_manager = ConfigManager(config_path)
             questions = config_manager.load_questions()
 
@@ -67,7 +66,7 @@ class BasicRunner:
 
             # 显示统计信息
             stats = qa_engine.get_statistics(batch_result)
-            self.logger.info(f"处理统计: {stats}")
+            self.logger.info("处理统计: %s", stats)
 
             self.logger.info("=" * 60)
             self.logger.info("基础模式运行成功完成")
@@ -76,7 +75,7 @@ class BasicRunner:
             return 0
 
         except StockQAError as e:
-            self.logger.error(f"系统错误: {e}")
+            self.logger.error("系统错误: %s", e)
             print(f"\n错误: {e}", file=sys.stderr)
             return 1
 

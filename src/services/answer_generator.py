@@ -69,7 +69,7 @@ class AnswerGenerator:
             return answer
 
         except (IndexError, KeyError, ValueError, TypeError, RuntimeError) as e:
-            logger.error(f"答案生成失败: {e}")
+            logger.error("答案生成失败: %s", e)
             raise ProcessingError(message=f"答案生成失败: {str(e)}", question=question.text)
 
     def generate_batch_answers(
