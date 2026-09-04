@@ -4,10 +4,13 @@
 """
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
 from src.config.config_manager import ConfigManager
+from src.config.factory import create_config_provider
+from src.config.json_config_manager import JSONConfigManager
 from src.core.exceptions import ConfigError, EmptyConfigError, ProjectFileNotFoundError
 
 
@@ -108,3 +111,61 @@ class TestConfigManager:
         repr_str = repr(manager)
         assert "ConfigManager" in repr_str
         assert "questions=3" in repr_str
+
+    def test_load_directory_path(self, tmp_path):
+        """测试路径是目录而非文件。"""
+        manager = ConfigManager(str(tmp_path))
+
+        with pytest.raises(ConfigError, match="路径不是文件"):
+            manager.load_questions()
+
+    def test_load_invalid_encoding(self, tmp_path):
+        """测试非UTF-8编码的配置文件。"""
+        config_file = tmp_path / "gbk_config.txt"
+        config_file.write_bytes("这是GBK编码的问题内容".encode("gbk"))
+
+        manager = ConfigManager(str(config_file))
+
+        with pytest.raises(ConfigError, match="文件编码错误"):
+            manager.load_questions()
+
+    @patch("src.config.config_manager.file_cache.read_file_cached")
+    def test_load_file_not_found_from_cache(self, mock_read, temp_config_file):
+        """测试读取层抛出文件未找到异常时原样传播。"""
+        mock_read.side_effect = ProjectFileNotFoundError(temp_config_file)
+        manager = ConfigManager(temp_config_file)
+
+        with pytest.raises(ProjectFileNotFoundError):
+            manager.load_questions()
+
+    @patch("src.config.config_manager.file_cache.read_file_cached")
+    def test_load_permission_error(self, mock_read, temp_config_file):
+        """测试无权限读取配置文件。"""
+        mock_read.side_effect = PermissionError("permission denied")
+        manager = ConfigManager(temp_config_file)
+
+        with pytest.raises(ConfigError, match="无权限读取配置文件"):
+            manager.load_questions()
+
+    @patch("src.config.config_manager.file_cache.read_file_cached")
+    def test_load_os_error(self, mock_read, temp_config_file):
+        """测试未知的读取错误。"""
+        mock_read.side_effect = OSError("disk error")
+        manager = ConfigManager(temp_config_file)
+
+        with pytest.raises(ConfigError, match="读取配置文件失败"):
+            manager.load_questions()
+
+
+class TestCreateConfigProvider:
+    """测试配置提供者工厂。"""
+
+    def test_create_json_provider(self):
+        """测试.json后缀创建JSONConfigManager。"""
+        provider = create_config_provider("config.json")
+        assert isinstance(provider, JSONConfigManager)
+
+    def test_create_text_provider(self):
+        """测试.txt后缀创建ConfigManager。"""
+        provider = create_config_provider("config.txt")
+        assert isinstance(provider, ConfigManager)

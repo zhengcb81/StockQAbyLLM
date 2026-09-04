@@ -146,12 +146,16 @@ class TestLLMRunner:
         assert result == 0
         mock_config_manager.assert_called_once()
 
-    def test_run_single_company_provider_none(self, runner):
+    def test_run_single_company_provider_none(self, runner, tmp_path):
         """测试provider为None时抛出错误。"""
+        # 使用临时配置文件，避免依赖工作区的 config.json
+        config_file = tmp_path / "config.json"
+        config_file.write_text('{"questions": ["问题1"]}', encoding="utf-8")
+
         # 当provider为None时，代码在加载问题后会抛出ValueError
         # 这不应该被except块捕获，因为ValueError不是ConnectionError/TimeoutError/OSError
         with pytest.raises(ValueError, match="provider 参数不能为 None"):
-            runner.run(company="海康威视", provider=None)
+            runner.run(company="海康威视", provider=None, config=str(config_file))
 
     @patch("src.runners.llm_runner.JSONConfigManager")
     @patch("src.runners.llm_runner.LLMProvider")

@@ -1,6 +1,6 @@
 """测试数据模型。
 
-该模块测试 Question、Answer、QAResult 和 QABatchResult 类。
+该模块测试 Question、Answer、QAResult、QABatchResult 和 SearchResult 类。
 """
 
 from datetime import datetime
@@ -8,7 +8,7 @@ from datetime import datetime
 import pytest
 
 from src.core.exceptions import ValidationError
-from src.core.models import Answer, QABatchResult, QAResult, Question
+from src.core.models import Answer, QABatchResult, QAResult, Question, SearchResult
 
 
 class TestQuestion:
@@ -179,3 +179,45 @@ class TestQABatchResult:
 
         result_str = str(batch)
         assert "1/5" in result_str
+
+
+class TestSearchResult:
+    """测试 SearchResult 类。"""
+
+    def test_create_valid_search_result(self):
+        """测试创建有效搜索结果。"""
+        result = SearchResult(title="标题", snippet="摘要")
+        assert result.title == "标题"
+        assert result.source == "unknown"
+
+    def test_empty_title_raises_error(self):
+        """测试空标题抛出异常。"""
+        with pytest.raises(ValueError, match="搜索结果标题不能为空"):
+            SearchResult(title="", snippet="摘要")
+
+    def test_empty_snippet_raises_error(self):
+        """测试空摘要抛出异常。"""
+        with pytest.raises(ValueError, match="搜索结果摘要不能为空"):
+            SearchResult(title="标题", snippet="")
+
+    def test_to_dict_without_score(self):
+        """测试无分数时转换为字典。"""
+        result = SearchResult(title="标题", snippet="摘要", url="https://example.com")
+        d = result.to_dict()
+        assert d["title"] == "标题"
+        assert d["url"] == "https://example.com"
+        assert "score" not in d
+
+    def test_to_dict_with_score(self):
+        """测试有分数时转换为字典。"""
+        result = SearchResult(title="标题", snippet="摘要", score=85)
+        d = result.to_dict()
+        assert d["score"] == 85
+
+    def test_from_dict_roundtrip(self):
+        """测试从字典创建实例。"""
+        d = {"title": "标题", "snippet": "摘要", "source": "llm", "url": None, "rank": 2}
+        result = SearchResult.from_dict(d)
+        assert result.title == "标题"
+        assert result.source == "llm"
+        assert result.rank == 2
