@@ -5,15 +5,15 @@
 这是一个最简单的示例，展示如何使用 StockQAbyLLM 处理单个问题。
 """
 
-import sys
 import os
+import sys
 
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.core.models import Question, Answer, QAResult
-from src.runners.basic_runner import BasicRunner
 from src.config.config_provider import ConfigProvider
+from src.core.models import Answer, QAResult, Question
+from src.runners.basic_runner import BasicRunner
 
 
 def main():
@@ -28,14 +28,11 @@ def main():
     config = ConfigProvider.get_config(
         api_key="your-api-key-here",  # 替换为实际的 API 密钥
         model="gpt-4o-mini",
-        base_url="https://api.openai.com/v1/chat/completions"
+        base_url="https://api.openai.com/v1/chat/completions",
     )
 
     # 2. 创建问题
-    question = Question(
-        text="什么是市盈率？它是如何计算的？",
-        category="财务指标"
-    )
+    question = Question(text="什么是市盈率？它是如何计算的？", category="财务指标")
 
     print(f"问题: {question.text}")
     print()

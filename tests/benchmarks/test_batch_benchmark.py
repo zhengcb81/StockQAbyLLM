@@ -1,9 +1,11 @@
 """Batch processing performance benchmarks."""
 
-import pytest
 from unittest.mock import Mock
-from src.interfaces.batch_strategy import SerialStrategy, ChunkedStrategy
+
+import pytest
+
 from src.config.config_manager import ConfigManager
+from src.interfaces.batch_strategy import ChunkedStrategy, SerialStrategy
 
 
 @pytest.mark.benchmark(group="batch_serial")
@@ -94,7 +96,7 @@ def test_answer_aggregation(benchmark):
             "question": f"question_{i}",
             "answer": f"answer_{i}",
             "confidence": 0.85 + (i % 10) * 0.01,
-            "sources": [f"source_{i}.pdf"]
+            "sources": [f"source_{i}.pdf"],
         }
         for i in range(100)
     ]
@@ -103,7 +105,7 @@ def test_answer_aggregation(benchmark):
         return {
             "total_questions": len(answers),
             "results": answers,
-            "avg_confidence": sum(a["confidence"] for a in answers) / len(answers)
+            "avg_confidence": sum(a["confidence"] for a in answers) / len(answers),
         }
 
     result = benchmark(aggregate)
@@ -118,7 +120,7 @@ def test_output_validation(benchmark):
             "question": f"question_{i}",
             "answer": f"answer_{i}",
             "confidence": 0.85,
-            "sources": [f"source_{i}.pdf"]
+            "sources": [f"source_{i}.pdf"],
         }
         for i in range(50)
     ]
@@ -144,12 +146,7 @@ def test_progress_reporting(benchmark):
     def report_progress():
         results = []
         for i in range(100):
-            progress = BatchProgress(
-                current=i,
-                total=100,
-                success_count=i,
-                error_count=0
-            )
+            progress = BatchProgress(current=i, total=100, success_count=i, error_count=0)
             results.append(progress.percentage)
         return results
 
@@ -164,17 +161,10 @@ def test_json_formatting(benchmark):
 
     test_data = {
         "results": [
-            {
-                "question": f"question_{i}",
-                "answer": f"answer_{i}",
-                "confidence": 0.85
-            }
+            {"question": f"question_{i}", "answer": f"answer_{i}", "confidence": 0.85}
             for i in range(100)
         ],
-        "metadata": {
-            "total": 100,
-            "timestamp": "2026-02-12"
-        }
+        "metadata": {"total": 100, "timestamp": "2026-02-12"},
     }
 
     def format_json():
@@ -188,8 +178,7 @@ def test_json_formatting(benchmark):
 def test_string_operations(benchmark):
     """Benchmark common string operations in batch processing."""
     test_strings = [
-        f"Test string number {i} for batch processing performance."
-        for i in range(1000)
+        f"Test string number {i} for batch processing performance." for i in range(1000)
     ]
 
     def process_strings():
@@ -212,7 +201,7 @@ def test_strategy_factory(benchmark):
         return [
             BatchStrategyFactory.create("serial"),
             BatchStrategyFactory.create("chunked", chunk_size=10),
-            BatchStrategyFactory.create("async", max_concurrency=5)
+            BatchStrategyFactory.create("async", max_concurrency=5),
         ]
 
     results = benchmark(create_strategies)
@@ -224,12 +213,7 @@ def test_progress_percentage(benchmark):
     """Benchmark progress percentage calculation."""
     from src.interfaces.batch_strategy import BatchProgress
 
-    progress = BatchProgress(
-        current=50,
-        total=100,
-        success_count=45,
-        error_count=5
-    )
+    progress = BatchProgress(current=50, total=100, success_count=45, error_count=5)
 
     def calculate():
         return progress.percentage

@@ -37,8 +37,11 @@ def run_pip_audit(strict: bool = False) -> int:
 
     # Build pip-audit command
     cmd = [
-        sys.executable, "-m", "pip_audit",
-        "--format", "json",
+        sys.executable,
+        "-m",
+        "pip_audit",
+        "--format",
+        "json",
         "--desc",
     ]
 
@@ -58,6 +61,7 @@ def run_pip_audit(strict: bool = False) -> int:
 
             # Parse JSON output for summary
             import json
+
             try:
                 data = json.loads(result.stdout)
                 vuln_count = sum(len(d.get("vulns", [])) for d in data.get("dependencies", []))
@@ -108,7 +112,7 @@ def main() -> int:
     parser.add_argument(
         "--strict",
         action="store_true",
-        help="Fail on any vulnerability (default: only high severity)"
+        help="Fail on any vulnerability (default: only high severity)",
     )
 
     args = parser.parse_args()

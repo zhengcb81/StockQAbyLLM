@@ -5,16 +5,17 @@
 演示如何从配置文件批量加载和处理问题。
 """
 
-import sys
 import os
+import sys
 
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from pathlib import Path
-from src.runners.basic_runner import BasicRunner
-from src.config.config_provider import ConfigProvider
+
 from src.config.config_manager import ConfigManager
+from src.config.config_provider import ConfigProvider
+from src.runners.basic_runner import BasicRunner
 from src.utils.console_reporter import ConsoleReporter
 
 
@@ -29,7 +30,7 @@ def main():
     config = ConfigProvider.get_config(
         api_key="your-api-key-here",  # 替换为实际的 API 密钥
         model="gpt-4o-mini",
-        base_url="https://api.openai.com/v1/chat/completions"
+        base_url="https://api.openai.com/v1/chat/completions",
     )
 
     # 2. 从配置文件加载问题
@@ -42,6 +43,7 @@ def main():
     else:
         # 使用默认问题列表
         from src.core.models import Question
+
         questions = [
             Question("什么是市盈率？"),
             Question("什么是市净率？"),

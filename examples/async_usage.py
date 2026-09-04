@@ -5,17 +5,18 @@
 演示如何使用异步方式提高处理效率。
 """
 
-import sys
-import os
 import asyncio
+import os
+import sys
 
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from pathlib import Path
-from src.runners.llm_runner import LLMRunner
+
 from src.config.config_provider import ConfigProvider
 from src.core.models import Question
+from src.runners.llm_runner import LLMRunner
 
 
 async def process_single_async():
@@ -29,7 +30,7 @@ async def process_single_async():
     config = ConfigProvider.get_config(
         api_key="your-api-key-here",  # 替换为实际的 API 密钥
         model="gpt-4o-mini",
-        base_url="https://api.openai.com/v1/chat/completions"
+        base_url="https://api.openai.com/v1/chat/completions",
     )
 
     # 2. 创建问题
@@ -73,7 +74,7 @@ async def process_batch_async():
     config = ConfigProvider.get_config(
         api_key="your-api-key-here",  # 替换为实际的 API 密钥
         model="gpt-4o-mini",
-        base_url="https://api.openai.com/v1/chat/completions"
+        base_url="https://api.openai.com/v1/chat/completions",
     )
 
     # 2. 创建多个问题
@@ -91,6 +92,7 @@ async def process_batch_async():
 
     # 4. 并发处理所有问题
     import time
+
     start_time = time.time()
 
     # 使用 asyncio.gather 并发执行
@@ -128,6 +130,7 @@ async def main():
     """主函数：演示异步处理。"""
     # 可以选择运行单个或批量示例
     import sys
+
     if len(sys.argv) > 1 and sys.argv[1] == "batch":
         await process_batch_async()
     else:

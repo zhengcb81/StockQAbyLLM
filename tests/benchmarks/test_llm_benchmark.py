@@ -1,7 +1,8 @@
 """LLM provider performance benchmarks."""
 
-import pytest
 from unittest.mock import Mock
+
+import pytest
 
 
 @pytest.mark.benchmark(group="llm_cache")
@@ -52,15 +53,12 @@ def test_response_parsing(benchmark):
 @pytest.mark.benchmark(group="llm_config")
 def test_config_loading(benchmark, tmp_path):
     """Benchmark config loading performance."""
+    import json
+
     from src.config.json_config_manager import JSONConfigManager
 
-    import json
     config_data = {
-        "llm": {
-            "api_key": "test_key",
-            "base_url": "https://api.test.com",
-            "model": "test_model"
-        }
+        "llm": {"api_key": "test_key", "base_url": "https://api.test.com", "model": "test_model"}
     }
     config_path = tmp_path / "test_config.json"
     config_path.write_text(json.dumps(config_data))
@@ -147,17 +145,8 @@ def test_json_operations(benchmark):
     import json
 
     test_data = {
-        "choices": [
-            {
-                "message": {
-                    "content": "Test response content"
-                }
-            }
-        ],
-        "usage": {
-            "prompt_tokens": 100,
-            "completion_tokens": 50
-        }
+        "choices": [{"message": {"content": "Test response content"}}],
+        "usage": {"prompt_tokens": 100, "completion_tokens": 50},
     }
 
     def process_json():
