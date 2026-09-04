@@ -1,0 +1,1505 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A stock question-answering system powered by Large Language Models">
+      
+      
+        <meta name="author" content="Zheng Zengbo">
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>StockQAbyLLM 架构文档 - StockQAbyLLM Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#stockqabyllm" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="StockQAbyLLM Documentation" class="md-header__button md-logo" aria-label="StockQAbyLLM Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            StockQAbyLLM Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              StockQAbyLLM 架构文档
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/yourusername/StockQAbyLLM" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    StockQAbyLLM
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../QUICKSTART/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Quick Start
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../api/core/" class="md-tabs__link">
+          
+  
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="StockQAbyLLM Documentation" class="md-nav__button md-logo" aria-label="StockQAbyLLM Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    StockQAbyLLM Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/yourusername/StockQAbyLLM" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    StockQAbyLLM
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../QUICKSTART/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/core/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Config
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/utils/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Utils
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/interfaces/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interfaces
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/providers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Providers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        系统概述
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        系统架构
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        模块职责
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="模块职责">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#srcrunners" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        入口层 (src/runners/)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#srccore-srcservices-srcproviders" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        核心层 (src/core/, src/services/, src/providers/)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#srcconfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        配置层 (src/config/)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#srcutils" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        工具层 (src/utils/)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#srccore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        数据层 (src/core/)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#srcinterfaces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        接口层 (src/interfaces/)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        数据流
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="数据流">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        基础模式流程
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#llm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LLM 模式流程
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        设计模式
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="设计模式">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-strategy-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. 策略模式 (Strategy Pattern)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-factory-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. 工厂模式 (Factory Pattern)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-repository-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. 仓储模式 (Repository Pattern)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-facade-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. 外观模式 (Facade Pattern)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-template-method-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. 模板方法模式 (Template Method Pattern)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-builder-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. 建造者模式 (Builder Pattern)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        核心概念
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="核心概念">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        问题处理流程
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        配置管理
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        错误处理
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        批量处理
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        性能优化
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="性能优化">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. 文件缓存
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. 连接池
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. 异步 API
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. 批量处理
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_13" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        扩展性
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="扩展性">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_14" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        添加新的搜索引擎
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#llm_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        添加新的 LLM 提供者
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_15" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        添加新的输出格式
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_16" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        安全考虑
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_17" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        测试架构
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_18" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        部署架构
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="部署架构">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_19" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        开发环境
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_20" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        生产环境
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="stockqabyllm">StockQAbyLLM 架构文档<a class="headerlink" href="#stockqabyllm" title="Permanent link">&para;</a></h1>
+<h2 id="_1">系统概述<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p>StockQAbyLLM 是一个基于大语言模型的股票问题问答系统，支持基础模式（搜索引擎）和 LLM 模式（AI 生成答案）。</p>
+<h2 id="_2">系统架构<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<pre class="mermaid"><code>graph TB
+    subgraph "入口层"
+        Main[main.py]
+        BasicRunner[basic_runner.py]
+        LLMRunner[llm_runner.py]
+    end
+
+    subgraph "核心层"
+        QAEngine[qa_engine.py&lt;br/&gt;问题处理引擎]
+        SearchService[search_service.py&lt;br/&gt;搜索服务]
+        AnswerGenerator[answer_generator.py&lt;br/&gt;答案生成器]
+        LLMProvider[llm_provider.py&lt;br/&gt;LLM 提供者]
+    end
+
+    subgraph "配置层"
+        ConfigManager[config_manager.py&lt;br/&gt;配置管理器]
+        LLMConfig[llm_config.py&lt;br/&gt;LLM 配置]
+        Settings[settings.py&lt;br/&gt;系统设置]
+    end
+
+    subgraph "工具层"
+        OutputValidator[output_validator.py&lt;br/&gt;输出验证器]
+        FileCache[cache.py&lt;br/&gt;文件缓存]
+        HTTPClient[http_client.py&lt;br/&gt;HTTP 客户端]
+    end
+
+    subgraph "数据层"
+        Models[models.py&lt;br/&gt;数据模型]
+        Exceptions[exceptions.py&lt;br/&gt;异常定义]
+    end
+
+    subgraph "接口层"
+        SearchProvider[search_provider.py&lt;br/&gt;搜索提供者接口]
+    end
+
+    Main --&gt; BasicRunner
+    Main --&gt; LLMRunner
+
+    BasicRunner --&gt; QAEngine
+    LLMRunner --&gt; QAEngine
+
+    QAEngine --&gt; SearchService
+    QAEngine --&gt; AnswerGenerator
+    QAEngine --&gt; LLMProvider
+
+    LLMProvider --&gt; LLMConfig
+    LLMProvider --&gt; HTTPClient
+
+    BasicRunner --&gt; ConfigManager
+    LLMRunner --&gt; ConfigManager
+
+    QAEngine --&gt; OutputValidator
+    ConfigManager --&gt; FileCache
+
+    QAEngine --&gt; Models
+    QAEngine --&gt; Exceptions
+
+    SearchService --&gt; SearchProvider</code></pre>
+<h2 id="_3">模块职责<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<h3 id="srcrunners">入口层 (src/runners/)<a class="headerlink" href="#srcrunners" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>basic_runner.py</code></td>
+<td>基础模式运行器，使用搜索引擎获取答案</td>
+</tr>
+<tr>
+<td><code>llm_runner.py</code></td>
+<td>LLM 模式运行器，使用 AI 生成答案</td>
+</tr>
+<tr>
+<td><code>batch_processor.py</code></td>
+<td>批量问题处理器，支持并发处理</td>
+</tr>
+</tbody>
+</table>
+<h3 id="srccore-srcservices-srcproviders">核心层 (src/core/, src/services/, src/providers/)<a class="headerlink" href="#srccore-srcservices-srcproviders" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>qa_engine.py</code></td>
+<td>问题处理引擎，协调整个问答流程</td>
+</tr>
+<tr>
+<td><code>search_service.py</code></td>
+<td>搜索服务，封装多种搜索引擎</td>
+</tr>
+<tr>
+<td><code>answer_generator.py</code></td>
+<td>答案生成器，从搜索结果生成答案</td>
+</tr>
+<tr>
+<td><code>llm_provider.py</code></td>
+<td>LLM 提供者，管理多个 LLM API</td>
+</tr>
+</tbody>
+</table>
+<h3 id="srcconfig">配置层 (src/config/)<a class="headerlink" href="#srcconfig" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>config_manager.py</code></td>
+<td>配置管理器，加载问题配置文件</td>
+</tr>
+<tr>
+<td><code>json_config_manager.py</code></td>
+<td>JSON 配置管理器，支持多种格式</td>
+</tr>
+<tr>
+<td><code>llm_config.py</code></td>
+<td>LLM 配置管理器，管理 LLM API 配置</td>
+</tr>
+<tr>
+<td><code>settings.py</code></td>
+<td>系统设置，定义全局常量和配置</td>
+</tr>
+</tbody>
+</table>
+<h3 id="srcutils">工具层 (src/utils/)<a class="headerlink" href="#srcutils" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>output_validator.py</code></td>
+<td>输出验证器，验证和修复输出结果</td>
+</tr>
+<tr>
+<td><code>cache.py</code></td>
+<td>文件缓存，减少重复文件 I/O</td>
+</tr>
+<tr>
+<td><code>http_client.py</code></td>
+<td>HTTP 客户端，提供连接池和重试</td>
+</tr>
+<tr>
+<td><code>logger.py</code></td>
+<td>日志工具，统一的日志接口</td>
+</tr>
+</tbody>
+</table>
+<h3 id="srccore">数据层 (src/core/)<a class="headerlink" href="#srccore" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>models.py</code></td>
+<td>数据模型，定义核心数据结构</td>
+</tr>
+<tr>
+<td><code>exceptions.py</code></td>
+<td>异常定义，自定义异常类</td>
+</tr>
+</tbody>
+</table>
+<h3 id="srcinterfaces">接口层 (src/interfaces/)<a class="headerlink" href="#srcinterfaces" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>search_provider.py</code></td>
+<td>搜索提供者接口，定义搜索服务契约</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_4">数据流<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<h3 id="_5">基础模式流程<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h3>
+<pre class="mermaid"><code>sequenceDiagram
+    participant User
+    participant BasicRunner
+    participant QAEngine
+    participant SearchService
+    participant AnswerGenerator
+    participant OutputValidator
+
+    User-&gt;&gt;BasicRunner: 启动 --mode basic
+    BasicRunner-&gt;&gt;QAEngine: process_questions()
+    QAEngine-&gt;&gt;SearchService: search(query)
+    SearchService--&gt;&gt;QAEngine: search_results
+    QAEngine-&gt;&gt;AnswerGenerator: generate_batch()
+    AnswerGenerator--&gt;&gt;QAEngine: answers
+    QAEngine-&gt;&gt;OutputValidator: validate_and_repair()
+    OutputValidator--&gt;&gt;QAEngine: validated_results
+    QAEngine--&gt;&gt;BasicRunner: batch_result
+    BasicRunner--&gt;&gt;User: 输出结果</code></pre>
+<h3 id="llm">LLM 模式流程<a class="headerlink" href="#llm" title="Permanent link">&para;</a></h3>
+<pre class="mermaid"><code>sequenceDiagram
+    participant User
+    participant LLMRunner
+    participant BatchProcessor
+    participant LLMProvider
+    participant LLMConfig
+    participant OutputValidator
+
+    User-&gt;&gt;LLMRunner: 启动 --mode llm
+    LLMRunner-&gt;&gt;BatchProcessor: process_stocks()
+    BatchProcessor-&gt;&gt;LLMProvider: query_llm()
+    LLMProvider-&gt;&gt;LLMConfig: 获取 API 配置
+    LLMConfig--&gt;&gt;LLMProvider: provider_config
+    LLMProvider-&gt;&gt;LLMProvider: 调用 LLM API
+    LLMProvider--&gt;&gt;BatchProcessor: llm_response
+    BatchProcessor-&gt;&gt;OutputValidator: validate_and_repair()
+    OutputValidator--&gt;&gt;BatchProcessor: validated_result
+    BatchProcessor--&gt;&gt;LLMRunner: batch_result
+    LLMRunner--&gt;&gt;User: 输出结果</code></pre>
+<h2 id="_6">设计模式<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h2>
+<h3 id="1-strategy-pattern">1. 策略模式 (Strategy Pattern)<a class="headerlink" href="#1-strategy-pattern" title="Permanent link">&para;</a></h3>
+<p><strong>位置</strong>: <code>src/interfaces/search_provider.py</code></p>
+<p>允许在运行时切换不同的搜索引擎实现。</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">SearchProvider</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="nd">@abstractmethod</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">search</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]:</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>        <span class="k">pass</span>
+</code></pre></div>
+<h3 id="2-factory-pattern">2. 工厂模式 (Factory Pattern)<a class="headerlink" href="#2-factory-pattern" title="Permanent link">&para;</a></h3>
+<p><strong>位置</strong>: <code>src/providers/llm_provider.py</code></p>
+<p>根据配置创建不同的 LLM 提供者实例。</p>
+<h3 id="3-repository-pattern">3. 仓储模式 (Repository Pattern)<a class="headerlink" href="#3-repository-pattern" title="Permanent link">&para;</a></h3>
+<p><strong>位置</strong>: <code>src/config/config_manager.py</code></p>
+<p>封装配置数据的访问逻辑。</p>
+<h3 id="4-facade-pattern">4. 外观模式 (Facade Pattern)<a class="headerlink" href="#4-facade-pattern" title="Permanent link">&para;</a></h3>
+<p><strong>位置</strong>: <code>src/core/qa_engine.py</code></p>
+<p>为复杂的问答流程提供简单的接口。</p>
+<h3 id="5-template-method-pattern">5. 模板方法模式 (Template Method Pattern)<a class="headerlink" href="#5-template-method-pattern" title="Permanent link">&para;</a></h3>
+<p><strong>位置</strong>: <code>src/config/config_provider.py</code></p>
+<p>定义配置加载的骨架，子类实现具体细节。</p>
+<h3 id="6-builder-pattern">6. 建造者模式 (Builder Pattern)<a class="headerlink" href="#6-builder-pattern" title="Permanent link">&para;</a></h3>
+<p><strong>位置</strong>: <code>src/core/models.py</code></p>
+<p>使用 dataclass 简化对象构建。</p>
+<h2 id="_7">核心概念<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h2>
+<h3 id="_8">问题处理流程<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>加载配置</strong>: 从配置文件读取问题列表</li>
+<li><strong>验证问题</strong>: 检查问题格式和内容</li>
+<li><strong>搜索/生成</strong>: 获取答案（基础模式用搜索引擎，LLM 模式用 AI）</li>
+<li><strong>验证输出</strong>: 检查答案完整性和格式</li>
+<li><strong>修复输出</strong>: 自动修复缺失或不完整的答案</li>
+<li><strong>保存结果</strong>: 将结果保存到文件或输出到控制台</li>
+</ol>
+<h3 id="_9">配置管理<a class="headerlink" href="#_9" title="Permanent link">&para;</a></h3>
+<p>系统支持多种配置格式：</p>
+<ul>
+<li><strong>TXT 格式</strong>: 简单的文本文件，每行一个问题</li>
+<li><strong>JSON 格式</strong>: 结构化配置，支持分类和元数据</li>
+</ul>
+<h3 id="_10">错误处理<a class="headerlink" href="#_10" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>自定义异常</strong>: 继承自 <code>StockQAError</code></li>
+<li><strong>异常链</strong>: 使用 <code>raise ... from e</code> 保留原始错误</li>
+<li><strong>日志记录</strong>: 所有错误都被记录到日志文件</li>
+</ul>
+<h3 id="_11">批量处理<a class="headerlink" href="#_11" title="Permanent link">&para;</a></h3>
+<p>支持两种批量处理模式：</p>
+<ol>
+<li><strong>串行模式</strong>: 逐个处理问题</li>
+<li><strong>并行模式</strong>: 使用异步 API 并发处理</li>
+</ol>
+<h2 id="_12">性能优化<a class="headerlink" href="#_12" title="Permanent link">&para;</a></h2>
+<h3 id="1">1. 文件缓存<a class="headerlink" href="#1" title="Permanent link">&para;</a></h3>
+<p>使用 <code>FileCache</code> 类缓存配置文件读取，减少 I/O 操作。</p>
+<h3 id="2">2. 连接池<a class="headerlink" href="#2" title="Permanent link">&para;</a></h3>
+<p>使用 <code>HTTPClient</code> 管理的连接池，复用 HTTP 连接。</p>
+<h3 id="3-api">3. 异步 API<a class="headerlink" href="#3-api" title="Permanent link">&para;</a></h3>
+<p>支持使用 <code>AsyncLLMProvider</code> 进行异步 API 调用。</p>
+<h3 id="4">4. 批量处理<a class="headerlink" href="#4" title="Permanent link">&para;</a></h3>
+<p><code>BatchProcessor</code> 支持批量处理问题，减少 API 调用开销。</p>
+<h2 id="_13">扩展性<a class="headerlink" href="#_13" title="Permanent link">&para;</a></h2>
+<h3 id="_14">添加新的搜索引擎<a class="headerlink" href="#_14" title="Permanent link">&para;</a></h3>
+<ol>
+<li>实现 <code>SearchProvider</code> 接口</li>
+<li>在 <code>SearchService</code> 中注册新提供者</li>
+</ol>
+<h3 id="llm_1">添加新的 LLM 提供者<a class="headerlink" href="#llm_1" title="Permanent link">&para;</a></h3>
+<ol>
+<li>在 <code>llm_apis.json</code> 中添加配置</li>
+<li>确保符合配置格式规范</li>
+</ol>
+<h3 id="_15">添加新的输出格式<a class="headerlink" href="#_15" title="Permanent link">&para;</a></h3>
+<ol>
+<li>在 <code>models.py</code> 中定义新的数据模型</li>
+<li>更新 <code>output_results</code> 方法</li>
+</ol>
+<h2 id="_16">安全考虑<a class="headerlink" href="#_16" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>API 密钥</strong>: 使用环境变量存储敏感信息</li>
+<li><strong>输入验证</strong>: 验证所有用户输入</li>
+<li><strong>错误处理</strong>: 不暴露敏感信息在错误消息中</li>
+<li><strong>日志脱敏</strong>: API 密钥在日志中自动脱敏</li>
+</ol>
+<h2 id="_17">测试架构<a class="headerlink" href="#_17" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>tests/
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>├── unit/              # 单元测试
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>│   ├── test_config_manager.py
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>│   ├── test_llm_provider.py
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>│   └── ...
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>├── integration/       # 集成测试
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>│   ├── test_qa_pipeline.py
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>│   ├── test_json_config.py
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>│   └── ...
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>└── fixtures/          # 测试夹具
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>    └── conftest.py
+</code></pre></div>
+<h2 id="_18">部署架构<a class="headerlink" href="#_18" title="Permanent link">&para;</a></h2>
+<h3 id="_19">开发环境<a class="headerlink" href="#_19" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Python 3.9+</li>
+<li>虚拟环境</li>
+<li>本地配置文件</li>
+</ul>
+<h3 id="_20">生产环境<a class="headerlink" href="#_20" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Docker 容器化（待实现）</li>
+<li>环境变量配置</li>
+<li>日志轮转</li>
+<li>错误监控（待实现）</li>
+</ul>
+<hr />
+<p><em>文档版本: 1.0</em>
+<em>最后更新: 2026-02-09</em></p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.suggest", "search.highlight", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "git"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

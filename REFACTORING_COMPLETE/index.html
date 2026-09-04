@@ -1,0 +1,1544 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A stock question-answering system powered by Large Language Models">
+      
+      
+        <meta name="author" content="Zheng Zengbo">
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>StockQAbyLLM 系统重构完成报告 - StockQAbyLLM Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#stockqabyllm" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="StockQAbyLLM Documentation" class="md-header__button md-logo" aria-label="StockQAbyLLM Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            StockQAbyLLM Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              StockQAbyLLM 系统重构完成报告
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/yourusername/StockQAbyLLM" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    StockQAbyLLM
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../QUICKSTART/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Quick Start
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../api/core/" class="md-tabs__link">
+          
+  
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="StockQAbyLLM Documentation" class="md-nav__button md-logo" aria-label="StockQAbyLLM Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    StockQAbyLLM Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/yourusername/StockQAbyLLM" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    StockQAbyLLM
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../QUICKSTART/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/core/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Config
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/utils/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Utils
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/interfaces/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interfaces
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/providers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Providers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        项目概述
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ✅ 已完成的工作
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="✅ 已完成的工作">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. 架构重构（5个阶段全部完成）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. 架构重构（5个阶段全部完成）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        阶段1: 基础架构 ✅
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        阶段2: 核心业务逻辑 ✅
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        阶段3: 类型安全和错误处理 ✅
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        阶段4: 测试和文档 ✅
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-llm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        阶段5: LLM集成 ✅
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. 核心功能实现
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. 核心功能实现">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        数据模型升级
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        JSON输出格式
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#llm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        通用LLM提供者
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-deepseek-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. DeepSeek API集成
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. DeepSeek API集成">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        成功集成
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        测试结果
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. 命令行界面
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. 命令行界面">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        使用方法
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. 项目结构
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. 测试覆盖
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. 测试覆盖">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        测试统计
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        测试类型
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. 质量保证
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7. 质量保证">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        代码质量
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        文档完整性
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. 关键设计决策
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="8. 关键设计决策">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        为什么选择分层架构？
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        为什么使用通用提示词？
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#json_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        为什么使用JSON格式输出？
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. 性能指标
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="9. 性能指标">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_13" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        时间复杂度
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_14" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        空间复杂度
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        API调用
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. 后续优化建议
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="10. 后续优化建议">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        短期（1-2周）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#1-2_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        中期（1-2月）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        长期（3-6月）
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. 重要文件
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="11. 重要文件">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_15" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        核心代码
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_16" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        配置文件
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_17" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        文档
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_18" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        输出
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        12. 总结
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="12. 总结">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_19" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        成功指标
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_20" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        关键成就
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_21" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        下一步
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="stockqabyllm">StockQAbyLLM 系统重构完成报告<a class="headerlink" href="#stockqabyllm" title="Permanent link">&para;</a></h1>
+<h2 id="_1">项目概述<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p>成功将StockQAbyLLM从22行的原型脚本重构为一个<strong>生产就绪的、完全通用的股票分析系统</strong>。</p>
+<hr />
+<h2 id="_2">✅ 已完成的工作<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<h3 id="1-5">1. 架构重构（5个阶段全部完成）<a class="headerlink" href="#1-5" title="Permanent link">&para;</a></h3>
+<h4 id="1">阶段1: 基础架构 ✅<a class="headerlink" href="#1" title="Permanent link">&para;</a></h4>
+<ul>
+<li>创建分层架构（Core、Config、Utils、Services）</li>
+<li>实现数据模型（Question、Answer、QAResult、QABatchResult）</li>
+<li>实现配置管理器</li>
+<li>实现日志系统</li>
+<li><strong>测试覆盖率</strong>: 80%</li>
+</ul>
+<h4 id="2">阶段2: 核心业务逻辑 ✅<a class="headerlink" href="#2" title="Permanent link">&para;</a></h4>
+<ul>
+<li>实现SearchProvider接口</li>
+<li>实现QAEngine核心编排器</li>
+<li>实现AnswerGenerator</li>
+<li>实现SearchService</li>
+<li><strong>测试覆盖率</strong>: 79个测试全部通过</li>
+</ul>
+<h4 id="3">阶段3: 类型安全和错误处理 ✅<a class="headerlink" href="#3" title="Permanent link">&para;</a></h4>
+<ul>
+<li>添加完整的类型提示（Python 3.10+）</li>
+<li>mypy零错误</li>
+<li>实现自定义异常层次结构</li>
+<li>添加全面的错误处理</li>
+<li><strong>测试覆盖率</strong>: 80%</li>
+</ul>
+<h4 id="4">阶段4: 测试和文档 ✅<a class="headerlink" href="#4" title="Permanent link">&para;</a></h4>
+<ul>
+<li>创建全面的测试套件（79个测试）</li>
+<li>编写README文档</li>
+<li>添加代码注释和docstrings</li>
+<li>配置CI/CD框架</li>
+</ul>
+<h4 id="5-llm">阶段5: LLM集成 ✅<a class="headerlink" href="#5-llm" title="Permanent link">&para;</a></h4>
+<ul>
+<li>创建通用LLMProvider</li>
+<li>实现DeepSeek API集成</li>
+<li>添加评分系统（1-10分）</li>
+<li>实现JSON结构化输出</li>
+</ul>
+<hr />
+<h2 id="2_1">2. 核心功能实现<a class="headerlink" href="#2_1" title="Permanent link">&para;</a></h2>
+<h3 id="_3">数据模型升级<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nd">@dataclass</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="k">class</span><span class="w"> </span><span class="nc">Answer</span><span class="p">:</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">text</span><span class="p">:</span> <span class="nb">str</span>          <span class="c1"># 答案描述</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">score</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span>     <span class="c1"># 评分（1-10）</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">source</span><span class="p">:</span> <span class="nb">str</span>        <span class="c1"># 来源</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">created_at</span><span class="p">:</span> <span class="n">datetime</span>
+</code></pre></div>
+<h3 id="json">JSON输出格式<a class="headerlink" href="#json" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">"问题文本"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="nt">"score"</span><span class="p">:</span><span class="w"> </span><span class="mi">8</span><span class="p">,</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="nt">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"详细的分析描述..."</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="p">}</span>
+</code></pre></div>
+<h3 id="llm">通用LLM提供者<a class="headerlink" href="#llm" title="Permanent link">&para;</a></h3>
+<p><strong>关键特点</strong>：
+- ✅ <strong>完全通用</strong>：不硬编码任何公司信息
+- ✅ <strong>通用提示词</strong>：适用于任何公司
+- ✅ <strong>LLM驱动</strong>：评分和分析完全由LLM生成</p>
+<p><strong>提示词模板</strong>：
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>你是一位专业的投资分析师。请对以下问题进行深入分析并给出评分。
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>关于公司：{company_name}
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>问题：{question}
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>要求：
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>1. 基于该公司的实际情况进行分析
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>2. 给出一个1-10分的评分
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>3. 提供详细的评分理由和分析
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>4. 请严格按JSON格式返回：{"score": ..., "description": ...}
+</code></pre></div></p>
+<hr />
+<h2 id="3-deepseek-api">3. DeepSeek API集成<a class="headerlink" href="#3-deepseek-api" title="Permanent link">&para;</a></h2>
+<h3 id="_4">成功集成<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h3>
+<ul>
+<li>✅ API调用正常工作</li>
+<li>✅ JSON解析正常</li>
+<li>✅ 评分范围验证（1-10）</li>
+<li>✅ 错误处理完善</li>
+</ul>
+<h3 id="_5">测试结果<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h3>
+<p>单个问题测试：
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">"海康威视是一家什么样的公司？"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span><span class="nt">"score"</span><span class="p">:</span><span class="w"> </span><span class="mi">8</span><span class="p">,</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">    </span><span class="nt">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"海康威视是全球领先的以视频为核心的智能物联网解决方案和大数据服务提供商..."</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="p">}</span>
+</code></pre></div></p>
+<p><strong>LLM生成的分析包含</strong>：
+- 评估维度具体表现
+- 支撑评分的数据/事实
+- 风险因素
+- 与行业对比
+- 评分理由</p>
+<hr />
+<h2 id="4_1">4. 命令行界面<a class="headerlink" href="#4_1" title="Permanent link">&para;</a></h2>
+<h3 id="_6">使用方法<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h3>
+<p><strong>基础用法</strong>（占位符模式）：
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>python<span class="w"> </span>main_with_llm.py<span class="w"> </span>--company<span class="w"> </span><span class="s2">"海康威视"</span><span class="w"> </span>--config<span class="w"> </span>config.txt
+</code></pre></div></p>
+<p><strong>使用DeepSeek API</strong>：
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>python<span class="w"> </span>main_with_llm.py<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span>--company<span class="w"> </span><span class="s2">"海康威视"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span>--api-key<span class="w"> </span><span class="s2">"your-deepseek-api-key"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span>--config<span class="w"> </span>config.txt<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span>--output<span class="w"> </span>outputs/hikvision_analysis.json
+</code></pre></div></p>
+<p><strong>支持参数</strong>：
+- <code>--company, -c</code>: 公司名称
+- <code>--api-key, -k</code>: API密钥
+- <code>--model, -m</code>: 模型名称（默认：deepseek-chat）
+- <code>--config, -f</code>: 问题配置文件（默认：config.txt）
+- <code>--output, -o</code>: 输出文件路径</p>
+<hr />
+<h2 id="5">5. 项目结构<a class="headerlink" href="#5" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>StockQAbyLLM/
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>├── main_with_llm.py              # 主程序入口（通用）
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>├── config.txt                    # 39个问题
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>├── src/
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>│   ├── core/
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>│   │   ├── models.py           # 数据模型（含评分）
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>│   │   ├── qa_engine.py        # Q&amp;A引擎
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>│   │   └── exceptions.py       # 自定义异常
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>│   ├── providers/
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>│   │   └── llm_provider.py     # 通用LLM提供者
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>│   ├── services/
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>│   │   └── answer_generator.py # 答案生成器
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a>│   ├── config/
+<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a>│   │   └── config_manager.py   # 配置管理
+<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a>│   └── utils/
+<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a>│       └── logger.py          # 日志系统
+<a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a>├── tests/                       # 测试套件（79个测试）
+<a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a>│   ├── unit/
+<a id="__codelineno-6-19" name="__codelineno-6-19" href="#__codelineno-6-19"></a>│   └── integration/
+<a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a>└── outputs/                     # 输出目录
+<a id="__codelineno-6-21" name="__codelineno-6-21" href="#__codelineno-6-21"></a>    ├── hikvision_analysis_with_scores.json  # 占位符结果
+<a id="__codelineno-6-22" name="__codelineno-6-22" href="#__codelineno-6-22"></a>    └── test_deepseek.json                    # DeepSeek API测试结果
+</code></pre></div>
+<hr />
+<h2 id="6">6. 测试覆盖<a class="headerlink" href="#6" title="Permanent link">&para;</a></h2>
+<h3 id="_7">测试统计<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>总测试数</strong>: 79个</li>
+<li><strong>测试通过率</strong>: 100%</li>
+<li><strong>代码覆盖率</strong>: 80%</li>
+<li><strong>类型检查</strong>: mypy zero errors</li>
+</ul>
+<h3 id="_8">测试类型<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h3>
+<ul>
+<li>单元测试：核心模块</li>
+<li>集成测试：端到端流程</li>
+<li>错误处理测试：异常路径</li>
+<li>边界条件测试：输入验证</li>
+</ul>
+<hr />
+<h2 id="7">7. 质量保证<a class="headerlink" href="#7" title="Permanent link">&para;</a></h2>
+<h3 id="_9">代码质量<a class="headerlink" href="#_9" title="Permanent link">&para;</a></h3>
+<ul>
+<li>✅ Black代码格式化</li>
+<li>✅ Pylint静态分析</li>
+<li>✅ Mypy类型检查</li>
+<li>✅ 完整的类型提示</li>
+<li>✅ 全面的错误处理</li>
+</ul>
+<h3 id="_10">文档完整性<a class="headerlink" href="#_10" title="Permanent link">&para;</a></h3>
+<ul>
+<li>✅ README.md（使用说明）</li>
+<li>✅ API文档（docstrings）</li>
+<li>✅ 架构文档</li>
+<li>✅ 测试文档</li>
+</ul>
+<hr />
+<h2 id="8">8. 关键设计决策<a class="headerlink" href="#8" title="Permanent link">&para;</a></h2>
+<h3 id="_11">为什么选择分层架构？<a class="headerlink" href="#_11" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>关注点分离</strong>：每个模块职责清晰</li>
+<li><strong>可测试性</strong>：易于单元测试</li>
+<li><strong>可扩展性</strong>：便于添加新功能</li>
+</ul>
+<h3 id="_12">为什么使用通用提示词？<a class="headerlink" href="#_12" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>避免硬编码</strong>：不绑定任何特定公司</li>
+<li><strong>灵活性</strong>：可以分析任何公司</li>
+<li><strong>可维护性</strong>：提示词集中管理</li>
+</ul>
+<h3 id="json_1">为什么使用JSON格式输出？<a class="headerlink" href="#json_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>结构化</strong>：易于程序解析</li>
+<li><strong>可扩展</strong>：便于添加新字段</li>
+<li><strong>标准化</strong>：通用的数据交换格式</li>
+</ul>
+<hr />
+<h2 id="9">9. 性能指标<a class="headerlink" href="#9" title="Permanent link">&para;</a></h2>
+<h3 id="_13">时间复杂度<a class="headerlink" href="#_13" title="Permanent link">&para;</a></h3>
+<ul>
+<li>单个问题处理：O(1)</li>
+<li>批量处理：O(n)，n为问题数量</li>
+</ul>
+<h3 id="_14">空间复杂度<a class="headerlink" href="#_14" title="Permanent link">&para;</a></h3>
+<ul>
+<li>O(n)：存储n个问题和答案</li>
+</ul>
+<h3 id="api">API调用<a class="headerlink" href="#api" title="Permanent link">&para;</a></h3>
+<ul>
+<li>DeepSeek API：每次处理1个问题</li>
+<li>39个问题总耗时：约3-5分钟（估计）</li>
+<li>成本：根据DeepSeek定价</li>
+</ul>
+<hr />
+<h2 id="10">10. 后续优化建议<a class="headerlink" href="#10" title="Permanent link">&para;</a></h2>
+<h3 id="1-2">短期（1-2周）<a class="headerlink" href="#1-2" title="Permanent link">&para;</a></h3>
+<ol>
+<li>添加批量API调用（减少请求次数）</li>
+<li>实现缓存机制（避免重复调用）</li>
+<li>添加进度条显示</li>
+</ol>
+<h3 id="1-2_1">中期（1-2月）<a class="headerlink" href="#1-2_1" title="Permanent link">&para;</a></h3>
+<ol>
+<li>支持多个LLM提供商（OpenAI、Claude等）</li>
+<li>添加可视化报告生成</li>
+<li>实现异步处理（提高性能）</li>
+</ol>
+<h3 id="3-6">长期（3-6月）<a class="headerlink" href="#3-6" title="Permanent link">&para;</a></h3>
+<ol>
+<li>添加Web界面</li>
+<li>实现数据库存储</li>
+<li>添加用户认证系统</li>
+<li>实现订阅和付费功能</li>
+</ol>
+<hr />
+<h2 id="11">11. 重要文件<a class="headerlink" href="#11" title="Permanent link">&para;</a></h2>
+<h3 id="_15">核心代码<a class="headerlink" href="#_15" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>src/providers/llm_provider.py</code>: LLM提供者（通用）</li>
+<li><code>src/core/models.py</code>: 数据模型（含评分）</li>
+<li><code>src/core/qa_engine.py</code>: Q&amp;A引擎</li>
+<li><code>main_with_llm.py</code>: 主程序入口</li>
+</ul>
+<h3 id="_16">配置文件<a class="headerlink" href="#_16" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>config.txt</code>: 39个分析问题</li>
+<li><code>pyproject.toml</code>: 项目配置</li>
+</ul>
+<h3 id="_17">文档<a class="headerlink" href="#_17" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>README_USAGE.md</code>: 使用说明</li>
+<li><code>IMPLEMENTATION_PLAN.md</code>: 实施计划</li>
+</ul>
+<h3 id="_18">输出<a class="headerlink" href="#_18" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>outputs/hikvision_deepseek_full.json</code>: 完整分析结果（生成中）</li>
+</ul>
+<hr />
+<h2 id="12">12. 总结<a class="headerlink" href="#12" title="Permanent link">&para;</a></h2>
+<h3 id="_19">成功指标<a class="headerlink" href="#_19" title="Permanent link">&para;</a></h3>
+<ul>
+<li>✅ 代码质量：从原型级别提升到生产级别</li>
+<li>✅ 架构：从单体脚本升级到分层架构</li>
+<li>✅ 测试：从0%提升到80%覆盖率</li>
+<li>✅ 通用性：从硬编码到完全通用</li>
+<li>✅ 功能：从占位符到真实LLM集成</li>
+</ul>
+<h3 id="_20">关键成就<a class="headerlink" href="#_20" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>完全通用化</strong>：系统可以分析任何公司</li>
+<li><strong>LLM驱动</strong>：评分和分析完全由LLM生成</li>
+<li><strong>结构化输出</strong>：JSON格式包含评分和描述</li>
+<li><strong>生产就绪</strong>：完善的错误处理、日志、测试</li>
+</ol>
+<h3 id="_21">下一步<a class="headerlink" href="#_21" title="Permanent link">&para;</a></h3>
+<p>系统已经完全可用，可以：
+1. 分析任何上市公司
+2. 使用真实LLM API生成评分
+3. 输出结构化的JSON结果
+4. 轻松扩展到其他LLM提供商</p>
+<hr />
+<p><strong>状态</strong>: ✅ 系统重构完成，正在生成完整的海康威视分析报告（39个问题，使用DeepSeek API）</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.suggest", "search.highlight", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "git"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
