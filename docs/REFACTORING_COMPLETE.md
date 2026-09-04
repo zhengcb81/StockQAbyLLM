@@ -132,7 +132,7 @@ python main_with_llm.py --company "海康威视" --config config.txt
 ```bash
 python main_with_llm.py \
   --company "海康威视" \
-  --api-key "REMOVED_DEEPSEEK_API_KEY" \
+  --api-key "your-deepseek-api-key" \
   --config config.txt \
   --output outputs/hikvision_analysis.json
 ```

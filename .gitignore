@@ -1,8 +1,47 @@
-# API 密钥配置文件（包含敏感信息）
+# ============================================================================
+# 密钥与凭证（防止意外提交敏感信息）
+# ============================================================================
+
+# 项目特定的 API 密钥文件
 llm_apis.json
+secrets.json
+credentials.json
+service-account*.json
+
+# 环境变量文件
 .env
 .env.local
 .env.*.local
+.env.production
+.env.staging
+.env.development
+.env*.override
+
+# 密钥/证书/令牌文件
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.cert
+*.crt
+
+# 常见凭证目录
+credentials/
+secrets/
+keys/
+tokens/
+.aws/
+.gcp/
+
+# 包含敏感信息的配置
+**/config.secret.*
+**/config.local.*
+*secret*.json
+*secret*.yaml
+*secret*.yml
+*credential*.json
 
 # Python
 __pycache__/
@@ -49,6 +88,10 @@ logs/
 outputs/
 *.json
 !llm_apis.json.example
+!.secrets.baseline
+
+# MkDocs 构建输出
+site/
 
 # 测试
 .pytest_cache/
