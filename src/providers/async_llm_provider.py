@@ -27,7 +27,7 @@ logger = get_logger(__name__)
 class AsyncLLMProvider(BaseLLMProvider):
     """异步 LLM 提供者类。"""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         # 确保api_key和model不为None
         api_key = self.api_key or ""

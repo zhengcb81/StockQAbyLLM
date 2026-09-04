@@ -18,7 +18,7 @@ logger = get_logger(__name__)
 class LLMResponseParser:
     """LLM 响应解析器类。"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """初始化解析器。"""
         # 查找JSON代码块的正则表达式
         self.json_patterns = [

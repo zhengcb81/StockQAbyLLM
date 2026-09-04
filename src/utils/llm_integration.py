@@ -94,7 +94,7 @@ class RequestCost:
 class TokenTracker:
     """Token 使用和成本追踪器。"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """初始化追踪器。"""
         self._usage_by_provider: Dict[str, TokenUsage] = defaultdict(TokenUsage)
         self._cost_by_provider: Dict[str, RequestCost] = defaultdict(RequestCost)
@@ -597,7 +597,7 @@ class ProviderCascade:
 # ============================================================================
 
 
-def cached_llm_request(cache: Optional[RequestCache] = None) -> Callable:
+def cached_llm_request(cache: Optional[RequestCache] = None) -> Callable[..., Any]:
     """缓存 LLM 请求的装饰器。
 
     Args:
@@ -611,7 +611,9 @@ def cached_llm_request(cache: Optional[RequestCache] = None) -> Callable:
 
     def decorator(func: Callable[..., T]) -> Callable[..., T]:
         @wraps(func)
-        def wrapper(provider: str, prompt: str, system_prompt: str = "", *args, **kwargs) -> T:
+        def wrapper(
+            provider: str, prompt: str, system_prompt: str = "", *args: Any, **kwargs: Any
+        ) -> T:
             # 尝试从缓存获取
             cached_result = cache.get(provider, prompt, system_prompt)
             if cached_result is not None:

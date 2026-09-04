@@ -9,7 +9,7 @@ import re
 import time
 from pathlib import Path
 from threading import Lock
-from typing import Optional
+from typing import Any, Optional
 
 from src.utils.logger import get_logger
 
@@ -307,7 +307,7 @@ def mask_api_key(api_key: str, visible_chars: int = 4) -> str:
 # ============================================================================
 
 
-def validate_json_structure(data: dict, required_keys: list[str]) -> None:
+def validate_json_structure(data: dict[str, Any], required_keys: list[str]) -> None:
     """验证 JSON 数据结构是否包含必需的键。
 
     Args:

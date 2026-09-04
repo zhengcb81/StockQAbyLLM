@@ -66,7 +66,7 @@ class BaseLLMProvider(SearchProvider):
 
         self._load_config()
 
-    def _load_config(self):
+    def _load_config(self) -> None:
         """从配置文件或环境变量加载配置。"""
         provider_config = self.config_manager.get_provider_config(self.provider_name)
 
