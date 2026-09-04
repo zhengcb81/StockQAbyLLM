@@ -597,7 +597,7 @@ class ProviderCascade:
 # ============================================================================
 
 
-def cached_llm_request(cache: Optional[RequestCache] = None):
+def cached_llm_request(cache: Optional[RequestCache] = None) -> Callable:
     """缓存 LLM 请求的装饰器。
 
     Args:

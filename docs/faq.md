@@ -300,7 +300,7 @@ pip install -e ".[dev]"
 
 ### Q: 如何贡献代码？
 
-**A:** 查看 [贡献指南](../CONTRIBUTING.md) 了解详情。
+**A:** 查看 [贡献指南](https://github.com/zhengcb81/StockQAbyLLM/blob/master/CONTRIBUTING.md) 了解详情。
 
 ### Q: 是否支持 Docker？
 

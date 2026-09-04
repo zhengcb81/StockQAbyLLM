@@ -48,8 +48,8 @@ docs = [
     "mkdocstrings[python]>=0.25.0",
 ]
 
-# Quality Gates Configuration
-[project.quality-gates]
+# Quality Gates Configuration (tool table — PEP 621 forbids custom keys under [project])
+[tool.quality-gates]
 # Coverage gate: minimum 87% coverage required
 coverage_minimum = 87
 # Pylint gate: minimum 9.0/10 score required

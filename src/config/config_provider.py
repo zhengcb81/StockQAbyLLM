@@ -34,7 +34,7 @@ class ConfigProvider(ABC):
             问题文本列表
 
         Raises:
-            具体的配置加载异常
+            ConfigError: 配置加载失败时抛出
         """
         pass
 

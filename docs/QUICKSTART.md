@@ -130,14 +130,14 @@ A: Yes! While designed for stock-related Q&A, it works with any general question
 
 ## Next Steps
 
-- Read the full [README](../README.md) for detailed documentation
+- Read the full [README](https://github.com/zhengcb81/StockQAbyLLM/blob/master/README.md) for detailed documentation
 - Check the [examples/](../examples/) directory for more usage examples
 - Explore the [API documentation](api/) for advanced usage
 
 ## Getting Help
 
 - Open an issue on GitHub
-- Check the [FAQ section](../README.md#错误处理) in the main README
+- Check the [FAQ section](https://github.com/zhengcb81/StockQAbyLLM/blob/master/README.md#错误处理) in the main README
 - Review the logs in the `logs/` directory for debugging
 
 ---
