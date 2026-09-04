@@ -81,12 +81,12 @@ repos:
         args: ['-r', 'src/', '-f', 'json', '-o', 'bandit-report.json']
         pass_filenames: false
 
-  # Security audit with pip-audit
+  # Security audit with pip-audit (only project deps, not conda system packages)
   - repo: local
     hooks:
       - id: pip-audit
         name: pip-audit
-        entry: python -m pip_audit
+        entry: python -m pip_audit -r requirements-lock.txt
         language: system
         pass_filenames: false
         always_run: true
