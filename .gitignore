@@ -95,6 +95,7 @@ site/
 
 # 测试
 .pytest_cache/
+coverage.xml
 .coverage
 .coverage.*
 htmlcov/

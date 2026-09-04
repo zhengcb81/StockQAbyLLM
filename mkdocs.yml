@@ -1,0 +1,88 @@
+# MkDocs Configuration for StockQAbyLLM
+
+site_name: StockQAbyLLM Documentation
+site_description: A stock question-answering system powered by Large Language Models
+site_author: Zheng Zengbo
+
+# Repository
+repo_url: https://github.com/yourusername/StockQAbyLLM
+repo_name: StockQAbyLLM
+
+# Theme
+theme:
+  name: material
+  language: en
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+# Navigation
+nav:
+  - Home: index.md
+  - Quick Start: QUICKSTART.md
+  - API Reference:
+      - Core: api/core.md
+      - Config: api/config.md
+      - Utils: api/utils.md
+      - Interfaces: api/interfaces.md
+      - Providers: api/providers.md
+
+# Plugins
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: true
+            show_object_full_path: false
+            show_category_heading: true
+            merge_init_into_class: true
+
+# Extensions
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - admonition
+  - pymdownx.details
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+# Python documentation settings
+watch:
+  - src
+
+# Extra
+extra:
+  version:
+    provider: git

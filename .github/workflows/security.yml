@@ -1,0 +1,133 @@
+# GitHub Actions Security Scanning Workflow
+name: Security
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+  schedule:
+    # Run security scans weekly on Sundays at 2 AM UTC
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
+
+jobs:
+  dependency-audit:
+    name: Dependency Audit (pip-audit)
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pip-audit
+
+    - name: Run pip-audit
+      run: |
+        pip-audit --format json --output pip-audit-report.json
+      continue-on-error: true
+
+    - name: Upload pip-audit report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: pip-audit-report
+        path: pip-audit-report.json
+        retention-days: 30
+
+  security-scan:
+    name: Security Scan (bandit)
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install bandit[toml]
+
+    - name: Run bandit security scan
+      run: |
+        bandit -r src/ -f json -o bandit-report.json
+
+    - name: Display bandit results
+      run: |
+        echo "### Bandit Security Scan Results" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        cat bandit-report.json >> $GITHUB_STEP_SUMMARY || echo "No issues found" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+
+    - name: Upload bandit report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: bandit-report
+        path: bandit-report.json
+        retention-days: 30
+
+    - name: Check for high severity issues
+      run: |
+        # Check if bandit found any high severity issues
+        if grep -q '"SEVERITY.HIGH": [1-9]' bandit-report.json; then
+          echo "High severity security issues found!"
+          exit 1
+        fi
+        echo "No high severity security issues found"
+
+  codeql-analysis:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    # CodeQL requires GitHub Advanced Security
+    # Skip if not available
+    if: false  # Disable for now - requires GitHub Advanced Security
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: python
+
+    - name: Autobuild
+      uses: github/codeql-action/autobuild@v3
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+
+  security-summary:
+    name: Security Summary
+    runs-on: ubuntu-latest
+    needs: [dependency-audit, security-scan]
+    if: always()
+
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: reports
+
+    - name: Generate security summary
+      run: |
+        echo "# Security Scan Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Scan | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Dependency Audit | ${{ needs.dependency-audit.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Bandit Security Scan | ${{ needs.security-scan.result }} |" >> $GITHUB_STEP_SUMMARY
