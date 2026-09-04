@@ -3,41 +3,20 @@
 该模块测试 QAEngine 类的功能。
 """
 
-import pytest
-from unittest.mock import Mock, MagicMock
+from unittest.mock import MagicMock, Mock
 
+import pytest
+
+from src.core.exceptions import ProcessingError, ValidationError
+from src.core.models import Answer, Question, SearchResult
 from src.core.qa_engine import QAEngine
 from src.interfaces.search_provider import SearchProvider
 from src.services.answer_generator import AnswerGenerator
-from src.core.models import Question, Answer, SearchResult
-from src.core.exceptions import ValidationError, ProcessingError
-
-
-class MockSearchProvider(SearchProvider):
-    """模拟搜索提供者用于测试。"""
-
-    def __init__(self, mock_results=None):
-        """初始化模拟搜索提供者。
-
-        Args:
-            mock_results: 要返回的模拟结果
-        """
-        self.mock_results = mock_results or [
-            SearchResult(
-                title="测试结果",
-                url="https://test.com",
-                snippet="测试摘要",
-                source="mock",
-            )
-        ]
-
-    def search(self, query: str):
-        """返回模拟搜索结果。"""
-        return self.mock_results
-
-    def get_provider_name(self) -> str:
-        """返回提供者名称。"""
-        return "mock_search"
+from tests.helpers.mocks import (
+    FailingSearchProvider,
+    MockSearchProvider,
+    PartialFailingSearchProvider,
+)
 
 
 class TestQAEngine:
@@ -115,15 +94,6 @@ class TestQAEngine:
 
     def test_process_questions_with_search_failure(self):
         """测试搜索失败时的处理。"""
-
-        # 创建一个会失败的搜索提供者
-        class FailingSearchProvider(SearchProvider):
-            def search(self, query: str):
-                raise ProcessingError("搜索失败")
-
-            def get_provider_name(self) -> str:
-                return "failing_search"
-
         search_provider = FailingSearchProvider()
         answer_generator = AnswerGenerator()
         engine = QAEngine(search_provider, answer_generator)
@@ -157,18 +127,7 @@ class TestQAEngine:
 
     def test_get_statistics_with_errors(self):
         """测试包含错误的统计信息。"""
-
-        # 创建一个会失败的搜索提供者
-        class FailingSearchProvider(SearchProvider):
-            def search(self, query: str):
-                if query == "问题2":
-                    raise ProcessingError("搜索失败")
-                return [SearchResult(title="测试结果", snippet="测试摘要", source="mock")]
-
-            def get_provider_name(self) -> str:
-                return "failing_search"
-
-        search_provider = FailingSearchProvider()
+        search_provider = PartialFailingSearchProvider(failing_queries=["问题2"])
         answer_generator = AnswerGenerator()
         engine = QAEngine(search_provider, answer_generator)
 

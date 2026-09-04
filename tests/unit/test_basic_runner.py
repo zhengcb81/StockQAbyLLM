@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from src.runners.basic_runner import BasicRunner
 from src.core.exceptions import StockQAError
+from src.runners.basic_runner import BasicRunner
 
 
 class TestBasicRunnerInit:

@@ -6,19 +6,22 @@
 """
 
 import os
-from typing import List, Dict, Any, Optional, Tuple
 from abc import abstractmethod
+from typing import Any, Dict, List, Optional, Tuple
 
-from src.interfaces.search_provider import SearchProvider
 from src.config.llm_config import LLMConfig
 from src.config.settings import (
-    DEFAULT_TIMEOUT,
+    DEFAULT_LLM_BASE_URL,
     DEFAULT_MAX_RETRIES,
     DEFAULT_RETRY_DELAY,
+    DEFAULT_TIMEOUT,
     MAX_TOKENS,
     TEMPERATURE,
 )
+from src.core.models import SearchResult
+from src.interfaces.search_provider import SearchProvider
 from src.utils.logger import get_logger
+
 from .llm_response_parser import LLMResponseParser
 from .llm_retry_strategy import LLMRetryStrategy
 
@@ -49,11 +52,11 @@ class BaseLLMProvider(SearchProvider):
         self.config_manager = LLMConfig(config_file)
         self.company_name = company_name
         self.provider_name = provider_name or self.config_manager.get_default_provider()
-        self.api_key = api_key
-        self.model = model
+        self.api_key: Optional[str] = api_key
+        self.model: Optional[str] = model
 
         # 初始化默认值
-        self.base_url = "https://api.deepseek.com/v1/chat/completions"
+        self.base_url = DEFAULT_LLM_BASE_URL
         self.timeout = DEFAULT_TIMEOUT
         self.max_retries = DEFAULT_MAX_RETRIES
 
@@ -66,14 +69,14 @@ class BaseLLMProvider(SearchProvider):
     def _load_config(self):
         """从配置文件或环境变量加载配置。"""
         provider_config = self.config_manager.get_provider_config(self.provider_name)
-        
+
         if provider_config:
             # 基础配置
             self.base_url = provider_config.get("base_url", self.base_url)
             self.timeout = provider_config.get("timeout", self.timeout)
             self.max_retries = provider_config.get("max_retries", self.max_retries)
             self.retry_strategy.max_retries = self.max_retries
-            
+
             if not self.model:
                 self.model = provider_config.get("model", "")
 
@@ -136,6 +139,30 @@ class BaseLLMProvider(SearchProvider):
         return self.provider_name or "llm_api"
 
     @abstractmethod
-    def search(self, query: str) -> List[Dict[str, Any]]:
-        """执行搜索。"""
+    def search(self, query: str) -> List[SearchResult]:
+        """执行搜索。
+
+        Args:
+            query: 搜索查询字符串
+
+        Returns:
+            SearchResult对象列表
+        """
         pass
+
+    def _to_search_result(self, data: Dict[str, Any]) -> SearchResult:
+        """将字典转换为SearchResult对象。
+
+        Args:
+            data: 包含搜索结果数据的字典
+
+        Returns:
+            SearchResult对象
+        """
+        return SearchResult(
+            title=data.get("title", ""),
+            snippet=data.get("snippet", ""),
+            source=data.get("source", "llm_api"),
+            url=data.get("url"),
+            rank=data.get("rank", 0),
+        )

@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 """配置模块。"""
 
-from .config_provider import ConfigProvider
 from .config_manager import ConfigManager
-from .json_config_manager import JSONConfigManager
+from .config_provider import ConfigProvider
 from .factory import create_config_provider
+from .json_config_manager import JSONConfigManager
 
 __all__ = [
     "ConfigProvider",

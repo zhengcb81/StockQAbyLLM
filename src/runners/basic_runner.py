@@ -8,11 +8,11 @@
 import sys
 from typing import Optional
 
-from src.core.qa_engine import QAEngine
 from src.config.config_manager import ConfigManager
-from src.services.search_service import SearchService
-from src.services.answer_generator import AnswerGenerator
 from src.core.exceptions import StockQAError
+from src.core.qa_engine import QAEngine
+from src.services.answer_generator import AnswerGenerator
+from src.services.search_service import SearchService
 from src.utils.logger import get_logger
 
 
@@ -99,6 +99,7 @@ def main() -> int:
         退出码（0 表示成功，1 表示失败）
     """
     import argparse
+
     from src.config.settings import DEFAULT_CONFIG_FILE
 
     parser = argparse.ArgumentParser(

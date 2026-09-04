@@ -8,17 +8,17 @@
 import json
 import time
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple, Union, cast
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
-from src.core.qa_engine import QAEngine
-from src.config.config_provider import ConfigProvider
 from src.config.config_manager import ConfigManager
+from src.config.config_provider import ConfigProvider
 from src.config.json_config_manager import JSONConfigManager
-from src.services.answer_generator import AnswerGenerator
-from src.providers.llm_provider import LLMProvider
-from src.utils.logger import get_logger
-from src.utils.output_validator import validate_and_repair_output, RepairResult
 from src.config.settings import DEFAULT_MAX_RETRIES, DEFAULT_RETRY_DELAY, DEFAULT_SCORE
+from src.core.qa_engine import QAEngine
+from src.providers.llm_provider import LLMProvider
+from src.services.answer_generator import AnswerGenerator
+from src.utils.logger import get_logger
+from src.utils.output_validator import RepairResult, validate_and_repair_output
 
 logger = get_logger(__name__)
 
@@ -244,7 +244,7 @@ def merge_existing_answers(
     Returns:
         合并后的批处理结果
     """
-    from src.core.models import Question, Answer, QAResult
+    from src.core.models import Answer, QAResult, Question
 
     for question_text, answer_data in existing_answers.items():
         question = Question(text=question_text)

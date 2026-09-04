@@ -5,11 +5,11 @@
 """
 
 import json
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
 from ..core.exceptions import ConfigError, EmptyConfigError, ProjectFileNotFoundError
-from ..utils.logger import get_logger
 from ..utils.cache import file_cache
+from ..utils.logger import get_logger
 from .config_provider import ConfigProvider
 
 logger = get_logger(__name__)
@@ -168,62 +168,6 @@ class JSONConfigManager(ConfigProvider):
                 logger.warning("跳过无效的问题: %s", q)
 
         return questions
-
-    def validate_questions(self, questions: List[str]) -> bool:
-        """验证问题列表。
-
-        Args:
-            questions: 要验证的问题列表
-
-        Returns:
-            验证通过返回 True
-
-        Raises:
-            ConfigError: 验证失败
-        """
-        if not questions:
-            raise ConfigError("问题列表不能为空")
-
-        if not isinstance(questions, list):
-            raise ConfigError("问题必须是列表类型")
-
-        for i, question in enumerate(questions, 1):
-            if not isinstance(question, str):
-                raise ConfigError(
-                    message=f"问题 {i} 不是字符串类型",
-                    details={"question_index": i, "question_type": type(question).__name__},
-                )
-
-            if not question.strip():
-                raise ConfigError(message=f"问题 {i} 为空", details={"question_index": i})
-
-            if len(question) > 1000:
-                logger.warning("问题 %d 长度超过 1000 字符", i)
-
-        logger.info(f"所有 {len(questions)} 个问题验证通过")
-        return True
-
-    def get_questions(self) -> List[str]:
-        """获取已加载的问题列表。
-
-        Returns:
-            问题文本列表
-
-        Raises:
-            ConfigError: 如果尚未加载配置
-        """
-        if not self._questions:
-            raise ConfigError("配置尚未加载，请先调用 load_questions()")
-
-        return self._questions
-
-    def get_question_count(self) -> int:
-        """获取问题数量。
-
-        Returns:
-            问题数量
-        """
-        return len(self._questions)
 
     def __repr__(self) -> str:
         """返回配置管理器的字符串表示。"""

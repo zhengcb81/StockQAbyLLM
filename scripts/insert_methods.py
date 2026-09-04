@@ -5,7 +5,7 @@
 import sys
 
 # 读取原文件
-with open(r'C:\Users\郑曾波\Projects\StockQAbyLLM\llm_demo.py', 'r', encoding='utf-8') as f:
+with open(r"C:\Users\郑曾波\Projects\StockQAbyLLM\llm_demo.py", "r", encoding="utf-8") as f:
     lines = f.readlines()
 
 # 新方法
@@ -163,7 +163,7 @@ new_methods = '''
 # 在 _build_general_answer 之前插入
 insert_line = 726
 for i, line in enumerate(lines):
-    if 'def _build_general_answer' in line:
+    if "def _build_general_answer" in line:
         insert_line = i
         break
 
@@ -171,7 +171,7 @@ for i, line in enumerate(lines):
 lines.insert(insert_line, new_methods)
 
 # 写回文件
-with open(r'C:\Users\郑曾波\Projects\StockQAbyLLM\llm_demo.py', 'w', encoding='utf-8') as f:
+with open(r"C:\Users\郑曾波\Projects\StockQAbyLLM\llm_demo.py", "w", encoding="utf-8") as f:
     f.writelines(lines)
 
 print(f"成功插入 {new_methods.count('def _build_')} 个新方法")

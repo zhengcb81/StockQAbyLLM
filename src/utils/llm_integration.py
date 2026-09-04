@@ -11,9 +11,9 @@ import time
 import uuid
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Callable, TypeVar
 from functools import wraps
 from threading import Lock
+from typing import Any, Callable, Dict, List, Optional, TypeVar, cast
 
 from src.utils.logger import get_logger
 
@@ -25,6 +25,7 @@ T = TypeVar("T")
 # ============================================================================
 # Token 使用追踪
 # ============================================================================
+
 
 @dataclass
 class TokenUsage:
@@ -68,7 +69,7 @@ class RequestCost:
         return self.input_cost + self.output_cost
 
     # 价格配置（每百万 token 的美元价格）
-    INPUT_PRICE_PER_M: float = 0.5   # 默认输入价格
+    INPUT_PRICE_PER_M: float = 0.5  # 默认输入价格
     OUTPUT_PRICE_PER_M: float = 1.5  # 默认输出价格
 
     def calculate_from_tokens(self, prompt_tokens: int, completion_tokens: int) -> None:
@@ -219,6 +220,7 @@ def get_global_token_tracker() -> TokenTracker:
 # 请求缓存
 # ============================================================================
 
+
 class RequestCache:
     """LLM 请求缓存。
 
@@ -355,6 +357,7 @@ def get_global_request_cache() -> RequestCache:
 # 请求关联 ID 追踪
 # ============================================================================
 
+
 class RequestContext:
     """请求上下文。
 
@@ -418,17 +421,46 @@ def generate_request_id() -> str:
 # Provider 降级
 # ============================================================================
 
+
+class HealthCheckProtocol:
+    """Provider 健康检查协议。
+
+    用于检查 Provider 是否处于健康状态。
+    """
+
+    def check_health(self, provider: str) -> bool:
+        """检查 Provider 是否健康。
+
+        Args:
+            provider: Provider 名称
+
+        Returns:
+            True 表示健康，False 表示不健康
+        """
+        raise NotImplementedError
+
+
 class ProviderCascade:
     """Provider 降级器。
 
     当主 Provider 失败时，自动降级到备用 Provider。
+    支持健康检查和渐进式恢复。
     """
 
-    def __init__(self, providers: List[str]):
+    def __init__(
+        self,
+        providers: List[str],
+        health_check: Optional[Callable[[str], bool]] = None,
+        failure_threshold: int = 1,
+        recovery_threshold: int = 1,
+    ):
         """初始化降级器。
 
         Args:
             providers: Provider 名称列表，按优先级排序
+            health_check: 可选的健康检查回调，接收provider名称返回是否健康
+            failure_threshold: 连续失败次数阈值，达到后降级（默认1次即降级）
+            recovery_threshold: 连续成功次数阈值，达到后恢复主Provider（默认1次即恢复）
         """
         if not providers:
             raise ValueError("Provider 列表不能为空")
@@ -436,8 +468,29 @@ class ProviderCascade:
         self._providers = providers
         self._current_index = 0
         self._failure_counts: Dict[str, int] = defaultdict(int)
+        self._success_counts: Dict[str, int] = defaultdict(int)
+        self._health_check = health_check
+        self._failure_threshold = failure_threshold
+        self._recovery_threshold = recovery_threshold
         self._lock = Lock()
-        logger.info("Provider 降级器已初始化: %s", providers)
+        self._recovery_pending = False  # 标记是否正在尝试恢复
+        logger.info(
+            "Provider 降级器已初始化: %s (失败阈值: %d, 恢复阈值: %d)",
+            providers,
+            failure_threshold,
+            recovery_threshold,
+        )
+
+    @property
+    def health_check(self) -> Optional[Callable[[str], bool]]:
+        """获取健康检查回调。"""
+        return self._health_check
+
+    @health_check.setter
+    def health_check(self, checker: Optional[Callable[[str], bool]]) -> None:
+        """设置健康检查回调。"""
+        self._health_check = checker
+        logger.debug("健康检查回调已更新")
 
     def get_primary(self) -> str:
         """获取主 Provider。"""
@@ -456,18 +509,29 @@ class ProviderCascade:
         """
         with self._lock:
             self._failure_counts[provider] += 1
-            logger.warning("Provider 失败: %s (失败次数: %d)", provider, self._failure_counts[provider])
+            self._success_counts[provider] = 0  # 重置成功计数
+            logger.warning(
+                "Provider 失败: %s (失败次数: %d/%d)",
+                provider,
+                self._failure_counts[provider],
+                self._failure_threshold,
+            )
 
-            # 如果是当前 Provider 失败，尝试切换到下一个
-            current_provider = self._providers[self._current_index]
-            if provider == current_provider:
-                next_index = self._current_index + 1
-                if next_index < len(self._providers):
-                    self._current_index = next_index
-                    new_provider = self._providers[next_index]
-                    logger.info("Provider 降级: %s -> %s", current_provider, new_provider)
-                else:
-                    logger.error("所有 Provider 都已失败，降级失败")
+            # 检查是否达到失败阈值
+            if self._failure_counts[provider] >= self._failure_threshold:
+                self._try_fallback(provider)
+
+    def _try_fallback(self, failed_provider: str) -> None:
+        """尝试降级到备用 Provider。"""
+        current_provider = self._providers[self._current_index]
+        if failed_provider == current_provider:
+            next_index = self._current_index + 1
+            if next_index < len(self._providers):
+                self._current_index = next_index
+                new_provider = self._providers[next_index]
+                logger.info("Provider 降级: %s -> %s", current_provider, new_provider)
+            else:
+                logger.error("所有 Provider 都已失败，降级失败")
 
     def mark_success(self, provider: str) -> None:
         """标记 Provider 成功。
@@ -478,30 +542,60 @@ class ProviderCascade:
         with self._lock:
             # 重置失败计数
             self._failure_counts[provider] = 0
+            self._success_counts[provider] += 1
 
-            # 如果这不是主 Provider，考虑切换回主 Provider
+            # 如果不是主 Provider，考虑切换回主 Provider
             if provider != self._providers[0]:
-                # 简单策略：立即切换回主 Provider
-                # 也可以实现更复杂的策略，如健康检查
-                self._current_index = 0
-                logger.info("Provider 恢复: %s -> %s", provider, self._providers[0])
+                success_count = self._success_counts[provider]
+                logger.debug(
+                    "Provider 成功: %s (成功次数: %d/%d)",
+                    provider,
+                    success_count,
+                    self._recovery_threshold,
+                )
+
+                # 检查是否执行健康检查
+                if self._health_check is not None:
+                    is_healthy = self._health_check(self._providers[0])
+                    if not is_healthy:
+                        logger.info("主 Provider 不健康，延迟恢复")
+                        self._recovery_pending = True
+                        return
+
+                # 检查是否达到恢复阈值
+                if success_count >= self._recovery_threshold:
+                    self._current_index = 0
+                    self._recovery_pending = False
+                    logger.info("Provider 恢复: %s -> %s", provider, self._providers[0])
 
     def get_failure_counts(self) -> Dict[str, int]:
         """获取各 Provider 的失败次数。"""
         with self._lock:
             return dict(self._failure_counts)
 
+    def get_success_counts(self) -> Dict[str, int]:
+        """获取各 Provider 的成功次数。"""
+        with self._lock:
+            return dict(self._success_counts)
+
+    def is_recovering(self) -> bool:
+        """检查是否正在恢复。"""
+        return self._recovery_pending
+
     def reset(self) -> None:
         """重置降级器状态。"""
         with self._lock:
             self._current_index = 0
             self._failure_counts.clear()
+            self._success_counts.clear()
+            self._recovery_pending = False
         logger.debug("Provider 降级器已重置")
 
 
 # ============================================================================
 # 装饰器：缓存 LLM 请求
 # ============================================================================
+
 
 def cached_llm_request(cache: Optional[RequestCache] = None):
     """缓存 LLM 请求的装饰器。
@@ -521,7 +615,7 @@ def cached_llm_request(cache: Optional[RequestCache] = None):
             # 尝试从缓存获取
             cached_result = cache.get(provider, prompt, system_prompt)
             if cached_result is not None:
-                return cached_result
+                return cast(T, cached_result)
 
             # 调用原函数
             result = func(provider, prompt, system_prompt, *args, **kwargs)

@@ -3,16 +3,16 @@
 """测试 HTTP 客户端模块。"""
 
 import asyncio
-from unittest.mock import Mock, patch, AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
+import httpx
 import pytest
 import requests
-import httpx
 
 from src.utils.http_client import (
-    SyncHTTPClient,
     AsyncHTTPClient,
     HTTPClientManager,
+    SyncHTTPClient,
     http_client_manager,
 )
 

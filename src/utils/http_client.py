@@ -6,10 +6,12 @@
 """
 
 from typing import Optional
+
 import httpx
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)

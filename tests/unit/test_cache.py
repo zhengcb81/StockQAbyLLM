@@ -5,7 +5,7 @@
 import json
 from pathlib import Path
 from time import sleep
-from unittest.mock import patch, Mock
+from unittest.mock import Mock, patch
 
 import pytest
 

@@ -7,9 +7,9 @@
 
 import re
 import time
+from pathlib import Path
 from threading import Lock
 from typing import Optional
-from pathlib import Path
 
 from src.utils.logger import get_logger
 
@@ -21,8 +21,8 @@ logger = get_logger(__name__)
 # ============================================================================
 
 _DANGEROUS_CHARS = re.compile(r'[<>:"|?*\x00-\x1f]')
-_PATH_TRAVERSAL = re.compile(r'\.\.|[\\/]')
-_DANGEROUS_EXTENSIONS = {'.exe', '.bat', '.cmd', '.scr', '.pif', '.com', '.vbs', '.js', '.jar'}
+_PATH_TRAVERSAL = re.compile(r"\.\.|[\\/]")
+_DANGEROUS_EXTENSIONS = {".exe", ".bat", ".cmd", ".scr", ".pif", ".com", ".vbs", ".js", ".jar"}
 
 
 def sanitize_filename(filename: str, max_length: int = 255) -> str:
@@ -54,17 +54,17 @@ def sanitize_filename(filename: str, max_length: int = 255) -> str:
     clean_name = Path(filename).name
 
     # 如果清洗后为空，使用默认名称
-    if not clean_name or clean_name == '.':
+    if not clean_name or clean_name == ".":
         clean_name = "unnamed"
 
     # 移除危险字符
-    clean_name = _DANGEROUS_CHARS.sub('', clean_name)
+    clean_name = _DANGEROUS_CHARS.sub("", clean_name)
 
     # 移除路径遍历模式
-    clean_name = _PATH_TRAVERSAL.sub('', clean_name)
+    clean_name = _PATH_TRAVERSAL.sub("", clean_name)
 
     # 移除控制字符
-    clean_name = ''.join(char for char in clean_name if ord(char) >= 32)
+    clean_name = "".join(char for char in clean_name if ord(char) >= 32)
 
     # 限制长度
     if len(clean_name) > max_length:
@@ -81,7 +81,7 @@ def sanitize_filename(filename: str, max_length: int = 255) -> str:
         if name_lower.endswith(ext):
             logger.warning("文件名包含潜在危险扩展名: %s", ext)
             # 保留文件名但更改扩展名为 .txt
-            clean_name = str(Path(clean_name).with_suffix('.txt'))
+            clean_name = str(Path(clean_name).with_suffix(".txt"))
 
     logger.debug("文件名已清洗: %s -> %s", filename, clean_name)
     return clean_name
@@ -137,7 +137,7 @@ def sanitize_path(path_str: str, base_dir: Optional[str] = None) -> str:
 # ============================================================================
 
 MAX_QUESTION_LENGTH = 10000  # 最大问题长度（字符数）
-MAX_ANSWER_LENGTH = 50000    # 最大答案长度（字符数）
+MAX_ANSWER_LENGTH = 50000  # 最大答案长度（字符数）
 
 
 def validate_question(question: str, max_length: int = MAX_QUESTION_LENGTH) -> None:
@@ -185,6 +185,7 @@ def validate_answer(answer: str, max_length: int = MAX_ANSWER_LENGTH) -> None:
 # ============================================================================
 # 速率限制器 - 防止 API 滥用
 # ============================================================================
+
 
 class RateLimiter:
     """基于令牌桶算法的速率限制器。
@@ -277,6 +278,7 @@ class RateLimiter:
 # API 密钥安全
 # ============================================================================
 
+
 def mask_api_key(api_key: str, visible_chars: int = 4) -> str:
     """遮蔽 API 密钥用于日志输出。
 
@@ -303,6 +305,7 @@ def mask_api_key(api_key: str, visible_chars: int = 4) -> str:
 # ============================================================================
 # JSON Schema 验证辅助
 # ============================================================================
+
 
 def validate_json_structure(data: dict, required_keys: list[str]) -> None:
     """验证 JSON 数据结构是否包含必需的键。

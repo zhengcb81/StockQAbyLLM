@@ -5,10 +5,10 @@
 
 import pytest
 
-from src.services.search_service import SearchService
-from src.services.answer_generator import AnswerGenerator
-from src.core.models import Question, Answer, SearchResult
 from src.core.exceptions import ProcessingError
+from src.core.models import Answer, Question, SearchResult
+from src.services.answer_generator import AnswerGenerator
+from src.services.search_service import SearchService
 
 
 class TestSearchService:

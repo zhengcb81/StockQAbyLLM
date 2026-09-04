@@ -2,16 +2,18 @@
 # -*- coding: utf-8 -*-
 """测试安全工具模块。"""
 
-import pytest
 from time import sleep
+
+import pytest
+
 from src.utils.security import (
-    sanitize_filename,
-    sanitize_path,
-    validate_question,
-    validate_answer,
     RateLimiter,
     mask_api_key,
+    sanitize_filename,
+    sanitize_path,
+    validate_answer,
     validate_json_structure,
+    validate_question,
 )
 
 
@@ -85,6 +87,7 @@ class TestSanitizePath:
     def test_path_traversal_with_base(self, tmp_path):
         """测试带基础目录的路径遍历防护。"""
         import os
+
         base = str(tmp_path)
         # 创建一个确实在base之外的路径
         # 使用父目录尝试逃逸

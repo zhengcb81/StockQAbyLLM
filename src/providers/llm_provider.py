@@ -6,15 +6,18 @@
 """
 
 import time
+from typing import Any, Dict, List, Optional, Tuple
+
 import requests
-from typing import List, Dict, Any, Optional, Tuple
 
 from src.config.settings import (
     DEFAULT_SCORE,
     DISPLAY_QUERY_TRUNCATE,
     DISPLAY_TITLE_TRUNCATE,
 )
+from src.core.models import SearchResult
 from src.utils.logger import get_logger
+
 from .base_llm_provider import BaseLLMProvider
 from .llm_client import LLMClient
 
@@ -26,27 +29,28 @@ class LLMProvider(BaseLLMProvider):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # 确保api_key和model不为None
+        api_key = self.api_key or ""
+        model = self.model or ""
         self.client = LLMClient(
-            api_key=self.api_key,
-            model=self.model,
-            base_url=self.base_url,
-            timeout=self.timeout
+            api_key=api_key, model=model, base_url=self.base_url, timeout=self.timeout
         )
 
-    def search(self, query: str) -> List[Dict[str, Any]]:  # type: ignore[override]
+    def search(self, query: str) -> List[SearchResult]:
         """执行同步搜索。"""
         logger.info("LLM处理问题: %s...", query[:DISPLAY_QUERY_TRUNCATE])
 
         prompt = self._build_prompt(query)
         score, description = self._call_llm_api(prompt)
 
-        result = {
-            "title": f"关于 '{query[:DISPLAY_TITLE_TRUNCATE]}...' 的评估",
-            "url": "",
-            "snippet": description,
-            "score": score,
-            "source": "llm_api",
-        }
+        result = SearchResult(
+            title=f"关于 '{query[:DISPLAY_TITLE_TRUNCATE]}...' 的评估",
+            snippet=description,
+            source="llm_api",
+            url="",
+            rank=0,
+            score=score,
+        )
 
         logger.info("LLM答案生成完成 (评分: %d/10)", score)
         return [result]
@@ -62,11 +66,16 @@ class LLMProvider(BaseLLMProvider):
 
         for retry in range(num_retries):
             try:
-                logger.info("正在调用 %s API... (尝试 %d/%d)", self.provider_name, retry + 1, num_retries)
-                
+                logger.info(
+                    "正在调用 %s API... (尝试 %d/%d)",
+                    self.provider_name,
+                    retry + 1,
+                    num_retries,
+                )
+
                 content = self.client.send_request(prompt)
                 result = self.parser.parse_response(content)
-                
+
                 if result:
                     return result
 
@@ -85,9 +94,14 @@ class LLMProvider(BaseLLMProvider):
                     logger.warning("API请求失败: %s，%.1f 秒后重试...", e, wait_time)
                     time.sleep(wait_time)
                 else:
-                    logger.error("%s API请求失败，已重试 %d 次: %s", self.provider_name, num_retries, e)
+                    logger.error(
+                        "%s API请求失败，已重试 %d 次: %s",
+                        self.provider_name,
+                        num_retries,
+                        e,
+                    )
                     raise Exception(f"API请求失败，已重试 {num_retries} 次: {str(e)}") from e
-            
+
             except Exception as e:
                 if retry < num_retries - 1:
                     wait_time = self.retry_strategy.get_wait_time(retry)

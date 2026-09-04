@@ -5,12 +5,12 @@
 定义 LLM 请求的重试逻辑和退避算法。
 """
 
-import time
 import random
-from typing import Callable, Any, TypeVar, Tuple
+import time
+from typing import Any, Callable, Tuple, TypeVar, cast
 
-from src.utils.logger import get_logger
 from src.config.settings import DEFAULT_RETRY_DELAY
+from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -49,6 +49,7 @@ class LLMRetryStrategy:
         Returns:
             等待秒数
         """
+        wait_time: float
         if self.exponential:
             # 指数退避: base * 2^retry
             wait_time = self.base_delay * (2**retry_count)
@@ -57,8 +58,9 @@ class LLMRetryStrategy:
             wait_time = self.base_delay * (retry_count + 1)
 
         if self.jitter:
-            # 添加 0-10% 的随机抖动
-            wait_time += wait_time * random.uniform(0, 0.1)
+            # 添加 0-10% 的随机抖动（非加密用途，仅用于避免重试冲突）
+            jitter = random.uniform(0, 0.1)  # nosec B311
+            wait_time += wait_time * jitter
 
         return wait_time
 

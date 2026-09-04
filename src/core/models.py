@@ -5,8 +5,8 @@
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, Any, Optional
 from datetime import datetime
+from typing import Any, Dict, Optional
 
 
 @dataclass
@@ -21,6 +21,7 @@ class SearchResult:
         source: 结果来源（例如：'web_search', 'llm'）
         url: 结果 URL（可选）
         rank: 结果排名（可选）
+        score: 结果评分（可选，1-10分，主要用于LLM结果）
         created_at: 结果创建时间
     """
 
@@ -29,6 +30,7 @@ class SearchResult:
     source: str = "unknown"
     url: Optional[str] = None
     rank: int = 0
+    score: Optional[int] = None
     created_at: datetime = field(default_factory=datetime.now)
 
     def __post_init__(self) -> None:
@@ -44,13 +46,16 @@ class SearchResult:
         Returns:
             包含所有字段的字典
         """
-        return {
+        result = {
             "title": self.title,
             "snippet": self.snippet,
             "source": self.source,
             "url": self.url,
             "rank": self.rank,
         }
+        if self.score is not None:
+            result["score"] = self.score
+        return result
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "SearchResult":
@@ -147,7 +152,12 @@ class QAResult:
         Returns:
             包含问题和答案（评分+描述）的字典
         """
-        return {str(self.question): {"score": self.answer.score, "description": self.answer.text}}
+        return {
+            str(self.question): {
+                "score": self.answer.score,
+                "description": self.answer.text,
+            }
+        }
 
     def __str__(self) -> str:
         """返回结果的字符串表示。"""

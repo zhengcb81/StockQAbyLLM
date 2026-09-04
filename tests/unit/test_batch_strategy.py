@@ -2,14 +2,16 @@
 # -*- coding: utf-8 -*-
 """测试批量处理策略。"""
 
-import pytest
 import asyncio
+
+import pytest
+
 from src.interfaces.batch_strategy import (
-    BatchProgress,
-    SerialStrategy,
-    ChunkedStrategy,
     AsyncStrategy,
-    BatchStrategyFactory
+    BatchProgress,
+    BatchStrategyFactory,
+    ChunkedStrategy,
+    SerialStrategy,
 )
 
 
@@ -32,9 +34,9 @@ def test_serial_strategy():
     """测试串行策略。"""
     strategy = SerialStrategy()
     items = [1, 2, "error", 4]
-    
+
     results = strategy.process(items, mock_processor)
-    
+
     assert len(results) == 3
     assert results == ["processed_1", "processed_2", "processed_4"]
     assert strategy.get_strategy_name() == "serial"
@@ -44,12 +46,12 @@ def test_serial_strategy_progress():
     """测试串行策略进度回调。"""
     strategy = SerialStrategy()
     progress_updates = []
-    
+
     def on_progress(p):
         progress_updates.append(p)
-        
+
     strategy.process([1, 2], mock_processor, on_progress=on_progress)
-    
+
     assert len(progress_updates) == 2
     assert progress_updates[0].current == 1
     assert progress_updates[1].current == 2
@@ -60,9 +62,9 @@ def test_chunked_strategy():
     """测试分块策略。"""
     strategy = ChunkedStrategy(chunk_size=2)
     items = [1, 2, 3, 4, 5]
-    
+
     results = strategy.process(items, mock_processor)
-    
+
     assert len(results) == 5
     assert results[0] == "processed_1"
     assert results[4] == "processed_5"
@@ -73,11 +75,11 @@ def test_async_strategy():
     """测试异步策略。"""
     strategy = AsyncStrategy(max_concurrency=2)
     items = [1, 2, "error", 4]
-    
+
     # 因为 AsyncStrategy.process 在没有事件循环时使用 asyncio.run
     # 所以可以在同步测试中运行
     results = strategy.process(items, mock_processor)
-    
+
     assert len(results) == 3
     assert "processed_1" in results
     assert "processed_2" in results
@@ -89,24 +91,55 @@ def test_async_strategy_with_async_processor():
     """测试带异步处理器的异步策略。"""
     strategy = AsyncStrategy()
     items = [1, 2]
-    
+
     results = strategy.process(items, async_mock_processor)
     assert len(results) == 2
+
+
+def test_async_strategy_run_async():
+    """测试 run_async 方法返回 awaitable。"""
+    strategy = AsyncStrategy(max_concurrency=3)
+    items = [1, 2, 3]
+
+    # 使用 run_async 获取 awaitable
+    result_awaitable = strategy.run_async(items, async_mock_processor)
+
+    # 验证返回的是 awaitable
+    assert asyncio.iscoroutine(result_awaitable)
+
+    # await 并验证结果
+    results = asyncio.run(result_awaitable)
+    assert len(results) == 3
+    assert "processed_1" in results
+    assert "processed_2" in results
+    assert "processed_3" in results
+
+
+def test_async_strategy_process_in_async_context_raises():
+    """测试在异步上下文中调用 process() 会抛出明确错误。"""
+    strategy = AsyncStrategy()
+    items = [1, 2]
+
+    async def test_wrapper():
+        with pytest.raises(RuntimeError, match="run_async"):
+            strategy.process(items, mock_processor)
+
+    asyncio.run(test_wrapper())
 
 
 def test_batch_strategy_factory():
     """测试策略工厂。"""
     strategy = BatchStrategyFactory.create("serial")
     assert isinstance(strategy, SerialStrategy)
-    
+
     strategy = BatchStrategyFactory.create("chunked", chunk_size=5)
     assert isinstance(strategy, ChunkedStrategy)
     assert strategy.chunk_size == 5
-    
+
     strategy = BatchStrategyFactory.create("async", max_concurrency=10)
     assert isinstance(strategy, AsyncStrategy)
     assert strategy.max_concurrency == 10
-    
+
     with pytest.raises(ValueError, match="不支持的策略"):
         BatchStrategyFactory.create("invalid")
 
@@ -116,10 +149,10 @@ def test_batch_progress_dataclass():
     progress = BatchProgress(current=5, total=10, success_count=4, error_count=1)
     assert progress.percentage == 50.0
     assert not progress.is_complete
-    
+
     progress.current = 10
     assert progress.is_complete
-    
+
     # 零总数情况
     progress = BatchProgress(0, 0, 0, 0)
     assert progress.percentage == 0.0

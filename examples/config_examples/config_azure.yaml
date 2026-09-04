@@ -1,0 +1,38 @@
+# Azure OpenAI 配置示例
+# 将此文件复制为 config.yaml 并填入您的 Azure 配置
+
+llm:
+  provider: azure
+  api_key: "your-azure-api-key-here"  # 替换为实际的 API 密钥
+  model: "gpt-4o"  # Azure 部署的模型名称
+  base_url: "https://your-resource-name.openai.azure.com/openai/deployments/your-deployment-name/chat/completions?api-version=2024-02-15-preview"
+
+  # 请求参数
+  temperature: 0.7
+  max_tokens: 2000
+  timeout: 30.0
+
+  # 重试配置
+  retry:
+    max_attempts: 3
+    initial_delay: 1.0
+    max_delay: 10.0
+    backoff_factor: 2.0
+
+  # 缓存配置
+  cache:
+    enabled: true
+    ttl: 3600
+    max_size: 1000
+
+# 批处理配置
+batch:
+  strategy: async
+  max_concurrent: 5
+  chunk_size: 10
+
+# 输出配置
+output:
+  format: json
+  save_intermediate: false
+  output_dir: "./results"

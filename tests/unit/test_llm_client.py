@@ -2,9 +2,11 @@
 # -*- coding: utf-8 -*-
 """测试 LLM 客户端。"""
 
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
+
 import pytest
-from unittest.mock import Mock, patch, MagicMock, AsyncMock
-from src.providers.llm_client import LLMClient, AsyncLLMClient
+
+from src.providers.llm_client import AsyncLLMClient, LLMClient
 
 
 class TestLLMClient:
@@ -15,7 +17,7 @@ class TestLLMClient:
         return LLMClient(
             api_key="test_key",
             model="test_model",
-            base_url="https://api.example.com/v1/chat/completions"
+            base_url="https://api.example.com/v1/chat/completions",
         )
 
     @patch("src.providers.llm_client.http_client_manager")
@@ -25,9 +27,7 @@ class TestLLMClient:
         mock_session = Mock()
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "choices": [{"message": {"content": "测试回答"}}]
-        }
+        mock_response.json.return_value = {"choices": [{"message": {"content": "测试回答"}}]}
         mock_session.post.return_value = mock_response
         mock_http_manager.get_sync_session.return_value = mock_session
 
@@ -42,9 +42,7 @@ class TestLLMClient:
         mock_session = Mock()
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "choices": [{"message": {"content": "回答"}}]
-        }
+        mock_response.json.return_value = {"choices": [{"message": {"content": "回答"}}]}
         mock_session.post.return_value = mock_response
         mock_http_manager.get_sync_session.return_value = mock_session
 
@@ -82,7 +80,7 @@ class TestLLMClient:
             api_key="test_key",
             model="test_model",
             base_url="https://api.example.com/v1",
-            timeout=60.0
+            timeout=60.0,
         )
         assert client.timeout == 60.0
 
@@ -95,7 +93,7 @@ class TestAsyncLLMClient:
         return AsyncLLMClient(
             api_key="test_key",
             model="test_model",
-            base_url="https://api.example.com/v1/chat/completions"
+            base_url="https://api.example.com/v1/chat/completions",
         )
 
     @pytest.mark.asyncio
@@ -106,12 +104,12 @@ class TestAsyncLLMClient:
         mock_async_client = AsyncMock()
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "choices": [{"message": {"content": "异步回答"}}]
-        }
+        mock_response.json.return_value = {"choices": [{"message": {"content": "异步回答"}}]}
+
         # 创建协程返回值的 mock
         async def mock_post(*args, **kwargs):
             return mock_response
+
         mock_async_client.post = mock_post
         mock_http_manager.get_async_client = AsyncMock(return_value=mock_async_client)
 
@@ -126,9 +124,7 @@ class TestAsyncLLMClient:
         mock_async_client = AsyncMock()
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "choices": [{"message": {"content": "回答"}}]
-        }
+        mock_response.json.return_value = {"choices": [{"message": {"content": "回答"}}]}
 
         # 记录调用参数
         call_params = {}
@@ -179,6 +175,6 @@ class TestAsyncLLMClient:
             api_key="test_key",
             model="test_model",
             base_url="https://api.example.com/v1",
-            timeout=120.0
+            timeout=120.0,
         )
         assert client.timeout == 120.0

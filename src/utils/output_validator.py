@@ -9,7 +9,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Any, Optional, cast
+from typing import Any, Dict, List, Optional, cast
 
 from src.utils.logger import get_logger
 

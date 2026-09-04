@@ -7,8 +7,8 @@
 from typing import List
 
 from ..core.exceptions import ConfigError, EmptyConfigError, ProjectFileNotFoundError
-from ..utils.logger import get_logger
 from ..utils.cache import file_cache
+from ..utils.logger import get_logger
 from .config_provider import ConfigProvider
 
 logger = get_logger(__name__)
@@ -85,40 +85,6 @@ class ConfigManager(ConfigProvider):
             raise ConfigError(
                 message=f"读取配置文件失败: {str(e)}", file_path=str(self.config_path)
             )
-
-    def validate_questions(self, questions: List[str]) -> bool:
-        """验证问题列表。
-
-        Args:
-            questions: 要验证的问题列表
-
-        Returns:
-            验证通过返回 True
-
-        Raises:
-            ConfigError: 验证失败
-        """
-        if not questions:
-            raise ConfigError("问题列表不能为空")
-
-        if not isinstance(questions, list):
-            raise ConfigError("问题必须是列表类型")
-
-        for i, question in enumerate(questions, 1):
-            if not isinstance(question, str):
-                raise ConfigError(
-                    message=f"问题 {i} 不是字符串类型",
-                    details={"question_index": i, "question_type": type(question).__name__},
-                )
-
-            if not question.strip():
-                raise ConfigError(message=f"问题 {i} 为空", details={"question_index": i})
-
-            if len(question) > 1000:
-                logger.warning("问题 %d 长度超过 1000 字符", i)
-
-        logger.info(f"所有 {len(questions)} 个问题验证通过")
-        return True
 
     def __repr__(self) -> str:
         """返回配置管理器的字符串表示。"""

@@ -12,11 +12,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from src.config.json_config_manager import JSONConfigManager
-from src.utils.output_validator import validate_and_repair_output
+from src.core.qa_engine import QAEngine
 from src.providers.llm_provider import LLMProvider
 from src.services.answer_generator import AnswerGenerator
-from src.core.qa_engine import QAEngine
 from src.utils.logger import get_logger
+from src.utils.output_validator import validate_and_repair_output
 
 logger = get_logger(__name__)
 
@@ -67,7 +67,7 @@ def validate_skipped_stocks():
                 config_questions=questions,
                 qa_engine=qa_engine,
                 max_retries=3,
-                create_backup=True
+                create_backup=True,
             )
 
             # 显示结果
@@ -75,19 +75,25 @@ def validate_skipped_stocks():
                 logger.info(f"  发现问题: {repair_result.validation_result.total_issues} 个")
 
                 if repair_result.validation_result.missing_questions:
-                    logger.info(f"    - 缺失: {len(repair_result.validation_result.missing_questions)} 个")
+                    logger.info(
+                        f"    - 缺失: {len(repair_result.validation_result.missing_questions)} 个"
+                    )
                     if repair_result.repaired_questions:
                         logger.info(f"    - 已修复: {len(repair_result.repaired_questions)} 个")
                     if repair_result.failed_questions:
                         logger.warning(f"    - 修复失败: {len(repair_result.failed_questions)} 个")
 
                 if repair_result.validation_result.extra_questions:
-                    logger.info(f"    - 多余: {len(repair_result.validation_result.extra_questions)} 个 (已移除)")
+                    logger.info(
+                        f"    - 多余: {len(repair_result.validation_result.extra_questions)} 个 (已移除)"
+                    )
                     if repair_result.backup_created:
                         logger.info(f"    - 备份: {repair_result.backup_path}")
 
                 if repair_result.validation_result.incomplete_answers:
-                    logger.info(f"    - 不完整答案: {len(repair_result.validation_result.incomplete_answers)} 个")
+                    logger.info(
+                        f"    - 不完整答案: {len(repair_result.validation_result.incomplete_answers)} 个"
+                    )
 
                 logger.info(f"  修复完成!")
             else:

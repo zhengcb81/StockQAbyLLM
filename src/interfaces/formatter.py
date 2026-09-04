@@ -109,7 +109,7 @@ class YAMLFormatter(OutputFormatter):
             ImportError: 如果 PyYAML 未安装
         """
         try:
-            import yaml  # type: ignore[import-untyped]
+            import yaml  # type: ignore[import-untyped, unused-ignore]
         except ImportError as exc:
             raise ImportError("PyYAML 未安装，请运行: pip install pyyaml") from exc
 

@@ -4,18 +4,19 @@
 """
 
 import json
-import pytest
-from pathlib import Path
 import sys
+from pathlib import Path
+
+import pytest
 
 # 添加 src 到 Python 路径
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from src.config.config_manager import ConfigManager
+from src.core.models import Answer, QAResult, Question
 from src.core.qa_engine import QAEngine
-from src.services.search_service import SearchService
 from src.services.answer_generator import AnswerGenerator
-from src.core.models import Question, Answer, QAResult
+from src.services.search_service import SearchService
 
 
 class TestQAPipeline:

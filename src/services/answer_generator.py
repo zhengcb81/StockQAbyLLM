@@ -5,8 +5,8 @@
 
 from typing import List
 
-from src.core.models import Question, Answer, SearchResult
 from src.core.exceptions import ProcessingError
+from src.core.models import Answer, Question, SearchResult
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)

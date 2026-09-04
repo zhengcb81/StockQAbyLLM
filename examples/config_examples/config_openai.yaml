@@ -1,0 +1,38 @@
+# OpenAI 配置示例
+# 将此文件复制为 config.yaml 并填入您的实际 API 密钥
+
+llm:
+  provider: openai
+  api_key: "sk-your-openai-api-key-here"  # 替换为实际的 API 密钥
+  model: "gpt-4o-mini"
+  base_url: "https://api.openai.com/v1/chat/completions"
+
+  # 请求参数
+  temperature: 0.7
+  max_tokens: 2000
+  timeout: 30.0
+
+  # 重试配置
+  retry:
+    max_attempts: 3
+    initial_delay: 1.0
+    max_delay: 10.0
+    backoff_factor: 2.0
+
+  # 缓存配置
+  cache:
+    enabled: true
+    ttl: 3600  # 缓存时间（秒）
+    max_size: 1000  # 最大缓存条目数
+
+# 批处理配置
+batch:
+  strategy: async  # 可选: sync, async
+  max_concurrent: 5  # 最大并发数
+  chunk_size: 10  # 每批处理的问题数
+
+# 输出配置
+output:
+  format: json  # 可选: json, yaml, markdown
+  save_intermediate: false  # 是否保存中间结果
+  output_dir: "./results"

@@ -3,13 +3,14 @@
 该模块测试 main_with_llm.py 中的批量股票处理功能，特别是 override 参数的行为。
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
-from pathlib import Path
-import tempfile
-import sys
-import os
 import json
+import os
+import sys
+import tempfile
+from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 
 # 添加项目根目录到 Python 路径
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))

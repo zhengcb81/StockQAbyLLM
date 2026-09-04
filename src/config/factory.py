@@ -6,8 +6,9 @@
 """
 
 from pathlib import Path
-from .config_provider import ConfigProvider
+
 from .config_manager import ConfigManager
+from .config_provider import ConfigProvider
 from .json_config_manager import JSONConfigManager
 
 

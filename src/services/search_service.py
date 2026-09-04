@@ -5,9 +5,9 @@
 
 from typing import List
 
-from src.interfaces.search_provider import SearchProvider
-from src.core.models import SearchResult
 from src.core.exceptions import ProcessingError
+from src.core.models import SearchResult
+from src.interfaces.search_provider import SearchProvider
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)

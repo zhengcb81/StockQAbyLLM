@@ -3,18 +3,18 @@
 该模块是系统的核心，负责协调问题处理的整个流程。
 """
 
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
-from src.core.models import Question, Answer, QAResult, QABatchResult
-from src.interfaces.search_provider import SearchProvider
-from src.services.answer_generator import AnswerGenerator
-from src.core.exceptions import ProcessingError, ValidationError
-from src.interfaces.progress_reporter import ProgressReporter
-from src.utils.console_reporter import ConsoleReporter
 from src.config.settings import (
     DISPLAY_QUESTION_TRUNCATE,
     DISPLAY_TITLE_TRUNCATE,
 )
+from src.core.exceptions import ProcessingError, ValidationError
+from src.core.models import Answer, QABatchResult, QAResult, Question
+from src.interfaces.progress_reporter import ProgressReporter
+from src.interfaces.search_provider import SearchProvider
+from src.services.answer_generator import AnswerGenerator
+from src.utils.console_reporter import ConsoleReporter
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -46,9 +46,7 @@ class QAEngine:
         self.search_provider = search_provider
         self.answer_generator = answer_generator or AnswerGenerator()
         self.progress_reporter = progress_reporter or ConsoleReporter()
-        logger.info(
-            "QAEngine 初始化完成（搜索提供者: %s）", search_provider.get_provider_name()
-        )
+        logger.info("QAEngine 初始化完成（搜索提供者: %s）", search_provider.get_provider_name())
 
     def process_question(self, question_text: str) -> QAResult:
         """处理单个问题。

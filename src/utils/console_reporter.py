@@ -5,8 +5,9 @@
 实现 ProgressReporter 接口，将进度输出到控制台。
 """
 
-from src.interfaces.progress_reporter import ProgressReporter
 from src.config.settings import DISPLAY_LINE_WIDTH
+from src.interfaces.progress_reporter import ProgressReporter
+
 
 class ConsoleReporter(ProgressReporter):
     """控制台进度报告器实现。"""

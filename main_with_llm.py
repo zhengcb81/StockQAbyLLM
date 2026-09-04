@@ -6,24 +6,25 @@
 完全通用，不硬编码任何公司特定信息。
 """
 
-import sys
 import argparse
+import sys
 import time
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
 # 添加 src 到 Python 路径
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
+from src.cli.batch_processor import (
+    calculate_questions_to_process,
+    load_existing_answers,
+    load_questions,
+    process_single_stock_with_retry,
+    validate_and_repair_existing_file,
+)
+
 # pylint: disable=wrong-import-position
 from src.utils.logger import get_logger
-from src.cli.batch_processor import (
-    load_questions,
-    load_existing_answers,
-    calculate_questions_to_process,
-    validate_and_repair_existing_file,
-    process_single_stock_with_retry,
-)
 
 logger = get_logger(__name__)
 

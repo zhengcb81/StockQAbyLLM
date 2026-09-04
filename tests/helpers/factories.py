@@ -3,8 +3,9 @@
 该模块提供用于创建测试数据的工厂函数。
 """
 
-from typing import Dict, Any, List, Optional
-from src.core.models import Question, Answer, QAResult, QABatchResult
+from typing import Any, Dict, List, Optional
+
+from src.core.models import Answer, QABatchResult, QAResult, Question
 
 
 class QuestionFactory:

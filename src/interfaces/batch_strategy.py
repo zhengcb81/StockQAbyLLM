@@ -4,8 +4,8 @@
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Callable, List, TypeVar, Generic, Optional
 from dataclasses import dataclass
+from typing import Any, Awaitable, Callable, Generic, List, Optional, TypeVar
 
 from src.utils.logger import get_logger
 
@@ -217,31 +217,66 @@ class AsyncStrategy(BatchStrategy[T, R]):
         processor: Callable[[T], R],
         on_progress: Optional[Callable[[BatchProgress], None]] = None,
     ) -> List[R]:
-        """异步处理项目。
+        """异步处理项目（同步包装器）。
 
-        注意：此方法是同步包装器，如果处理器是异步的，
-        需要使用 run_async 方法。
+        注意：此方法是同步包装器。如果在异步上下文中使用，
+        请使用 run_async() 方法获取 awaitable。
 
         Args:
             items: 要处理的项目列表
-            processor: 处理单个项目的函数
+            processor: 处理单个项目的函数（可以是同步或异步）
             on_progress: 进度回调函数
 
         Returns:
             处理结果列表
+
+        Raises:
+            RuntimeError: 如果在已有事件循环中调用，抛出此异常，
+                         提示使用 run_async() 方法
         """
         import asyncio
 
         # 检查是否在事件循环中
         try:
             loop = asyncio.get_running_loop()
-            # 如果已经在事件循环中，创建任务并返回空列表（需要使用 await）
-            # 注意：这不是理想的实现，但符合类型系统
-            asyncio.create_task(self._process_async(items, processor, on_progress))
-            return []
-        except RuntimeError:
-            # 没有运行的事件循环，创建新的
-            return asyncio.run(self._process_async(items, processor, on_progress))
+            # 如果已经在事件循环中，抛出明确错误而非静默失败
+            raise RuntimeError(
+                "AsyncStrategy.process() cannot be called from within an async context. "
+                "Use run_async() method instead: await strategy.run_async(items, processor)"
+            )
+        except RuntimeError as e:
+            # 检查是否是"没有运行的事件循环"错误（这是预期情况）
+            if "no running event loop" in str(e):
+                # 没有运行的事件循环，创建新的
+                return asyncio.run(self._process_async(items, processor, on_progress))
+            # 其他RuntimeError（我们自己抛出的），重新抛出
+            raise
+
+    def run_async(
+        self,
+        items: List[T],
+        processor: Callable[[T], R],
+        on_progress: Optional[Callable[[BatchProgress], None]] = None,
+    ) -> Awaitable[List[R]]:
+        """异步处理项目（返回 awaitable）。
+
+        此方法适用于在异步上下文中调用，返回一个可等待的对象。
+
+        Args:
+            items: 要处理的项目列表
+            processor: 处理单个项目的函数（可以是同步或异步）
+            on_progress: 进度回调函数
+
+        Returns:
+            Awaitable[List[R]]: 可等待的结果列表
+
+        Example:
+            ```python
+            strategy = AsyncStrategy(max_concurrency=5)
+            results = await strategy.run_async(items, processor)
+            ```
+        """
+        return self._process_async(items, processor, on_progress)
 
     async def _process_async(
         self,

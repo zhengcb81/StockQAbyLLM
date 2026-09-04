@@ -34,6 +34,7 @@ LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 # LLM 配置默认值
+DEFAULT_LLM_BASE_URL = "https://api.deepseek.com/v1/chat/completions"  # 默认LLM API base URL
 DEFAULT_TIMEOUT = 60  # 默认超时时间（秒）
 DEFAULT_MAX_RETRIES = 3  # 默认最大重试次数
 DEFAULT_RETRY_DELAY = 2  # 默认重试延迟基数（秒）

@@ -7,9 +7,10 @@
 
 import json
 from pathlib import Path
-from typing import Dict, Any, Optional, cast
+from typing import Any, Dict, Optional, cast
+
+from src.config.settings import DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT
 from src.utils.logger import get_logger
-from src.config.settings import DEFAULT_TIMEOUT, DEFAULT_MAX_RETRIES
 
 logger = get_logger(__name__)
 

@@ -3,20 +3,21 @@
 该模块测试各种错误场景和边界情况。
 """
 
-import pytest
 from pathlib import Path
+
+import pytest
 
 from src.config.config_manager import ConfigManager
 from src.core.exceptions import (
     ConfigError,
     EmptyConfigError,
+    ProcessingError,
     ProjectFileNotFoundError,
     ValidationError,
-    ProcessingError,
 )
 from src.core.models import Question
-from src.services.search_service import SearchService
 from src.services.answer_generator import AnswerGenerator
+from src.services.search_service import SearchService
 
 
 class TestErrorHandling:

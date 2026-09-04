@@ -3,20 +3,22 @@
 该模块测试各种错误场景下的恢复流程。
 """
 
-import pytest
 import json
+import sys
 import tempfile
 from pathlib import Path
-import sys
+
+import pytest
 
 # 添加项目根目录到 Python 路径
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from src.config.json_config_manager import JSONConfigManager
+from unittest.mock import Mock, patch
+
 from src.config.config_manager import ConfigManager
+from src.config.json_config_manager import JSONConfigManager
 from src.core.qa_engine import QAEngine
 from src.services.answer_generator import AnswerGenerator
-from unittest.mock import Mock, patch
 
 
 class TestConfigErrorRecovery:
@@ -89,8 +91,8 @@ class TestLLMErrorRecovery:
 
         这个测试验证 LLM 提供者配置了重试机制。
         """
-        from src.providers.llm_provider import LLMProvider
         from src.config.settings import DEFAULT_MAX_RETRIES
+        from src.providers.llm_provider import LLMProvider
 
         # 测试1：验证 max_retries 默认值
         provider = LLMProvider(provider_name="test")
@@ -116,6 +118,7 @@ class TestLLMErrorRecovery:
             mock_post: 模拟的 requests.post
         """
         from requests.exceptions import RequestException
+
         from src.providers.llm_provider import LLMProvider
 
         # 模拟 API 失败

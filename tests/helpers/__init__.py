@@ -4,12 +4,11 @@
 """
 
 from tests.helpers.factories import (
-    QuestionFactory,
     AnswerFactory,
-    QAResultFactory,
     QABatchResultFactory,
+    QAResultFactory,
+    QuestionFactory,
 )
-
 from tests.helpers.mocks import (
     MockLLMProvider,
     MockQAEngine,

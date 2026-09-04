@@ -11,12 +11,13 @@ from pathlib import Path
 # 添加 src 到 Python 路径
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from src.core.qa_engine import QAEngine
+from typing import Any, Dict, List
+
 from src.config.config_manager import ConfigManager
-from src.services.answer_generator import AnswerGenerator
 from src.core.models import Question
+from src.core.qa_engine import QAEngine
 from src.interfaces.search_provider import SearchProvider
-from typing import List, Dict, Any
+from src.services.answer_generator import AnswerGenerator
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -36,7 +37,7 @@ class LLMProvider(SearchProvider):
             "财务数据": "海康威视近年来财务表现：1)年营业收入超过800亿元人民币；2)净利润超过100亿元；3)毛利率在40%-50%之间；4)研发投入占比超过10%；5)在全球拥有40多家子公司。",
             "竞争优势": "海康威视的竞争优势：1)强大的研发团队（超过20,000名研发人员）；2)完整的产业链布局；3)规模效应带来的成本优势；4)品牌知名度和客户信任度；5)渠道网络覆盖全球150多个国家和地区。",
             "最新发展": "海康威视的最新发展：1)大力拓展AIoT（智能物联网）领域；2)发展智慧业务（智慧城市、智慧交通、智慧零售等）；3)推出EB边缘计算产品线；4)加强海外市场拓展；5)应对美国制裁的供应链本土化。",
-            "行业地位": "海康威视在安防监控行业处于绝对领先地位，是A股安防板块的龙头企业，被称为'安防茅'（安防界的茅台）。"
+            "行业地位": "海康威视在安防监控行业处于绝对领先地位，是A股安防板块的龙头企业，被称为'安防茅'（安防界的茅台）。",
         }
 
     def search(self, query: str) -> List[Dict[str, Any]]:
@@ -58,7 +59,7 @@ class LLMProvider(SearchProvider):
             "url": "",
             "snippet": description,
             "score": score,
-            "source": "llm_knowledge"
+            "source": "llm_knowledge",
         }
 
         logger.info(f"LLM 答案生成完成 (评分: {score}/10)")
@@ -723,7 +724,6 @@ class LLMProvider(SearchProvider):
 - 信息披露充分
 - 投资者关系管理良好"""
 
-
     def _build_growth_path_answer(self) -> str:
         """构建增长路径答案。"""
         return self._build_growth_answer()
@@ -953,7 +953,7 @@ def main():
             print(f"{'─' * 70}")
 
             # 显示答案（去除首尾换行，格式化显示）
-            answer_lines = result.answer.text.strip().split('\n')
+            answer_lines = result.answer.text.strip().split("\n")
             for line in answer_lines[:10]:  # 只显示前10行，避免太长
                 print(line)
 
@@ -982,6 +982,6 @@ def main():
     return 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     exit_code = main()
     sys.exit(exit_code)

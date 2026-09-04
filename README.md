@@ -1,5 +1,12 @@
 # StockQAbyLLM
 
+[![Tests](https://github.com/yourusername/StockQAbyLLM/actions/workflows/ci.yml/badge.svg)](https://github.com/yourusername/StockQAbyLLM/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/yourusername/StockQAbyLLM/branch/main/graph/badge.svg)](https://codecov.io/gh/yourusername/StockQAbyLLM)
+[![Security](https://github.com/yourusername/StockQAbyLLM/actions/workflows/security.yml/badge.svg)](https://github.com/yourusername/StockQAbyLLM/actions/workflows/security.yml)
+[![Documentation](https://github.com/yourusername/StockQAbyLLM/actions/workflows/docs.yml/badge.svg)](https://github.com/yourusername/StockQAbyLLM/actions/workflows/docs.yml)
+
+中文 | [English README](README_EN.md)
+
 基于大语言模型的股票问答系统。
 
 ## 项目概述
@@ -111,6 +118,41 @@ python main.py --verbose
 | `--output` | - | 输出文件路径 | 控制台输出 |
 | `--verbose` | `-v` | 启用详细日志 | 关闭 |
 | `--help` | `-h` | 显示帮助信息 | - |
+
+## 输出示例
+
+### JSON 格式输出
+
+程序生成的 JSON 格式结果示例（完整示例见 [docs/images/output_example.json](docs/images/output_example.json)）：
+
+```json
+{
+  "results": [
+    {
+      "question": "什么是市盈率？",
+      "answer": "市盈率（Price-to-Earnings Ratio，简称P/E或PE）是股票价格与每股收益的比率...",
+      "success": true,
+      "metadata": {
+        "model": "gpt-4o-mini",
+        "processing_time": 1.23,
+        "tokens_used": 256
+      }
+    }
+  ],
+  "summary": {
+    "total_questions": 3,
+    "successful": 3,
+    "total_processing_time": 4.55
+  }
+}
+```
+
+### 使用示例
+
+更多使用示例请参考 [examples/](examples/) 目录：
+- [基础使用示例](examples/basic_usage.py) - 处理单个问题
+- [批量处理示例](examples/batch_processing.py) - 批量处理问题
+- [异步处理示例](examples/async_usage.py) - 异步并发处理
 
 ## 开发
 

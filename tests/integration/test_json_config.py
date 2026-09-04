@@ -3,11 +3,12 @@
 该模块测试 JSON 配置文件的完整工作流。
 """
 
-import pytest
 import json
+import sys
 import tempfile
 from pathlib import Path
-import sys
+
+import pytest
 
 # 添加项目根目录到 Python 路径
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
@@ -85,7 +86,7 @@ class TestJSONConfigFormats:
         manager = JSONConfigManager(str(config_file))
 
         # 当前实现不支持嵌套对象格式，会跳过这些问题
-        from src.core.exceptions import EmptyConfigError, ConfigError
+        from src.core.exceptions import ConfigError, EmptyConfigError
 
         with pytest.raises((EmptyConfigError, ConfigError)):
             manager.load_questions()

@@ -6,14 +6,9 @@
 提供两种运行模式：基础模式 (basic) 和 LLM模式 (llm)。
 """
 
-import sys
 import argparse
-from pathlib import Path
+import sys
 
-# 添加 src 到 Python 路径
-sys.path.insert(0, str(Path(__file__).parent / "src"))
-
-# pylint: disable=wrong-import-position
 from src.config.settings import DEFAULT_CONFIG_FILE
 from src.utils.logger import get_logger
 
@@ -26,7 +21,8 @@ def main() -> int:
     """
     # 解析命令行参数
     parser = argparse.ArgumentParser(
-        description="StockQAbyLLM - 股票问答系统", formatter_class=argparse.RawDescriptionHelpFormatter
+        description="StockQAbyLLM - 股票问答系统",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
     # 模式选择
@@ -38,13 +34,22 @@ def main() -> int:
     )
 
     # 通用参数
-    parser.add_argument("--config", default=DEFAULT_CONFIG_FILE, help=f"配置文件路径（默认: {DEFAULT_CONFIG_FILE}）")
+    parser.add_argument(
+        "--config",
+        default=DEFAULT_CONFIG_FILE,
+        help=f"配置文件路径（默认: {DEFAULT_CONFIG_FILE}）",
+    )
     parser.add_argument("--output", help="输出文件路径（可选，默认输出到控制台）")
     parser.add_argument("--verbose", "-v", action="store_true", help="启用详细日志输出")
 
     # LLM模式特定参数
     llm_group = parser.add_argument_group("LLM模式参数")
-    llm_group.add_argument("--company", "-c", type=str, help="要分析的公司名称（如：海康威视、腾讯控股等），仅LLM模式有效")
+    llm_group.add_argument(
+        "--company",
+        "-c",
+        type=str,
+        help="要分析的公司名称（如：海康威视、腾讯控股等），仅LLM模式有效",
+    )
     llm_group.add_argument(
         "--provider",
         "-p",
@@ -53,9 +58,17 @@ def main() -> int:
         help="指定使用的 LLM 提供商（如：deepseek, minimax, glm），默认使用配置文件中的默认提供商，仅LLM模式有效",
     )
     llm_group.add_argument(
-        "--batch", "-b", type=str, metavar="FILE", help="批量处理模式：从文件读取股票列表（每行一个股票名称），仅LLM模式有效"
+        "--batch",
+        "-b",
+        type=str,
+        metavar="FILE",
+        help="批量处理模式：从文件读取股票列表（每行一个股票名称），仅LLM模式有效",
     )
-    llm_group.add_argument("--override", action="store_true", help="覆盖已存在的输出文件（默认：跳过已存在的文件），仅LLM模式有效")
+    llm_group.add_argument(
+        "--override",
+        action="store_true",
+        help="覆盖已存在的输出文件（默认：跳过已存在的文件），仅LLM模式有效",
+    )
     llm_group.add_argument(
         "--config-format",
         type=str,

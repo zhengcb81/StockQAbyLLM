@@ -5,25 +5,25 @@
 提供LLM模式的运行逻辑，使用LLM API进行分析。
 """
 
-import sys
 import argparse
+import sys
 from pathlib import Path
-from typing import Optional, Dict, Any, List, Union, cast
+from typing import Any, Dict, List, Optional, Union, cast
 
-from src.core.qa_engine import QAEngine
-from src.config.config_provider import ConfigProvider
-from src.config.config_manager import ConfigManager
-from src.config.json_config_manager import JSONConfigManager
-from src.services.answer_generator import AnswerGenerator
-from src.providers.llm_provider import LLMProvider
 from src.cli.batch_processor import (
-    load_questions,
-    load_existing_answers,
     calculate_questions_to_process,
-    validate_and_repair_existing_file,
-    process_single_stock_with_retry,
+    load_existing_answers,
+    load_questions,
     log_success_result,
+    process_single_stock_with_retry,
+    validate_and_repair_existing_file,
 )
+from src.config.config_manager import ConfigManager
+from src.config.config_provider import ConfigProvider
+from src.config.json_config_manager import JSONConfigManager
+from src.core.qa_engine import QAEngine
+from src.providers.llm_provider import LLMProvider
+from src.services.answer_generator import AnswerGenerator
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)

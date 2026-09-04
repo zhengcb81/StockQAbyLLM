@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import List
 
 from ..core.exceptions import ConfigError
+from .settings import MAX_QUESTION_LENGTH
 
 
 class ConfigProvider(ABC):
@@ -37,7 +38,6 @@ class ConfigProvider(ABC):
         """
         pass
 
-    @abstractmethod
     def validate_questions(self, questions: List[str]) -> bool:
         """验证问题列表。
 
@@ -48,9 +48,35 @@ class ConfigProvider(ABC):
             验证通过返回 True
 
         Raises:
-            具体的验证异常
+            ConfigError: 验证失败
         """
-        pass
+        if not questions:
+            raise ConfigError("问题列表不能为空")
+
+        if not isinstance(questions, list):
+            raise ConfigError("问题必须是列表类型")
+
+        for i, question in enumerate(questions, 1):
+            if not isinstance(question, str):
+                raise ConfigError(
+                    message=f"问题 {i} 不是字符串类型",
+                    details={
+                        "question_index": i,
+                        "question_type": type(question).__name__,
+                    },
+                )
+
+            if not question.strip():
+                raise ConfigError(message=f"问题 {i} 为空", details={"question_index": i})
+
+            if len(question) > MAX_QUESTION_LENGTH:
+                import logging
+
+                logging.getLogger(__name__).warning(
+                    "问题 %d 长度超过 %d 字符", i, MAX_QUESTION_LENGTH
+                )
+
+        return True
 
     def get_questions(self) -> List[str]:
         """获取已加载的问题列表。

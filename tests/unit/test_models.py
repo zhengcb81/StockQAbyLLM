@@ -3,11 +3,12 @@
 该模块测试 Question、Answer、QAResult 和 QABatchResult 类。
 """
 
-import pytest
 from datetime import datetime
 
-from src.core.models import Question, Answer, QAResult, QABatchResult
+import pytest
+
 from src.core.exceptions import ValidationError
+from src.core.models import Answer, QABatchResult, QAResult, Question
 
 
 class TestQuestion:

@@ -3,8 +3,10 @@
 该模块测试 LLMProvider 类的核心功能。
 """
 
+from unittest.mock import MagicMock, Mock, patch
+
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+
 from src.providers.llm_provider import LLMProvider
 
 
@@ -75,10 +77,10 @@ class TestLLMProviderSearch:
         results = provider.search("测试问题")
 
         assert len(results) == 1
-        assert results[0]["score"] == 7
-        # 描述在 snippet 字段中
-        assert "snippet" in results[0]
-        assert results[0]["source"] == "llm_api"
+        # results[0] 现在是 SearchResult 对象
+        assert results[0].score == 7
+        assert results[0].snippet == "测试答案"
+        assert results[0].source == "llm_api"
         # 验证调用了 session.post
         mock_session.post.assert_called_once()
 

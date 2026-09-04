@@ -2,22 +2,24 @@
 # -*- coding: utf-8 -*-
 """测试 LLM 集成增强模块。"""
 
-import pytest
 import time
+
+import pytest
+
 from src.utils.llm_integration import (
-    TokenUsage,
-    RequestCost,
-    TokenTracker,
+    ProviderCascade,
     RequestCache,
     RequestContext,
-    get_request_context,
-    set_request_context,
+    RequestCost,
+    TokenTracker,
+    TokenUsage,
+    cached_llm_request,
     create_request_context,
     generate_request_id,
-    ProviderCascade,
-    get_global_token_tracker,
     get_global_request_cache,
-    cached_llm_request,
+    get_global_token_tracker,
+    get_request_context,
+    set_request_context,
 )
 
 
@@ -274,6 +276,88 @@ class TestProviderCascade:
         # reset 后 failure_counts 被清空，所以 deepseek 不在其中
         counts = cascade.get_failure_counts()
         assert "deepseek" not in counts or counts["deepseek"] == 0
+
+    def test_failure_threshold_delays_cascade(self):
+        """测试失败阈值延迟降级。"""
+        cascade = ProviderCascade(
+            ["deepseek", "minimax"], failure_threshold=3, recovery_threshold=1
+        )
+        # 失败2次，不应触发降级
+        cascade.mark_failure("deepseek")
+        cascade.mark_failure("deepseek")
+        assert cascade.get_current() == "deepseek"
+
+        # 第3次失败，触发降级
+        cascade.mark_failure("deepseek")
+        assert cascade.get_current() == "minimax"
+
+    def test_recovery_threshold_delays_restore(self):
+        """测试恢复阈值延迟恢复。"""
+        cascade = ProviderCascade(
+            ["deepseek", "minimax"], failure_threshold=1, recovery_threshold=3
+        )
+        # 降级到minimax
+        cascade.mark_failure("deepseek")
+        assert cascade.get_current() == "minimax"
+
+        # 成功1次，不应恢复
+        cascade.mark_success("minimax")
+        assert cascade.get_current() == "minimax"
+
+        # 成功2次，不应恢复
+        cascade.mark_success("minimax")
+        assert cascade.get_current() == "minimax"
+
+        # 第3次成功，触发恢复
+        cascade.mark_success("minimax")
+        assert cascade.get_current() == "deepseek"
+
+    def test_health_check_prevents_restore(self):
+        """测试健康检查阻止恢复。"""
+
+        def unhealthy_check(provider: str) -> bool:
+            return provider != "deepseek"  # deepseek不健康
+
+        cascade = ProviderCascade(
+            ["deepseek", "minimax"],
+            failure_threshold=1,
+            recovery_threshold=1,
+            health_check=unhealthy_check,
+        )
+        # 降级到minimax
+        cascade.mark_failure("deepseek")
+        assert cascade.get_current() == "minimax"
+
+        # 尝试恢复，但健康检查阻止
+        cascade.mark_success("minimax")
+        assert cascade.get_current() == "minimax"  # 仍在minimax
+        assert cascade.is_recovering() is True
+
+    def test_success_counts_tracking(self):
+        """测试成功计数追踪。"""
+        cascade = ProviderCascade(
+            ["deepseek", "minimax"],
+            failure_threshold=1,
+            recovery_threshold=3,
+        )
+        cascade.mark_failure("deepseek")
+        assert cascade.get_current() == "minimax"
+
+        cascade.mark_success("minimax")
+        cascade.mark_success("minimax")
+        counts = cascade.get_success_counts()
+        assert counts["minimax"] == 2
+
+    def test_health_check_setter(self):
+        """测试健康检查setter。"""
+        cascade = ProviderCascade(["deepseek", "minimax"])
+        assert cascade.health_check is None
+
+        def check(p: str) -> bool:
+            return True
+
+        cascade.health_check = check
+        assert cascade.health_check is check
 
 
 class TestCachedLlmRequestDecorator:

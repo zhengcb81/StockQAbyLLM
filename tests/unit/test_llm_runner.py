@@ -2,10 +2,17 @@
 # -*- coding: utf-8 -*-
 """测试 LLM 运行器。"""
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock, call
 from pathlib import Path
-from src.runners.llm_runner import LLMRunner, load_stock_list, process_batch_stocks, log_final_results
+from unittest.mock import MagicMock, Mock, call, patch
+
+import pytest
+
+from src.runners.llm_runner import (
+    LLMRunner,
+    load_stock_list,
+    log_final_results,
+    process_batch_stocks,
+)
 
 
 class TestLLMRunner:
@@ -23,18 +30,19 @@ class TestLLMRunner:
         # 模拟配置加载
         mock_config_instance = mock_json_config.return_value
         mock_config_instance.load_questions.return_value = ["问题1"]
-        
+
         # 模拟 QA 引擎结果
         mock_engine_instance = mock_qa_engine.return_value
         mock_batch_result = Mock()
         mock_batch_result.results = []
         mock_engine_instance.process_questions.return_value = mock_batch_result
         mock_engine_instance.get_statistics.return_value = {
-            "total_questions": 0, "success_count": 0
+            "total_questions": 0,
+            "success_count": 0,
         }
-        
+
         result = runner.run(company="海康威视", provider="deepseek")
-        
+
         assert result == 0
         mock_llm_provider.assert_called_once()
         mock_engine_instance.process_questions.assert_called_once()
@@ -45,9 +53,9 @@ class TestLLMRunner:
         """测试批量运行模式。"""
         mock_load_stocks.return_value = ["公司1", "公司2"]
         mock_process_batch.return_value = {"total_stocks": 2, "success_count": 2, "failed_count": 0}
-        
+
         result = runner.run(batch_file="stocks.txt", provider="deepseek")
-        
+
         assert result == 0
         mock_load_stocks.assert_called_once_with("stocks.txt")
         mock_process_batch.assert_called_once()
@@ -57,7 +65,7 @@ class TestLLMRunner:
         """测试单公司运行异常处理。"""
         mock_config_instance = mock_json_config.return_value
         mock_config_instance.load_questions.side_effect = OSError("File error")
-        
+
         result = runner.run(company="公司", provider="deepseek")
         assert result == 1
 
@@ -65,7 +73,7 @@ class TestLLMRunner:
     def test_run_batch_mode_exception(self, mock_load_stocks, runner):
         """测试批量模式异常处理。"""
         mock_load_stocks.side_effect = OSError("File error")
-        
+
         result = runner.run(batch_file="stocks.txt", provider="deepseek")
         assert result == 1
 
@@ -82,7 +90,9 @@ class TestLLMRunner:
     @patch("src.runners.llm_runner.JSONConfigManager")
     @patch("src.runners.llm_runner.LLMProvider")
     @patch("src.runners.llm_runner.QAEngine")
-    def test_run_single_company_with_results(self, mock_qa_engine, mock_llm_provider, mock_json_config, runner):
+    def test_run_single_company_with_results(
+        self, mock_qa_engine, mock_llm_provider, mock_json_config, runner
+    ):
         """测试带结果的单公司运行。"""
         # 模拟配置加载
         mock_config_instance = mock_json_config.return_value
@@ -103,7 +113,8 @@ class TestLLMRunner:
         mock_batch_result.results = [mock_q1_result, mock_q2_result]
         mock_engine_instance.process_questions.return_value = mock_batch_result
         mock_engine_instance.get_statistics.return_value = {
-            "total_questions": 2, "success_count": 2
+            "total_questions": 2,
+            "success_count": 2,
         }
 
         result = runner.run(company="海康威视", provider="deepseek")
@@ -114,7 +125,9 @@ class TestLLMRunner:
     @patch("src.runners.llm_runner.ConfigManager")
     @patch("src.runners.llm_runner.LLMProvider")
     @patch("src.runners.llm_runner.QAEngine")
-    def test_run_single_company_txt_format(self, mock_qa_engine, mock_llm_provider, mock_config_manager, runner):
+    def test_run_single_company_txt_format(
+        self, mock_qa_engine, mock_llm_provider, mock_config_manager, runner
+    ):
         """测试使用txt格式的单公司运行。"""
         mock_config_instance = mock_config_manager.return_value
         mock_config_instance.load_questions.return_value = ["问题1"]
@@ -124,7 +137,8 @@ class TestLLMRunner:
         mock_batch_result.results = []
         mock_engine_instance.process_questions.return_value = mock_batch_result
         mock_engine_instance.get_statistics.return_value = {
-            "total_questions": 0, "success_count": 0
+            "total_questions": 0,
+            "success_count": 0,
         }
 
         result = runner.run(company="海康威视", provider="deepseek", config_format="txt")
@@ -142,7 +156,9 @@ class TestLLMRunner:
     @patch("src.runners.llm_runner.JSONConfigManager")
     @patch("src.runners.llm_runner.LLMProvider")
     @patch("src.runners.llm_runner.QAEngine")
-    def test_run_single_company_connection_error(self, mock_qa_engine, mock_llm_provider, mock_json_config, runner):
+    def test_run_single_company_connection_error(
+        self, mock_qa_engine, mock_llm_provider, mock_json_config, runner
+    ):
         """测试连接错误处理。"""
         mock_config_instance = mock_json_config.return_value
         mock_config_instance.load_questions.side_effect = ConnectionError("Network error")
@@ -160,7 +176,7 @@ class TestLLMRunner:
             "total_stocks": 2,
             "success_count": 1,
             "failed_count": 1,
-            "failed_stocks": [{"stock": "公司2", "error": "API错误"}]
+            "failed_stocks": [{"stock": "公司2", "error": "API错误"}],
         }
 
         result = runner.run(batch_file="stocks.txt", provider="deepseek")
@@ -186,7 +202,7 @@ class TestLLMRunner:
             "total_stocks": 1,
             "success_count": 1,
             "failed_count": 0,
-            "failed_stocks": []
+            "failed_stocks": [],
         }
 
         result = runner.run(batch_file="stocks.txt", provider="deepseek", override=True)
@@ -206,7 +222,7 @@ def test_load_stock_list(tmp_path):
     """测试加载股票列表函数。"""
     stock_file = tmp_path / "stocks.txt"
     stock_file.write_text("公司1\n  公司2  \n\n公司3", encoding="utf-8")
-    
+
     stocks = load_stock_list(str(stock_file))
     assert stocks == ["公司1", "公司2", "公司3"]
 

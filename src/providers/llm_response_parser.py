@@ -7,9 +7,10 @@
 
 import json
 import re
-from typing import Optional, Tuple, Any, Dict
+from typing import Any, Dict, Optional, Tuple
+
+from src.config.settings import DEFAULT_SCORE, SCORE_MAX, SCORE_MIN
 from src.utils.logger import get_logger
-from src.config.settings import DEFAULT_SCORE, SCORE_MIN, SCORE_MAX
 
 logger = get_logger(__name__)
 
