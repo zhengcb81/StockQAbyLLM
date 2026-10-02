@@ -184,11 +184,23 @@ class JSONConfigManager(ConfigProvider):
 
         elif isinstance(config_data, list):
             # 格式2: 对象数组
-            for item in config_data:
+            for index, item in enumerate(config_data):
                 if isinstance(item, dict) and "questions" in item:
                     questions.extend(self._extract_questions_from_category(item))
                 else:
-                    logger.warning("跳过无效的配置项: %s", item)
+                    # Q05：只记录结构化标识，不落原始配置对象
+                    if isinstance(item, dict):
+                        logger.warning(
+                            "跳过无效的配置项: index=%d type=dict keys=%s",
+                            index,
+                            sorted(str(key) for key in item.keys())[:8],
+                        )
+                    else:
+                        logger.warning(
+                            "跳过无效的配置项: index=%d type=%s",
+                            index,
+                            type(item).__name__,
+                        )
 
         else:
             raise ConfigError(f"不支持的JSON数据类型: {type(config_data)}")
@@ -218,8 +230,17 @@ class JSONConfigManager(ConfigProvider):
                 questions.append(q.strip())
             elif isinstance(q, dict) and isinstance(q.get("text"), str) and q["text"].strip():
                 questions.append(q["text"].strip())
+            elif isinstance(q, dict):
+                # Q05：只记录结构化标识，不落原始问题对象
+                logger.warning(
+                    "跳过无效的问题: type=dict keys=%s",
+                    sorted(str(key) for key in q.keys())[:8],
+                )
+            elif isinstance(q, str):
+                # Q05：短依据限长预览
+                logger.warning("跳过无效的问题: type=str preview=%.50s", q)
             else:
-                logger.warning("跳过无效的问题: %s", q)
+                logger.warning("跳过无效的问题: type=%s", type(q).__name__)
 
         return questions
 

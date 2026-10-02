@@ -2,9 +2,14 @@
 
 该模块提供统一的日志配置和获取功能。
 支持文件和控制台双输出，使用结构化格式。
+
+Q05（LLM-08）内容边界：所有处理器经过 :class:`ContentBoundaryFormatter`，
+落盘/输出前对凭据类内容脱敏并限制单条记录长度；调用方只应传入允许的
+结构化字段与短依据（问题/答案文本按既有约定截断）。
 """
 
 import logging
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -12,6 +17,38 @@ from pathlib import Path
 # 日志目录
 LOG_DIR = Path("logs")
 LOG_DIR.mkdir(exist_ok=True)
+
+# Q05（LLM-08）单条日志记录最大长度（含 traceback），超出即截断。
+LOG_RECORD_MAX_CHARS = 2000
+
+# Q05（LLM-08）凭据类内容脱敏模式（落盘前应用）。
+LOG_REDACTION_PATTERNS = (
+    (re.compile(r"\bsk-[A-Za-z0-9_\-]{6,}"), "sk-***"),
+    (re.compile(r"(?i)\bbearer[\s:=]+[A-Za-z0-9\.\-_]{6,}"), "Bearer ***"),
+    (
+        re.compile(
+            r"(?i)\b(api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|password)"
+            r"(\s*[=:]\s*)\S+"
+        ),
+        r"\1\2***",
+    ),
+)
+
+
+def sanitize_log_text(text: str) -> str:
+    """对日志文本执行凭据脱敏与限长（Q05 / LLM-08）。"""
+    for pattern, replacement in LOG_REDACTION_PATTERNS:
+        text = pattern.sub(replacement, text)
+    if len(text) > LOG_RECORD_MAX_CHARS:
+        text = text[:LOG_RECORD_MAX_CHARS] + "...[truncated]"
+    return text
+
+
+class ContentBoundaryFormatter(logging.Formatter):
+    """落盘/控制台内容边界：先按常规格式化，再脱敏与限长。"""
+
+    def format(self, record: logging.LogRecord) -> str:
+        return sanitize_log_text(super().format(record))
 
 
 def get_logger(
@@ -52,13 +89,15 @@ def get_logger(
     logger.setLevel(level)
     logger.propagate = False  # 不传播到父日志记录器
 
-    # 定义日志格式
-    file_formatter = logging.Formatter(
+    # 定义日志格式（Q05：文件与控制台均经过内容边界 formatter）
+    file_formatter = ContentBoundaryFormatter(
         fmt="%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
-    console_formatter = logging.Formatter(fmt="%(levelname)s - %(message)s", datefmt="%H:%M:%S")
+    console_formatter = ContentBoundaryFormatter(
+        fmt="%(levelname)s - %(message)s", datefmt="%H:%M:%S"
+    )
 
     # 添加文件处理器
     if log_to_file:

@@ -9,7 +9,7 @@ import json
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Mapping, Optional
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -227,6 +227,61 @@ class QAResult:
         return f"Q: {self.question}\nA: {self.answer}"
 
 
+# Q05（LLM-16）有限答案序列化边界：仅白名单字段可进入交换包。
+QUICK_SCAN_ANSWER_FIELDS = (
+    "question_id",
+    "status",
+    "score",
+    "description",
+    "source_urls",
+    "published_date",
+    "information_as_of",
+    "check_level",
+    "check_level_receipt_id",
+)
+QUICK_SCAN_ANSWER_DESCRIPTION_MAX_CHARS = 5000
+
+
+def serialize_answer_for_exchange(question_id: str, answer: Mapping[str, Any]) -> Dict[str, Any]:
+    """有限答案序列化边界（Q05 / LLM-16）。
+
+    仅保留 ``QUICK_SCAN_ANSWER_FIELDS`` 白名单字段：模型输出夹带的权威声称
+    字段（source_manifest、formal_profile、"审核通过" 等）在此被丢弃，不会
+    成为可信证据或触发跨仓写入；description 限长；答案文本只作为惰性字符串
+    透传，不参与任何执行策略或工具决策（LLM-08）。
+
+    Args:
+        question_id: 问题标识，作为输出的唯一权威来源
+        answer: 原始答案映射（可能夹带伪造字段）
+
+    Returns:
+        仅含白名单字段的交换用答案字典
+    """
+    description = answer.get("description")
+    if not isinstance(description, str):
+        description = "" if description is None else str(description)
+    if len(description) > QUICK_SCAN_ANSWER_DESCRIPTION_MAX_CHARS:
+        description = description[:QUICK_SCAN_ANSWER_DESCRIPTION_MAX_CHARS]
+    source_urls = answer.get("source_urls")
+    if not isinstance(source_urls, list):
+        source_urls = []
+    source_urls = [url for url in source_urls if isinstance(url, str)]
+    check_level = answer.get("check_level")
+    if not isinstance(check_level, str) or not check_level:
+        check_level = "unverified_model_output"
+    return {
+        "question_id": question_id,
+        "status": answer.get("status"),
+        "score": answer.get("score"),
+        "description": description,
+        "source_urls": source_urls,
+        "published_date": answer.get("published_date"),
+        "information_as_of": answer.get("information_as_of"),
+        "check_level": check_level,
+        "check_level_receipt_id": answer.get("check_level_receipt_id"),
+    }
+
+
 @dataclass
 class QABatchResult:
     """表示批量问答结果。
@@ -288,17 +343,19 @@ class QABatchResult:
             if not isinstance(source_urls, list):
                 source_urls = []
             source_urls = [url for url in source_urls if isinstance(url, str)]
-            answers[question_id] = {
-                "question_id": question_id,
-                "status": result.answer.status,
-                "score": result.answer.score,
-                "description": result.answer.text,
-                "source_urls": source_urls,
-                "published_date": None,
-                "information_as_of": None,
-                "check_level": "unverified_model_output",
-                "check_level_receipt_id": None,
-            }
+            answers[question_id] = serialize_answer_for_exchange(
+                question_id,
+                {
+                    "status": result.answer.status,
+                    "score": result.answer.score,
+                    "description": result.answer.text,
+                    "source_urls": source_urls,
+                    "published_date": None,
+                    "information_as_of": None,
+                    "check_level": "unverified_model_output",
+                    "check_level_receipt_id": None,
+                },
+            )
             answer_sha256 = hashlib.sha256(
                 json.dumps(
                     answers[question_id],
@@ -375,7 +432,10 @@ class QABatchResult:
 
         completed_at = max(
             _as_utc(value)
-            for value in [self.created_at, *(result.answer.created_at for result in self.results)]
+            for value in [
+                self.created_at,
+                *(result.answer.created_at for result in self.results),
+            ]
         )
         return {
             "schema_version": "stockqa.quick_scan_result/1.0.0",

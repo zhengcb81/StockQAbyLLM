@@ -112,6 +112,18 @@ def test_package_rejects_incomplete_duplicate_or_document_bearing_envelopes(muta
 
 
 @pytest.mark.parametrize(
+    "forged_key",
+    ["source_manifest", "source_manifest_id", "raw_document"],
+)
+def test_llm16_package_rejects_forged_authority_fields(forged_key):
+    """LLM-16：模型输出夹带的权威声称字段不得通过交换包边界。"""
+    package = _package()
+    package["items"][0]["observation"][forged_key] = {"forged": True}
+    with pytest.raises(ValueError, match="forbidden"):
+        validate_exchange_package(package)
+
+
+@pytest.mark.parametrize(
     "status,error_code",
     [
         ("accepted", None),
@@ -134,7 +146,13 @@ def test_exact_ack_status_and_error_semantics_are_accepted(status, error_code):
         {"observation_id": "obs_" + "0" * 64},
         {"payload_sha256": "0" * 64},
         {"ack_id": "arbitrary"},
-        {"consumer": {"component": "Other", "namespace": "quick_scan", "store_id": "s"}},
+        {
+            "consumer": {
+                "component": "Other",
+                "namespace": "quick_scan",
+                "store_id": "s",
+            }
+        },
         {"status": "accepted", "error_code": "invalid_payload"},
         {"status": "conflict", "error_code": "invalid_payload"},
         {"status": "rejected", "error_code": "immutable_key_hash_conflict"},

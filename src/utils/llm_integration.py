@@ -228,11 +228,32 @@ def get_global_token_tracker() -> TokenTracker:
 # ============================================================================
 
 
+# Q05（LLM-09）请求缓存键白名单：全部维度参与键构造，任一维度变化即未命中。
+REQUEST_CACHE_KEY_FIELDS = (
+    "provider",
+    "model",
+    "entity_id",
+    "security_scope",
+    "question_version",
+    "as_of_date",
+    "system_prompt",
+    "prompt",
+)
+_REQUEST_CACHE_DIMENSIONS = (
+    "model",
+    "entity_id",
+    "security_scope",
+    "question_version",
+    "as_of_date",
+)
+
+
 class RequestCache:
     """LLM 请求缓存。
 
     缓存相同输入的请求结果，避免重复调用 API。
     使用 LRU 策略限制缓存大小。
+    键按 REQUEST_CACHE_KEY_FIELDS 全维度构造（LLM-09）。
     """
 
     def __init__(self, max_size: int = 1000, ttl_seconds: int = 3600):
@@ -251,23 +272,69 @@ class RequestCache:
         self._hits = 0
         self._misses = 0
 
-    def _make_key(self, provider: str, prompt: str, system_prompt: str) -> str:
-        """生成缓存键。"""
-        key_data = f"{provider}:{system_prompt}:{prompt}"
-        return hashlib.sha256(key_data.encode()).hexdigest()
+    def _make_key(
+        self,
+        provider: str,
+        prompt: str,
+        system_prompt: str,
+        *,
+        model: Optional[str] = None,
+        entity_id: Optional[str] = None,
+        security_scope: Optional[str] = None,
+        question_version: Optional[str] = None,
+        as_of_date: Optional[str] = None,
+    ) -> str:
+        """生成缓存键：模型、实体/证券、题义版本、截止日等维度全部入键。"""
+        key_data = json.dumps(
+            [
+                provider,
+                model,
+                entity_id,
+                security_scope,
+                question_version,
+                as_of_date,
+                system_prompt,
+                prompt,
+            ],
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        return hashlib.sha256(key_data.encode("utf-8")).hexdigest()
 
-    def get(self, provider: str, prompt: str, system_prompt: str) -> Optional[Any]:
+    def get(
+        self,
+        provider: str,
+        prompt: str,
+        system_prompt: str = "",
+        *,
+        model: Optional[str] = None,
+        entity_id: Optional[str] = None,
+        security_scope: Optional[str] = None,
+        question_version: Optional[str] = None,
+        as_of_date: Optional[str] = None,
+    ) -> Optional[Any]:
         """获取缓存结果。
 
         Args:
             provider: LLM 提供商名称
             prompt: 用户提示词
             system_prompt: 系统提示词
+            model / entity_id / security_scope / question_version / as_of_date:
+                完整请求键维度（LLM-09）；任一不同即视为不同请求
 
         Returns:
             缓存的结果，如果不存在或已过期则返回 None
         """
-        key = self._make_key(provider, prompt, system_prompt)
+        key = self._make_key(
+            provider,
+            prompt,
+            system_prompt,
+            model=model,
+            entity_id=entity_id,
+            security_scope=security_scope,
+            question_version=question_version,
+            as_of_date=as_of_date,
+        )
 
         with self._lock:
             if key not in self._cache:
@@ -290,7 +357,19 @@ class RequestCache:
             logger.debug("缓存命中: %s (访问次数: %d)", key[:16], self._access_count[key])
             return self._cache[key]
 
-    def set(self, provider: str, prompt: str, system_prompt: str, result: Any) -> None:
+    def set(
+        self,
+        provider: str,
+        prompt: str,
+        system_prompt: str,
+        result: Any,
+        *,
+        model: Optional[str] = None,
+        entity_id: Optional[str] = None,
+        security_scope: Optional[str] = None,
+        question_version: Optional[str] = None,
+        as_of_date: Optional[str] = None,
+    ) -> None:
         """设置缓存结果。
 
         Args:
@@ -298,8 +377,19 @@ class RequestCache:
             prompt: 用户提示词
             system_prompt: 系统提示词
             result: 要缓存的结果
+            model / entity_id / security_scope / question_version / as_of_date:
+                完整请求键维度（LLM-09）
         """
-        key = self._make_key(provider, prompt, system_prompt)
+        key = self._make_key(
+            provider,
+            prompt,
+            system_prompt,
+            model=model,
+            entity_id=entity_id,
+            security_scope=security_scope,
+            question_version=question_version,
+            as_of_date=as_of_date,
+        )
 
         with self._lock:
             # 如果缓存已满，移除最少使用的条目
@@ -1696,8 +1786,10 @@ def cached_llm_request(cache: Optional[RequestCache] = None) -> Callable[..., An
             *args: Any,
             **kwargs: Any,
         ) -> T:
+            # 完整请求键维度从上下文关键字参数读取（LLM-09）
+            dimensions = {name: kwargs.get(name) for name in _REQUEST_CACHE_DIMENSIONS}
             # 尝试从缓存获取
-            cached_result = cache.get(provider, prompt, system_prompt)
+            cached_result = cache.get(provider, prompt, system_prompt, **dimensions)
             if cached_result is not None:
                 return cast(T, cached_result)
 
@@ -1705,7 +1797,7 @@ def cached_llm_request(cache: Optional[RequestCache] = None) -> Callable[..., An
             result = func(provider, prompt, system_prompt, *args, **kwargs)
 
             # 缓存结果
-            cache.set(provider, prompt, system_prompt, result)
+            cache.set(provider, prompt, system_prompt, result, **dimensions)
 
             return result
 
