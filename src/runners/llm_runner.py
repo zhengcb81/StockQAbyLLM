@@ -6,25 +6,33 @@
 """
 
 import argparse
+import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union, cast
+from typing import Any, Dict, List, Optional, cast
 
 from src.cli.batch_processor import (
     calculate_questions_to_process,
     load_existing_answers,
     load_questions,
-    log_success_result,
     process_single_stock_with_retry,
     validate_and_repair_existing_file,
 )
 from src.config.config_manager import ConfigManager
 from src.config.config_provider import ConfigProvider
 from src.config.json_config_manager import JSONConfigManager
+from src.config.llm_config import LLMConfig
+from src.core.models import Question
 from src.core.qa_engine import QAEngine
+from src.interfaces.search_provider import SearchProvider
 from src.providers.llm_provider import LLMProvider
 from src.services.answer_generator import AnswerGenerator
+from src.utils.llm_integration import OrderedSearchProviderCascade
 from src.utils.logger import get_logger
+from src.utils.quick_scan_cost_resolver import QuickScanCostResolver
+from src.utils.quick_scan_provider_health import QuickScanProviderHealth
+from src.utils.quick_scan_work_store import QuickScanWorkStore
+from src.utils.quick_scan_work_transport import bind_quick_scan_budget
 
 logger = get_logger(__name__)
 
@@ -202,6 +210,54 @@ class LLMRunner:
         """
         self.logger = get_logger(__name__, verbose=verbose)
 
+    @staticmethod
+    def _read_policy_effective_mode(config_path: Path) -> str:
+        """Read the StockQA-owned effective-mode hint from a separate config key.
+
+        ``next_run`` remains the default for any absent or unknown value; any
+        value that is not ``immediate`` keeps runs on the safer default.
+        """
+        try:
+            with open(config_path, "r", encoding="utf-8") as handle:
+                raw = json.load(handle)
+        except (OSError, ValueError, json.JSONDecodeError):
+            return "next_run"
+        value = raw.get("quick_scan_model_policy_effective_mode")
+        return value if isinstance(value, str) and value == "immediate" else "next_run"
+
+    @staticmethod
+    def _build_route_providers(
+        policy_snapshot: Dict[str, Any],
+        *,
+        company: str,
+        entity_id: Optional[str],
+        config_file: Path,
+    ) -> List[Optional[LLMProvider]]:
+        """Materialize one provider instance per eligible ordered route."""
+        route_providers: List[Optional[LLMProvider]] = []
+        for route in policy_snapshot["routes"]:
+            if not route["eligible"]:
+                route_providers.append(None)
+                continue
+            route_provider = LLMProvider(
+                provider_name=route["provider_config_ref"],
+                model=route["model"],
+                company_name=company,
+                config_file=str(config_file),
+                require_search=True,
+                entity_id=entity_id,
+            )
+            # A quota-rejected route should advance promptly instead
+            # of retrying the same exhausted account. Later quota
+            # policy work can add persisted, category-specific waits.
+            route_provider.max_retries = 1
+            route_provider.retry_strategy.max_retries = 1
+            # A separate repair request has no independent budget in
+            # model-policy v2; keep it from exceeding the dispatch cap.
+            route_provider.format_repair_budget = 0
+            route_providers.append(route_provider)
+        return route_providers
+
     def run(
         self,
         company: Optional[str] = None,
@@ -211,6 +267,8 @@ class LLMRunner:
         output: str = "outputs/analysis_result.json",
         override: bool = False,
         config_format: str = "json",
+        entity_id: Optional[str] = None,
+        require_search: bool = False,
     ) -> int:
         """运行LLM模式处理。
 
@@ -232,6 +290,12 @@ class LLMRunner:
 
         if not company and not batch_file:
             raise ValueError("必须指定 company 或 batch_file 参数")
+        if require_search and batch_file:
+            raise ValueError(
+                "--require-search 当前只支持单公司入口；批量接续由quick-scan运行器负责"
+            )
+        if require_search and not entity_id:
+            raise ValueError("--require-search必须显式提供 --entity-id，不能从公司名称猜测")
 
         self.logger.info("=" * 70)
         if company:
@@ -243,6 +307,8 @@ class LLMRunner:
                 config=config,
                 output=output,
                 config_format=config_format,
+                entity_id=entity_id,
+                require_search=require_search,
             )
         else:
             self.logger.info("批量股票分析模式")
@@ -258,7 +324,14 @@ class LLMRunner:
             )
 
     def _run_single_company(
-        self, company: str, provider: Optional[str], config: str, output: str, config_format: str
+        self,
+        company: str,
+        provider: Optional[str],
+        config: str,
+        output: str,
+        config_format: str,
+        entity_id: Optional[str] = None,
+        require_search: bool = False,
     ) -> int:
         """运行单公司处理模式。
 
@@ -273,30 +346,149 @@ class LLMRunner:
             退出码
         """
         try:
-            # 加载问题
-            # 根据配置格式选择配置管理器
+            if require_search and config_format != "json":
+                raise ValueError("--require-search要求JSON题目文件中的显式question_id")
             config_manager: ConfigProvider
             if config_format == "json":
                 config_manager = JSONConfigManager(config)
             else:
                 config_manager = ConfigManager(config)
-            questions = config_manager.load_questions()
+            questions = (
+                config_manager.load_question_items()
+                if require_search and isinstance(config_manager, JSONConfigManager)
+                else config_manager.load_questions()
+            )
+            if require_search and any(
+                not isinstance(question, Question) or not question.question_id
+                for question in questions
+            ):
+                raise ValueError("--require-search要求每道题提供稳定question_id")
 
             self.logger.info(f"\n成功加载 {len(questions)} 个问题")
             self.logger.info(f"配置文件: {config} ({config_format}格式)")
             self.logger.info("输出文件: %s\n", output)
 
-            # 初始化LLM提供者（从配置文件读取 API 密钥）
-            # provider is required here since it's a required parameter for the LLM mode
-            if provider is None:
+            # Quick-scan snapshots StockQA's ordered model policy at run start.
+            # With the default effective mode the snapshot applies to the whole
+            # run; explicit ``immediate`` re-reads the policy at each
+            # undispatched question boundary and records revision transitions.
+            quick_scan_policy = None
+            budget_store = None
+            cost_resolver = None
+            if provider is None and not require_search:
                 raise ValueError("provider 参数不能为 None")
-            llm_provider = LLMProvider(provider_name=provider, company_name=company)
+            if require_search:
+                llm_config = LLMConfig("llm_apis.json")
+                policy = llm_config.get_quick_scan_model_policy(default_provider=provider)
+                quick_scan_policy = policy
+                if policy["configured"]:
+                    cost_resolver = QuickScanCostResolver(
+                        llm_config.config_file.parent / "quick_scan_rate_cards.json",
+                        policy,
+                    )
+                    if (
+                        policy["cost_policy"]["pricing_basis"] == "verified_rate_card"
+                        and not cost_resolver.has_pricing_reference
+                    ):
+                        self.logger.warning(
+                            "Quick-scan rate card %s is unavailable; after the first provider "
+                            "attempt its reserved cost will remain unpriced and dispatch will pause.",
+                            policy["cost_policy"]["pricing_ref"],
+                        )
+                    budget_store = QuickScanWorkStore(
+                        llm_config.config_file.parent / "quick_scan_work.sqlite"
+                    )
+                    route_providers: List[Optional[LLMProvider]] = []
+                    for route in policy["routes"]:
+                        if not route["eligible"]:
+                            route_providers.append(None)
+                            continue
+                        route_provider = LLMProvider(
+                            provider_name=route["provider_config_ref"],
+                            model=route["model"],
+                            company_name=company,
+                            config_file=str(llm_config.config_file),
+                            require_search=True,
+                            entity_id=entity_id,
+                        )
+                        # A quota-rejected route should advance promptly instead
+                        # of retrying the same exhausted account. Later quota
+                        # policy work can add persisted, category-specific waits.
+                        route_provider.max_retries = 1
+                        route_provider.retry_strategy.max_retries = 1
+                        # A separate repair request has no independent budget in
+                        # model-policy v2; keep it from exceeding the dispatch cap.
+                        route_provider.format_repair_budget = 0
+                        route_providers.append(route_provider)
+
+                    def policy_provider() -> Dict[str, Any]:
+                        try:
+                            fresh = LLMConfig(str(llm_config.config_file))
+                            snapshot = fresh.get_quick_scan_model_policy(default_provider=provider)
+                            if snapshot.get("configured"):
+                                return snapshot
+                        except Exception:
+                            self.logger.exception(
+                                "Quick-scan hot policy reload failed; keeping the "
+                                "running revision."
+                            )
+                        return quick_scan_policy
+
+                    llm_provider: SearchProvider = OrderedSearchProviderCascade(
+                        providers=route_providers,
+                        routes=policy["routes"],
+                        policy_version=policy["policy_version"],
+                        max_attempts_per_dispatch_round=policy["max_attempts_per_dispatch_round"],
+                        require_search=True,
+                        health_store=QuickScanProviderHealth(
+                            llm_config.config_file.parent / "quick_scan_health.sqlite"
+                        ),
+                        quota_groups=policy["quota_groups"],
+                        policy_source={
+                            "policy_provider": policy_provider,
+                            "provider_factory": lambda snapshot: self._build_route_providers(
+                                snapshot,
+                                company=company,
+                                entity_id=entity_id,
+                                config_file=llm_config.config_file,
+                            ),
+                            "effective_mode": lambda: self._read_policy_effective_mode(
+                                llm_config.config_file
+                            ),
+                        },
+                    )
+                else:
+                    # Preserve existing retry behavior until the user activates
+                    # an ordered multi-model policy.
+                    llm_provider = LLMProvider(
+                        provider_name=policy["routes"][0]["provider_config_ref"],
+                        model=policy["routes"][0]["model"] or None,
+                        company_name=company,
+                        config_file=str(llm_config.config_file),
+                        require_search=True,
+                        entity_id=entity_id,
+                    )
+            else:
+                llm_provider = LLMProvider(
+                    provider_name=provider,
+                    company_name=company,
+                    require_search=False,
+                    entity_id=entity_id,
+                )
 
             answer_generator = AnswerGenerator()
             qa_engine = QAEngine(llm_provider, answer_generator)
 
             # 处理问题
-            batch_result = qa_engine.process_questions(questions)
+            if quick_scan_policy is not None and quick_scan_policy["configured"]:
+                if budget_store is None:
+                    raise RuntimeError("quick-scan budget binding: budget store is not bound")
+                with bind_quick_scan_budget(
+                    budget_store, quick_scan_policy, cost_resolver=cost_resolver
+                ):
+                    batch_result = qa_engine.process_questions(questions)
+            else:
+                batch_result = qa_engine.process_questions(questions)
 
             # 显示结果摘要
             print("\n" + "=" * 70)
@@ -314,7 +506,8 @@ class LLMRunner:
                 print(f"\n{'─' * 70}")
                 print(f"[{i}/{len(questions)}] {display_question}")
                 print(f"{'─' * 70}")
-                print(f"评分: {result.answer.score}/10")
+                score_text = f"{result.answer.score}/10" if result.answer.score is not None else "—"
+                print(f"Score: {score_text}")
                 # 显示描述的前200个字符
                 description_preview = (
                     result.answer.text[:200] + "..."
@@ -324,7 +517,21 @@ class LLMRunner:
                 print(f"\n{description_preview}")
 
             # 输出完整结果到JSON文件
-            qa_engine.output_results(batch_result, output)
+            if require_search:
+                qa_engine.output_results(
+                    batch_result,
+                    output,
+                    quick_scan_context={
+                        "entity_id": cast(str, entity_id),
+                        "company_name": company,
+                        # Top-level fields show the configured preference; the
+                        # per-question receipt names the route that answered.
+                        "provider_name": policy["routes"][0]["provider_config_ref"],
+                        "requested_model": policy["routes"][0]["model"],
+                    },
+                )
+            else:
+                qa_engine.output_results(batch_result, output)
 
             # 显示统计
             stats = qa_engine.get_statistics(batch_result)
@@ -333,24 +540,39 @@ class LLMRunner:
             print("=" * 70)
             print(f"[OK] 处理问题数: {stats['total_questions']}")
             print(f"[OK] 成功处理: {stats['success_count']}")
-            print("[OK] 处理成功率: 100%")
+            if require_search:
+                unscored_count = sum(
+                    1 for item in batch_result.results if item.answer.score is None
+                )
+                print(f"[INFO] 未评分问题: {unscored_count}")
+            else:
+                print("[OK] 处理成功率: 100%")
             print(f"[OK] 完整报告已保存到: {output}")
 
             # 计算平均评分
-            if batch_result.results:
-                avg_score = sum(r.answer.score for r in batch_result.results) / len(
-                    batch_result.results
-                )
+            scored_answers = [
+                r.answer.score for r in batch_result.results if r.answer.score is not None
+            ]
+            if scored_answers:
+                avg_score = sum(scored_answers) / len(scored_answers)
                 print(f"[OK] 平均评分: {avg_score:.1f}/10")
 
                 # 显示评分分布
                 score_distribution: Dict[int, int] = {}
                 for r in batch_result.results:
                     score = r.answer.score
-                    score_distribution[score] = score_distribution.get(score, 0) + 1
+                    if score is not None:
+                        score_distribution[score] = score_distribution.get(score, 0) + 1
                 print(f"[OK] 评分分布: {dict(sorted(score_distribution.items()))}")
 
-            self.logger.info("\n所有问题已成功处理！")
+            if require_search and stats["error_count"]:
+                self.logger.error(
+                    "Quick-scan contains %d failed question(s); partial results were saved.",
+                    stats["error_count"],
+                )
+                return 1
+
+            self.logger.info("\nQuestion processing completed.")
             return 0
 
         except (ConnectionError, TimeoutError, OSError) as e:
@@ -479,7 +701,9 @@ def main() -> int:
     )
 
     parser.add_argument(
-        "--override", action="store_true", help="覆盖已存在的输出文件（默认：跳过已存在的文件）"
+        "--override",
+        action="store_true",
+        help="覆盖已存在的输出文件（默认：跳过已存在的文件）",
     )
 
     parser.add_argument(

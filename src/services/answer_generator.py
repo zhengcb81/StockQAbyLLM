@@ -41,7 +41,10 @@ class AnswerGenerator:
         if not search_results:
             logger.warning("没有搜索结果，返回默认答案")
             return Answer(
-                text=f"抱歉，没有找到关于 '{question.text}' 的相关信息。", source="no_results"
+                text=f"抱歉，没有找到关于 '{question.text}' 的相关信息。",
+                score=None,
+                status="insufficient_evidence",
+                source="no_results",
             )
 
         try:
@@ -51,26 +54,55 @@ class AnswerGenerator:
             # 如果没有找到结果，返回提示信息
             if first_result.source == "no_results":
                 answer_text = first_result.snippet
-                answer_score = 1
+                answer_score = None
+                answer_status = "insufficient_evidence"
             else:
                 # 使用搜索结果中的实际答案内容
                 # 对于 LLM 知识库或其他搜索提供者，答案在 snippet 字段中
                 answer_text = first_result.snippet
-                # 使用默认评分
-                answer_score = 5
+                answer_score = first_result.score
+                answer_status = first_result.status or (
+                    "scored" if answer_score is not None else "unknown"
+                )
+
+            answer_source = first_result.source
+            response_question_id = first_result.metadata.get("question_id")
+            should_check_question_id = question.question_id is not None and (
+                response_question_id is not None or answer_status == "scored"
+            )
+            if should_check_question_id and response_question_id != question.question_id:
+                answer_text = "拒绝接收：响应的问题ID与当前待办不一致。"
+                answer_score = None
+                answer_status = "error"
+                answer_source = "error"
+
+            parsed_score = first_result.metadata.get("parsed_score")
+            if (
+                answer_status != "error"
+                and parsed_score is not None
+                and parsed_score != answer_score
+            ):
+                answer_text = "拒绝接收：外层评分与结构化回复中的评分不一致。"
+                answer_score = None
+                answer_status = "error"
+                answer_source = "error"
 
             answer = Answer(
                 text=answer_text,
                 score=answer_score,
-                source=first_result.source,
+                status=answer_status,
+                source=answer_source,
+                metadata=first_result.metadata,
             )
 
             logger.debug(f"答案生成完成: {answer.text[:50]}...")
             return answer
 
         except (IndexError, KeyError, ValueError, TypeError, RuntimeError) as e:
-            logger.error("答案生成失败: %s", e)
-            raise ProcessingError(message=f"答案生成失败: {str(e)}", question=question.text)
+            logger.error("答案生成失败（%s）", type(e).__name__)
+            raise ProcessingError(
+                message=f"答案生成失败（{type(e).__name__}）", question=question.text
+            ) from e
 
     def generate_batch_answers(
         self, questions: List[Question], all_search_results: List[List[SearchResult]]
@@ -103,6 +135,8 @@ class AnswerGenerator:
                 answers.append(answer)
             except ProcessingError:
                 # 继续处理其他问题
-                answers.append(Answer(text="处理问题时发生错误", source="error"))
+                answers.append(
+                    Answer(text="处理问题时发生错误", score=None, status="error", source="error")
+                )
 
         return answers

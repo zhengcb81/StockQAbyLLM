@@ -98,7 +98,7 @@ repos:
         name: pytest (unit tests)
         entry: pytest
         language: system
-        args: ['tests/unit/', '-v', '--tb=short']
+        args: ['tests/unit/', '-v', '--tb=short', '-p', 'no:base_url']
         pass_filenames: false
         always_run: true
 

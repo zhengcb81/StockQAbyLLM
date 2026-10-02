@@ -4,9 +4,22 @@
 使用 dataclasses 以提供类型安全和默认值。
 """
 
+import hashlib
+import json
+import re
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _utc_isoformat(value: datetime) -> str:
+    return _as_utc(value).isoformat().replace("+00:00", "Z")
 
 
 @dataclass
@@ -32,6 +45,8 @@ class SearchResult:
     rank: int = 0
     score: Optional[int] = None
     created_at: datetime = field(default_factory=datetime.now)
+    status: Optional[str] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         """验证搜索结果。"""
@@ -39,6 +54,20 @@ class SearchResult:
             raise ValueError("搜索结果标题不能为空")
         if not self.snippet or not self.snippet.strip():
             raise ValueError("搜索结果摘要不能为空")
+        if self.score is not None and (
+            type(self.score) is not int or self.score < 1 or self.score > 10
+        ):
+            raise ValueError("评分必须是1-10之间的整数")
+        if self.status is not None and self.status not in {
+            "scored",
+            "unknown",
+            "insufficient_evidence",
+            "not_applicable",
+            "error",
+        }:
+            raise ValueError("答案状态无效")
+        if self.status is not None and ((self.status == "scored") != (self.score is not None)):
+            raise ValueError("只有scored状态可以包含1-10分，其他状态必须为空分")
 
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典格式。
@@ -46,7 +75,7 @@ class SearchResult:
         Returns:
             包含所有字段的字典
         """
-        result = {
+        result: Dict[str, Any] = {
             "title": self.title,
             "snippet": self.snippet,
             "source": self.source,
@@ -55,6 +84,10 @@ class SearchResult:
         }
         if self.score is not None:
             result["score"] = self.score
+        if self.status is not None:
+            result["status"] = self.status
+        if self.metadata:
+            result["metadata"] = self.metadata
         return result
 
     @classmethod
@@ -73,6 +106,9 @@ class SearchResult:
             source=data.get("source", "unknown"),
             url=data.get("url"),
             rank=data.get("rank", 0),
+            score=data.get("score"),
+            status=data.get("status"),
+            metadata=data.get("metadata", {}),
         )
 
     def __str__(self) -> str:
@@ -91,6 +127,8 @@ class Question:
 
     text: str
     created_at: datetime = field(default_factory=datetime.now)
+    question_id: Optional[str] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         """验证问题文本。"""
@@ -98,6 +136,11 @@ class Question:
             raise ValueError("问题文本不能为空")
         # 去除首尾空格
         self.text = self.text.strip()
+        if self.question_id is not None and (
+            not isinstance(self.question_id, str)
+            or not re.fullmatch(r"[A-Z0-9_]+", self.question_id)
+        ):
+            raise ValueError("问题ID必须仅包含大写字母、数字和下划线")
 
     def __str__(self) -> str:
         """返回问题的字符串表示。"""
@@ -116,16 +159,36 @@ class Answer:
     """
 
     text: str
-    score: int = 5  # 默认评分
+    score: Optional[int] = None
     source: str = "web_search"
     created_at: datetime = field(default_factory=datetime.now)
+    status: Optional[str] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         """验证答案文本和评分。"""
         if not self.text or not self.text.strip():
             raise ValueError("答案文本不能为空")
-        if not isinstance(self.score, int) or self.score < 1 or self.score > 10:
+        if self.score is not None and (
+            type(self.score) is not int or self.score < 1 or self.score > 10
+        ):
             raise ValueError("评分必须是1-10之间的整数")
+        if self.status is None:
+            self.status = (
+                "scored"
+                if self.score is not None
+                else ("error" if self.source == "error" else "unknown")
+            )
+        if self.status not in {
+            "scored",
+            "unknown",
+            "insufficient_evidence",
+            "not_applicable",
+            "error",
+        }:
+            raise ValueError("答案状态无效")
+        if (self.status == "scored") != (self.score is not None):
+            raise ValueError("只有scored状态可以包含1-10分，其他状态必须为空分")
 
     def __str__(self) -> str:
         """返回答案的字符串表示。"""
@@ -178,7 +241,7 @@ class QABatchResult:
     results: list[QAResult] = field(default_factory=list)
     total_questions: int = 0
     processed_count: int = 0
-    created_at: datetime = field(default_factory=datetime.now)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def add_result(self, result: QAResult) -> None:
         """添加一个问答结果。
@@ -199,6 +262,134 @@ class QABatchResult:
         for result in self.results:
             combined.update(result.to_dict())
         return combined
+
+    def to_quick_scan_dict(
+        self,
+        *,
+        entity_id: str,
+        company_name: str,
+        provider_name: Optional[str],
+        requested_model: Optional[str],
+    ) -> Dict[str, Any]:
+        """Serialize a stable, per-question quick-scan envelope with a separate execution receipt."""
+        answers: Dict[str, Dict[str, Any]] = {}
+        execution_receipts: Dict[str, Dict[str, Any]] = {}
+        transport_providers: set[str] = set()
+        transport_models: set[str] = set()
+        for result in self.results:
+            question_id = result.question.question_id
+            if not question_id:
+                raise ValueError("quick-scan结果必须带有显式question_id，不能按位置补ID")
+            if question_id in answers:
+                raise ValueError(f"quick-scan结果包含重复question_id: {question_id}")
+
+            metadata = result.answer.metadata
+            source_urls = metadata.get("source_urls", [])
+            if not isinstance(source_urls, list):
+                source_urls = []
+            source_urls = [url for url in source_urls if isinstance(url, str)]
+            answers[question_id] = {
+                "question_id": question_id,
+                "status": result.answer.status,
+                "score": result.answer.score,
+                "description": result.answer.text,
+                "source_urls": source_urls,
+                "published_date": None,
+                "information_as_of": None,
+                "check_level": "unverified_model_output",
+                "check_level_receipt_id": None,
+            }
+            answer_sha256 = hashlib.sha256(
+                json.dumps(
+                    answers[question_id],
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    allow_nan=False,
+                ).encode("utf-8")
+            ).hexdigest()
+            execution = metadata.get("execution", {})
+            execution = execution if isinstance(execution, dict) else {}
+            attempts = metadata.get("attempts", [])
+            attempts = attempts if isinstance(attempts, list) else []
+            final_model = metadata.get("model_requested", requested_model)
+            provider_candidates = [execution, metadata, *reversed(attempts)]
+            final_provider = next(
+                (
+                    candidate["provider"]
+                    for candidate in provider_candidates
+                    if isinstance(candidate, dict)
+                    and candidate.get("provider") in {"openai", "minimax", "mimo"}
+                    and (
+                        candidate.get("response_id")
+                        or type(candidate.get("http_status_code")) is int
+                    )
+                ),
+                None,
+            )
+            credible_attempts = [
+                attempt
+                for attempt in attempts
+                if isinstance(attempt, dict)
+                and attempt.get("provider") in {"openai", "minimax", "mimo"}
+                and (attempt.get("response_id") or type(attempt.get("http_status_code")) is int)
+            ]
+            if credible_attempts:
+                for attempt in credible_attempts:
+                    transport_providers.add(attempt["provider"])
+                    attempt_model = attempt.get("requested_model")
+                    if not isinstance(attempt_model, str) and attempt["provider"] == final_provider:
+                        attempt_model = final_model
+                    if isinstance(attempt_model, str) and attempt_model:
+                        transport_models.add(attempt_model)
+            elif final_provider is not None:
+                transport_providers.add(final_provider)
+                if isinstance(final_model, str) and final_model:
+                    transport_models.add(final_model)
+            execution_receipts[question_id] = {
+                "answer_sha256": answer_sha256,
+                "answered_at": _utc_isoformat(result.answer.created_at),
+                "input_question_sha256": hashlib.sha256(
+                    result.question.text.encode("utf-8")
+                ).hexdigest(),
+                "provider": final_provider,
+                "requested_model": final_model,
+                "actual_model": metadata.get("actual_model"),
+                "request_id": metadata.get("request_id"),
+                "response_id": metadata.get("response_id"),
+                "response_status": execution.get("response_status"),
+                "http_status_code": execution.get("http_status_code"),
+                "failure_type": metadata.get("failure_type") or execution.get("failure_type"),
+                "started_at": execution.get("started_at"),
+                "completed_at": execution.get("completed_at"),
+                "attempt_id": execution.get("attempt_id"),
+                "prompt_sha256": execution.get("prompt_sha256"),
+                "search_receipt_id": execution.get("search_receipt_id"),
+                "search_status": metadata.get("search_status") or "not_attempted",
+                "source_urls": source_urls,
+                "web_search_calls": execution.get("web_search_calls", []),
+                "attempts": attempts,
+                "format_repair": metadata.get("format_repair"),
+                "dispatch_outcome": execution.get("dispatch_outcome"),
+            }
+
+        completed_at = max(
+            _as_utc(value)
+            for value in [self.created_at, *(result.answer.created_at for result in self.results)]
+        )
+        return {
+            "schema_version": "stockqa.quick_scan_result/1.0.0",
+            "entity": {"entity_id": entity_id, "name": company_name},
+            "observed_at": _utc_isoformat(completed_at),
+            "provider": {
+                "name": next(iter(transport_providers)) if len(transport_providers) == 1 else None,
+                "requested_model": (
+                    next(iter(transport_models)) if len(transport_models) == 1 else None
+                ),
+            },
+            "answers": answers,
+            "execution_receipts": execution_receipts,
+        }
 
     def is_complete(self) -> bool:
         """检查是否所有问题都已处理。

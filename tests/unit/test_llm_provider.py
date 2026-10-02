@@ -3,10 +3,12 @@
 该模块测试 LLMProvider 类的核心功能。
 """
 
+import json
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
+from src.core.models import Question
 from src.providers.llm_provider import LLMProvider
 
 
@@ -268,3 +270,84 @@ class TestLLMProviderEdgeCases:
         unicode_query = "问题😀🎉🚀测试"
         results = provider.search(unicode_query)
         assert isinstance(results, list)
+
+
+@pytest.mark.parametrize(
+    "configured_provider,url,model",
+    [
+        ("openai", "https://api.minimaxi.com/v1/responses", "MiniMax-M3"),
+        ("minimax", "https://api.openai.com/v1/responses", "gpt-4.1-mini"),
+    ],
+)
+@patch("src.providers.llm_client.http_client_manager")
+def test_public_provider_rejects_canonical_endpoint_mismatch_before_transport(
+    mock_manager, tmp_path, configured_provider, url, model
+):
+    config_file = tmp_path / "llm_apis.json"
+    config_file.write_text(
+        json.dumps(
+            {
+                "default_provider": configured_provider,
+                "providers": {
+                    configured_provider: {
+                        "enabled": True,
+                        "api_key": "",
+                        "model": model,
+                        "base_url": url,
+                        "max_retries": 1,
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    provider = LLMProvider(
+        provider_name=configured_provider,
+        api_key="offline-fixture-key",
+        config_file=str(config_file),
+        company_name="Microsoft Corporation",
+        entity_id="issuer:US5949181045",
+        require_search=True,
+    )
+    assert not provider.client.supports_web_search
+    result = provider.search_question(Question("Moat durability?", question_id="IQS_05"))[0]
+    assert result.score is None
+    assert result.status == "insufficient_evidence"
+    assert result.metadata["search_status"] == "unavailable"
+    mock_manager.get_sync_session.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "base_url,expected_env,expected_value",
+    [
+        ("https://token-plan-cn.xiaomimimo.com/v1", "MIMO_PLAN_API_KEY", "plan-fixture-key"),
+        ("https://api.xiaomimimo.com/v1", "MIMO_API_KEY", "paygo-fixture-key"),
+    ],
+)
+def test_mimo_environment_key_matches_configured_endpoint(
+    monkeypatch, tmp_path, base_url, expected_env, expected_value
+):
+    config = tmp_path / "mimo-provider.json"
+    config.write_text(
+        json.dumps(
+            {
+                "default_provider": "mimo",
+                "providers": {
+                    "mimo": {
+                        "enabled": True,
+                        "api_key": "",
+                        "model": "mimo-v2.6-flash",
+                        "base_url": base_url,
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("MIMO_API_KEY", "paygo-fixture-key")
+    monkeypatch.setenv("MIMO_PLAN_API_KEY", "plan-fixture-key")
+
+    provider = LLMProvider(provider_name="mimo", config_file=str(config))
+
+    assert provider.api_key == expected_value
+    assert provider.client.supports_web_search

@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union, cast
 from src.config.config_manager import ConfigManager
 from src.config.config_provider import ConfigProvider
 from src.config.json_config_manager import JSONConfigManager
-from src.config.settings import DEFAULT_MAX_RETRIES, DEFAULT_RETRY_DELAY, DEFAULT_SCORE
+from src.config.settings import DEFAULT_MAX_RETRIES, DEFAULT_RETRY_DELAY
 from src.core.qa_engine import QAEngine
 from src.providers.llm_provider import LLMProvider
 from src.services.answer_generator import AnswerGenerator
@@ -248,9 +248,7 @@ def merge_existing_answers(
 
     for question_text, answer_data in existing_answers.items():
         question = Question(text=question_text)
-        answer = Answer(
-            text=answer_data.get("description", ""), score=answer_data.get("score", DEFAULT_SCORE)
-        )
+        answer = Answer(text=answer_data.get("description", ""), score=answer_data.get("score"))
         result = QAResult(question=question, answer=answer, metadata={"source": "existing"})
         batch_result.add_result(result)
 
@@ -306,9 +304,13 @@ def log_success_result(
     # 显示简要统计
     stats = {
         "total_questions": len(batch_result.results),
-        "success_count": len(batch_result.results),
-        "error_count": 0,
+        "success_count": sum(1 for r in batch_result.results if r.answer.status != "error"),
+        "error_count": sum(1 for r in batch_result.results if r.answer.status == "error"),
     }
-    avg_score = sum(r.answer.score for r in batch_result.results) / len(batch_result.results)
-    logger.info("  平均评分: %.1f/10", avg_score)
+    scored_answers = [r.answer.score for r in batch_result.results if r.answer.score is not None]
+    if scored_answers:
+        avg_score = sum(scored_answers) / len(scored_answers)
+        logger.info("  平均评分: %.1f/10", avg_score)
+    else:
+        logger.info("  平均评分: 无有效评分")
     logger.info(f"  处理问题数: {stats['total_questions']} (新处理: {len(questions_to_process)})")

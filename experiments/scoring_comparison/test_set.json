@@ -1,0 +1,35 @@
+{
+  "_comment": "测试集配置：只声明「用哪些股票」和「用哪些题」，题目原文一律从 config.json 读取，不在此处复制或改写。",
+  "_question_ref": "category + index（该 category 下 questions 数组的下标，从 0 开始）",
+  "stocks": [
+    "海康威视",
+    "中微公司",
+    "东鹏饮料"
+  ],
+  "questions": [
+    {
+      "category": "市场与增长潜力",
+      "index": 0
+    },
+    {
+      "category": "竞争优势 / 护城河",
+      "index": 0
+    },
+    {
+      "category": "商业模式与盈利能力",
+      "index": 4
+    },
+    {
+      "category": "管理层与公司治理",
+      "index": 1
+    },
+    {
+      "category": "财务健康与资本结构",
+      "index": 0
+    },
+    {
+      "category": "竞争格局与稀缺性",
+      "index": 2
+    }
+  ]
+}

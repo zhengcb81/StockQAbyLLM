@@ -40,7 +40,9 @@ class SyncHTTPClient:
                 total=3,  # 最大重试次数
                 backoff_factor=1,  # 退避因子：1, 2, 4 秒
                 status_forcelist=[429, 500, 502, 503, 504],  # 需要重试的状态码
-                allowed_methods=["GET", "POST", "PUT", "DELETE"],  # 允许重试的方法
+                # A paid LLM POST must be counted and retried only by the
+                # quick-scan dispatcher after it records provider cooldown.
+                allowed_methods=["GET", "PUT", "DELETE"],
             )
 
             # 为 HTTPS 和 HTTP 配置适配器

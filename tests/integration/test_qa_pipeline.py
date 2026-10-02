@@ -6,6 +6,7 @@
 import json
 import sys
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
@@ -15,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from src.config.config_manager import ConfigManager
 from src.core.models import Answer, QAResult, Question
 from src.core.qa_engine import QAEngine
+from src.providers.llm_provider import LLMProvider
 from src.services.answer_generator import AnswerGenerator
 from src.services.search_service import SearchService
 
@@ -63,6 +65,34 @@ class TestQAPipeline:
         assert stats["total_questions"] == 3
         assert stats["success_count"] == 3
         assert stats["error_count"] == 0
+
+    def test_provider_score_eight_survives_real_answer_generation_chain(self, tmp_path):
+        """SC-01: provider JSON -> parser -> SearchResult -> QAEngine must preserve 8."""
+        provider = LLMProvider(
+            provider_name="test",
+            api_key="offline-test-key",
+            model="fixture-model",
+            config_file=str(tmp_path / "no-provider-secrets.json"),
+        )
+        provider.client = Mock()
+        provider.client.send_request.return_value = '{"score":8,"description":"有公开依据"}'
+        engine = QAEngine(provider, progress_reporter=Mock())
+
+        result = engine.process_question("公司核心竞争力如何？")
+
+        assert result.answer.score == 8
+        assert result.answer.status == "scored"
+
+    def test_missing_provider_credentials_never_create_a_default_score(self, tmp_path):
+        provider = LLMProvider(
+            provider_name="test",
+            config_file=str(tmp_path / "no-provider-secrets.json"),
+        )
+        engine = QAEngine(provider, progress_reporter=Mock())
+        result = engine.process_question("公司核心竞争力如何？")
+
+        assert result.answer.score is None
+        assert result.answer.status == "error"
 
     def test_backward_compatibility(self, temp_config_file):
         """测试向后兼容性 - 确保输出格式与新版实现一致。"""

@@ -8,6 +8,7 @@ import json
 from typing import Any, Dict, List
 
 from ..core.exceptions import ConfigError, EmptyConfigError, ProjectFileNotFoundError
+from ..core.models import Question
 from ..utils.cache import file_cache
 from ..utils.logger import get_logger
 from .config_provider import ConfigProvider
@@ -94,6 +95,57 @@ class JSONConfigManager(ConfigProvider):
                 message=f"读取配置文件失败: {str(e)}", file_path=str(self.config_path)
             )
 
+    def load_question_items(self) -> List[Question]:
+        """Load question text plus explicit stable IDs for the quick-scan CLI."""
+        self.load_questions()  # Reuse the legacy path's file and encoding validation.
+        config_data = file_cache.read_json_cached(self.config_path)
+        records = self._extract_question_items_from_json(config_data)
+        if not records:
+            raise EmptyConfigError(str(self.config_path))
+        ids = [question.question_id for question in records if question.question_id is not None]
+        if len(ids) != len(set(ids)):
+            raise ConfigError("question_id不能重复")
+        return records
+
+    def _extract_question_items_from_json(self, config_data: Any) -> List[Question]:
+        categories: List[Dict[str, Any]] = []
+        if isinstance(config_data, dict):
+            if isinstance(config_data.get("categories"), list):
+                categories = [item for item in config_data["categories"] if isinstance(item, dict)]
+            elif "questions" in config_data:
+                categories = [config_data]
+            else:
+                raise ConfigError("JSON配置必须包含'questions'字段或'categories'字段")
+        elif isinstance(config_data, list):
+            categories = [
+                item for item in config_data if isinstance(item, dict) and "questions" in item
+            ]
+        else:
+            raise ConfigError(f"不支持的JSON数据类型: {type(config_data)}")
+
+        records = []
+        for category in categories:
+            questions = category.get("questions", [])
+            if not isinstance(questions, list):
+                raise ConfigError("分类的questions字段必须是数组")
+            for item in questions:
+                if isinstance(item, str):
+                    records.append(Question(text=item))
+                    continue
+                if not isinstance(item, dict):
+                    raise ConfigError("结构化问题必须是对象或旧版问题字符串")
+                text = item.get("text")
+                question_id = item.get("question_id")
+                if not isinstance(text, str) or not text.strip():
+                    raise ConfigError("结构化问题必须包含非空text")
+                if not isinstance(question_id, str) or not question_id.strip():
+                    raise ConfigError("结构化问题必须显式提供非空question_id")
+                metadata = item.get("metadata", {})
+                if not isinstance(metadata, dict):
+                    raise ConfigError("问题metadata必须是对象")
+                records.append(Question(text=text, question_id=question_id, metadata=metadata))
+        return records
+
     def _extract_questions_from_json(self, config_data: Any) -> List[str]:
         """从JSON数据中提取所有问题。
 
@@ -164,6 +216,8 @@ class JSONConfigManager(ConfigProvider):
         for q in questions_data:
             if isinstance(q, str) and q.strip():
                 questions.append(q.strip())
+            elif isinstance(q, dict) and isinstance(q.get("text"), str) and q["text"].strip():
+                questions.append(q["text"].strip())
             else:
                 logger.warning("跳过无效的问题: %s", q)
 

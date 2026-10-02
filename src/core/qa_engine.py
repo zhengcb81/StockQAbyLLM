@@ -48,7 +48,7 @@ class QAEngine:
         self.progress_reporter = progress_reporter or ConsoleReporter()
         logger.info("QAEngine 初始化完成（搜索提供者: %s）", search_provider.get_provider_name())
 
-    def process_question(self, question_text: str) -> QAResult:
+    def process_question(self, question_text: Any) -> QAResult:
         """处理单个问题。
 
         Args:
@@ -61,32 +61,45 @@ class QAEngine:
             ValidationError: 问题验证失败
             ProcessingError: 问题处理失败
         """
-        logger.debug("处理单个问题: %s...", question_text[:DISPLAY_QUESTION_TRUNCATE])
+        display_text = question_text.text if isinstance(question_text, Question) else question_text
+        logger.debug("处理单个问题: %s...", display_text[:DISPLAY_QUESTION_TRUNCATE])
 
         # 验证并创建问题对象
         try:
-            question = Question(text=question_text)
+            question = (
+                question_text
+                if isinstance(question_text, Question)
+                else Question(text=question_text)
+            )
         except ValueError as e:
             raise ValidationError(message=f"问题验证失败: {str(e)}", field="question") from e
 
         # 执行搜索
         try:
-            search_results = self.search_provider.search(question.text)
+            search_question = getattr(self.search_provider, "search_question", None)
+            if callable(search_question):
+                search_results = search_question(question)
+            else:
+                search_results = self.search_provider.search(question.text)
             logger.debug("搜索完成，返回 %d 个结果", len(search_results))
         except ProcessingError:
             raise
-        except (ValueError, RuntimeError) as e:
-            logger.error("搜索失败: %s", e)
-            raise ProcessingError(message=f"搜索执行失败: {str(e)}", question=question.text) from e
+        except Exception as e:
+            logger.error("搜索失败（%s）", type(e).__name__)
+            raise ProcessingError(
+                message=f"搜索执行失败（{type(e).__name__}）", question=question.text
+            ) from e
 
         # 生成答案
         try:
             answer = self.answer_generator.generate_answer(question, search_results)
         except ProcessingError:
             raise
-        except RuntimeError as e:
-            logger.error("答案生成失败: %s", e)
-            raise ProcessingError(message=f"答案生成失败: {str(e)}", question=question.text) from e
+        except Exception as e:
+            logger.error("答案生成失败（%s）", type(e).__name__)
+            raise ProcessingError(
+                message=f"答案生成失败（{type(e).__name__}）", question=question.text
+            ) from e
 
         # 创建结果对象
         result = QAResult(question=question, answer=answer)
@@ -94,7 +107,7 @@ class QAEngine:
 
         return result
 
-    def process_questions(self, question_texts: List[str]) -> QABatchResult:
+    def process_questions(self, question_texts: List[Any]) -> QABatchResult:
         """批量处理问题。
 
         Args:
@@ -116,8 +129,11 @@ class QAEngine:
         self.progress_reporter.start_batch(len(question_texts))
 
         for i, question_text in enumerate(question_texts, 1):
+            display_text = (
+                question_text.text if isinstance(question_text, Question) else question_text
+            )
             # 更新进度
-            msg = f"正在处理: {question_text[:DISPLAY_QUESTION_TRUNCATE]}..."
+            msg = f"正在处理: {display_text[:DISPLAY_QUESTION_TRUNCATE]}..."
             self.progress_reporter.update_progress(i, len(question_texts), msg)
 
             try:
@@ -126,20 +142,26 @@ class QAEngine:
                 logger.info("[%d/%d] 处理成功", i, len(question_texts))
 
                 # 更新进度（成功）
-                done_msg = f"[OK] 完成: {question_text[:DISPLAY_QUESTION_TRUNCATE]}...  "
+                done_msg = f"[OK] 完成: {display_text[:DISPLAY_QUESTION_TRUNCATE]}...  "
                 self.progress_reporter.update_progress(i, len(question_texts), done_msg)
 
             except (ValidationError, ProcessingError) as e:
                 logger.error("[%d/%d] 处理失败: %s", i, len(question_texts), e)
 
                 # 更新进度（失败）
-                fail_msg = f"[FAIL] 失败: {question_text[:DISPLAY_QUESTION_TRUNCATE]}...  "
+                fail_msg = f"[FAIL] 失败: {display_text[:DISPLAY_QUESTION_TRUNCATE]}...  "
                 self.progress_reporter.update_progress(i, len(question_texts), fail_msg)
 
                 # 添加错误结果，继续处理下一个问题
                 try:
-                    error_question = Question(text=question_text)
-                    error_answer = Answer(text=f"处理失败: {str(e)}", source="error")
+                    error_question = (
+                        question_text
+                        if isinstance(question_text, Question)
+                        else Question(text=question_text)
+                    )
+                    error_answer = Answer(
+                        text=f"处理失败: {str(e)}", score=None, status="error", source="error"
+                    )
                     error_result = QAResult(
                         question=error_question, answer=error_answer, metadata={"error": str(e)}
                     )
@@ -154,7 +176,10 @@ class QAEngine:
         return batch_result
 
     def output_results(
-        self, batch_result: QABatchResult, output_file: Optional[str] = None
+        self,
+        batch_result: QABatchResult,
+        output_file: Optional[str] = None,
+        quick_scan_context: Optional[Dict[str, Any]] = None,
     ) -> None:
         """输出结果。
 
@@ -164,7 +189,11 @@ class QAEngine:
         """
         import json
 
-        result_dict = batch_result.to_dict()
+        result_dict = (
+            batch_result.to_quick_scan_dict(**quick_scan_context)
+            if quick_scan_context is not None
+            else batch_result.to_dict()
+        )
         json_output = json.dumps(result_dict, ensure_ascii=False, indent=4)
 
         if output_file:
@@ -188,7 +217,17 @@ class QAEngine:
         Returns:
             包含统计信息的字典
         """
-        error_count = sum(1 for r in batch_result.results if r.metadata.get("error"))
+        error_count = sum(
+            1
+            for r in batch_result.results
+            if r.metadata.get("error")
+            or r.answer.status == "error"
+            or (
+                isinstance(r.answer.metadata.get("format_repair"), dict)
+                and r.answer.metadata["format_repair"].get("status")
+                in {"failed", "unverified", "not_enabled"}
+            )
+        )
 
         return {
             "total_questions": batch_result.total_questions,

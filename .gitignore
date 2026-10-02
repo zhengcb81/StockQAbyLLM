@@ -87,6 +87,12 @@ logs/
 # 输出文件
 outputs/
 *.json
+!src/config/quick_scan_model_policy.schema.json
+!src/config/quick_scan_rate_cards.schema.json
+!examples/quick_scan_rate_cards.template.json
+!experiments/scoring_comparison/test_set.json
+/quick_scan_health.sqlite*
+/quick_scan_work.sqlite*
 !llm_apis.json.example
 !.secrets.baseline
 

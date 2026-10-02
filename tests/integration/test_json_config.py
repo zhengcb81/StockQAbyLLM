@@ -63,6 +63,66 @@ class TestJSONConfigFormats:
         assert "公司的核心竞争优势是什么？" in questions
         assert "公司的财务状况如何？" in questions
 
+    def test_load_question_items_preserves_explicit_ids(self, tmp_path):
+        config_file = tmp_path / "quick_scan_questions.json"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "categories": [
+                        {
+                            "category": "通用评分",
+                            "questions": [
+                                {
+                                    "question_id": "IQS_05",
+                                    "text": "公司的核心优势是否持久？",
+                                    "metadata": {"rubric_version": "3.0.0"},
+                                },
+                                {"question_id": "IQS_06", "text": "资本回报是否稳健？"},
+                            ],
+                        }
+                    ]
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        manager = JSONConfigManager(str(config_file))
+
+        items = manager.load_question_items()
+
+        assert [item.question_id for item in items] == ["IQS_05", "IQS_06"]
+        assert items[0].text == "公司的核心优势是否持久？"
+        assert items[0].metadata["rubric_version"] == "3.0.0"
+
+    def test_load_question_items_does_not_invent_ids_for_legacy_strings(self, tmp_path):
+        config_file = tmp_path / "legacy_questions.json"
+        config_file.write_text(
+            json.dumps({"questions": ["没有稳定ID的问题"]}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        items = JSONConfigManager(str(config_file)).load_question_items()
+        assert len(items) == 1
+        assert items[0].question_id is None
+
+    def test_load_question_items_rejects_duplicate_ids(self, tmp_path):
+        config_file = tmp_path / "duplicate_questions.json"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "questions": [
+                        {"question_id": "IQS_05", "text": "问题一"},
+                        {"question_id": "IQS_05", "text": "问题二"},
+                    ]
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        from src.core.exceptions import ConfigError
+
+        with pytest.raises(ConfigError, match="question_id不能重复"):
+            JSONConfigManager(str(config_file)).load_question_items()
+
     def test_nested_object_array_format(self, tmp_path):
         """测试嵌套对象数组格式。
 

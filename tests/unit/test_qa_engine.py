@@ -51,6 +51,41 @@ class TestQAEngine:
         assert result.answer.text is not None
         assert result.answer.source == "mock"
 
+    def test_process_identified_question_uses_provider_question_id_path(self):
+        provider = Mock()
+        provider.get_provider_name.return_value = "fixture"
+        provider.search_question.return_value = [
+            SearchResult(
+                title="fixture",
+                snippet="evidence",
+                source="llm_api",
+                score=8,
+                status="scored",
+                metadata={"question_id": "IQS_05", "parsed_score": 8},
+            )
+        ]
+        provider.search.side_effect = AssertionError("identified question used legacy path")
+        question = Question("竞争优势如何？", question_id="IQS_05")
+        engine = QAEngine(provider)
+
+        result = engine.process_question(question)
+
+        provider.search_question.assert_called_once_with(question)
+        assert result.question.question_id == "IQS_05"
+        assert result.answer.score == 8
+
+    def test_process_question_sanitizes_provider_exception_details(self):
+        provider = Mock()
+        provider.get_provider_name.return_value = "fixture"
+        provider.search_question.side_effect = ValueError("private credential response body")
+        engine = QAEngine(provider)
+
+        with pytest.raises(ProcessingError) as error:
+            engine.process_question("Issuer quality")
+
+        assert "private credential response body" not in str(error.value)
+        assert "ValueError" in str(error.value)
+
     def test_process_empty_question_raises_error(self):
         """测试处理空问题抛出异常。"""
         search_provider = MockSearchProvider()

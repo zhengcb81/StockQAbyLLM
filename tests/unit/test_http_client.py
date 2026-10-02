@@ -3,11 +3,13 @@
 """测试 HTTP 客户端模块。"""
 
 import asyncio
+import io
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import httpx
 import pytest
 import requests
+from urllib3.response import HTTPResponse
 
 from src.utils.http_client import (
     AsyncHTTPClient,
@@ -51,6 +53,33 @@ class TestSyncHTTPClient:
         # 验证重试策略
         https_adapter = session.adapters["https://"]
         assert https_adapter.max_retries is not None
+
+    def test_paid_post_is_not_retried_inside_shared_transport(self):
+        """The quick-scan dispatcher owns paid attempts and provider cooldowns."""
+        retry = SyncHTTPClient.get_session().adapters["https://"].max_retries
+        assert not retry.is_retry("POST", 429, has_retry_after=True)
+        assert not retry.is_retry("POST", 500)
+        assert retry.is_retry("GET", 500)
+
+    def test_paid_post_returns_first_429_without_hidden_retry_or_sleep(self):
+        session = SyncHTTPClient.get_session()
+        session.trust_env = False
+        response = HTTPResponse(
+            body=io.BytesIO(b'{"error":{"code":"rate_limit_exceeded"}}'),
+            status=429,
+            headers={"Retry-After": "18000"},
+            preload_content=False,
+        )
+        with patch(
+            "urllib3.connectionpool.HTTPSConnectionPool._make_request", return_value=response
+        ) as send, patch(
+            "urllib3.util.retry.Retry.sleep", side_effect=AssertionError("hidden transport sleep")
+        ):
+            actual = session.post(
+                "https://example.invalid/v1/responses", json={"model": "fixture"}, timeout=1
+            )
+        assert actual.status_code == 429
+        assert send.call_count == 1
 
     def test_close_session(self):
         """测试关闭 session。"""

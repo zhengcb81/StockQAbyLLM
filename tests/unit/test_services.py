@@ -83,6 +83,56 @@ class TestAnswerGenerator:
         assert answer.text is not None
         assert answer.source == "web_search"
 
+    def test_generated_answer_preserves_provider_score_eight(self):
+        answer = AnswerGenerator().generate_answer(
+            Question(text="评估问题"),
+            [SearchResult(title="LLM", snippet="证据充分", source="llm_api", score=8)],
+        )
+        assert answer.score == 8
+        assert answer.status == "scored"
+
+    def test_generated_answer_keeps_missing_score_null(self):
+        answer = AnswerGenerator().generate_answer(
+            Question(text="评估问题"),
+            [SearchResult(title="LLM", snippet="证据不足", source="llm_api", score=None)],
+        )
+        assert answer.score is None
+        assert answer.status == "unknown"
+
+    def test_generated_answer_rejects_wrong_question_id(self):
+        answer = AnswerGenerator().generate_answer(
+            Question(text="评估问题", question_id="IQS_05"),
+            [
+                SearchResult(
+                    title="LLM",
+                    snippet="回答了另一题",
+                    source="llm_api",
+                    score=8,
+                    metadata={"question_id": "IQS_06", "parsed_score": 8},
+                )
+            ],
+        )
+        assert answer.score is None
+        assert answer.status == "error"
+        assert "问题ID" in answer.text
+
+    def test_generated_answer_rejects_outer_inner_score_mismatch(self):
+        answer = AnswerGenerator().generate_answer(
+            Question(text="评估问题"),
+            [
+                SearchResult(
+                    title="LLM",
+                    snippet="结构化分数是8",
+                    source="llm_api",
+                    score=5,
+                    metadata={"parsed_score": 8},
+                )
+            ],
+        )
+        assert answer.score is None
+        assert answer.status == "error"
+        assert "评分不一致" in answer.text
+
     def test_generate_answer_with_empty_results(self):
         """测试使用空搜索结果生成答案。"""
         generator = AnswerGenerator()
@@ -93,6 +143,8 @@ class TestAnswerGenerator:
         assert answer.text is not None
         assert "没有找到" in answer.text
         assert answer.source == "no_results"
+        assert answer.score is None
+        assert answer.status == "insufficient_evidence"
 
     def test_generate_batch_answers(self):
         """测试批量生成答案。"""

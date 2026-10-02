@@ -4,12 +4,128 @@
 """
 
 import json
-import tempfile
 from pathlib import Path
 
 import pytest
 
 from src.config.llm_config import LLMConfig
+
+
+def _quick_scan_policy(order=("primary", "backup"), *, policy_id="test-policy"):
+    models = {
+        "primary": {
+            "id": "primary-route",
+            "enabled": True,
+            "provider_config_ref": "primary",
+            "model": "model-a",
+            "quota_group": "account-a",
+            "max_in_flight": 1,
+        },
+        "backup": {
+            "id": "backup-route",
+            "enabled": True,
+            "provider_config_ref": "backup",
+            "model": "model-b",
+            "quota_group": "account-b",
+            "max_in_flight": 1,
+        },
+    }
+    return {
+        "schema_version": "2.0.0",
+        "policy_id": policy_id,
+        "execution_owner": "StockQAbyLLM",
+        "configured": True,
+        "dispatch": {
+            "max_in_flight_total": 4,
+            "max_questions_per_pack": 32,
+            "one_entity_per_pack": True,
+            "separate_score_and_fact_packs": True,
+            "required_capabilities": ["web_search", "structured_output"],
+            "on_preferred_capacity_full": "wait",
+            "speculative_racing": False,
+        },
+        "budget": {
+            "currency": "USD",
+            "max_cost": 100.0,
+            "max_requests": 100,
+            "max_cost_per_attempt": 10.0,
+            "reset_on_restart": False,
+        },
+        "cost_policy": {
+            "pricing_basis": "user_cap",
+            "pricing_ref": "fixture-user-cap",
+            "include_search_charges": True,
+            "include_failed_attempts": True,
+            "reserve_before_dispatch": True,
+            "unknown_actual_cost_action": "retain_reservation_and_pause",
+        },
+        "quota_groups": [
+            {
+                "id": "account-a",
+                "max_in_flight": 1,
+                "window_seconds_hint": None,
+                "unknown_reset_cooldown_seconds": 18000,
+                "half_open_probe_limit": 1,
+            },
+            {
+                "id": "account-b",
+                "max_in_flight": 1,
+                "window_seconds_hint": None,
+                "unknown_reset_cooldown_seconds": 18000,
+                "half_open_probe_limit": 1,
+            },
+        ],
+        "models": [models[name] for name in order],
+        "fallback": {
+            "on_quota_exhausted": "cooldown_group_then_next",
+            "on_rate_limit": "respect_retry_after_then_next",
+            "on_server_error": "bounded_retry_then_next",
+            "on_auth_error": "disable_route_then_next",
+            "on_invalid_request": "stop_without_fallback",
+            "on_malformed_response": "bounded_retry_then_next",
+            "on_missing_capability": "skip_before_dispatch",
+            "on_timeout": "reconcile_receipt_before_retry",
+            "on_low_score": "accept",
+            "on_unknown_answer": "accept_with_gap",
+            "on_fallback_success": "stop_dispatch_keep_primary_health",
+            "max_attempts_per_dispatch_round": 2,
+        },
+        "comparison": {
+            "enabled": False,
+            "max_models_per_question": 2,
+            "max_cost": 0,
+            "max_requests": 0,
+            "same_input_and_cutoff_required": True,
+            "separate_from_primary_fallback": True,
+        },
+        "resume": {
+            "success_checkpoint": "per_question",
+            "replay_outbox_before_dispatch": True,
+            "preserve_uncertain_requests": True,
+            "persist_cooldowns_and_budget": True,
+        },
+    }
+
+
+def _llm_config_content(policy=None):
+    content = {
+        "default_provider": "primary",
+        "providers": {
+            "primary": {
+                "enabled": True,
+                "api_key": "fixture-primary-key",
+                "model": "legacy-a",
+            },
+            "backup": {
+                "enabled": True,
+                "api_key": "fixture-backup-key",
+                "model": "legacy-b",
+            },
+        },
+    }
+    if policy is not None:
+        content["quick_scan_model_policy"] = policy
+    return content
 
 
 class TestLLMConfigInit:
@@ -404,6 +520,215 @@ class TestLLMConfigGetEnabledProviders:
         enabled = config.get_enabled_providers()
 
         assert len(enabled) == 0
+
+
+class TestQuickScanModelPolicy:
+    def test_unconfigured_policy_uses_legacy_default_provider(self, tmp_path):
+        path = tmp_path / "llm_apis.json"
+        path.write_text(json.dumps(_llm_config_content()), encoding="utf-8")
+
+        policy = LLMConfig(str(path)).get_quick_scan_model_policy()
+
+        assert policy["configured"] is False
+        assert policy["routes"][0]["provider_config_ref"] == "primary"
+        assert policy["routes"][0]["model"] == "legacy-a"
+        assert policy["policy_version"].startswith("legacy-single-provider@")
+
+    def test_configured_policy_preserves_user_order_and_fingerprints_changes(self, tmp_path):
+        path = tmp_path / "llm_apis.json"
+        first_policy = _quick_scan_policy()
+        path.write_text(json.dumps(_llm_config_content(first_policy)), encoding="utf-8")
+        first = LLMConfig(str(path)).get_quick_scan_model_policy()
+
+        reordered = _quick_scan_policy(("backup", "primary"))
+        path.write_text(json.dumps(_llm_config_content(reordered)), encoding="utf-8")
+        second = LLMConfig(str(path)).get_quick_scan_model_policy()
+
+        assert [route["provider_config_ref"] for route in first["routes"]] == [
+            "primary",
+            "backup",
+        ]
+        assert [route["provider_config_ref"] for route in second["routes"]] == [
+            "backup",
+            "primary",
+        ]
+        assert first["policy_id"] == second["policy_id"]
+        assert first["policy_version"] != second["policy_version"]
+        assert first["budget"]["currency"] == "USD"
+        assert first["dispatch"]["max_in_flight_total"] == 4
+        assert first["quota_groups"][0]["max_in_flight"] == 1
+        assert first["routes"][0]["max_in_flight"] == 1
+
+    @pytest.mark.parametrize(
+        "mutate",
+        [
+            lambda policy: policy.pop("budget"),
+            lambda policy: policy["fallback"].pop("on_auth_error"),
+            lambda policy: policy["resume"].update(persist_cooldowns_and_budget=False),
+        ],
+    )
+    def test_loading_incomplete_v2_policy_fails_closed(self, tmp_path, mutate):
+        policy = _quick_scan_policy()
+        mutate(policy)
+        path = tmp_path / "llm_apis.json"
+        path.write_text(json.dumps(_llm_config_content(policy)), encoding="utf-8")
+
+        with pytest.raises(ValueError):
+            LLMConfig(str(path)).get_quick_scan_model_policy()
+
+    def test_saved_order_change_applies_to_next_snapshot_only(self, tmp_path):
+        path = tmp_path / "llm_apis.json"
+        path.write_text(json.dumps(_llm_config_content(_quick_scan_policy())), encoding="utf-8")
+        manager = LLMConfig(str(path))
+        active_run_snapshot = manager.get_quick_scan_model_policy()
+
+        manager.save_quick_scan_model_policy(_quick_scan_policy(("backup", "primary")))
+
+        assert [route["provider_config_ref"] for route in active_run_snapshot["routes"]] == [
+            "primary",
+            "backup",
+        ]
+        assert [
+            route["provider_config_ref"]
+            for route in manager.get_quick_scan_model_policy()["routes"]
+        ] == [
+            "backup",
+            "primary",
+        ]
+
+    def test_disabled_policy_routes_are_not_dispatched(self, tmp_path):
+        policy = _quick_scan_policy()
+        policy["models"][0]["enabled"] = False
+        path = tmp_path / "llm_apis.json"
+        path.write_text(json.dumps(_llm_config_content(policy)), encoding="utf-8")
+
+        snapshot = LLMConfig(str(path)).get_quick_scan_model_policy()
+
+        assert [route["provider_config_ref"] for route in snapshot["routes"]] == ["backup"]
+
+    def test_save_policy_is_atomic_and_preserves_provider_credentials(self, tmp_path):
+        path = tmp_path / "config" / "llm_apis.json"
+        path.parent.mkdir()
+        path.write_text(json.dumps(_llm_config_content()), encoding="utf-8")
+        manager = LLMConfig(str(path))
+
+        saved = manager.save_quick_scan_model_policy(_quick_scan_policy())
+        reopened = LLMConfig(str(path))
+
+        assert saved["configured"] is True
+        assert reopened.get_api_key("primary") == "fixture-primary-key"
+        assert [
+            route["provider_config_ref"]
+            for route in reopened.get_quick_scan_model_policy()["routes"]
+        ] == [
+            "primary",
+            "backup",
+        ]
+        assert list(path.parent.glob("*.tmp")) == []
+
+    @pytest.mark.parametrize(
+        "mutate",
+        [
+            lambda policy: policy.pop("budget"),
+            lambda policy: policy["dispatch"].pop("max_in_flight_total"),
+            lambda policy: policy["quota_groups"][0].pop("max_in_flight"),
+            lambda policy: policy["fallback"].pop("on_rate_limit"),
+            lambda policy: policy.pop("comparison"),
+            lambda policy: policy.pop("resume"),
+            lambda policy: policy.update(unrecognized="ignored-policy-field"),
+        ],
+    )
+    def test_incomplete_v2_policy_is_rejected_without_touching_saved_config(self, tmp_path, mutate):
+        path = tmp_path / "llm_apis.json"
+        original = _llm_config_content(_quick_scan_policy())
+        path.write_text(json.dumps(original), encoding="utf-8")
+        original_bytes = path.read_bytes()
+        manager = LLMConfig(str(path))
+        invalid = _quick_scan_policy()
+        mutate(invalid)
+
+        with pytest.raises(ValueError):
+            manager.save_quick_scan_model_policy(invalid)
+
+        assert path.read_bytes() == original_bytes
+        assert list(path.parent.glob(".*.tmp")) == []
+
+    @pytest.mark.parametrize(
+        "mutate, message",
+        [
+            (lambda p: p.update(schema_version="9.0.0"), "schema_version"),
+            (
+                lambda p: p["dispatch"].update(required_capabilities=["structured_output"]),
+                "web_search",
+            ),
+            (lambda p: p["models"].clear(), "models"),
+            (lambda p: p["models"][0].update(provider_config_ref="missing"), "不存在"),
+            (lambda p: p["models"][0].update(api_key="must-not-persist"), "凭据"),
+        ],
+    )
+    def test_save_rejects_invalid_or_secret_bearing_policy_without_touching_file(
+        self, tmp_path, mutate, message
+    ):
+        path = tmp_path / "llm_apis.json"
+        original = _llm_config_content()
+        path.write_text(json.dumps(original), encoding="utf-8")
+        policy = _quick_scan_policy()
+        mutate(policy)
+        before = path.read_bytes()
+
+        with pytest.raises(ValueError, match=message):
+            LLMConfig(str(path)).save_quick_scan_model_policy(policy)
+
+        assert path.read_bytes() == before
+
+    @pytest.mark.parametrize(
+        "mutate, message",
+        [
+            (lambda p: p.update(policy_id="p" * 201), "200"),
+            (lambda p: p["quota_groups"][0].update(id="g" * 201), "200"),
+            (lambda p: p["models"][0].update(id="r" * 201), "200"),
+            (lambda p: p["models"][0].update(provider_config_ref="x" * 201), "200"),
+            (lambda p: p["models"][0].update(model="m" * 201), "200"),
+            (lambda p: p["models"][0].update(quota_group="q" * 201), "200"),
+            (
+                lambda p: p["cost_policy"].update(
+                    pricing_basis="verified_rate_card", pricing_ref=None
+                ),
+                "pricing_ref",
+            ),
+            (
+                lambda p: p["cost_policy"].update(
+                    pricing_basis="verified_rate_card", pricing_ref=""
+                ),
+                "pricing_ref",
+            ),
+            (
+                lambda p: p["comparison"].update(enabled=True, max_cost=0, max_requests=1),
+                "comparison.max_cost",
+            ),
+            (
+                lambda p: p["comparison"].update(enabled=True, max_cost=1, max_requests=0),
+                "comparison.max_requests",
+            ),
+        ],
+    )
+    @pytest.mark.parametrize("operation", ["load", "save"])
+    def test_policy_schema_constraints_fail_closed(self, tmp_path, mutate, message, operation):
+        policy = _quick_scan_policy()
+        mutate(policy)
+        initial = _llm_config_content(policy if operation == "load" else None)
+        path = tmp_path / "llm_apis.json"
+        path.write_text(json.dumps(initial), encoding="utf-8")
+        before = path.read_bytes()
+        manager = LLMConfig(str(path))
+
+        with pytest.raises(ValueError, match=message):
+            if operation == "load":
+                manager.get_quick_scan_model_policy()
+            else:
+                manager.save_quick_scan_model_policy(policy)
+
+        assert path.read_bytes() == before
 
 
 class TestLLMConfigGetAPIKey:

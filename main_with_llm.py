@@ -255,6 +255,18 @@ def main():
         help="指定配置文件格式（json 或 txt，默认：json）",
     )
 
+    parser.add_argument(
+        "--require-search",
+        action="store_true",
+        help="启用可验证的联网搜索并输出quick-scan结构化结果（当前为单公司模式）",
+    )
+    parser.add_argument(
+        "--entity-id",
+        type=str,
+        default=None,
+        help="稳定发行人ID；与--require-search同时使用时必填，不会从名称推断",
+    )
+
     parser.add_argument("--verbose", "-v", action="store_true", help="启用详细日志输出")
 
     args = parser.parse_args()
@@ -279,6 +291,8 @@ def main():
             output=args.output,
             override=args.override,
             config_format=args.config_format,
+            entity_id=args.entity_id,
+            require_search=args.require_search,
         )
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error("运行失败: %s", e, exc_info=True)

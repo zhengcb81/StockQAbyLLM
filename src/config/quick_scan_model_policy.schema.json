@@ -1,0 +1,385 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "2.0.0"
+    },
+    "policy_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "execution_owner": {
+      "const": "StockQAbyLLM"
+    },
+    "configured": {
+      "type": "boolean"
+    },
+    "dispatch": {
+      "type": "object",
+      "properties": {
+        "max_in_flight_total": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32
+        },
+        "max_questions_per_pack": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32
+        },
+        "one_entity_per_pack": {
+          "const": true
+        },
+        "separate_score_and_fact_packs": {
+          "const": true
+        },
+        "required_capabilities": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": ["web_search", "structured_output"]
+          }
+        },
+        "on_preferred_capacity_full": {
+          "const": "wait"
+        },
+        "speculative_racing": {
+          "const": false
+        }
+      },
+      "required": [
+        "max_in_flight_total",
+        "max_questions_per_pack",
+        "one_entity_per_pack",
+        "separate_score_and_fact_packs",
+        "required_capabilities",
+        "on_preferred_capacity_full",
+        "speculative_racing"
+      ],
+      "additionalProperties": false
+    },
+    "budget": {
+      "type": "object",
+      "properties": {
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "max_cost": {
+          "type": "number",
+          "minimum": 0
+        },
+        "max_requests": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_cost_per_attempt": {
+          "type": "number",
+          "minimum": 0
+        },
+        "reset_on_restart": {
+          "const": false
+        }
+      },
+      "required": [
+        "currency",
+        "max_cost",
+        "max_requests",
+        "max_cost_per_attempt",
+        "reset_on_restart"
+      ],
+      "additionalProperties": false
+    },
+    "cost_policy": {
+      "type": "object",
+      "properties": {
+        "pricing_basis": {
+          "enum": ["verified_rate_card", "user_cap"]
+        },
+        "pricing_ref": {
+          "type": ["string", "null"],
+          "minLength": 1
+        },
+        "include_search_charges": {
+          "const": true
+        },
+        "include_failed_attempts": {
+          "const": true
+        },
+        "reserve_before_dispatch": {
+          "const": true
+        },
+        "unknown_actual_cost_action": {
+          "const": "retain_reservation_and_pause"
+        }
+      },
+      "required": [
+        "pricing_basis",
+        "pricing_ref",
+        "include_search_charges",
+        "include_failed_attempts",
+        "reserve_before_dispatch",
+        "unknown_actual_cost_action"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "pricing_basis": {"const": "verified_rate_card"}
+            },
+            "required": ["pricing_basis"]
+          },
+          "then": {
+            "properties": {
+              "pricing_ref": {"type": "string", "minLength": 1}
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "quota_groups": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "max_in_flight": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 32
+          },
+          "window_seconds_hint": {
+            "type": ["integer", "null"],
+            "minimum": 1
+          },
+          "unknown_reset_cooldown_seconds": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 86400
+        },
+        "half_open_probe_limit": {
+          "const": 1
+          }
+        },
+        "required": [
+          "id",
+          "max_in_flight",
+          "window_seconds_hint",
+          "unknown_reset_cooldown_seconds",
+          "half_open_probe_limit"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "models": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "provider_config_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "quota_group": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "max_in_flight": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 32
+          }
+        },
+        "required": [
+          "id",
+          "enabled",
+          "provider_config_ref",
+          "model",
+          "quota_group",
+          "max_in_flight"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "fallback": {
+      "type": "object",
+      "properties": {
+        "on_quota_exhausted": {
+          "const": "cooldown_group_then_next"
+        },
+        "on_rate_limit": {
+          "const": "respect_retry_after_then_next"
+        },
+        "on_server_error": {
+          "const": "bounded_retry_then_next"
+        },
+        "on_auth_error": {
+          "const": "disable_route_then_next"
+        },
+        "on_invalid_request": {
+          "const": "stop_without_fallback"
+        },
+        "on_malformed_response": {
+          "const": "bounded_retry_then_next"
+        },
+        "on_missing_capability": {
+          "const": "skip_before_dispatch"
+        },
+        "on_timeout": {
+          "const": "reconcile_receipt_before_retry"
+        },
+        "on_low_score": {
+          "const": "accept"
+        },
+        "on_unknown_answer": {
+          "const": "accept_with_gap"
+        },
+        "on_fallback_success": {
+          "const": "stop_dispatch_keep_primary_health"
+        },
+        "max_attempts_per_dispatch_round": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32
+        }
+      },
+      "required": [
+        "on_quota_exhausted",
+        "on_rate_limit",
+        "on_server_error",
+        "on_auth_error",
+        "on_invalid_request",
+        "on_malformed_response",
+        "on_missing_capability",
+        "on_timeout",
+        "on_low_score",
+        "on_unknown_answer",
+        "on_fallback_success",
+        "max_attempts_per_dispatch_round"
+      ],
+      "additionalProperties": false
+    },
+    "comparison": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "max_models_per_question": {"type": "integer", "minimum": 2, "maximum": 8},
+        "max_cost": {"type": "number", "minimum": 0},
+        "max_requests": {"type": "integer", "minimum": 0},
+        "same_input_and_cutoff_required": {"const": true},
+        "separate_from_primary_fallback": {"const": true}
+      },
+      "required": [
+        "enabled",
+        "max_models_per_question",
+        "max_cost",
+        "max_requests",
+        "same_input_and_cutoff_required",
+        "separate_from_primary_fallback"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {"enabled": {"const": true}},
+            "required": ["enabled"]
+          },
+          "then": {
+            "properties": {
+              "max_cost": {"exclusiveMinimum": 0},
+              "max_requests": {"minimum": 1}
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "resume": {
+      "type": "object",
+      "properties": {
+        "success_checkpoint": {
+          "const": "per_question"
+        },
+        "replay_outbox_before_dispatch": {
+          "const": true
+        },
+        "preserve_uncertain_requests": {
+          "const": true
+        },
+        "persist_cooldowns_and_budget": {
+          "const": true
+        }
+      },
+      "required": [
+        "success_checkpoint",
+        "replay_outbox_before_dispatch",
+        "preserve_uncertain_requests",
+        "persist_cooldowns_and_budget"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "policy_id",
+    "execution_owner",
+    "configured",
+    "dispatch",
+    "budget",
+    "cost_policy",
+    "quota_groups",
+    "models",
+    "fallback",
+    "comparison",
+    "resume"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {"configured": {"const": true}},
+        "required": ["configured"]
+      },
+      "then": {
+        "properties": {
+          "budget": {
+            "properties": {
+              "max_cost": {"exclusiveMinimum": 0},
+              "max_requests": {"minimum": 1},
+              "max_cost_per_attempt": {"exclusiveMinimum": 0}
+            }
+          },
+          "models": {
+            "contains": {
+              "properties": {"enabled": {"const": true}},
+              "required": ["enabled"]
+            }
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}
