@@ -126,9 +126,27 @@ def test_expected_question_id_is_required_and_matched_exactly():
     )
 
 
-def test_quick_scan_strict_mode_rejects_json_embedded_in_invalid_surrounding_text():
+def test_quick_scan_strict_mode_accepts_single_bound_json_after_vendor_preamble():
+    """Q02/Q03 联合批次：厂商前导文本后的唯一完整绑定 JSON 在严格模式下可解析。"""
     parser = LLMResponseParser()
     content = 'prefix {"question_id":"IQS_05","score":8,"description":"valid object"}'
+
+    parsed = parser.parse_structured_response(
+        content, expected_question_id="IQS_05", strict_json_only=True
+    )
+    assert parsed is not None
+    assert parsed.score == 8
+    # Legacy non-quick-scan compatibility remains intact.
+    assert parser.parse_structured_response(content, expected_question_id="IQS_05") is not None
+
+
+def test_quick_scan_strict_mode_rejects_multiple_json_candidates_in_surrounding_text():
+    """严格模式对多候选 fail-closed：内容必须恰好包含一个完整外层 JSON 对象。"""
+    parser = LLMResponseParser()
+    content = (
+        'prefix {"question_id":"IQS_05","score":8,"description":"first"} '
+        'and {"question_id":"IQS_05","score":2,"description":"second"}'
+    )
 
     assert (
         parser.parse_structured_response(
@@ -136,9 +154,26 @@ def test_quick_scan_strict_mode_rejects_json_embedded_in_invalid_surrounding_tex
         )
         is None
     )
+
+
+def test_quick_scan_strict_mode_binds_entity_inside_preamble_extraction():
+    """前导文本提取路径必须执行实体/公司精确绑定。"""
+    parser = LLMResponseParser()
+    content = (
+        'analysis preamble {"entity_id":"issuer:two","company_name":"Other Corp",'
+        '"question_id":"IQS_05","score":8,"description":"bound?"}'
+    )
+
     assert (
-        parser.parse_structured_response(content, expected_question_id="IQS_05") is not None
-    )  # Legacy non-quick-scan compatibility remains intact.
+        parser.parse_structured_response(
+            content,
+            expected_question_id="IQS_05",
+            expected_entity_id="issuer:one",
+            expected_company_name="Example Corp",
+            strict_json_only=True,
+        )
+        is None
+    )
 
 
 def test_expected_entity_identity_is_required_and_matched_exactly():
@@ -204,7 +239,12 @@ def test_expected_entity_identity_is_required_and_matched_exactly():
                 "question_id": "IQS_05",
                 "score": 5,
                 "description": json.dumps(
-                    {"id": "IQS_05", "status": "scored", "score": 8, "rationale": "inner 8"}
+                    {
+                        "id": "IQS_05",
+                        "status": "scored",
+                        "score": 8,
+                        "rationale": "inner 8",
+                    }
                 ),
             }
         ),
@@ -215,7 +255,12 @@ def test_expected_entity_identity_is_required_and_matched_exactly():
                 "question_id": "IQS_05",
                 "score": 8,
                 "description": json.dumps(
-                    {"id": "IQS_06", "status": "scored", "score": 8, "rationale": "wrong item"}
+                    {
+                        "id": "IQS_06",
+                        "status": "scored",
+                        "score": 8,
+                        "rationale": "wrong item",
+                    }
                 ),
             }
         ),
@@ -226,7 +271,9 @@ def test_expected_entity_identity_is_required_and_matched_exactly():
         ),
     ],
 )
-def test_ambiguous_or_nested_legacy_identity_never_becomes_a_scored_native_answer(content):
+def test_ambiguous_or_nested_legacy_identity_never_becomes_a_scored_native_answer(
+    content,
+):
     parser = LLMResponseParser()
 
     assert (

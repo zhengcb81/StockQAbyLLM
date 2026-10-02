@@ -51,7 +51,8 @@ def _write_inputs(
     question_file = tmp_path / "questions.json"
     question_file.write_text(
         json.dumps(
-            {"categories": [{"category": "quality", "questions": questions}]}, ensure_ascii=False
+            {"categories": [{"category": "quality", "questions": questions}]},
+            ensure_ascii=False,
         ),
         encoding="utf-8",
     )
@@ -540,12 +541,18 @@ def test_public_cli_falls_back_after_quota_rejection_and_records_ordered_attempt
     assert answer["score"] == 8
     assert receipt["provider"] == "openai"
     assert receipt["requested_model"] == "backup-model"
-    assert [attempt["provider"] for attempt in receipt["attempts"]] == ["openai", "openai"]
+    assert [attempt["provider"] for attempt in receipt["attempts"]] == [
+        "openai",
+        "openai",
+    ]
     assert [attempt["provider_config_ref"] for attempt in receipt["attempts"]] == [
         "primary",
         "backup",
     ]
-    assert [attempt["http_status_code"] for attempt in receipt["attempts"]] == [429, 200]
+    assert [attempt["http_status_code"] for attempt in receipt["attempts"]] == [
+        429,
+        200,
+    ]
     assert all(
         attempt["policy_version"].startswith("quick-scan-test-policy@")
         for attempt in receipt["attempts"]
@@ -686,7 +693,10 @@ def test_public_cli_mixed_vendor_fallback_separates_actual_provider_from_route_a
     assert output["provider"] == {"name": None, "requested_model": None}
     receipt = output["execution_receipts"]["IQS_05"]
     assert receipt["provider"] == "minimax"
-    assert [attempt["provider"] for attempt in receipt["attempts"]] == ["openai", "minimax"]
+    assert [attempt["provider"] for attempt in receipt["attempts"]] == [
+        "openai",
+        "minimax",
+    ]
     assert [attempt["provider_config_ref"] for attempt in receipt["attempts"]] == [
         "primary",
         "backup",
@@ -945,13 +955,35 @@ def test_public_cli_repairs_wrong_company_identity_once(monkeypatch, tmp_path):
     assert "Fixture Corp" in repair_prompt
 
 
-def test_public_cli_rejects_json_embedded_in_other_text_without_retry(monkeypatch, tmp_path):
-    malformed = (
+def test_public_cli_accepts_single_bound_json_after_preamble_without_retry(monkeypatch, tmp_path):
+    """Q02/Q03 联合批次：厂商前导文本后的唯一完整绑定 JSON 被接受且不触发重试。"""
+    wrapped = (
         'extra prose {"entity_id":"issuer:fixture","company_name":"Fixture Corp",'
-        '"question_id":"IQS_05","score":8,"description":"regex would accept"}'
+        '"question_id":"IQS_05","score":8,"description":"single bound object"}'
     )
     exit_code, output_file, session = _invoke(
-        monkeypatch, tmp_path, responses=[_response(content=malformed)]
+        monkeypatch, tmp_path, responses=[_response(content=wrapped)]
+    )
+
+    assert exit_code == 0
+    result = json.loads(output_file.read_text(encoding="utf-8"))
+    assert result["answers"]["IQS_05"]["status"] == "scored"
+    assert result["answers"]["IQS_05"]["score"] == 8
+    assert result["execution_receipts"]["IQS_05"]["format_repair"] is None
+    assert session.post.call_count == 1
+
+
+def test_public_cli_rejects_ambiguous_multi_json_after_preamble_without_retry(
+    monkeypatch, tmp_path
+):
+    """严格模式对多候选 fail-closed：仍拒绝且不触发修复重试。"""
+    ambiguous = (
+        'extra prose {"entity_id":"issuer:fixture","company_name":"Fixture Corp",'
+        '"question_id":"IQS_05","score":8,"description":"first"} '
+        'and {"question_id":"IQS_05","score":2,"description":"second"}'
+    )
+    exit_code, output_file, session = _invoke(
+        monkeypatch, tmp_path, responses=[_response(content=ambiguous)]
     )
 
     assert exit_code == 1
@@ -1067,7 +1099,10 @@ def test_public_cli_falls_back_without_blocking_on_retry_after(monkeypatch, tmp_
     assert receipt["provider"] == "openai"
     assert receipt["requested_model"] == "backup-model"
     assert sleeps == []
-    assert [attempt["http_status_code"] for attempt in receipt["attempts"]] == [429, 200]
+    assert [attempt["http_status_code"] for attempt in receipt["attempts"]] == [
+        429,
+        200,
+    ]
     assert receipt["attempts"][0]["provider_error_code"] == "rate_limit_exceeded"
     assert receipt["attempts"][0]["retry_after_seconds"] == 7.0
     assert session.post.call_count == 2
@@ -1130,7 +1165,11 @@ def test_public_cli_quota_exhaustion_cools_shared_group_for_current_run(monkeypa
     result = json.loads(output_file.read_text(encoding="utf-8"))
     receipt = result["execution_receipts"]["IQS_05"]
     decisions = [entry["decision"] for entry in receipt["attempts"][-1]["route_trace"]]
-    assert decisions == ["provider_failure", "skipped_quota_group_cooldown", "accepted_answer"]
+    assert decisions == [
+        "provider_failure",
+        "skipped_quota_group_cooldown",
+        "accepted_answer",
+    ]
     assert receipt["attempts"][0]["failure_category"] == "quota_exhausted"
     next_trace = result["execution_receipts"]["IQS_06"]["attempts"][-1]["route_trace"]
     assert [entry["decision"] for entry in next_trace] == [
@@ -1143,14 +1182,18 @@ def test_public_cli_quota_exhaustion_cools_shared_group_for_current_run(monkeypa
 
 def test_public_cli_disables_rejected_auth_route_for_later_questions(monkeypatch, tmp_path):
     backup_q5 = _response(
-        request_id="backup-q5", response_id="resp-backup-q5", search_call_id="ws-backup-q5"
+        request_id="backup-q5",
+        response_id="resp-backup-q5",
+        search_call_id="ws-backup-q5",
     )
     backup_q5.json.return_value["output"][-1]["content"][0]["text"] = (
         '{"entity_id":"issuer:fixture","company_name":"Fixture Corp",'
         '"question_id":"IQS_05","score":8,"description":"backup q5"}'
     )
     backup_q6 = _response(
-        request_id="backup-q6", response_id="resp-backup-q6", search_call_id="ws-backup-q6"
+        request_id="backup-q6",
+        response_id="resp-backup-q6",
+        search_call_id="ws-backup-q6",
     )
     backup_q6.json.return_value["output"][-1]["content"][0]["text"] = (
         '{"entity_id":"issuer:fixture","company_name":"Fixture Corp",'
@@ -1232,7 +1275,12 @@ def test_public_cli_does_not_retry_uncertain_server_error_without_reconciliation
                 "question_id": "IQS_05",
                 "score": 5,
                 "description": json.dumps(
-                    {"id": "IQS_05", "status": "scored", "score": 8, "rationale": "inner 8"}
+                    {
+                        "id": "IQS_05",
+                        "status": "scored",
+                        "score": 8,
+                        "rationale": "inner 8",
+                    }
                 ),
             }
         ),
@@ -1243,7 +1291,12 @@ def test_public_cli_does_not_retry_uncertain_server_error_without_reconciliation
                 "question_id": "IQS_05",
                 "score": 8,
                 "description": json.dumps(
-                    {"id": "IQS_06", "status": "scored", "score": 8, "rationale": "wrong item"}
+                    {
+                        "id": "IQS_06",
+                        "status": "scored",
+                        "score": 8,
+                        "rationale": "wrong item",
+                    }
                 ),
             }
         ),
@@ -1345,7 +1398,8 @@ def test_public_cli_minimax_anthropic_search_receipt_scores_with_correlated_serv
     assert call.kwargs["headers"]["x-api-key"] == "offline-fixture-key"
     assert call.kwargs["headers"]["anthropic-version"] == "2023-06-01"
     assert call.kwargs["json"]["tools"][0]["max_uses"] == 1
-    assert call.kwargs["json"]["tool_choice"] == {"type": "tool", "name": "web_search"}
+    # Official Messages API ToolChoice: only auto/none (Q02 conformance).
+    assert call.kwargs["json"]["tool_choice"] == {"type": "auto"}
 
 
 def test_public_cli_minimax_anthropic_refuses_score_without_bound_search_result(
@@ -1450,7 +1504,13 @@ def _mimo_response(*, cited=True, actual_model="mimo-v2.6-flash"):
     response.headers = {"x-request-id": "req_mimo_cli_01"}
     response.status_code = 200
     annotations = (
-        [{"type": "url_citation", "url": "https://example.com/issuer", "title": "Issuer source"}]
+        [
+            {
+                "type": "url_citation",
+                "url": "https://example.com/issuer",
+                "title": "Issuer source",
+            }
+        ]
         if cited
         else []
     )

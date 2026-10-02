@@ -8,16 +8,13 @@
 import json
 import os
 from abc import abstractmethod
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from src.config.llm_config import LLMConfig
 from src.config.settings import (
     DEFAULT_LLM_BASE_URL,
     DEFAULT_MAX_RETRIES,
-    DEFAULT_RETRY_DELAY,
     DEFAULT_TIMEOUT,
-    MAX_TOKENS,
-    TEMPERATURE,
 )
 from src.core.models import SearchResult
 from src.interfaces.search_provider import SearchProvider
@@ -162,7 +159,8 @@ class BaseLLMProvider(SearchProvider):
             else ""
         )
 
-        return f"""You are a professional investment analyst. Use current public information and web search when available.
+        return f"""You are a professional investment analyst. Use current public information.
+Before answering, you MUST invoke the provided web_search tool at least once for the stated company and question, then base the answer on the retrieved results. Do not skip the search even if you think you already know the answer.
 
 {company_context}{identity_context}{question_identity}Question:
 {question}
@@ -172,7 +170,7 @@ Requirements:
 2. Give an integer score from 1 to 10 only when evidence supports a judgment.
 3. Explain the evidence and key limitations briefly.
 4. If evidence is insufficient, return status=insufficient_evidence and score=null; do not guess.
-5. Return exactly one JSON object with no surrounding prose or Markdown:
+5. The FINAL message you send after searching must START with the '{" character and END with "}' — absolutely no prose before or after the JSON in the final message (a short lead-in before searching is fine). Return exactly one JSON object:
 {{
 {identity_fields}{question_id_field}  "status": "scored" | "insufficient_evidence" | "unknown" | "not_applicable",
   "score": <integer 1-10 only when status is scored, otherwise null>,

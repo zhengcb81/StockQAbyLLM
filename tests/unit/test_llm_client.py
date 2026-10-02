@@ -111,14 +111,19 @@ class TestLLMClient:
             provider_name="openai",
         )
         try:
-            with patch(
-                "src.providers.llm_client.http_client_manager.get_sync_session",
-                return_value=session,
-            ), patch(
-                "urllib3.connectionpool.HTTPSConnectionPool._make_request", return_value=response
-            ) as send, patch(
-                "urllib3.util.retry.Retry.sleep",
-                side_effect=AssertionError("hidden transport sleep"),
+            with (
+                patch(
+                    "src.providers.llm_client.http_client_manager.get_sync_session",
+                    return_value=session,
+                ),
+                patch(
+                    "urllib3.connectionpool.HTTPSConnectionPool._make_request",
+                    return_value=response,
+                ) as send,
+                patch(
+                    "urllib3.util.retry.Retry.sleep",
+                    side_effect=AssertionError("hidden transport sleep"),
+                ),
             ):
                 with pytest.raises(LLMTransportAttemptError) as error:
                     client.send_search_request("fixture question")
@@ -318,7 +323,10 @@ class TestLLMClient:
                 {
                     "type": "message",
                     "content": [
-                        {"type": "output_text", "text": '{"score":9,"description":"像是搜过"}'}
+                        {
+                            "type": "output_text",
+                            "text": '{"score":9,"description":"像是搜过"}',
+                        }
                     ],
                 }
             ],
@@ -503,7 +511,9 @@ class TestLLMClient:
     @patch("src.providers.llm_client.http_client_manager")
     def test_unsupported_endpoint_does_not_send_request(self, mock_manager):
         client = LLMClient(
-            "fixture-key", "fixture-model", "https://api.example.com/v1/chat/completions"
+            "fixture-key",
+            "fixture-model",
+            "https://api.example.com/v1/chat/completions",
         )
         with pytest.raises(SearchCapabilityUnavailable):
             client.send_search_request("公司问题")
@@ -656,7 +666,10 @@ class TestAsyncLLMClient:
                 {
                     "type": "message",
                     "content": [
-                        {"type": "output_text", "text": '{"score":8,"description":"有依据"}'}
+                        {
+                            "type": "output_text",
+                            "text": '{"score":8,"description":"有依据"}',
+                        }
                     ],
                 },
             ],
@@ -698,7 +711,10 @@ def _minimax_search_response(
                         "type": "output_text",
                         "text": "preamble",
                         "annotations": [
-                            {"type": "url_citation", "url": "https://example.com/preamble"}
+                            {
+                                "type": "url_citation",
+                                "url": "https://example.com/preamble",
+                            }
                         ],
                     }
                 ],
@@ -709,7 +725,12 @@ def _minimax_search_response(
         if source == "action":
             action["sources"] = [{"type": "url", "url": "https://example.com/source"}]
         output.append(
-            {"type": "web_search_call", "id": "ws_mm_01", "status": event_status, "action": action}
+            {
+                "type": "web_search_call",
+                "id": "ws_mm_01",
+                "status": event_status,
+                "action": action,
+            }
         )
     annotations = (
         [{"type": "url_citation", "url": "https://example.com/source"}]
@@ -828,7 +849,9 @@ def test_sync_redirect_with_fake_completed_search_body_is_not_verified(mock_mana
 
 @pytest.mark.asyncio
 @patch("src.providers.llm_client.http_client_manager")
-async def test_async_redirect_with_fake_completed_search_body_is_not_verified(mock_manager):
+async def test_async_redirect_with_fake_completed_search_body_is_not_verified(
+    mock_manager,
+):
     payload = _minimax_search_response(source="action").json()
     payload["output"][-1]["content"][0]["text"] = '{"score":8,"description":"secret redirect body"}'
     response = httpx.Response(
@@ -951,7 +974,8 @@ def test_minimax_anthropic_messages_search_binds_tool_result_and_keeps_null_requ
     assert call.kwargs["json"]["tools"] == [
         {"type": "web_search_20250305", "name": "web_search", "max_uses": 1}
     ]
-    assert call.kwargs["json"]["tool_choice"] == {"type": "tool", "name": "web_search"}
+    # Official Messages API ToolChoice: only auto/none (Q02 conformance).
+    assert call.kwargs["json"]["tool_choice"] == {"type": "auto"}
 
 
 @pytest.mark.parametrize(
@@ -995,7 +1019,9 @@ def test_minimax_anthropic_incomplete_or_mismatched_response_never_verifies(
 
 
 @patch("src.providers.llm_client.http_client_manager")
-def test_minimax_anthropic_unknown_server_tool_prevents_search_verification(mock_manager):
+def test_minimax_anthropic_unknown_server_tool_prevents_search_verification(
+    mock_manager,
+):
     response = _minimax_anthropic_response()
     payload = response.json.return_value
     payload["content"].insert(
@@ -1151,7 +1177,11 @@ def test_minimax_anthropic_absent_optional_base_resp_can_verify(mock_manager):
                 "name": "web_search",
                 "input": {"query": "q"},
             },
-            {"type": "web_search_tool_result", "tool_use_id": "srvtoolu_mm_01", "content": []},
+            {
+                "type": "web_search_tool_result",
+                "tool_use_id": "srvtoolu_mm_01",
+                "content": [],
+            },
             {"type": "text", "text": "No sources."},
         ],
     ],
@@ -1486,7 +1516,10 @@ def test_mimo_chat_search_without_full_same_response_evidence_is_unverified(
     session.post.return_value = response
     mock_manager.get_sync_session.return_value = session
     client = LLMClient(
-        "fixture-key", "mimo-v2.6-flash", "https://api.xiaomimimo.com/v1", provider_name="mimo"
+        "fixture-key",
+        "mimo-v2.6-flash",
+        "https://api.xiaomimimo.com/v1",
+        provider_name="mimo",
     )
 
     result = client.send_search_request("issuer question")
@@ -1501,7 +1534,11 @@ def test_mimo_chat_search_without_full_same_response_evidence_is_unverified(
     [
         ("https://api.xiaomimimo.com/v1/responses", "mimo-v2.6-flash", "mimo"),
         ("https://api.xiaomimimo.com/v1/chat/completions", "mimo-v2.5", "mimo"),
-        ("https://api.xiaomimimo.com/v1/chat/completions", "mimo-v2.6-flash", "deepseek"),
+        (
+            "https://api.xiaomimimo.com/v1/chat/completions",
+            "mimo-v2.6-flash",
+            "deepseek",
+        ),
     ],
 )
 @patch("src.providers.llm_client.http_client_manager")
@@ -1540,7 +1577,10 @@ async def test_async_mimo_search_uses_same_citation_contract(mock_manager):
     http_client.post.return_value = response
     mock_manager.get_async_client = AsyncMock(return_value=http_client)
     client = AsyncLLMClient(
-        "fixture-key", "mimo-v2.6-flash", "https://api.xiaomimimo.com/v1", provider_name="mimo"
+        "fixture-key",
+        "mimo-v2.6-flash",
+        "https://api.xiaomimimo.com/v1",
+        provider_name="mimo",
     )
 
     result = await client.send_search_request_async("issuer question")

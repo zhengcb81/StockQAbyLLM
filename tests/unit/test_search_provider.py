@@ -171,10 +171,11 @@ def test_sync_quick_scan_does_not_repeat_invalid_successful_response_without_rep
         company_name="Target Corp",
     )
     provider.max_retries = 3
+    # 无效但“成功返回”的响应：错绑发行人。保持本测试原意——无修复预算时不重发。
     provider.client.send_search_request = Mock(
         return_value=_search_response(
-            'prefix {"entity_id":"issuer:target","company_name":"Target Corp",'
-            '"question_id":"IQS_05","score":8,"description":"would pass regex"}'
+            '{"entity_id":"issuer:other","company_name":"Other Corp",'
+            '"question_id":"IQS_05","score":8,"description":"wrong issuer"}'
         )
     )
 
@@ -421,7 +422,9 @@ async def test_async_quick_scan_rejects_wrong_issuer_identity(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_async_provider_preserves_failed_transport_attempt_before_success(tmp_path):
+async def test_async_provider_preserves_failed_transport_attempt_before_success(
+    tmp_path,
+):
     provider = AsyncLLMProvider(
         provider_name="openai",
         api_key="offline-fixture-key",

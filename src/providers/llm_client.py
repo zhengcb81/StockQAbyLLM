@@ -861,7 +861,9 @@ def _search_request_payload(
             "system": system_prompt,
             "messages": [{"role": "user", "content": prompt}],
             "tools": [{"type": "web_search_20250305", "name": "web_search", "max_uses": 1}],
-            "tool_choice": {"type": "tool", "name": "web_search"},
+            # Official Messages API ToolChoice supports only auto/none; forcing a
+            # named tool is not part of the contract (Q02 official-API conformance).
+            "tool_choice": {"type": "auto"},
         }
     if protocol == "mimo_chat_completions":
         return {
@@ -884,10 +886,14 @@ def _search_request_payload(
             "thinking": {"type": "disabled"},
         }
     if provider == "minimax":
-        # The MiniMax Server Tools Responses guide documents this minimal shape.
+        # Server Tools Responses shape plus the official `instructions` field for
+        # system text (Q02). Merging the Chinese system line into `input` empirically
+        # suppressed web_search invocation (3/3 zero-search live+probe runs vs 4/4
+        # searching without it); keep input purely English task text.
         return {
             "model": model,
-            "input": f"{system_prompt}\n\n{prompt}",
+            "instructions": system_prompt,
+            "input": prompt,
             "tools": [{"type": "web_search"}],
         }
     return {

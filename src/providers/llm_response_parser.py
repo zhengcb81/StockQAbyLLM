@@ -136,7 +136,15 @@ class LLMResponseParser:
         expected_company_name: Optional[str] = None,
         strict_json_only: bool = False,
     ) -> Optional[ParsedLLMAnswer]:
-        """解析结构化答案；quick-scan可要求整段JSON及精确实体绑定。"""
+        """解析结构化答案；quick-scan要求完整外层JSON与精确实体绑定。
+
+        strict_json_only 语义（Q02/Q03 联合批次）：真实厂商（如 MiniMax 搜索流）
+        会在 JSON 前输出前导分析文本。严格模式因此要求内容**恰好包含一个**完整
+        顶层 JSON 对象，且必须通过全部身份/评分绑定校验；零个或多个对象一律
+        fail-closed 拒绝。Q03 的硬化性质全部保留：重复键拒绝、嵌套/外层冲突
+        拒绝、题义/实体/公司精确绑定。非严格路径保持既有首个有效对象兼容提取，
+        并同样传递实体/公司绑定。
+        """
         try:
             result = self._try_parse_json_direct(
                 content,
@@ -147,11 +155,39 @@ class LLMResponseParser:
         except _DuplicateJSONKeyError:
             logger.warning("LLM返回的JSON包含重复字段；停止兼容提取")
             return None
-        if result is not None or strict_json_only:
+        if result is not None:
             return result
 
+        candidates = list(_iter_top_level_json_objects(content))
+        if strict_json_only:
+            if len(candidates) != 1:
+                logger.warning(
+                    "严格模式要求内容恰好包含一个完整外层JSON对象（发现 %d 个）",
+                    len(candidates),
+                )
+                return None
+            try:
+                llm_response = json.loads(
+                    candidates[0], object_pairs_hook=_reject_duplicate_json_keys
+                )
+            except _DuplicateJSONKeyError:
+                logger.warning("严格提取候选包含重复JSON字段；拒绝回答")
+                return None
+            except json.JSONDecodeError:
+                return None
+            return self._validate_and_extract(
+                llm_response,
+                content,
+                "严格提取",
+                expected_question_id,
+                expected_entity_id,
+                expected_company_name,
+            )
+
         logger.warning("无法直接解析JSON，尝试从文本中提取")
-        return self._try_extract_json_with_regex(content, expected_question_id)
+        return self._try_extract_json_with_regex(
+            content, expected_question_id, expected_entity_id, expected_company_name
+        )
 
     def _try_parse_json_direct(
         self,
@@ -175,7 +211,11 @@ class LLMResponseParser:
             return None
 
     def _try_extract_json_with_regex(
-        self, content: str, expected_question_id: Optional[str] = None
+        self,
+        content: str,
+        expected_question_id: Optional[str] = None,
+        expected_entity_id: Optional[str] = None,
+        expected_company_name: Optional[str] = None,
     ) -> Optional[ParsedLLMAnswer]:
         """从普通文本提取完整外层 JSON 对象以保持旧CLI兼容。"""
         for json_str in _iter_top_level_json_objects(content):
@@ -189,7 +229,12 @@ class LLMResponseParser:
                 continue
 
             result = self._validate_and_extract(
-                llm_response, content, "兼容提取", expected_question_id
+                llm_response,
+                content,
+                "兼容提取",
+                expected_question_id,
+                expected_entity_id,
+                expected_company_name,
             )
             if result is not None:
                 return result

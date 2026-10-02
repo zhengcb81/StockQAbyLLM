@@ -180,7 +180,12 @@ def test_live_openai_search_runs_public_company_through_cli_and_cleans_local_art
         assert result["entity"]["name"] == "Microsoft Corporation"
         assert result["observed_at"].endswith("Z")
         assert answer["question_id"] == "IQS_05"
-        assert answer["status"] in {"scored", "unknown", "insufficient_evidence", "error"}
+        assert answer["status"] in {
+            "scored",
+            "unknown",
+            "insufficient_evidence",
+            "error",
+        }
         assert (answer["score"] is None) == (answer["status"] != "scored")
         assert answer["score"] is None or 1 <= answer["score"] <= 10
         assert receipt["search_status"] == "executed"
@@ -244,7 +249,9 @@ def test_live_minimax_search_runs_public_company_through_cli_and_cleans_local_ar
                             "base_url": "https://api.minimaxi.com/v1/responses",
                             "max_retries": 1,
                             "format_repair_budget": 0,
-                            "timeout": 160,
+                            # Official Server Tools guidance: a search request can
+                            # take far longer than a plain completion — size timeout.
+                            "timeout": 300,
                         }
                     },
                 }
@@ -282,14 +289,17 @@ def test_live_minimax_search_runs_public_company_through_cli_and_cleans_local_ar
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                timeout=180,
+                timeout=360,
                 check=False,
             )
         finally:
             assert Path.cwd() == original_cwd
 
         if completed.returncode != 0:
-            failure = {"exit": completed.returncode, "output_exists": output_path.exists()}
+            failure = {
+                "exit": completed.returncode,
+                "output_exists": output_path.exists(),
+            }
             if output_path.exists():
                 partial = _read_live_cli_result(output_path, completed)
                 failed_answer = partial.get("answers", {}).get("IQS_05", {})
@@ -319,7 +329,12 @@ def test_live_minimax_search_runs_public_company_through_cli_and_cleans_local_ar
         assert result["entity"]["name"] == "Microsoft Corporation"
         assert result["observed_at"].endswith("Z")
         assert answer["question_id"] == "IQS_05"
-        assert answer["status"] in {"scored", "unknown", "insufficient_evidence", "error"}
+        assert answer["status"] in {
+            "scored",
+            "unknown",
+            "insufficient_evidence",
+            "error",
+        }
         assert (answer["score"] is None) == (answer["status"] != "scored")
         assert receipt["provider"] == "minimax"
         assert receipt["requested_model"] == "MiniMax-M3"
@@ -422,7 +437,7 @@ def test_live_minimax_anthropic_search_runs_public_company_through_cli_and_clean
                             "base_url": endpoint,
                             "max_retries": 1,
                             "format_repair_budget": 0,
-                            "timeout": 180,
+                            "timeout": 300,
                         }
                     },
                 }
@@ -460,7 +475,7 @@ def test_live_minimax_anthropic_search_runs_public_company_through_cli_and_clean
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                timeout=210,
+                timeout=360,
                 check=False,
             )
         finally:
