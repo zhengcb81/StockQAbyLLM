@@ -156,6 +156,20 @@ def test_quick_scan_strict_mode_rejects_multiple_json_candidates_in_surrounding_
     )
 
 
+def test_quick_scan_strict_mode_rejects_content_without_any_json_object():
+    """严格模式对零候选 fail-closed：无完整外层 JSON 对象即拒绝。"""
+    parser = LLMResponseParser()
+
+    assert (
+        parser.parse_structured_response(
+            "没有任何 JSON 对象的纯散文回答",
+            expected_question_id="IQS_05",
+            strict_json_only=True,
+        )
+        is None
+    )
+
+
 def test_quick_scan_strict_mode_binds_entity_inside_preamble_extraction():
     """前导文本提取路径必须执行实体/公司精确绑定。"""
     parser = LLMResponseParser()

@@ -915,6 +915,30 @@ def test_minimax_search_requires_event_and_same_response_source(mock_manager, so
 
 
 @patch("src.providers.llm_client.http_client_manager")
+def test_minimax_responses_payload_keeps_system_text_out_of_input(mock_manager):
+    """Q02 官方契约：system 走 instructions 字段，绝不拼进 input。
+
+    回归锁定：曾把中文 system 行拼进 input 导致 web_search 被抑制（3/3 零搜索）。
+    """
+    session = Mock()
+    session.post.return_value = _minimax_search_response(source="citation")
+    mock_manager.get_sync_session.return_value = session
+
+    LLMClient(
+        "fixture-key", "MiniMax-M3", "https://api.minimaxi.com/v1/responses"
+    ).send_search_request("Microsoft")
+
+    payload = session.post.call_args.kwargs["json"]
+    assert set(payload) == {"model", "instructions", "input", "tools"}
+    assert payload["instructions"] == "你是一位专业的投资分析师，擅长分析公司的投资价值。"
+    assert payload["input"] == "Microsoft"
+    assert "投资分析师" not in payload["input"]
+    assert payload["tools"] == [{"type": "web_search"}]
+    # 官方 Responses tool_choice 枚举仅 none|auto；minimax 分支不发送该字段。
+    assert "tool_choice" not in payload
+
+
+@patch("src.providers.llm_client.http_client_manager")
 def test_minimax_anthropic_messages_search_binds_tool_result_and_keeps_null_request_id(
     mock_manager,
 ):
