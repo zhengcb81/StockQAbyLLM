@@ -10,7 +10,6 @@
 
 from __future__ import annotations
 
-import datetime
 import hashlib
 from pathlib import Path
 
@@ -172,7 +171,7 @@ class TestLLM09RequestCacheIsolation:
         assert self._get(cache) == "cached-result"
 
     def test_llm09_decorator_context_dimensions_isolate_calls(self):
-        calls: list[str] = []
+        calls: list[str | None] = []
 
         @cached_llm_request(cache=RequestCache())
         def mock_llm_call(provider, prompt, system_prompt="", model=None, **kwargs):

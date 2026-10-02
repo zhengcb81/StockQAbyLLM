@@ -67,7 +67,7 @@ class JSONConfigManager(ConfigProvider):
         except json.JSONDecodeError as e:
             logger.error("JSON解析错误: %s - %s", self.config_path, e)
             raise ConfigError(
-                message=f"JSON格式错误，请检查文件语法",
+                message="JSON格式错误，请检查文件语法",
                 file_path=str(self.config_path),
                 details={"json_error": str(e)},
             )
@@ -78,14 +78,14 @@ class JSONConfigManager(ConfigProvider):
         except UnicodeDecodeError as e:
             logger.error("文件编码错误: %s - %s", self.config_path, e)
             raise ConfigError(
-                message=f"文件编码错误，请确保文件为 UTF-8 编码",
+                message="文件编码错误，请确保文件为 UTF-8 编码",
                 file_path=str(self.config_path),
                 details={"encoding_error": str(e)},
             )
         except PermissionError as e:
             logger.error("文件权限错误: %s - %s", self.config_path, e)
             raise ConfigError(
-                message=f"无权限读取配置文件",
+                message="无权限读取配置文件",
                 file_path=str(self.config_path),
                 details={"permission_error": str(e)},
             )
