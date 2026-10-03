@@ -416,7 +416,21 @@
     }
   ],
   "budget": {
-    "primary_requests": 11,
-    "http_attempts": 11
+    "cli_invocations": 11,
+    "primary_requests": 20,
+    "http_attempts": 20,
+    "distinct_response_ids": 20,
+    "web_search_calls": 41,
+    "source_urls": 388,
+    "caps": {
+      "primary_request_cap": 20,
+      "http_attempt_ceiling_including_retries": 40
+    },
+    "cap_status": {
+      "primary_requests": "at_cap_not_exceeded",
+      "http_attempts": "within_ceiling"
+    },
+    "counting_note": "primary_requests/http_attempts are the budget unit, counted from the 20 execution_receipts attempt entries (20 distinct response_id, one per question-answer); cli_invocations (11) is a process-level count and must NOT be read as the request budget. Derived from company-*.json receipts; recomputable.",
+    "derived_from": "company-*.json execution_receipts[].attempts / source_urls / web_search_calls"
   }
 }
