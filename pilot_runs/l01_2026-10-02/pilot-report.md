@@ -55,8 +55,8 @@ Production path: `main_with_llm.py --require-search` (public CLI), provider mini
 ## Honest boundaries
 
 - `probe:<listing_key>` entity-ids are probe-local stable bindings, **not issuer resolutions** (preview reported issuer_unresolved for all 216; HK companies are outside the confirmed 216 pool, probe-only).
-- Scores are model outputs under real search evidence — not investment advice, not pool membership, no StockWiki writes, no scan queue, no paid Work created beyond these 11 requests.
-- Cost precision: no fabricated prices anywhere; exact billing = owner's MiniMax console. This pilot consumed **20 completions (at the 20-request cap) + 41 search calls** across 11 CLI invocations, plus the earlier single-call diagnostic probes from Q02/Q03/phase-A recorded in their own validation files (outside this freeze's budget counting).
+- Scores are model outputs under real search evidence — not investment advice, not pool membership, no StockWiki writes, no scan queue, no paid Work created beyond these 11 invocations carrying 20 requests.
+- Cost precision: no fabricated prices anywhere; exact billing = owner's MiniMax console. This pilot consumed **20 completions (at the 20-request cap) + 41 search calls** across 11 CLI invocations, plus the earlier single-call diagnostic probes from Q02/Q03 recorded in their own validation files (outside this freeze's budget counting).
 
 ## Evidence files (this directory)
 
