@@ -6,7 +6,9 @@
 """
 
 import json
+import re
 from dataclasses import dataclass
+from datetime import date
 from typing import Any, Dict, Optional, Tuple
 
 from src.utils.logger import get_logger
@@ -109,6 +111,33 @@ class ParsedLLMAnswer:
     question_id: Optional[str] = None
     entity_id: Optional[str] = None
     company_name: Optional[str] = None
+    information_as_of: Optional[str] = None
+
+
+def information_date(value: Any) -> Optional[str]:
+    """Accept only a real YYYY-MM-DD date; anything else becomes null (never guessed).
+
+    A malformed claim is dropped to null with a warning — the answer itself is
+    not discarded, and no date is ever fabricated (freshness contract: unknown
+    stays unknown).
+    """
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        logger.warning("information_as_of 必须是字符串")
+        return None
+    candidate = value.strip()
+    if not candidate:
+        return None
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", candidate):
+        logger.warning("information_as_of 不是 YYYY-MM-DD 格式，按未知处理")
+        return None
+    try:
+        date.fromisoformat(candidate)
+    except ValueError:
+        logger.warning("information_as_of 不是真实日期，按未知处理")
+        return None
+    return candidate
 
 
 class LLMResponseParser:
@@ -319,4 +348,5 @@ class LLMResponseParser:
             question_id=question_id,
             entity_id=entity_id,
             company_name=company_name,
+            information_as_of=information_date(data.get("information_as_of")),
         )

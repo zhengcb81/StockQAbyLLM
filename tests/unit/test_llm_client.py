@@ -983,6 +983,13 @@ def test_minimax_anthropic_messages_search_binds_tool_result_and_keeps_null_requ
             "status": "completed",
             "action_type": "search",
             "source_urls": ["https://example.com/annual-report"],
+            "sources": [
+                {
+                    "url": "https://example.com/annual-report",
+                    "title": "Official report",
+                    "published_date": None,
+                }
+            ],
         }
     ]
     call = session.post.call_args
@@ -1481,6 +1488,9 @@ def test_mimo_chat_search_binds_only_same_response_url_citations(mock_manager, b
             "status": "completed",
             "action_type": "search",
             "source_urls": ["https://example.com/source"],
+            "sources": [
+                {"url": "https://example.com/source", "title": None, "published_date": None}
+            ],
             "evidence_basis": "url_citation_annotations",
         }
     ]

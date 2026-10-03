@@ -123,6 +123,7 @@ class AsyncLLMProvider(BaseLLMProvider):
                 "entity_id": parsed.entity_id,
                 "company_name": parsed.company_name,
                 "parsed_score": parsed.score,
+                "information_as_of": getattr(parsed, "information_as_of", None),
                 "provider": (
                     self._evidenced_search_provider(execution_metadata)
                     if self.require_search

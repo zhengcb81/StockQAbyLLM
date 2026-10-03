@@ -1030,6 +1030,9 @@ def test_public_cli_retains_completed_search_receipt_for_invalid_status(
             "status": "completed",
             "action_type": "search",
             "source_urls": ["https://example.com/issuer"],
+            "sources": [
+                {"url": "https://example.com/issuer", "title": None, "published_date": None}
+            ],
         }
     ]
     assert receipt["format_repair"]["status"] == "not_enabled"

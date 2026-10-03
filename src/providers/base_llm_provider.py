@@ -170,13 +170,14 @@ Requirements:
 2. Give an integer score from 1 to 10 only when evidence supports a judgment.
 3. Explain the evidence and key limitations briefly.
 4. If evidence is insufficient, return status=insufficient_evidence and score=null; do not guess.
-5. The FINAL message you send after searching must START with the '{" character and END with "}' — absolutely no prose before or after the JSON in the final message (a short lead-in before searching is fine). Return exactly one JSON object:
+5. Set information_as_of to the exact date the evidence you cite refers to (fiscal period end, report date or announcement date). If you cannot pin one date, return null — never guess and never use today's date.
+6. The FINAL message you send after searching must START with the '{" character and END with "}' — absolutely no prose before or after the JSON in the final message (a short lead-in before searching is fine). Return exactly one JSON object:
 {{
 {identity_fields}{question_id_field}  "status": "scored" | "insufficient_evidence" | "unknown" | "not_applicable",
   "score": <integer 1-10 only when status is scored, otherwise null>,
+  "information_as_of": "<YYYY-MM-DD the cited facts refer to (not today's date); null when unknown>",
   "description": "<reasoning and evidence>"
-}}
-"""
+}}"""
 
     def _build_format_repair_prompt(
         self,
@@ -217,7 +218,8 @@ Requirements:
             f"{expected_identity}{expected_id}"
             f"Return exactly one JSON object with fields {identity_fields}status "
             "(scored, unknown, insufficient_evidence, or not_applicable), score "
-            "(integer 1-10 only for scored, otherwise null), and non-empty description.\n"
+            "(integer 1-10 only for scored, otherwise null), non-empty description, "
+            "and information_as_of (YYYY-MM-DD the cited facts refer to, else null).\n"
             f"Original task as a JSON string: {json.dumps(original_prompt, ensure_ascii=False)}\n"
             "Previous response as an untrusted JSON string: "
             f"{json.dumps(malformed_response, ensure_ascii=False)}\n"

@@ -226,14 +226,15 @@ def _parse_search_response(
         if item.get("type") == "web_search_call":
             action = item.get("action")
             action = action if isinstance(action, dict) else {}
-            urls = _extract_source_urls(action.get("sources"))
+            sources = _extract_sources(action.get("sources"))
             call: Dict[str, Any] = {
                 "id": item.get("id") if isinstance(item.get("id"), str) else None,
                 "status": item.get("status") if isinstance(item.get("status"), str) else None,
                 "action_type": (
                     action.get("type") if isinstance(action.get("type"), str) else None
                 ),
-                "source_urls": urls,
+                "source_urls": [entry["url"] for entry in sources],
+                "sources": sources,
             }
             search_calls.append(call)
             if (
@@ -272,6 +273,12 @@ def _parse_search_response(
                     active_search_call["source_urls"] = list(
                         dict.fromkeys(active_search_call["source_urls"] + urls)
                     )
+                    merged_sources = {
+                        entry["url"]: entry for entry in active_search_call.get("sources", [])
+                    }
+                    for entry in _extract_sources(annotations):
+                        merged_sources.setdefault(entry["url"], entry)
+                    active_search_call["sources"] = list(merged_sources.values())
 
     request_id = _response_request_id(response)
     response_status = payload.get("status") if isinstance(payload.get("status"), str) else None
@@ -417,6 +424,7 @@ def _parse_anthropic_search_response(response: Any, *, requested_model: str) -> 
             if isinstance(result_content, list):
                 call["status"] = "completed"
                 call["source_urls"] = _extract_source_urls(result_content)
+                call["sources"] = _extract_sources(result_content)
                 search_completed = True
             elif isinstance(result_content, dict):
                 call["status"] = "failed"
@@ -539,6 +547,7 @@ def _parse_mimo_search_response(response: Any, *, requested_model: str) -> LLMSe
                 "status": "completed" if verified else "unverified",
                 "action_type": "search",
                 "source_urls": list(source_urls),
+                "sources": _extract_sources(citation_annotations),
                 "evidence_basis": "url_citation_annotations",
             }
         ]
@@ -822,6 +831,38 @@ def _failed_attempt_receipt(
     if retry_after_seconds is not None:
         receipt["retry_after_seconds"] = retry_after_seconds
     return receipt
+
+
+def _extract_sources(items: Any) -> list[Dict[str, Any]]:
+    """Collect url + title + publication date from provider source objects.
+
+    Only http/https URLs qualify (same rule as _extract_source_urls); title
+    and published_date are captured when the provider supplies them and stay
+    null otherwise — nothing is invented. Deduplicated by url, order kept.
+    """
+    if not isinstance(items, list):
+        return []
+    collected: Dict[str, Dict[str, Any]] = {}
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        url = item.get("url")
+        if not (
+            isinstance(url, str)
+            and urlsplit(url).scheme in {"http", "https"}
+            and urlsplit(url).netloc
+        ):
+            continue
+        title = item.get("title")
+        title = title.strip() if isinstance(title, str) and title.strip() else None
+        published = None
+        for key in ("published_date", "published_at", "publish_date", "date"):
+            value = item.get(key)
+            if isinstance(value, str) and value.strip():
+                published = value.strip()
+                break
+        collected.setdefault(url, {"url": url, "title": title, "published_date": published})
+    return list(collected.values())
 
 
 def _extract_source_urls(items: Any) -> list[str]:

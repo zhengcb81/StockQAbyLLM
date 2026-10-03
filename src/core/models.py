@@ -8,7 +8,7 @@ import hashlib
 import json
 import re
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any, Dict, Mapping, Optional
 
 
@@ -282,6 +282,53 @@ def serialize_answer_for_exchange(question_id: str, answer: Mapping[str, Any]) -
     }
 
 
+def _real_iso_date(value: Any) -> Optional[str]:
+    """Return the value only when it is a real YYYY-MM-DD calendar date."""
+    if not isinstance(value, str):
+        return None
+    candidate = value.strip()
+    if not candidate or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", candidate):
+        return None
+    try:
+        date.fromisoformat(candidate)
+    except ValueError:
+        return None
+    return candidate
+
+
+def _information_as_of_from_metadata(metadata: Mapping[str, Any]) -> Optional[str]:
+    """Only a model-declared, calendar-valid date passes; else null (never guessed).
+
+    Defense in depth: the parser already ran the same check, so an impossible
+    date here means a non-provider producer — it is dropped, never trusted.
+    """
+    return _real_iso_date(metadata.get("information_as_of"))
+
+
+def _published_date_from_receipt(metadata: Mapping[str, Any]) -> Optional[str]:
+    """Answer-level published date = the ONE distinct dated cited source.
+
+    Deterministic: with zero dated sources, or two or more distinct dates
+    (ambiguous citation set), the answer keeps null instead of guessing which
+    source the summary refers to. Per-source dates live in the receipt.
+    """
+    execution = metadata.get("execution")
+    calls = execution.get("web_search_calls") if isinstance(execution, dict) else None
+    dates = set()
+    for call in calls or []:
+        if not isinstance(call, dict):
+            continue
+        for entry in call.get("sources") or []:
+            if not isinstance(entry, dict):
+                continue
+            checked = _real_iso_date(entry.get("published_date"))
+            if checked:
+                dates.add(checked)
+    if len(dates) == 1:
+        return dates.pop()
+    return None
+
+
 @dataclass
 class QABatchResult:
     """表示批量问答结果。
@@ -350,8 +397,8 @@ class QABatchResult:
                     "score": result.answer.score,
                     "description": result.answer.text,
                     "source_urls": source_urls,
-                    "published_date": None,
-                    "information_as_of": None,
+                    "published_date": _published_date_from_receipt(metadata),
+                    "information_as_of": _information_as_of_from_metadata(metadata),
                     "check_level": "unverified_model_output",
                     "check_level_receipt_id": None,
                 },
