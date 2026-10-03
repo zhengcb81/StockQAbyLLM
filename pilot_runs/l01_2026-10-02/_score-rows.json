@@ -1,0 +1,202 @@
+[
+ {
+  "output": "company-01-phaseA-IQS_05.json",
+  "qid": "IQS_05",
+  "status": "unknown",
+  "score": null,
+  "sources": 19,
+  "searches": 2,
+  "search_status": "executed",
+  "exit": 1
+ },
+ {
+  "output": "company-01-phaseB-IQS_06.json",
+  "qid": "IQS_06",
+  "status": "scored",
+  "score": 9,
+  "sources": 20,
+  "searches": 2,
+  "search_status": "executed",
+  "exit": 0
+ },
+ {
+  "output": "company-02-IQS_05_06.json",
+  "qid": "IQS_05",
+  "status": "scored",
+  "score": 7,
+  "sources": 20,
+  "searches": 2,
+  "search_status": "executed",
+  "exit": 0
+ },
+ {
+  "output": "company-02-IQS_05_06.json",
+  "qid": "IQS_06",
+  "status": "scored",
+  "score": 8,
+  "sources": 20,
+  "searches": 2,
+  "search_status": "executed",
+  "exit": 0
+ },
+ {
+  "output": "company-03-IQS_05_06.json",
+  "qid": "IQS_05",
+  "status": "scored",
+  "score": 8,
+  "sources": 16,
+  "searches": 2,
+  "search_status": "executed",
+  "exit": 0
+ },
+ {
+  "output": "company-03-IQS_05_06.json",
+  "qid": "IQS_06",
+  "status": "scored",
+  "score": 9,
+  "sources": 16,
+  "searches": 2,
+  "search_status": "executed",
+  "exit": 0
+ },
+ {
+  "output": "company-04-IQS_05_06.json",
+  "qid": "IQS_05",
+  "status": "scored",
+  "score": 6,
+  "sources": 17,
+  "searches": 2,
+  "search_status": "executed",
+  "exit": 0
+ },
+ {
+  "output": "company-04-IQS_05_06.json",
+  "qid": "IQS_06",
+  "status": "scored",
+  "score": 4,
+  "sources": 16,
+  "searches": 2,
+  "search_status": "executed",
+  "exit": 0
+ },
+ {
+  "output": "company-05-IQS_05_06.json",
+  "qid": "IQS_05",
+  "status": "scored",
+  "score": 9,
+  "sources": 20,
+  "searches": 2,
+  "search_status": "executed",
+  "exit": 0
+ },
+ {
+  "output": "company-05-IQS_05_06.json",
+  "qid": "IQS_06",
+  "status": "scored",
+  "score": 9,
+  "sources": 20,
+  "searches": 2,
+  "search_status": "executed",
+  "exit": 0
+ },
+ {
+  "output": "company-06-IQS_05_06.json",
+  "qid": "IQS_05",
+  "status": "scored",
+  "score": 9,
+  "sources": 19,
+  "searches": 2,
+  "search_status": "executed",
+  "exit": 0
+ },
+ {
+  "output": "company-06-IQS_05_06.json",
+  "qid": "IQS_06",
+  "status": "scored",
+  "score": 9,
+  "sources": 30,
+  "searches": 3,
+  "search_status": "executed",
+  "exit": 0
+ },
+ {
+  "output": "company-07-IQS_05_06.json",
+  "qid": "IQS_05",
+  "status": "scored",
+  "score": 7,
+  "sources": 20,
+  "searches": 2,
+  "search_status": "executed",
+  "exit": 0
+ },
+ {
+  "output": "company-07-IQS_05_06.json",
+  "qid": "IQS_06",
+  "status": "scored",
+  "score": 5,
+  "sources": 19,
+  "searches": 2,
+  "search_status": "executed",
+  "exit": 0
+ },
+ {
+  "output": "company-08-IQS_05_06.json",
+  "qid": "IQS_05",
+  "status": "scored",
+  "score": 7,
+  "sources": 20,
+  "searches": 2,
+  "search_status": "executed",
+  "exit": 0
+ },
+ {
+  "output": "company-08-IQS_05_06.json",
+  "qid": "IQS_06",
+  "status": "scored",
+  "score": 8,
+  "sources": 20,
+  "searches": 2,
+  "search_status": "executed",
+  "exit": 0
+ },
+ {
+  "output": "company-09-IQS_05_06.json",
+  "qid": "IQS_05",
+  "status": "scored",
+  "score": 9,
+  "sources": 20,
+  "searches": 2,
+  "search_status": "executed",
+  "exit": 0
+ },
+ {
+  "output": "company-09-IQS_05_06.json",
+  "qid": "IQS_06",
+  "status": "scored",
+  "score": 8,
+  "sources": 19,
+  "searches": 2,
+  "search_status": "executed",
+  "exit": 0
+ },
+ {
+  "output": "company-10-IQS_05_06.json",
+  "qid": "IQS_05",
+  "status": "scored",
+  "score": 8,
+  "sources": 19,
+  "searches": 2,
+  "search_status": "executed",
+  "exit": 1
+ },
+ {
+  "output": "company-10-IQS_05_06.json",
+  "qid": "IQS_06",
+  "status": "unknown",
+  "score": null,
+  "sources": 18,
+  "searches": 2,
+  "search_status": "executed",
+  "exit": 1
+ }
+]

@@ -1,0 +1,391 @@
+{
+    "schema_version": "stockqa.quick_scan_result/1.0.0",
+    "entity": {
+        "entity_id": "probe:HK:09988",
+        "name": "阿里巴巴集团"
+    },
+    "observed_at": "2026-10-03T03:37:01.272644Z",
+    "provider": {
+        "name": "minimax",
+        "requested_model": "MiniMax-M3"
+    },
+    "answers": {
+        "IQS_05": {
+            "question_id": "IQS_05",
+            "status": "scored",
+            "score": 8,
+            "description": "阿里巴巴在明确的两大核心业务（电商+云计算）和时间范围内具有多重实际证据支撑、且对手难以用合理成本复制的竞争优势。\n\n【电商护城河】\n1. 生态闭环锁定：淘宝/天猫+支付宝（蚂蚁）+菜鸟物流+饿了么/高德/飞猪构成自循环生态，1.35亿年活跃消费者（FY2024），88VIP会员4600万，单季度新增400万高净值用户，用户年均消费频次5.2次。协同入口日均引流超3亿次，生态粘性构成流量规模以外的真正护城河。\n2. GMV规模壁垒：淘宝+天猫构成全球最大数字零售业务（年度GMV约1万亿美元，约为亚马逊全球交易额的两倍），85%活跃商家为中小微企业，供给端规模难以复制。\n3. 数据资产：1.3万亿年度消费者交互，预测需求误差<5%，AI个性化推荐贡献约15% GMV。\n\n【云计算+AI护城河】\n1. 市场领导地位：阿里云以约30-34%份额稳居中国公有云第一，规模为腾讯云/华为云的2倍；亚太最大IaaS提供商。\n2. 通义大模型：唯一同时拥有领先AI云服务和最大开源AI模型的中国企业；服务80%中国科技公司、60%上市公司、65%专精特新企业；半中国大型AI模型运行其上。\n3. 资本与算力投入：未来三年3800亿资本支出，73%投向国产GPU；FY2024 R&D投入954亿元。\n4. AI相关产品收入连续6个季度三位数增长，AI云服务商业化拐点显现。\n\n【难以复制性】\n- 生态协同涉及数十年积累、数十个业务单元整合，新进入者短期内无法以合理成本构建同等规模生态。\n- 数据飞轮效应（电商交易→支付→物流→云端AI训练→回流电商）形成正反馈壁垒。\n- 阿里云规模效应+开源AI生态（魔搭社区3800+开源模型）形成网络效应。\n\n【关键局限性】\n1. 国内电商面临拼多多（低价+GMV已超淘宝）、京东、抖音电商的份额蚕食，传统电商增速降至个位数（FY2024营收增速8.3%）。\n2. 阿里云在中国面临华为云（政府/电信客户）和腾讯云的强势竞争，海外受AWS/Azure/Azure品牌与合规压力。\n3. 监管风险（蚂蚁集团整改、反垄断）持续构成结构性约束。\n4. 部分所谓'生态协同'实为关联公司协同（如蚂蚁），并非全自有。\n\n综合判断：阿里核心竞争优势具备较强实际证据且多数难以低成本复制，给予8分。",
+            "source_urls": [
+                "https://finance.sina.cn/2024-05-24/detail-inawhvcx6952398.d.html",
+                "https://alibabagroup.com/zh-HK/document-1730334018613805056",
+                "https://alibabagroup.com/document-1730334018613805056",
+                "https://www.alibabagroup.com/document-1752127870676762624",
+                "https://finance.sina.com.cn/stock/aigcy/2025-04-14/doc-inetcqhp8249333.shtml",
+                "https://news.qq.com/rain/a/20240208A04Y4J00",
+                "https://static.nfnews.com/content/202405/24/c8901014.html?enterColumnId=0",
+                "https://www.alibabagroup.com/zh-HK/document-1752127870676762624",
+                "https://www.toutiao.com/article/7372195065873269258",
+                "https://bk.taobao.com/k/alibaba_51/03046ff42c018f22f9d1d5c3382adf3a.html",
+                "https://matrixbcg.com/products/alibabagroup-pestle-analysis",
+                "https://growthsharematrix.com/products/alibabagroup-business-model-canvas",
+                "http://asiaict.com/ai/3221.html",
+                "http://asiaict.com/digitallive/2878.html",
+                "https://longbridge.com/topics/27857398",
+                "https://wello.nl/article/alibaba-net-worth-2024-the-tech-titan-s-financial-powerhouse-explained",
+                "https://financialfilings.com/filings/render/12678265",
+                "https://www.tradingview.com/news/gurufocus:01a962d9c094b:0-cautious-optimism-for-alibaba/",
+                "https://3g.china.com/act/news/10000169/20240524/46582840.html"
+            ],
+            "published_date": null,
+            "information_as_of": null,
+            "check_level": "unverified_model_output",
+            "check_level_receipt_id": null
+        },
+        "IQS_06": {
+            "question_id": "IQS_06",
+            "status": "unknown",
+            "score": null,
+            "description": "无法验证结构化评分回答及目标公司身份。",
+            "source_urls": [
+                "https://aiqicha.baidu.com/details/ugknowledge?id=2bd5e7824ddb982784e4e1b8ddb5dc85",
+                "https://m.dtm.com.cn/news/202512/147489.html",
+                "https://new.qq.com/rain/a/20250626A09TYZ00",
+                "https://www.alibabanews.com/?p=20456/",
+                "https://www.alibabagroup.com/zh-HK/document-1871720871488389120",
+                "https://new.qq.com/rain/a/20251128A071XY00",
+                "https://m.toutiao.com/article/7574418780734898703",
+                "https://m.qlwb.com.cn/detail/26279127.html",
+                "https://xueqiu.com/6114319827/381757574",
+                "https://finance.sina.com.cn/roll/2025-09-19/doc-infqypay5281121.shtml",
+                "https://businesstats.com/alibaba-statistics-facts-2026/",
+                "https://canvasbusinessmodel.com/blogs/competitors/alibaba-group-competitive-landscape",
+                "https://aiqicha.baidu.com/details/ugknowledge?id=03b607c7160dc756ef6f1a1f51499752",
+                "https://matrixbcg.com/products/alibabagroup-bcg-matrix",
+                "https://www.sgpjbg.com.cn/searchtag/25818531.html",
+                "https://www.vantage-markets-apac.com/academy/alibaba-ai-transformation-jack-ma-return-2025",
+                "https://omahaline.com/essays/baba",
+                "https://www.alibabacloud.com/en/press-room/alibaba-maintains-leading-position-by-revenue?_p_lc=1"
+            ],
+            "published_date": null,
+            "information_as_of": null,
+            "check_level": "unverified_model_output",
+            "check_level_receipt_id": null
+        }
+    },
+    "execution_receipts": {
+        "IQS_05": {
+            "answer_sha256": "d00e7e1e276c32a62d101e4769861cdee4d02f3277fddd44e420f367ad51ef6c",
+            "answered_at": "2026-10-03T03:36:41.666604Z",
+            "input_question_sha256": "3c9daa8e090c5294062157b5b8bb45c8ecb86466221002f8055dd5d7bf3cab3a",
+            "provider": "minimax",
+            "requested_model": "MiniMax-M3",
+            "actual_model": "MiniMax-M3",
+            "request_id": null,
+            "response_id": "070f9d287671c137b08f5dde59b1e118",
+            "response_status": "completed",
+            "http_status_code": 200,
+            "failure_type": null,
+            "started_at": "2026-10-03T02:36:22.574255Z",
+            "completed_at": "2026-10-03T02:36:41.665724Z",
+            "attempt_id": "1a1b269d-8549-4f9a-8e25-76a151a3a540",
+            "prompt_sha256": "c007b9996b6b9fc9dde330bca0d83d1d8856c7fa2e90afc48764a4e0f7e621c1",
+            "search_receipt_id": "call_01a0ff9eb3b977e0bbf570ef",
+            "search_status": "executed",
+            "source_urls": [
+                "https://finance.sina.cn/2024-05-24/detail-inawhvcx6952398.d.html",
+                "https://alibabagroup.com/zh-HK/document-1730334018613805056",
+                "https://alibabagroup.com/document-1730334018613805056",
+                "https://www.alibabagroup.com/document-1752127870676762624",
+                "https://finance.sina.com.cn/stock/aigcy/2025-04-14/doc-inetcqhp8249333.shtml",
+                "https://news.qq.com/rain/a/20240208A04Y4J00",
+                "https://static.nfnews.com/content/202405/24/c8901014.html?enterColumnId=0",
+                "https://www.alibabagroup.com/zh-HK/document-1752127870676762624",
+                "https://www.toutiao.com/article/7372195065873269258",
+                "https://bk.taobao.com/k/alibaba_51/03046ff42c018f22f9d1d5c3382adf3a.html",
+                "https://matrixbcg.com/products/alibabagroup-pestle-analysis",
+                "https://growthsharematrix.com/products/alibabagroup-business-model-canvas",
+                "http://asiaict.com/ai/3221.html",
+                "http://asiaict.com/digitallive/2878.html",
+                "https://longbridge.com/topics/27857398",
+                "https://wello.nl/article/alibaba-net-worth-2024-the-tech-titan-s-financial-powerhouse-explained",
+                "https://financialfilings.com/filings/render/12678265",
+                "https://www.tradingview.com/news/gurufocus:01a962d9c094b:0-cautious-optimism-for-alibaba/",
+                "https://3g.china.com/act/news/10000169/20240524/46582840.html"
+            ],
+            "web_search_calls": [
+                {
+                    "id": "call_01a0ff9eb2877a02812228fa",
+                    "status": "completed",
+                    "action_type": "search",
+                    "source_urls": []
+                },
+                {
+                    "id": "call_01a0ff9eb3b977e0bbf570ef",
+                    "status": "completed",
+                    "action_type": "search",
+                    "source_urls": [
+                        "https://finance.sina.cn/2024-05-24/detail-inawhvcx6952398.d.html",
+                        "https://alibabagroup.com/zh-HK/document-1730334018613805056",
+                        "https://alibabagroup.com/document-1730334018613805056",
+                        "https://www.alibabagroup.com/document-1752127870676762624",
+                        "https://finance.sina.com.cn/stock/aigcy/2025-04-14/doc-inetcqhp8249333.shtml",
+                        "https://news.qq.com/rain/a/20240208A04Y4J00",
+                        "https://static.nfnews.com/content/202405/24/c8901014.html?enterColumnId=0",
+                        "https://www.alibabagroup.com/zh-HK/document-1752127870676762624",
+                        "https://www.toutiao.com/article/7372195065873269258",
+                        "https://bk.taobao.com/k/alibaba_51/03046ff42c018f22f9d1d5c3382adf3a.html",
+                        "https://matrixbcg.com/products/alibabagroup-pestle-analysis",
+                        "https://growthsharematrix.com/products/alibabagroup-business-model-canvas",
+                        "http://asiaict.com/ai/3221.html",
+                        "http://asiaict.com/digitallive/2878.html",
+                        "https://longbridge.com/topics/27857398",
+                        "https://wello.nl/article/alibaba-net-worth-2024-the-tech-titan-s-financial-powerhouse-explained",
+                        "https://financialfilings.com/filings/render/12678265",
+                        "https://www.tradingview.com/news/gurufocus:01a962d9c094b:0-cautious-optimism-for-alibaba/",
+                        "https://3g.china.com/act/news/10000169/20240524/46582840.html"
+                    ]
+                }
+            ],
+            "attempts": [
+                {
+                    "provider": "minimax",
+                    "request_id": null,
+                    "response_id": "070f9d287671c137b08f5dde59b1e118",
+                    "actual_model": "MiniMax-M3",
+                    "search_status": "executed",
+                    "response_status": "completed",
+                    "http_status_code": 200,
+                    "started_at": "2026-10-03T02:36:22.574255Z",
+                    "completed_at": "2026-10-03T02:36:41.665724Z",
+                    "attempt_id": "1a1b269d-8549-4f9a-8e25-76a151a3a540",
+                    "prompt_sha256": "c007b9996b6b9fc9dde330bca0d83d1d8856c7fa2e90afc48764a4e0f7e621c1",
+                    "search_receipt_id": "call_01a0ff9eb3b977e0bbf570ef",
+                    "source_urls": [
+                        "https://finance.sina.cn/2024-05-24/detail-inawhvcx6952398.d.html",
+                        "https://alibabagroup.com/zh-HK/document-1730334018613805056",
+                        "https://alibabagroup.com/document-1730334018613805056",
+                        "https://www.alibabagroup.com/document-1752127870676762624",
+                        "https://finance.sina.com.cn/stock/aigcy/2025-04-14/doc-inetcqhp8249333.shtml",
+                        "https://news.qq.com/rain/a/20240208A04Y4J00",
+                        "https://static.nfnews.com/content/202405/24/c8901014.html?enterColumnId=0",
+                        "https://www.alibabagroup.com/zh-HK/document-1752127870676762624",
+                        "https://www.toutiao.com/article/7372195065873269258",
+                        "https://bk.taobao.com/k/alibaba_51/03046ff42c018f22f9d1d5c3382adf3a.html",
+                        "https://matrixbcg.com/products/alibabagroup-pestle-analysis",
+                        "https://growthsharematrix.com/products/alibabagroup-business-model-canvas",
+                        "http://asiaict.com/ai/3221.html",
+                        "http://asiaict.com/digitallive/2878.html",
+                        "https://longbridge.com/topics/27857398",
+                        "https://wello.nl/article/alibaba-net-worth-2024-the-tech-titan-s-financial-powerhouse-explained",
+                        "https://financialfilings.com/filings/render/12678265",
+                        "https://www.tradingview.com/news/gurufocus:01a962d9c094b:0-cautious-optimism-for-alibaba/",
+                        "https://3g.china.com/act/news/10000169/20240524/46582840.html"
+                    ],
+                    "web_search_calls": [
+                        {
+                            "id": "call_01a0ff9eb2877a02812228fa",
+                            "status": "completed",
+                            "action_type": "search",
+                            "source_urls": []
+                        },
+                        {
+                            "id": "call_01a0ff9eb3b977e0bbf570ef",
+                            "status": "completed",
+                            "action_type": "search",
+                            "source_urls": [
+                                "https://finance.sina.cn/2024-05-24/detail-inawhvcx6952398.d.html",
+                                "https://alibabagroup.com/zh-HK/document-1730334018613805056",
+                                "https://alibabagroup.com/document-1730334018613805056",
+                                "https://www.alibabagroup.com/document-1752127870676762624",
+                                "https://finance.sina.com.cn/stock/aigcy/2025-04-14/doc-inetcqhp8249333.shtml",
+                                "https://news.qq.com/rain/a/20240208A04Y4J00",
+                                "https://static.nfnews.com/content/202405/24/c8901014.html?enterColumnId=0",
+                                "https://www.alibabagroup.com/zh-HK/document-1752127870676762624",
+                                "https://www.toutiao.com/article/7372195065873269258",
+                                "https://bk.taobao.com/k/alibaba_51/03046ff42c018f22f9d1d5c3382adf3a.html",
+                                "https://matrixbcg.com/products/alibabagroup-pestle-analysis",
+                                "https://growthsharematrix.com/products/alibabagroup-business-model-canvas",
+                                "http://asiaict.com/ai/3221.html",
+                                "http://asiaict.com/digitallive/2878.html",
+                                "https://longbridge.com/topics/27857398",
+                                "https://wello.nl/article/alibaba-net-worth-2024-the-tech-titan-s-financial-powerhouse-explained",
+                                "https://financialfilings.com/filings/render/12678265",
+                                "https://www.tradingview.com/news/gurufocus:01a962d9c094b:0-cautious-optimism-for-alibaba/",
+                                "https://3g.china.com/act/news/10000169/20240524/46582840.html"
+                            ]
+                        }
+                    ],
+                    "usage": {
+                        "schema": "quick-scan-usage-v1",
+                        "input_tokens": 15679,
+                        "cached_input_tokens": 1792,
+                        "cache_creation_input_tokens": 0,
+                        "output_tokens": 769,
+                        "reasoning_output_tokens": 0,
+                        "search_tool_calls": 2
+                    },
+                    "provider_config_ref": "minimax"
+                }
+            ],
+            "format_repair": null,
+            "dispatch_outcome": null
+        },
+        "IQS_06": {
+            "answer_sha256": "1fe48277da0cb2d5703faf920849c310d4deba7c88f83eba668950902ad0d711",
+            "answered_at": "2026-10-03T03:37:01.272644Z",
+            "input_question_sha256": "6c61d778db26299e65b899aa25812872a92e0ab19bb08ff035938d61fa86177c",
+            "provider": "minimax",
+            "requested_model": "MiniMax-M3",
+            "actual_model": "MiniMax-M3",
+            "request_id": null,
+            "response_id": "070f9d3b0e6663381856682177bad11f",
+            "response_status": "completed",
+            "http_status_code": 200,
+            "failure_type": null,
+            "started_at": "2026-10-03T02:36:41.667156Z",
+            "completed_at": "2026-10-03T02:37:01.272092Z",
+            "attempt_id": "9f33ea71-4177-4fdf-bcdf-22a2b3658b52",
+            "prompt_sha256": "5b496a49a406d77d9e1cbcccfdf94c86651846acce59487c4b8c9f59049f4c41",
+            "search_receipt_id": "chatcmpl-tool-a86e6918c75ebce3",
+            "search_status": "executed",
+            "source_urls": [
+                "https://aiqicha.baidu.com/details/ugknowledge?id=2bd5e7824ddb982784e4e1b8ddb5dc85",
+                "https://m.dtm.com.cn/news/202512/147489.html",
+                "https://new.qq.com/rain/a/20250626A09TYZ00",
+                "https://www.alibabanews.com/?p=20456/",
+                "https://www.alibabagroup.com/zh-HK/document-1871720871488389120",
+                "https://new.qq.com/rain/a/20251128A071XY00",
+                "https://m.toutiao.com/article/7574418780734898703",
+                "https://m.qlwb.com.cn/detail/26279127.html",
+                "https://xueqiu.com/6114319827/381757574",
+                "https://finance.sina.com.cn/roll/2025-09-19/doc-infqypay5281121.shtml",
+                "https://businesstats.com/alibaba-statistics-facts-2026/",
+                "https://canvasbusinessmodel.com/blogs/competitors/alibaba-group-competitive-landscape",
+                "https://aiqicha.baidu.com/details/ugknowledge?id=03b607c7160dc756ef6f1a1f51499752",
+                "https://matrixbcg.com/products/alibabagroup-bcg-matrix",
+                "https://www.sgpjbg.com.cn/searchtag/25818531.html",
+                "https://www.vantage-markets-apac.com/academy/alibaba-ai-transformation-jack-ma-return-2025",
+                "https://omahaline.com/essays/baba",
+                "https://www.alibabacloud.com/en/press-room/alibaba-maintains-leading-position-by-revenue?_p_lc=1"
+            ],
+            "web_search_calls": [
+                {
+                    "id": "chatcmpl-tool-b902f119aa5d6e40",
+                    "status": "completed",
+                    "action_type": "search",
+                    "source_urls": []
+                },
+                {
+                    "id": "chatcmpl-tool-a86e6918c75ebce3",
+                    "status": "completed",
+                    "action_type": "search",
+                    "source_urls": [
+                        "https://aiqicha.baidu.com/details/ugknowledge?id=2bd5e7824ddb982784e4e1b8ddb5dc85",
+                        "https://m.dtm.com.cn/news/202512/147489.html",
+                        "https://new.qq.com/rain/a/20250626A09TYZ00",
+                        "https://www.alibabanews.com/?p=20456/",
+                        "https://www.alibabagroup.com/zh-HK/document-1871720871488389120",
+                        "https://new.qq.com/rain/a/20251128A071XY00",
+                        "https://m.toutiao.com/article/7574418780734898703",
+                        "https://m.qlwb.com.cn/detail/26279127.html",
+                        "https://xueqiu.com/6114319827/381757574",
+                        "https://finance.sina.com.cn/roll/2025-09-19/doc-infqypay5281121.shtml",
+                        "https://businesstats.com/alibaba-statistics-facts-2026/",
+                        "https://canvasbusinessmodel.com/blogs/competitors/alibaba-group-competitive-landscape",
+                        "https://aiqicha.baidu.com/details/ugknowledge?id=03b607c7160dc756ef6f1a1f51499752",
+                        "https://matrixbcg.com/products/alibabagroup-bcg-matrix",
+                        "https://www.sgpjbg.com.cn/searchtag/25818531.html",
+                        "https://www.vantage-markets-apac.com/academy/alibaba-ai-transformation-jack-ma-return-2025",
+                        "https://omahaline.com/essays/baba",
+                        "https://www.alibabacloud.com/en/press-room/alibaba-maintains-leading-position-by-revenue?_p_lc=1"
+                    ]
+                }
+            ],
+            "attempts": [
+                {
+                    "provider": "minimax",
+                    "request_id": null,
+                    "response_id": "070f9d3b0e6663381856682177bad11f",
+                    "actual_model": "MiniMax-M3",
+                    "search_status": "executed",
+                    "response_status": "completed",
+                    "http_status_code": 200,
+                    "started_at": "2026-10-03T02:36:41.667156Z",
+                    "completed_at": "2026-10-03T02:37:01.272092Z",
+                    "attempt_id": "9f33ea71-4177-4fdf-bcdf-22a2b3658b52",
+                    "prompt_sha256": "5b496a49a406d77d9e1cbcccfdf94c86651846acce59487c4b8c9f59049f4c41",
+                    "search_receipt_id": "chatcmpl-tool-a86e6918c75ebce3",
+                    "source_urls": [
+                        "https://aiqicha.baidu.com/details/ugknowledge?id=2bd5e7824ddb982784e4e1b8ddb5dc85",
+                        "https://m.dtm.com.cn/news/202512/147489.html",
+                        "https://new.qq.com/rain/a/20250626A09TYZ00",
+                        "https://www.alibabanews.com/?p=20456/",
+                        "https://www.alibabagroup.com/zh-HK/document-1871720871488389120",
+                        "https://new.qq.com/rain/a/20251128A071XY00",
+                        "https://m.toutiao.com/article/7574418780734898703",
+                        "https://m.qlwb.com.cn/detail/26279127.html",
+                        "https://xueqiu.com/6114319827/381757574",
+                        "https://finance.sina.com.cn/roll/2025-09-19/doc-infqypay5281121.shtml",
+                        "https://businesstats.com/alibaba-statistics-facts-2026/",
+                        "https://canvasbusinessmodel.com/blogs/competitors/alibaba-group-competitive-landscape",
+                        "https://aiqicha.baidu.com/details/ugknowledge?id=03b607c7160dc756ef6f1a1f51499752",
+                        "https://matrixbcg.com/products/alibabagroup-bcg-matrix",
+                        "https://www.sgpjbg.com.cn/searchtag/25818531.html",
+                        "https://www.vantage-markets-apac.com/academy/alibaba-ai-transformation-jack-ma-return-2025",
+                        "https://omahaline.com/essays/baba",
+                        "https://www.alibabacloud.com/en/press-room/alibaba-maintains-leading-position-by-revenue?_p_lc=1"
+                    ],
+                    "web_search_calls": [
+                        {
+                            "id": "chatcmpl-tool-b902f119aa5d6e40",
+                            "status": "completed",
+                            "action_type": "search",
+                            "source_urls": []
+                        },
+                        {
+                            "id": "chatcmpl-tool-a86e6918c75ebce3",
+                            "status": "completed",
+                            "action_type": "search",
+                            "source_urls": [
+                                "https://aiqicha.baidu.com/details/ugknowledge?id=2bd5e7824ddb982784e4e1b8ddb5dc85",
+                                "https://m.dtm.com.cn/news/202512/147489.html",
+                                "https://new.qq.com/rain/a/20250626A09TYZ00",
+                                "https://www.alibabanews.com/?p=20456/",
+                                "https://www.alibabagroup.com/zh-HK/document-1871720871488389120",
+                                "https://new.qq.com/rain/a/20251128A071XY00",
+                                "https://m.toutiao.com/article/7574418780734898703",
+                                "https://m.qlwb.com.cn/detail/26279127.html",
+                                "https://xueqiu.com/6114319827/381757574",
+                                "https://finance.sina.com.cn/roll/2025-09-19/doc-infqypay5281121.shtml",
+                                "https://businesstats.com/alibaba-statistics-facts-2026/",
+                                "https://canvasbusinessmodel.com/blogs/competitors/alibaba-group-competitive-landscape",
+                                "https://aiqicha.baidu.com/details/ugknowledge?id=03b607c7160dc756ef6f1a1f51499752",
+                                "https://matrixbcg.com/products/alibabagroup-bcg-matrix",
+                                "https://www.sgpjbg.com.cn/searchtag/25818531.html",
+                                "https://www.vantage-markets-apac.com/academy/alibaba-ai-transformation-jack-ma-return-2025",
+                                "https://omahaline.com/essays/baba",
+                                "https://www.alibabacloud.com/en/press-room/alibaba-maintains-leading-position-by-revenue?_p_lc=1"
+                            ]
+                        }
+                    ],
+                    "usage": {
+                        "schema": "quick-scan-usage-v1",
+                        "input_tokens": 15354,
+                        "cached_input_tokens": 1536,
+                        "cache_creation_input_tokens": 0,
+                        "output_tokens": 621,
+                        "reasoning_output_tokens": 0,
+                        "search_tool_calls": 2
+                    },
+                    "provider_config_ref": "minimax"
+                }
+            ],
+            "format_repair": {
+                "attempted": false,
+                "status": "not_enabled",
+                "failure_type": "invalid_answer"
+            },
+            "dispatch_outcome": null
+        }
+    }
+}

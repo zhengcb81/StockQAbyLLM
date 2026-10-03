@@ -1,0 +1,209 @@
+{
+    "schema_version": "stockqa.quick_scan_result/1.0.0",
+    "entity": {
+        "entity_id": "probe:CN-A:600519",
+        "name": "茅台"
+    },
+    "observed_at": "2026-10-03T03:31:13.313576Z",
+    "provider": {
+        "name": "minimax",
+        "requested_model": "MiniMax-M3"
+    },
+    "answers": {
+        "IQS_06": {
+            "question_id": "IQS_06",
+            "status": "scored",
+            "score": 9,
+            "description": "竞争地位评估为'稳固/增强'。多项数据交叉验证：(1)整体白酒行业市占率从2015年5.88%升至2025年23.35%，十年提升约17个百分点；(2)千元以上高端市场份额从2020年45%升至2025上半年53.2%，酱香细分赛道占62.9%；(3)酱酒行业70%以上中小企业停产减产，行业集中度CR5从45%升至62%；(4)茅台一家营收超第二至第五名总和，占A股白酒板块46.63%、净利润60.90%，拿走行业超45%利润；(6)护城河多维——地理标志保护(15平方公里核心产区)、品牌心智垄断、1.2万千升基酒储备、超160亿元现金储备、近零负债、92%毛利率。变化趋势支持稳固性：在行业总量2025年下滑7.5%的背景下，茅台市占率反向上升，2025年营收虽微降1.2%(上市以来首次)，但相对韧性显著强于五粮液(-54.55%)、洋河(-33.47%)、泸州老窖(-17.52%)等同行。唯一限制因素是行业进入存量博弈期，茅台面临社会库存1.2-2.2亿瓶的高位、消费场景变化、消费税改革等短期压力，但护城河与定价权未受根本动摇。综合判断竞争地位高度稳固，趋势为增强。",
+            "source_urls": [
+                "https://m.sgpjbg.com.cn/news/7072125.html",
+                "http://www.sina.cn/news/detail/5316185508809550.html",
+                "https://caifuhao.eastmoney.com/news/20260825100841673426000",
+                "https://m.toutiao.com/article/7564793082302956067",
+                "https://cdnh5.laohucaijing.com/kjj_lh/article.html?newid=146099&type=2",
+                "https://www.sgpjbg.com.cn/searchtag/26303006.html",
+                "https://h5detail.yiyouliao.com/rivers/newsfeed/1536235174142947329/ID2BI0TI52SI73Q.html",
+                "https://3g.china.com/act/news/10000169/20251031/48954319.html",
+                "https://www.sgpjbg.com/searchtag/25815385.html",
+                "http://sdenews.com/html/2025/9/378319.shtml",
+                "http://www.cnwinenews.com/html/2025/English_0419/129803.html",
+                "https://www.linkedin.com/pulse/moutai-chinas-national-treasure-bottle-luigi-wang-fefuc?trk=article-ssr-frontend-pulse_more-articles_related-content-card",
+                "https://matrixbcg.com/products/moutaichina-five-forces-analysis",
+                "https://growthsharematrix.com/products/moutaichina-five-forces-analysis",
+                "https://matrixbcg.com/products/moutaichina-swot-analysis",
+                "https://dcf-analysis.com/products/600519ss-swot-analysis",
+                "https://grokipedia.com/page/Kweichow_Moutai",
+                "https://finance.sina.cn/2025-12-24/detail-inhcxctc5733328.d.html",
+                "https://www.sina.cn/news/detail/5312187927365764.html",
+                "https://dataintelo.com/report/maotai-flavor-liquor-market"
+            ],
+            "published_date": null,
+            "information_as_of": null,
+            "check_level": "unverified_model_output",
+            "check_level_receipt_id": null
+        }
+    },
+    "execution_receipts": {
+        "IQS_06": {
+            "answer_sha256": "2b07465aca71fbfba1fedfd083de69ca4c609eb094d68b7211b7f5333facb426",
+            "answered_at": "2026-10-03T03:31:13.313576Z",
+            "input_question_sha256": "6c61d778db26299e65b899aa25812872a92e0ab19bb08ff035938d61fa86177c",
+            "provider": "minimax",
+            "requested_model": "MiniMax-M3",
+            "actual_model": "MiniMax-M3",
+            "request_id": null,
+            "response_id": "070f9be6b74d63fdec5b8ce1663b8292",
+            "response_status": "completed",
+            "http_status_code": 200,
+            "failure_type": null,
+            "started_at": "2026-10-03T02:30:59.410996Z",
+            "completed_at": "2026-10-03T02:31:13.312841Z",
+            "attempt_id": "342bd6f1-7478-4980-a5f7-c24b762e8cb2",
+            "prompt_sha256": "40652ba19acbe1ff8bcd91240c7318ce1e6c317df63bed6bfa66c419d1d9abb1",
+            "search_receipt_id": "call_01a0ff99c85674e68bba8db6",
+            "search_status": "executed",
+            "source_urls": [
+                "https://m.sgpjbg.com.cn/news/7072125.html",
+                "http://www.sina.cn/news/detail/5316185508809550.html",
+                "https://caifuhao.eastmoney.com/news/20260825100841673426000",
+                "https://m.toutiao.com/article/7564793082302956067",
+                "https://cdnh5.laohucaijing.com/kjj_lh/article.html?newid=146099&type=2",
+                "https://www.sgpjbg.com.cn/searchtag/26303006.html",
+                "https://h5detail.yiyouliao.com/rivers/newsfeed/1536235174142947329/ID2BI0TI52SI73Q.html",
+                "https://3g.china.com/act/news/10000169/20251031/48954319.html",
+                "https://www.sgpjbg.com/searchtag/25815385.html",
+                "http://sdenews.com/html/2025/9/378319.shtml",
+                "http://www.cnwinenews.com/html/2025/English_0419/129803.html",
+                "https://www.linkedin.com/pulse/moutai-chinas-national-treasure-bottle-luigi-wang-fefuc?trk=article-ssr-frontend-pulse_more-articles_related-content-card",
+                "https://matrixbcg.com/products/moutaichina-five-forces-analysis",
+                "https://growthsharematrix.com/products/moutaichina-five-forces-analysis",
+                "https://matrixbcg.com/products/moutaichina-swot-analysis",
+                "https://dcf-analysis.com/products/600519ss-swot-analysis",
+                "https://grokipedia.com/page/Kweichow_Moutai",
+                "https://finance.sina.cn/2025-12-24/detail-inhcxctc5733328.d.html",
+                "https://www.sina.cn/news/detail/5312187927365764.html",
+                "https://dataintelo.com/report/maotai-flavor-liquor-market"
+            ],
+            "web_search_calls": [
+                {
+                    "id": "call_01a0ff99c85674e68bba8db5",
+                    "status": "completed",
+                    "action_type": "search",
+                    "source_urls": []
+                },
+                {
+                    "id": "call_01a0ff99c85674e68bba8db6",
+                    "status": "completed",
+                    "action_type": "search",
+                    "source_urls": [
+                        "https://m.sgpjbg.com.cn/news/7072125.html",
+                        "http://www.sina.cn/news/detail/5316185508809550.html",
+                        "https://caifuhao.eastmoney.com/news/20260825100841673426000",
+                        "https://m.toutiao.com/article/7564793082302956067",
+                        "https://cdnh5.laohucaijing.com/kjj_lh/article.html?newid=146099&type=2",
+                        "https://www.sgpjbg.com.cn/searchtag/26303006.html",
+                        "https://h5detail.yiyouliao.com/rivers/newsfeed/1536235174142947329/ID2BI0TI52SI73Q.html",
+                        "https://3g.china.com/act/news/10000169/20251031/48954319.html",
+                        "https://www.sgpjbg.com/searchtag/25815385.html",
+                        "http://sdenews.com/html/2025/9/378319.shtml",
+                        "http://www.cnwinenews.com/html/2025/English_0419/129803.html",
+                        "https://www.linkedin.com/pulse/moutai-chinas-national-treasure-bottle-luigi-wang-fefuc?trk=article-ssr-frontend-pulse_more-articles_related-content-card",
+                        "https://matrixbcg.com/products/moutaichina-five-forces-analysis",
+                        "https://growthsharematrix.com/products/moutaichina-five-forces-analysis",
+                        "https://matrixbcg.com/products/moutaichina-swot-analysis",
+                        "https://dcf-analysis.com/products/600519ss-swot-analysis",
+                        "https://grokipedia.com/page/Kweichow_Moutai",
+                        "https://finance.sina.cn/2025-12-24/detail-inhcxctc5733328.d.html",
+                        "https://www.sina.cn/news/detail/5312187927365764.html",
+                        "https://dataintelo.com/report/maotai-flavor-liquor-market"
+                    ]
+                }
+            ],
+            "attempts": [
+                {
+                    "provider": "minimax",
+                    "request_id": null,
+                    "response_id": "070f9be6b74d63fdec5b8ce1663b8292",
+                    "actual_model": "MiniMax-M3",
+                    "search_status": "executed",
+                    "response_status": "completed",
+                    "http_status_code": 200,
+                    "started_at": "2026-10-03T02:30:59.410996Z",
+                    "completed_at": "2026-10-03T02:31:13.312841Z",
+                    "attempt_id": "342bd6f1-7478-4980-a5f7-c24b762e8cb2",
+                    "prompt_sha256": "40652ba19acbe1ff8bcd91240c7318ce1e6c317df63bed6bfa66c419d1d9abb1",
+                    "search_receipt_id": "call_01a0ff99c85674e68bba8db6",
+                    "source_urls": [
+                        "https://m.sgpjbg.com.cn/news/7072125.html",
+                        "http://www.sina.cn/news/detail/5316185508809550.html",
+                        "https://caifuhao.eastmoney.com/news/20260825100841673426000",
+                        "https://m.toutiao.com/article/7564793082302956067",
+                        "https://cdnh5.laohucaijing.com/kjj_lh/article.html?newid=146099&type=2",
+                        "https://www.sgpjbg.com.cn/searchtag/26303006.html",
+                        "https://h5detail.yiyouliao.com/rivers/newsfeed/1536235174142947329/ID2BI0TI52SI73Q.html",
+                        "https://3g.china.com/act/news/10000169/20251031/48954319.html",
+                        "https://www.sgpjbg.com/searchtag/25815385.html",
+                        "http://sdenews.com/html/2025/9/378319.shtml",
+                        "http://www.cnwinenews.com/html/2025/English_0419/129803.html",
+                        "https://www.linkedin.com/pulse/moutai-chinas-national-treasure-bottle-luigi-wang-fefuc?trk=article-ssr-frontend-pulse_more-articles_related-content-card",
+                        "https://matrixbcg.com/products/moutaichina-five-forces-analysis",
+                        "https://growthsharematrix.com/products/moutaichina-five-forces-analysis",
+                        "https://matrixbcg.com/products/moutaichina-swot-analysis",
+                        "https://dcf-analysis.com/products/600519ss-swot-analysis",
+                        "https://grokipedia.com/page/Kweichow_Moutai",
+                        "https://finance.sina.cn/2025-12-24/detail-inhcxctc5733328.d.html",
+                        "https://www.sina.cn/news/detail/5312187927365764.html",
+                        "https://dataintelo.com/report/maotai-flavor-liquor-market"
+                    ],
+                    "web_search_calls": [
+                        {
+                            "id": "call_01a0ff99c85674e68bba8db5",
+                            "status": "completed",
+                            "action_type": "search",
+                            "source_urls": []
+                        },
+                        {
+                            "id": "call_01a0ff99c85674e68bba8db6",
+                            "status": "completed",
+                            "action_type": "search",
+                            "source_urls": [
+                                "https://m.sgpjbg.com.cn/news/7072125.html",
+                                "http://www.sina.cn/news/detail/5316185508809550.html",
+                                "https://caifuhao.eastmoney.com/news/20260825100841673426000",
+                                "https://m.toutiao.com/article/7564793082302956067",
+                                "https://cdnh5.laohucaijing.com/kjj_lh/article.html?newid=146099&type=2",
+                                "https://www.sgpjbg.com.cn/searchtag/26303006.html",
+                                "https://h5detail.yiyouliao.com/rivers/newsfeed/1536235174142947329/ID2BI0TI52SI73Q.html",
+                                "https://3g.china.com/act/news/10000169/20251031/48954319.html",
+                                "https://www.sgpjbg.com/searchtag/25815385.html",
+                                "http://sdenews.com/html/2025/9/378319.shtml",
+                                "http://www.cnwinenews.com/html/2025/English_0419/129803.html",
+                                "https://www.linkedin.com/pulse/moutai-chinas-national-treasure-bottle-luigi-wang-fefuc?trk=article-ssr-frontend-pulse_more-articles_related-content-card",
+                                "https://matrixbcg.com/products/moutaichina-five-forces-analysis",
+                                "https://growthsharematrix.com/products/moutaichina-five-forces-analysis",
+                                "https://matrixbcg.com/products/moutaichina-swot-analysis",
+                                "https://dcf-analysis.com/products/600519ss-swot-analysis",
+                                "https://grokipedia.com/page/Kweichow_Moutai",
+                                "https://finance.sina.cn/2025-12-24/detail-inhcxctc5733328.d.html",
+                                "https://www.sina.cn/news/detail/5312187927365764.html",
+                                "https://dataintelo.com/report/maotai-flavor-liquor-market"
+                            ]
+                        }
+                    ],
+                    "usage": {
+                        "schema": "quick-scan-usage-v1",
+                        "input_tokens": 16190,
+                        "cached_input_tokens": 1239,
+                        "cache_creation_input_tokens": 0,
+                        "output_tokens": 454,
+                        "reasoning_output_tokens": 0,
+                        "search_tool_calls": 2
+                    },
+                    "provider_config_ref": "minimax"
+                }
+            ],
+            "format_repair": null,
+            "dispatch_outcome": null
+        }
+    }
+}

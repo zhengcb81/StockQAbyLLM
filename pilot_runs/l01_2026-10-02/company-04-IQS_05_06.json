@@ -1,0 +1,367 @@
+{
+    "schema_version": "stockqa.quick_scan_result/1.0.0",
+    "entity": {
+        "entity_id": "probe:CN-A:000002",
+        "name": "万科"
+    },
+    "observed_at": "2026-10-03T03:33:15.988510Z",
+    "provider": {
+        "name": "minimax",
+        "requested_model": "MiniMax-M3"
+    },
+    "answers": {
+        "IQS_05": {
+            "question_id": "IQS_05",
+            "status": "scored",
+            "score": 6,
+            "description": "在万科明确的核心业务范围(综合住区开发+经营服务)内,其竞争优势可分为以下几类并各有证据强度:\n\n1)长租公寓(泊寓):三项指标(规模26万间、纳保量12万间以上、运营效率)行业第一,出租率>95%,客户满意度>95%,续租率~60%。十年运营积累的客户口碑和企业客户(腾讯、比亚迪、大疆等)认可,以及'存量盘活'能力,具有较高复制壁垒——对手需要时间积累同等规模的合规纳保房源和数字化运营体系。\n\n2)建筑科技与产品力:已获近300件国家发明专利,业内首创'图纸大模型'(图纸查找效率提升6倍以上,核对效率提升15倍以上),获'华夏奖',上海理想之地/北京东庐等项目新项目去化率达80%,多个项目获'广厦奖'。这部分有具体可量化证据,但科技专利和AI审图类能力在合理投入下可被同行模仿,壁垒中等。\n\n3)综合住区开发规模:2024年销售面积行业第一,大宗交易规模行业第一。但开发业务本身同质化较强,且行业整体收缩,2024年净利润亏损,该优势建立在规模与品牌信誉,而非不可复制要素。\n\n4)经营服务生态:万物云(2024年营收超360亿)、印力商业(出租率95%)、物流仓储及多赛道REITs突破,呈现多业态资产证券化能力。这部分依赖于长期积累的资产组合与运营数据,有中等复制壁垒。\n\n主要局限性:(a)2024年净利润亏损,反映主业盈利能力承压,竞争优势的实际兑现存疑;(b)新交付任务量大幅下降(2025年计划11.2万套vs 2024年18.2万套),规模优势在缩水;(c)依靠深圳国资和多方金融支持才维持偿债,自身造血能力受质疑;(d)部分'优势'(如科技专利、产品创新)属资本可复制型,真实护城河有限;(e)行业进入存量时代,新增项目兑现度100%但绝对量下滑,先发优势的价值在衰减。综合判断:存在若干可证据化、有一定复制难度的优势(尤其长租与生态运营),但财务承压削弱了优势的可持续性,整体处于中等偏上水平,评分6/10。",
+            "source_urls": [
+                "https://www.ce.cn/cysc/fdc/fc/202504/01/t20250401_39336490.shtml",
+                "https://www.chnfund.com/article/ARfff749d5-5031-007e-7748-3a18fe877eb1",
+                "https://news.qq.com/rain/a/20250331A09CPM00",
+                "https://www.cnr.cn/rdjj/house/csdb/20250331/t20250331_527119510.shtml",
+                "https://www.nfnews.com/content/1y0qZOae3B.html",
+                "https://finance.sina.cn/stock/ssgs/2025-03-31/detail-inerqfen1014423.d.html",
+                "https://www.toutiao.com/article/7488161590257156647",
+                "https://k.sina.com.cn/article_2131593523_7f0d893302001ix7s.html",
+                "https://static.nfnews.com/content/202503/31/c11140149.html",
+                "https://www.toutiao.com/article/7488237465376096779/",
+                "https://news.southcn.com/node_810c33d731/125d218c3f.shtml",
+                "https://a.jiemian.com/index.php?m=preview&aid=12548049&ts=1743420320&ss=ed76b7488f52242c2b31e2bdf2c1d217",
+                "https://ifnews.com/news.html?aid=708913",
+                "https://finance.sina.cn/2025-03-31/detail-inerqmnk0934612.d.html",
+                "https://finance.eastmoney.com/a/202503313361254020.html",
+                "https://pestel-analysis.com/products/vanke-business-model-canvas",
+                "https://news.qq.com/rain/a/20250331A09KD300"
+            ],
+            "published_date": null,
+            "information_as_of": null,
+            "check_level": "unverified_model_output",
+            "check_level_receipt_id": null
+        },
+        "IQS_06": {
+            "question_id": "IQS_06",
+            "status": "scored",
+            "score": 4,
+            "description": "竞争地位判断：稳定但显著恶化。证据：1)销售排名从2024年第4位跌至2025年第6位，跌出前五；2026年1-2月进一步滑落至第10位左右，单月跌至第9位，呈持续下滑趋势。2)2025年销售额约1339亿元，与前五名差距明显（招商蛇口1960亿、华润2336亿、中海2512亿）。4)关键变化趋势不支持稳固性：排名连续两年下降，国资化趋势基本成形（需依赖国资大股东支持），2025年净亏损885亿元（两年累计超千亿），资产减值超561亿。3)部分稳定性支撑：仍维持千亿级销售规模，位列第一梯队；万物云（373.6亿）、长租公寓、物流等多元业务贡献580.1亿经营服务收入；保交付能力突出（2025年交付11.7万套）；品牌价值仍位列前十（第8位）。综合判断：竞争地位在TOP10阵营内仍属稳固，但排名趋势明显恶化，向头部央国企靠拢的过程伴随持续失血，稳固性正在削弱而非增强。评分4分，反映'恶化'趋势。",
+            "source_urls": [
+                "https://www.ce.cn/newmain/right/feature/202601/t20260113_2698466.shtml",
+                "https://news.qq.com/rain/a/20260104A072DQ00",
+                "https://news.qq.com/rain/a/20260403A02BL900?adChannelId=finance",
+                "https://aiqicha.baidu.com/details/ugknowledge?id=6eb2d3628f6040ff5c27ddee2d56207a",
+                "https://m.chinatimes.net.cn/article/150106.html",
+                "https://www.thecover.cn/news/7H9o8Fu%2BvFKH90qSdq8Jkw==",
+                "https://aiqicha.baidu.com/details/ugknowledge?id=a82347203e6483164cdaf7571b21d1c9",
+                "https://aiqicha.baidu.com/details/ugknowledge?id=6f588a6aa0fb542d694fa36f2b8d4752",
+                "https://aiqicha.baidu.com/details/ugknowledge?id=ab0a1db17a8c491b0dbbc6f0b992e652",
+                "https://news.qq.com/rain/a/20260107A05SS500",
+                "https://m.sohu.com/a/970885088_175523",
+                "https://finance.sina.com.cn/stock/relnews/cn/2026-01-07/doc-inhfmtvz7707783.shtml",
+                "https://finance.sina.cn/2026-04-03/detail-inhtetzf3853411.d.html",
+                "https://news.qq.com/rain/a/20260114A038OY00",
+                "https://aiqicha.baidu.com/details/ugknowledge?id=7d249d39d32218e9d7d23e39f939ac3f",
+                "https://www.creb.com.cn/sylb/214352.jhtml"
+            ],
+            "published_date": null,
+            "information_as_of": null,
+            "check_level": "unverified_model_output",
+            "check_level_receipt_id": null
+        }
+    },
+    "execution_receipts": {
+        "IQS_05": {
+            "answer_sha256": "2ce2f79eed42789246ebad8e700f904cc1f08f1f2d813eaac4e1af878faf8d29",
+            "answered_at": "2026-10-03T03:33:04.472352Z",
+            "input_question_sha256": "3c9daa8e090c5294062157b5b8bb45c8ecb86466221002f8055dd5d7bf3cab3a",
+            "provider": "minimax",
+            "requested_model": "MiniMax-M3",
+            "actual_model": "MiniMax-M3",
+            "request_id": null,
+            "response_id": "070f9c4dbaaba040df362932c09ede75",
+            "response_status": "completed",
+            "http_status_code": 200,
+            "failure_type": null,
+            "started_at": "2026-10-03T02:32:43.152005Z",
+            "completed_at": "2026-10-03T02:33:04.471352Z",
+            "attempt_id": "af1583d9-bfc4-4c2a-906d-d489d2556651",
+            "prompt_sha256": "de70fa435af47a0be498fc9839c9ecb609fae3c32337ffce770ba55c1fdb7fe5",
+            "search_receipt_id": "call_01a0ff9b5cb5761aa162f660",
+            "search_status": "executed",
+            "source_urls": [
+                "https://www.ce.cn/cysc/fdc/fc/202504/01/t20250401_39336490.shtml",
+                "https://www.chnfund.com/article/ARfff749d5-5031-007e-7748-3a18fe877eb1",
+                "https://news.qq.com/rain/a/20250331A09CPM00",
+                "https://www.cnr.cn/rdjj/house/csdb/20250331/t20250331_527119510.shtml",
+                "https://www.nfnews.com/content/1y0qZOae3B.html",
+                "https://finance.sina.cn/stock/ssgs/2025-03-31/detail-inerqfen1014423.d.html",
+                "https://www.toutiao.com/article/7488161590257156647",
+                "https://k.sina.com.cn/article_2131593523_7f0d893302001ix7s.html",
+                "https://static.nfnews.com/content/202503/31/c11140149.html",
+                "https://www.toutiao.com/article/7488237465376096779/",
+                "https://news.southcn.com/node_810c33d731/125d218c3f.shtml",
+                "https://a.jiemian.com/index.php?m=preview&aid=12548049&ts=1743420320&ss=ed76b7488f52242c2b31e2bdf2c1d217",
+                "https://ifnews.com/news.html?aid=708913",
+                "https://finance.sina.cn/2025-03-31/detail-inerqmnk0934612.d.html",
+                "https://finance.eastmoney.com/a/202503313361254020.html",
+                "https://pestel-analysis.com/products/vanke-business-model-canvas",
+                "https://news.qq.com/rain/a/20250331A09KD300"
+            ],
+            "web_search_calls": [
+                {
+                    "id": "call_01a0ff9b5cb5761aa162f65f",
+                    "status": "completed",
+                    "action_type": "search",
+                    "source_urls": []
+                },
+                {
+                    "id": "call_01a0ff9b5cb5761aa162f660",
+                    "status": "completed",
+                    "action_type": "search",
+                    "source_urls": [
+                        "https://www.ce.cn/cysc/fdc/fc/202504/01/t20250401_39336490.shtml",
+                        "https://www.chnfund.com/article/ARfff749d5-5031-007e-7748-3a18fe877eb1",
+                        "https://news.qq.com/rain/a/20250331A09CPM00",
+                        "https://www.cnr.cn/rdjj/house/csdb/20250331/t20250331_527119510.shtml",
+                        "https://www.nfnews.com/content/1y0qZOae3B.html",
+                        "https://finance.sina.cn/stock/ssgs/2025-03-31/detail-inerqfen1014423.d.html",
+                        "https://www.toutiao.com/article/7488161590257156647",
+                        "https://k.sina.com.cn/article_2131593523_7f0d893302001ix7s.html",
+                        "https://static.nfnews.com/content/202503/31/c11140149.html",
+                        "https://www.toutiao.com/article/7488237465376096779/",
+                        "https://news.southcn.com/node_810c33d731/125d218c3f.shtml",
+                        "https://a.jiemian.com/index.php?m=preview&aid=12548049&ts=1743420320&ss=ed76b7488f52242c2b31e2bdf2c1d217",
+                        "https://ifnews.com/news.html?aid=708913",
+                        "https://finance.sina.cn/2025-03-31/detail-inerqmnk0934612.d.html",
+                        "https://finance.eastmoney.com/a/202503313361254020.html",
+                        "https://pestel-analysis.com/products/vanke-business-model-canvas",
+                        "https://news.qq.com/rain/a/20250331A09KD300"
+                    ]
+                }
+            ],
+            "attempts": [
+                {
+                    "provider": "minimax",
+                    "request_id": null,
+                    "response_id": "070f9c4dbaaba040df362932c09ede75",
+                    "actual_model": "MiniMax-M3",
+                    "search_status": "executed",
+                    "response_status": "completed",
+                    "http_status_code": 200,
+                    "started_at": "2026-10-03T02:32:43.152005Z",
+                    "completed_at": "2026-10-03T02:33:04.471352Z",
+                    "attempt_id": "af1583d9-bfc4-4c2a-906d-d489d2556651",
+                    "prompt_sha256": "de70fa435af47a0be498fc9839c9ecb609fae3c32337ffce770ba55c1fdb7fe5",
+                    "search_receipt_id": "call_01a0ff9b5cb5761aa162f660",
+                    "source_urls": [
+                        "https://www.ce.cn/cysc/fdc/fc/202504/01/t20250401_39336490.shtml",
+                        "https://www.chnfund.com/article/ARfff749d5-5031-007e-7748-3a18fe877eb1",
+                        "https://news.qq.com/rain/a/20250331A09CPM00",
+                        "https://www.cnr.cn/rdjj/house/csdb/20250331/t20250331_527119510.shtml",
+                        "https://www.nfnews.com/content/1y0qZOae3B.html",
+                        "https://finance.sina.cn/stock/ssgs/2025-03-31/detail-inerqfen1014423.d.html",
+                        "https://www.toutiao.com/article/7488161590257156647",
+                        "https://k.sina.com.cn/article_2131593523_7f0d893302001ix7s.html",
+                        "https://static.nfnews.com/content/202503/31/c11140149.html",
+                        "https://www.toutiao.com/article/7488237465376096779/",
+                        "https://news.southcn.com/node_810c33d731/125d218c3f.shtml",
+                        "https://a.jiemian.com/index.php?m=preview&aid=12548049&ts=1743420320&ss=ed76b7488f52242c2b31e2bdf2c1d217",
+                        "https://ifnews.com/news.html?aid=708913",
+                        "https://finance.sina.cn/2025-03-31/detail-inerqmnk0934612.d.html",
+                        "https://finance.eastmoney.com/a/202503313361254020.html",
+                        "https://pestel-analysis.com/products/vanke-business-model-canvas",
+                        "https://news.qq.com/rain/a/20250331A09KD300"
+                    ],
+                    "web_search_calls": [
+                        {
+                            "id": "call_01a0ff9b5cb5761aa162f65f",
+                            "status": "completed",
+                            "action_type": "search",
+                            "source_urls": []
+                        },
+                        {
+                            "id": "call_01a0ff9b5cb5761aa162f660",
+                            "status": "completed",
+                            "action_type": "search",
+                            "source_urls": [
+                                "https://www.ce.cn/cysc/fdc/fc/202504/01/t20250401_39336490.shtml",
+                                "https://www.chnfund.com/article/ARfff749d5-5031-007e-7748-3a18fe877eb1",
+                                "https://news.qq.com/rain/a/20250331A09CPM00",
+                                "https://www.cnr.cn/rdjj/house/csdb/20250331/t20250331_527119510.shtml",
+                                "https://www.nfnews.com/content/1y0qZOae3B.html",
+                                "https://finance.sina.cn/stock/ssgs/2025-03-31/detail-inerqfen1014423.d.html",
+                                "https://www.toutiao.com/article/7488161590257156647",
+                                "https://k.sina.com.cn/article_2131593523_7f0d893302001ix7s.html",
+                                "https://static.nfnews.com/content/202503/31/c11140149.html",
+                                "https://www.toutiao.com/article/7488237465376096779/",
+                                "https://news.southcn.com/node_810c33d731/125d218c3f.shtml",
+                                "https://a.jiemian.com/index.php?m=preview&aid=12548049&ts=1743420320&ss=ed76b7488f52242c2b31e2bdf2c1d217",
+                                "https://ifnews.com/news.html?aid=708913",
+                                "https://finance.sina.cn/2025-03-31/detail-inerqmnk0934612.d.html",
+                                "https://finance.eastmoney.com/a/202503313361254020.html",
+                                "https://pestel-analysis.com/products/vanke-business-model-canvas",
+                                "https://news.qq.com/rain/a/20250331A09KD300"
+                            ]
+                        }
+                    ],
+                    "usage": {
+                        "schema": "quick-scan-usage-v1",
+                        "input_tokens": 14649,
+                        "cached_input_tokens": 1231,
+                        "cache_creation_input_tokens": 0,
+                        "output_tokens": 1016,
+                        "reasoning_output_tokens": 0,
+                        "search_tool_calls": 2
+                    },
+                    "provider_config_ref": "minimax"
+                }
+            ],
+            "format_repair": null,
+            "dispatch_outcome": null
+        },
+        "IQS_06": {
+            "answer_sha256": "c249a565779535776346dc3cfaf034b2a55b3ccbd1344bb0a533264d15ab2711",
+            "answered_at": "2026-10-03T03:33:15.988510Z",
+            "input_question_sha256": "6c61d778db26299e65b899aa25812872a92e0ab19bb08ff035938d61fa86177c",
+            "provider": "minimax",
+            "requested_model": "MiniMax-M3",
+            "actual_model": "MiniMax-M3",
+            "request_id": null,
+            "response_id": "070f9c613e11aed0641c3c9cab50d00b",
+            "response_status": "completed",
+            "http_status_code": 200,
+            "failure_type": null,
+            "started_at": "2026-10-03T02:33:04.472833Z",
+            "completed_at": "2026-10-03T02:33:15.987812Z",
+            "attempt_id": "a9466acf-6f15-4eb4-9ee8-4454fab91f38",
+            "prompt_sha256": "2541e9ae68ed0b23332274c7708e38a7e100aa602a19fb21cd17aa7cacc6fa71",
+            "search_receipt_id": "call_01a0ff9baad376628626031b",
+            "search_status": "executed",
+            "source_urls": [
+                "https://www.ce.cn/newmain/right/feature/202601/t20260113_2698466.shtml",
+                "https://news.qq.com/rain/a/20260104A072DQ00",
+                "https://news.qq.com/rain/a/20260403A02BL900?adChannelId=finance",
+                "https://aiqicha.baidu.com/details/ugknowledge?id=6eb2d3628f6040ff5c27ddee2d56207a",
+                "https://m.chinatimes.net.cn/article/150106.html",
+                "https://www.thecover.cn/news/7H9o8Fu%2BvFKH90qSdq8Jkw==",
+                "https://aiqicha.baidu.com/details/ugknowledge?id=a82347203e6483164cdaf7571b21d1c9",
+                "https://aiqicha.baidu.com/details/ugknowledge?id=6f588a6aa0fb542d694fa36f2b8d4752",
+                "https://aiqicha.baidu.com/details/ugknowledge?id=ab0a1db17a8c491b0dbbc6f0b992e652",
+                "https://news.qq.com/rain/a/20260107A05SS500",
+                "https://m.sohu.com/a/970885088_175523",
+                "https://finance.sina.com.cn/stock/relnews/cn/2026-01-07/doc-inhfmtvz7707783.shtml",
+                "https://finance.sina.cn/2026-04-03/detail-inhtetzf3853411.d.html",
+                "https://news.qq.com/rain/a/20260114A038OY00",
+                "https://aiqicha.baidu.com/details/ugknowledge?id=7d249d39d32218e9d7d23e39f939ac3f",
+                "https://www.creb.com.cn/sylb/214352.jhtml"
+            ],
+            "web_search_calls": [
+                {
+                    "id": "call_01a0ff9baad376628626031a",
+                    "status": "completed",
+                    "action_type": "search",
+                    "source_urls": []
+                },
+                {
+                    "id": "call_01a0ff9baad376628626031b",
+                    "status": "completed",
+                    "action_type": "search",
+                    "source_urls": [
+                        "https://www.ce.cn/newmain/right/feature/202601/t20260113_2698466.shtml",
+                        "https://news.qq.com/rain/a/20260104A072DQ00",
+                        "https://news.qq.com/rain/a/20260403A02BL900?adChannelId=finance",
+                        "https://aiqicha.baidu.com/details/ugknowledge?id=6eb2d3628f6040ff5c27ddee2d56207a",
+                        "https://m.chinatimes.net.cn/article/150106.html",
+                        "https://www.thecover.cn/news/7H9o8Fu%2BvFKH90qSdq8Jkw==",
+                        "https://aiqicha.baidu.com/details/ugknowledge?id=a82347203e6483164cdaf7571b21d1c9",
+                        "https://aiqicha.baidu.com/details/ugknowledge?id=6f588a6aa0fb542d694fa36f2b8d4752",
+                        "https://aiqicha.baidu.com/details/ugknowledge?id=ab0a1db17a8c491b0dbbc6f0b992e652",
+                        "https://news.qq.com/rain/a/20260107A05SS500",
+                        "https://m.sohu.com/a/970885088_175523",
+                        "https://finance.sina.com.cn/stock/relnews/cn/2026-01-07/doc-inhfmtvz7707783.shtml",
+                        "https://finance.sina.cn/2026-04-03/detail-inhtetzf3853411.d.html",
+                        "https://news.qq.com/rain/a/20260114A038OY00",
+                        "https://aiqicha.baidu.com/details/ugknowledge?id=7d249d39d32218e9d7d23e39f939ac3f",
+                        "https://www.creb.com.cn/sylb/214352.jhtml"
+                    ]
+                }
+            ],
+            "attempts": [
+                {
+                    "provider": "minimax",
+                    "request_id": null,
+                    "response_id": "070f9c613e11aed0641c3c9cab50d00b",
+                    "actual_model": "MiniMax-M3",
+                    "search_status": "executed",
+                    "response_status": "completed",
+                    "http_status_code": 200,
+                    "started_at": "2026-10-03T02:33:04.472833Z",
+                    "completed_at": "2026-10-03T02:33:15.987812Z",
+                    "attempt_id": "a9466acf-6f15-4eb4-9ee8-4454fab91f38",
+                    "prompt_sha256": "2541e9ae68ed0b23332274c7708e38a7e100aa602a19fb21cd17aa7cacc6fa71",
+                    "search_receipt_id": "call_01a0ff9baad376628626031b",
+                    "source_urls": [
+                        "https://www.ce.cn/newmain/right/feature/202601/t20260113_2698466.shtml",
+                        "https://news.qq.com/rain/a/20260104A072DQ00",
+                        "https://news.qq.com/rain/a/20260403A02BL900?adChannelId=finance",
+                        "https://aiqicha.baidu.com/details/ugknowledge?id=6eb2d3628f6040ff5c27ddee2d56207a",
+                        "https://m.chinatimes.net.cn/article/150106.html",
+                        "https://www.thecover.cn/news/7H9o8Fu%2BvFKH90qSdq8Jkw==",
+                        "https://aiqicha.baidu.com/details/ugknowledge?id=a82347203e6483164cdaf7571b21d1c9",
+                        "https://aiqicha.baidu.com/details/ugknowledge?id=6f588a6aa0fb542d694fa36f2b8d4752",
+                        "https://aiqicha.baidu.com/details/ugknowledge?id=ab0a1db17a8c491b0dbbc6f0b992e652",
+                        "https://news.qq.com/rain/a/20260107A05SS500",
+                        "https://m.sohu.com/a/970885088_175523",
+                        "https://finance.sina.com.cn/stock/relnews/cn/2026-01-07/doc-inhfmtvz7707783.shtml",
+                        "https://finance.sina.cn/2026-04-03/detail-inhtetzf3853411.d.html",
+                        "https://news.qq.com/rain/a/20260114A038OY00",
+                        "https://aiqicha.baidu.com/details/ugknowledge?id=7d249d39d32218e9d7d23e39f939ac3f",
+                        "https://www.creb.com.cn/sylb/214352.jhtml"
+                    ],
+                    "web_search_calls": [
+                        {
+                            "id": "call_01a0ff9baad376628626031a",
+                            "status": "completed",
+                            "action_type": "search",
+                            "source_urls": []
+                        },
+                        {
+                            "id": "call_01a0ff9baad376628626031b",
+                            "status": "completed",
+                            "action_type": "search",
+                            "source_urls": [
+                                "https://www.ce.cn/newmain/right/feature/202601/t20260113_2698466.shtml",
+                                "https://news.qq.com/rain/a/20260104A072DQ00",
+                                "https://news.qq.com/rain/a/20260403A02BL900?adChannelId=finance",
+                                "https://aiqicha.baidu.com/details/ugknowledge?id=6eb2d3628f6040ff5c27ddee2d56207a",
+                                "https://m.chinatimes.net.cn/article/150106.html",
+                                "https://www.thecover.cn/news/7H9o8Fu%2BvFKH90qSdq8Jkw==",
+                                "https://aiqicha.baidu.com/details/ugknowledge?id=a82347203e6483164cdaf7571b21d1c9",
+                                "https://aiqicha.baidu.com/details/ugknowledge?id=6f588a6aa0fb542d694fa36f2b8d4752",
+                                "https://aiqicha.baidu.com/details/ugknowledge?id=ab0a1db17a8c491b0dbbc6f0b992e652",
+                                "https://news.qq.com/rain/a/20260107A05SS500",
+                                "https://m.sohu.com/a/970885088_175523",
+                                "https://finance.sina.com.cn/stock/relnews/cn/2026-01-07/doc-inhfmtvz7707783.shtml",
+                                "https://finance.sina.cn/2026-04-03/detail-inhtetzf3853411.d.html",
+                                "https://news.qq.com/rain/a/20260114A038OY00",
+                                "https://aiqicha.baidu.com/details/ugknowledge?id=7d249d39d32218e9d7d23e39f939ac3f",
+                                "https://www.creb.com.cn/sylb/214352.jhtml"
+                            ]
+                        }
+                    ],
+                    "usage": {
+                        "schema": "quick-scan-usage-v1",
+                        "input_tokens": 12965,
+                        "cached_input_tokens": 1239,
+                        "cache_creation_input_tokens": 0,
+                        "output_tokens": 575,
+                        "reasoning_output_tokens": 0,
+                        "search_tool_calls": 2
+                    },
+                    "provider_config_ref": "minimax"
+                }
+            ],
+            "format_repair": null,
+            "dispatch_outcome": null
+        }
+    }
+}

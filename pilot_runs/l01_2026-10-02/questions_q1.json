@@ -1,0 +1,13 @@
+{
+  "categories": [
+    {
+      "category": "quality",
+      "questions": [
+        {
+          "question_id": "IQS_05",
+          "text": "公司在明确业务与时间范围内最主要的竞争优势，是否有实际证据且对手难以用合理成本复制？"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,422 @@
+{
+  "runs": [
+    {
+      "company": "茅台",
+      "entity_id": "probe:CN-A:600519",
+      "questions_file": "questions_q1.json",
+      "output": "company-01-phaseA-IQS_05.json",
+      "exit": 1,
+      "seconds": 16.7,
+      "output_exists": true,
+      "answers": {
+        "IQS_05": {
+          "status": "unknown",
+          "score": null
+        }
+      },
+      "receipts": {
+        "IQS_05": {
+          "search_status": "executed",
+          "http_status_code": 200,
+          "response_status": "completed",
+          "actual_model": "MiniMax-M3",
+          "source_count": 19,
+          "search_call_count": 2,
+          "failure_type": null
+        }
+      },
+      "stderr_tail": ""
+    },
+    {
+      "company": "茅台",
+      "entity_id": "probe:CN-A:600519",
+      "questions_file": "questions_q2.json",
+      "output": "company-01-phaseB-IQS_06.json",
+      "exit": 0,
+      "seconds": 15.0,
+      "output_exists": true,
+      "answers": {
+        "IQS_06": {
+          "status": "scored",
+          "score": 9
+        }
+      },
+      "receipts": {
+        "IQS_06": {
+          "search_status": "executed",
+          "http_status_code": 200,
+          "response_status": "completed",
+          "actual_model": "MiniMax-M3",
+          "source_count": 20,
+          "search_call_count": 2,
+          "failure_type": null
+        }
+      },
+      "stderr_tail": ""
+    },
+    {
+      "company": "安集科技",
+      "entity_id": "probe:CN-A:688019",
+      "questions_file": "questions_both.json",
+      "output": "company-02-IQS_05_06.json",
+      "exit": 0,
+      "seconds": 43.5,
+      "output_exists": true,
+      "answers": {
+        "IQS_05": {
+          "status": "scored",
+          "score": 7
+        },
+        "IQS_06": {
+          "status": "scored",
+          "score": 8
+        }
+      },
+      "receipts": {
+        "IQS_05": {
+          "search_status": "executed",
+          "http_status_code": 200,
+          "response_status": "completed",
+          "actual_model": "MiniMax-M3",
+          "source_count": 20,
+          "search_call_count": 2,
+          "failure_type": null
+        },
+        "IQS_06": {
+          "search_status": "executed",
+          "http_status_code": 200,
+          "response_status": "completed",
+          "actual_model": "MiniMax-M3",
+          "source_count": 20,
+          "search_call_count": 2,
+          "failure_type": null
+        }
+      },
+      "stderr_tail": ""
+    },
+    {
+      "company": "曙光数创",
+      "entity_id": "probe:CN-A:872808",
+      "questions_file": "questions_both.json",
+      "output": "company-03-IQS_05_06.json",
+      "exit": 0,
+      "seconds": 45.1,
+      "output_exists": true,
+      "answers": {
+        "IQS_05": {
+          "status": "scored",
+          "score": 8
+        },
+        "IQS_06": {
+          "status": "scored",
+          "score": 9
+        }
+      },
+      "receipts": {
+        "IQS_05": {
+          "search_status": "executed",
+          "http_status_code": 200,
+          "response_status": "completed",
+          "actual_model": "MiniMax-M3",
+          "source_count": 16,
+          "search_call_count": 2,
+          "failure_type": null
+        },
+        "IQS_06": {
+          "search_status": "executed",
+          "http_status_code": 200,
+          "response_status": "completed",
+          "actual_model": "MiniMax-M3",
+          "source_count": 16,
+          "search_call_count": 2,
+          "failure_type": null
+        }
+      },
+      "stderr_tail": ""
+    },
+    {
+      "company": "万科",
+      "entity_id": "probe:CN-A:000002",
+      "questions_file": "questions_both.json",
+      "output": "company-04-IQS_05_06.json",
+      "exit": 0,
+      "seconds": 34.0,
+      "output_exists": true,
+      "answers": {
+        "IQS_05": {
+          "status": "scored",
+          "score": 6
+        },
+        "IQS_06": {
+          "status": "scored",
+          "score": 4
+        }
+      },
+      "receipts": {
+        "IQS_05": {
+          "search_status": "executed",
+          "http_status_code": 200,
+          "response_status": "completed",
+          "actual_model": "MiniMax-M3",
+          "source_count": 17,
+          "search_call_count": 2,
+          "failure_type": null
+        },
+        "IQS_06": {
+          "search_status": "executed",
+          "http_status_code": 200,
+          "response_status": "completed",
+          "actual_model": "MiniMax-M3",
+          "source_count": 16,
+          "search_call_count": 2,
+          "failure_type": null
+        }
+      },
+      "stderr_tail": ""
+    },
+    {
+      "company": "宁德时代",
+      "entity_id": "probe:CN-A:300750",
+      "questions_file": "questions_both.json",
+      "output": "company-05-IQS_05_06.json",
+      "exit": 0,
+      "seconds": 45.6,
+      "output_exists": true,
+      "answers": {
+        "IQS_05": {
+          "status": "scored",
+          "score": 9
+        },
+        "IQS_06": {
+          "status": "scored",
+          "score": 9
+        }
+      },
+      "receipts": {
+        "IQS_05": {
+          "search_status": "executed",
+          "http_status_code": 200,
+          "response_status": "completed",
+          "actual_model": "MiniMax-M3",
+          "source_count": 20,
+          "search_call_count": 2,
+          "failure_type": null
+        },
+        "IQS_06": {
+          "search_status": "executed",
+          "http_status_code": 200,
+          "response_status": "completed",
+          "actual_model": "MiniMax-M3",
+          "source_count": 20,
+          "search_call_count": 2,
+          "failure_type": null
+        }
+      },
+      "stderr_tail": ""
+    },
+    {
+      "company": "Microsoft Corporation",
+      "entity_id": "probe:US:NASDAQ:MSFT",
+      "questions_file": "questions_both.json",
+      "output": "company-06-IQS_05_06.json",
+      "exit": 0,
+      "seconds": 43.5,
+      "output_exists": true,
+      "answers": {
+        "IQS_05": {
+          "status": "scored",
+          "score": 9
+        },
+        "IQS_06": {
+          "status": "scored",
+          "score": 9
+        }
+      },
+      "receipts": {
+        "IQS_05": {
+          "search_status": "executed",
+          "http_status_code": 200,
+          "response_status": "completed",
+          "actual_model": "MiniMax-M3",
+          "source_count": 19,
+          "search_call_count": 2,
+          "failure_type": null
+        },
+        "IQS_06": {
+          "search_status": "executed",
+          "http_status_code": 200,
+          "response_status": "completed",
+          "actual_model": "MiniMax-M3",
+          "source_count": 30,
+          "search_call_count": 3,
+          "failure_type": null
+        }
+      },
+      "stderr_tail": ""
+    },
+    {
+      "company": "MongoDB",
+      "entity_id": "probe:US:NASDAQ:MDB",
+      "questions_file": "questions_both.json",
+      "output": "company-07-IQS_05_06.json",
+      "exit": 0,
+      "seconds": 35.0,
+      "output_exists": true,
+      "answers": {
+        "IQS_05": {
+          "status": "scored",
+          "score": 7
+        },
+        "IQS_06": {
+          "status": "scored",
+          "score": 5
+        }
+      },
+      "receipts": {
+        "IQS_05": {
+          "search_status": "executed",
+          "http_status_code": 200,
+          "response_status": "completed",
+          "actual_model": "MiniMax-M3",
+          "source_count": 20,
+          "search_call_count": 2,
+          "failure_type": null
+        },
+        "IQS_06": {
+          "search_status": "executed",
+          "http_status_code": 200,
+          "response_status": "completed",
+          "actual_model": "MiniMax-M3",
+          "source_count": 19,
+          "search_call_count": 2,
+          "failure_type": null
+        }
+      },
+      "stderr_tail": ""
+    },
+    {
+      "company": "Snowflake",
+      "entity_id": "probe:US:NYSE:SNOW",
+      "questions_file": "questions_both.json",
+      "output": "company-08-IQS_05_06.json",
+      "exit": 0,
+      "seconds": 32.2,
+      "output_exists": true,
+      "answers": {
+        "IQS_05": {
+          "status": "scored",
+          "score": 7
+        },
+        "IQS_06": {
+          "status": "scored",
+          "score": 8
+        }
+      },
+      "receipts": {
+        "IQS_05": {
+          "search_status": "executed",
+          "http_status_code": 200,
+          "response_status": "completed",
+          "actual_model": "MiniMax-M3",
+          "source_count": 20,
+          "search_call_count": 2,
+          "failure_type": null
+        },
+        "IQS_06": {
+          "search_status": "executed",
+          "http_status_code": 200,
+          "response_status": "completed",
+          "actual_model": "MiniMax-M3",
+          "source_count": 20,
+          "search_call_count": 2,
+          "failure_type": null
+        }
+      },
+      "stderr_tail": ""
+    },
+    {
+      "company": "腾讯控股",
+      "entity_id": "probe:HK:00700",
+      "questions_file": "questions_both.json",
+      "output": "company-09-IQS_05_06.json",
+      "exit": 0,
+      "seconds": 28.9,
+      "output_exists": true,
+      "answers": {
+        "IQS_05": {
+          "status": "scored",
+          "score": 9
+        },
+        "IQS_06": {
+          "status": "scored",
+          "score": 8
+        }
+      },
+      "receipts": {
+        "IQS_05": {
+          "search_status": "executed",
+          "http_status_code": 200,
+          "response_status": "completed",
+          "actual_model": "MiniMax-M3",
+          "source_count": 20,
+          "search_call_count": 2,
+          "failure_type": null
+        },
+        "IQS_06": {
+          "search_status": "executed",
+          "http_status_code": 200,
+          "response_status": "completed",
+          "actual_model": "MiniMax-M3",
+          "source_count": 19,
+          "search_call_count": 2,
+          "failure_type": null
+        }
+      },
+      "stderr_tail": ""
+    },
+    {
+      "company": "阿里巴巴集团",
+      "entity_id": "probe:HK:09988",
+      "questions_file": "questions_both.json",
+      "output": "company-10-IQS_05_06.json",
+      "exit": 1,
+      "seconds": 40.0,
+      "output_exists": true,
+      "answers": {
+        "IQS_05": {
+          "status": "scored",
+          "score": 8
+        },
+        "IQS_06": {
+          "status": "unknown",
+          "score": null
+        }
+      },
+      "receipts": {
+        "IQS_05": {
+          "search_status": "executed",
+          "http_status_code": 200,
+          "response_status": "completed",
+          "actual_model": "MiniMax-M3",
+          "source_count": 19,
+          "search_call_count": 2,
+          "failure_type": null
+        },
+        "IQS_06": {
+          "search_status": "executed",
+          "http_status_code": 200,
+          "response_status": "completed",
+          "actual_model": "MiniMax-M3",
+          "source_count": 18,
+          "search_call_count": 2,
+          "failure_type": null
+        }
+      },
+      "stderr_tail": ""
+    }
+  ],
+  "budget": {
+    "primary_requests": 11,
+    "http_attempts": 11
+  }
+}

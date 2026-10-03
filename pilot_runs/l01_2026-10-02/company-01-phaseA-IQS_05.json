@@ -1,0 +1,208 @@
+{
+    "schema_version": "stockqa.quick_scan_result/1.0.0",
+    "entity": {
+        "entity_id": "probe:CN-A:600519",
+        "name": "茅台"
+    },
+    "observed_at": "2026-10-03T03:22:19.168655Z",
+    "provider": {
+        "name": "minimax",
+        "requested_model": "MiniMax-M3"
+    },
+    "answers": {
+        "IQS_05": {
+            "question_id": "IQS_05",
+            "status": "unknown",
+            "score": null,
+            "description": "无法验证结构化评分回答及目标公司身份。",
+            "source_urls": [
+                "https://gz.people.com.cn/BIG5/n2/2025/0305/c344124-41153775.html",
+                "https://epaper.cs.com.cn/zgzqb/wap/html/2024-04/03/nw.D110000zgzqb_20240403_1-B097.htm",
+                "https://gz.people.com.cn/n2/2024/1203/c194831-41062478.html",
+                "https://www.gz.chinanews.com/gzwx/2025-06-04/doc-ihesaipz3752452.shtml",
+                "https://www.cinn.cn/p/355048.html",
+                "https://paper.cnstock.com/html/2025-04/03/content_2044961.htm",
+                "https://finance.sina.cn/2024-06-22/detail-inazutip0928941.d.html",
+                "https://gz.people.com.cn/BIG5/n2/2024/1203/c194831-41062478.html",
+                "https://www.gz.chinanews.com/gzwx/2025-06-04/doc-ihesaipz3752446.shtml",
+                "https://m.people.cn/n4/2025/0305/c1288-21554122.html",
+                "https://portersfiveforce.com/products/moutaichina-business-model-canvas",
+                "https://new.qq.com/rain/a/20250403A09BH900",
+                "https://glassandnote.com/food/kweichow-moutai-profits-q1-2024",
+                "https://glassandnote.com/wine/kweichow-moutai-crowned-beverage-champion-in-future-proof-list",
+                "https://grokipedia.com/page/Kweichow_Moutai",
+                "https://pestel-analysis.com/blogs/competitors/moutaichina",
+                "https://glassandnote.com/culture/kweichow-shares-reach-almost-record-high",
+                "https://www.streetinsider.com/Globe%2BNewswire/Moutai%2BPaints%2Bthe%2BBoundless%2B%25E2%2580%259CMEI%25E2%2580%259D%2Bof%2B2024%2Bwith%2Bthe%2BWorld%21/22717299.html",
+                "https://matrixbcg.com/products/moutaichina-swot-analysis"
+            ],
+            "published_date": null,
+            "information_as_of": null,
+            "check_level": "unverified_model_output",
+            "check_level_receipt_id": null
+        }
+    },
+    "execution_receipts": {
+        "IQS_05": {
+            "answer_sha256": "5c1af16a4961dfae4a08e81393eb553046001762045fb5b7a73d24a200c904aa",
+            "answered_at": "2026-10-03T03:22:19.168655Z",
+            "input_question_sha256": "3c9daa8e090c5294062157b5b8bb45c8ecb86466221002f8055dd5d7bf3cab3a",
+            "provider": "minimax",
+            "requested_model": "MiniMax-M3",
+            "actual_model": "MiniMax-M3",
+            "request_id": null,
+            "response_id": "070f99d0adbc5926bc0ca3c3a4ac08fa",
+            "response_status": "completed",
+            "http_status_code": 200,
+            "failure_type": null,
+            "started_at": "2026-10-03T02:22:05.420483Z",
+            "completed_at": "2026-10-03T02:22:19.168046Z",
+            "attempt_id": "4125a4ae-7887-4b7f-a401-fca2337577d6",
+            "prompt_sha256": "fd14e3e863e19a666c4ebd32da537fa3484ae29a7f113efe43e11c5d08e1a688",
+            "search_receipt_id": "call_01a0ff91a3367673aa84c5c7",
+            "search_status": "executed",
+            "source_urls": [
+                "https://gz.people.com.cn/BIG5/n2/2025/0305/c344124-41153775.html",
+                "https://epaper.cs.com.cn/zgzqb/wap/html/2024-04/03/nw.D110000zgzqb_20240403_1-B097.htm",
+                "https://gz.people.com.cn/n2/2024/1203/c194831-41062478.html",
+                "https://www.gz.chinanews.com/gzwx/2025-06-04/doc-ihesaipz3752452.shtml",
+                "https://www.cinn.cn/p/355048.html",
+                "https://paper.cnstock.com/html/2025-04/03/content_2044961.htm",
+                "https://finance.sina.cn/2024-06-22/detail-inazutip0928941.d.html",
+                "https://gz.people.com.cn/BIG5/n2/2024/1203/c194831-41062478.html",
+                "https://www.gz.chinanews.com/gzwx/2025-06-04/doc-ihesaipz3752446.shtml",
+                "https://m.people.cn/n4/2025/0305/c1288-21554122.html",
+                "https://portersfiveforce.com/products/moutaichina-business-model-canvas",
+                "https://new.qq.com/rain/a/20250403A09BH900",
+                "https://glassandnote.com/food/kweichow-moutai-profits-q1-2024",
+                "https://glassandnote.com/wine/kweichow-moutai-crowned-beverage-champion-in-future-proof-list",
+                "https://grokipedia.com/page/Kweichow_Moutai",
+                "https://pestel-analysis.com/blogs/competitors/moutaichina",
+                "https://glassandnote.com/culture/kweichow-shares-reach-almost-record-high",
+                "https://www.streetinsider.com/Globe%2BNewswire/Moutai%2BPaints%2Bthe%2BBoundless%2B%25E2%2580%259CMEI%25E2%2580%259D%2Bof%2B2024%2Bwith%2Bthe%2BWorld%21/22717299.html",
+                "https://matrixbcg.com/products/moutaichina-swot-analysis"
+            ],
+            "web_search_calls": [
+                {
+                    "id": "call_01a0ff91a3367673aa84c5c6",
+                    "status": "completed",
+                    "action_type": "search",
+                    "source_urls": []
+                },
+                {
+                    "id": "call_01a0ff91a3367673aa84c5c7",
+                    "status": "completed",
+                    "action_type": "search",
+                    "source_urls": [
+                        "https://gz.people.com.cn/BIG5/n2/2025/0305/c344124-41153775.html",
+                        "https://epaper.cs.com.cn/zgzqb/wap/html/2024-04/03/nw.D110000zgzqb_20240403_1-B097.htm",
+                        "https://gz.people.com.cn/n2/2024/1203/c194831-41062478.html",
+                        "https://www.gz.chinanews.com/gzwx/2025-06-04/doc-ihesaipz3752452.shtml",
+                        "https://www.cinn.cn/p/355048.html",
+                        "https://paper.cnstock.com/html/2025-04/03/content_2044961.htm",
+                        "https://finance.sina.cn/2024-06-22/detail-inazutip0928941.d.html",
+                        "https://gz.people.com.cn/BIG5/n2/2024/1203/c194831-41062478.html",
+                        "https://www.gz.chinanews.com/gzwx/2025-06-04/doc-ihesaipz3752446.shtml",
+                        "https://m.people.cn/n4/2025/0305/c1288-21554122.html",
+                        "https://portersfiveforce.com/products/moutaichina-business-model-canvas",
+                        "https://new.qq.com/rain/a/20250403A09BH900",
+                        "https://glassandnote.com/food/kweichow-moutai-profits-q1-2024",
+                        "https://glassandnote.com/wine/kweichow-moutai-crowned-beverage-champion-in-future-proof-list",
+                        "https://grokipedia.com/page/Kweichow_Moutai",
+                        "https://pestel-analysis.com/blogs/competitors/moutaichina",
+                        "https://glassandnote.com/culture/kweichow-shares-reach-almost-record-high",
+                        "https://www.streetinsider.com/Globe%2BNewswire/Moutai%2BPaints%2Bthe%2BBoundless%2B%25E2%2580%259CMEI%25E2%2580%259D%2Bof%2B2024%2Bwith%2Bthe%2BWorld%21/22717299.html",
+                        "https://matrixbcg.com/products/moutaichina-swot-analysis"
+                    ]
+                }
+            ],
+            "attempts": [
+                {
+                    "provider": "minimax",
+                    "request_id": null,
+                    "response_id": "070f99d0adbc5926bc0ca3c3a4ac08fa",
+                    "actual_model": "MiniMax-M3",
+                    "search_status": "executed",
+                    "response_status": "completed",
+                    "http_status_code": 200,
+                    "started_at": "2026-10-03T02:22:05.420483Z",
+                    "completed_at": "2026-10-03T02:22:19.168046Z",
+                    "attempt_id": "4125a4ae-7887-4b7f-a401-fca2337577d6",
+                    "prompt_sha256": "fd14e3e863e19a666c4ebd32da537fa3484ae29a7f113efe43e11c5d08e1a688",
+                    "search_receipt_id": "call_01a0ff91a3367673aa84c5c7",
+                    "source_urls": [
+                        "https://gz.people.com.cn/BIG5/n2/2025/0305/c344124-41153775.html",
+                        "https://epaper.cs.com.cn/zgzqb/wap/html/2024-04/03/nw.D110000zgzqb_20240403_1-B097.htm",
+                        "https://gz.people.com.cn/n2/2024/1203/c194831-41062478.html",
+                        "https://www.gz.chinanews.com/gzwx/2025-06-04/doc-ihesaipz3752452.shtml",
+                        "https://www.cinn.cn/p/355048.html",
+                        "https://paper.cnstock.com/html/2025-04/03/content_2044961.htm",
+                        "https://finance.sina.cn/2024-06-22/detail-inazutip0928941.d.html",
+                        "https://gz.people.com.cn/BIG5/n2/2024/1203/c194831-41062478.html",
+                        "https://www.gz.chinanews.com/gzwx/2025-06-04/doc-ihesaipz3752446.shtml",
+                        "https://m.people.cn/n4/2025/0305/c1288-21554122.html",
+                        "https://portersfiveforce.com/products/moutaichina-business-model-canvas",
+                        "https://new.qq.com/rain/a/20250403A09BH900",
+                        "https://glassandnote.com/food/kweichow-moutai-profits-q1-2024",
+                        "https://glassandnote.com/wine/kweichow-moutai-crowned-beverage-champion-in-future-proof-list",
+                        "https://grokipedia.com/page/Kweichow_Moutai",
+                        "https://pestel-analysis.com/blogs/competitors/moutaichina",
+                        "https://glassandnote.com/culture/kweichow-shares-reach-almost-record-high",
+                        "https://www.streetinsider.com/Globe%2BNewswire/Moutai%2BPaints%2Bthe%2BBoundless%2B%25E2%2580%259CMEI%25E2%2580%259D%2Bof%2B2024%2Bwith%2Bthe%2BWorld%21/22717299.html",
+                        "https://matrixbcg.com/products/moutaichina-swot-analysis"
+                    ],
+                    "web_search_calls": [
+                        {
+                            "id": "call_01a0ff91a3367673aa84c5c6",
+                            "status": "completed",
+                            "action_type": "search",
+                            "source_urls": []
+                        },
+                        {
+                            "id": "call_01a0ff91a3367673aa84c5c7",
+                            "status": "completed",
+                            "action_type": "search",
+                            "source_urls": [
+                                "https://gz.people.com.cn/BIG5/n2/2025/0305/c344124-41153775.html",
+                                "https://epaper.cs.com.cn/zgzqb/wap/html/2024-04/03/nw.D110000zgzqb_20240403_1-B097.htm",
+                                "https://gz.people.com.cn/n2/2024/1203/c194831-41062478.html",
+                                "https://www.gz.chinanews.com/gzwx/2025-06-04/doc-ihesaipz3752452.shtml",
+                                "https://www.cinn.cn/p/355048.html",
+                                "https://paper.cnstock.com/html/2025-04/03/content_2044961.htm",
+                                "https://finance.sina.cn/2024-06-22/detail-inazutip0928941.d.html",
+                                "https://gz.people.com.cn/BIG5/n2/2024/1203/c194831-41062478.html",
+                                "https://www.gz.chinanews.com/gzwx/2025-06-04/doc-ihesaipz3752446.shtml",
+                                "https://m.people.cn/n4/2025/0305/c1288-21554122.html",
+                                "https://portersfiveforce.com/products/moutaichina-business-model-canvas",
+                                "https://new.qq.com/rain/a/20250403A09BH900",
+                                "https://glassandnote.com/food/kweichow-moutai-profits-q1-2024",
+                                "https://glassandnote.com/wine/kweichow-moutai-crowned-beverage-champion-in-future-proof-list",
+                                "https://grokipedia.com/page/Kweichow_Moutai",
+                                "https://pestel-analysis.com/blogs/competitors/moutaichina",
+                                "https://glassandnote.com/culture/kweichow-shares-reach-almost-record-high",
+                                "https://www.streetinsider.com/Globe%2BNewswire/Moutai%2BPaints%2Bthe%2BBoundless%2B%25E2%2580%259CMEI%25E2%2580%259D%2Bof%2B2024%2Bwith%2Bthe%2BWorld%21/22717299.html",
+                                "https://matrixbcg.com/products/moutaichina-swot-analysis"
+                            ]
+                        }
+                    ],
+                    "usage": {
+                        "schema": "quick-scan-usage-v1",
+                        "input_tokens": 15923,
+                        "cached_input_tokens": 1231,
+                        "cache_creation_input_tokens": 0,
+                        "output_tokens": 642,
+                        "reasoning_output_tokens": 0,
+                        "search_tool_calls": 2
+                    },
+                    "provider_config_ref": "minimax"
+                }
+            ],
+            "format_repair": {
+                "attempted": false,
+                "status": "not_enabled",
+                "failure_type": "invalid_answer"
+            },
+            "dispatch_outcome": null
+        }
+    }
+}

@@ -1,0 +1,362 @@
+{
+    "schema_version": "stockqa.quick_scan_result/1.0.0",
+    "entity": {
+        "entity_id": "probe:CN-A:872808",
+        "name": "曙光数创"
+    },
+    "observed_at": "2026-10-03T03:32:41.922163Z",
+    "provider": {
+        "name": "minimax",
+        "requested_model": "MiniMax-M3"
+    },
+    "answers": {
+        "IQS_05": {
+            "question_id": "IQS_05",
+            "status": "scored",
+            "score": 8,
+            "description": "在明确业务(数据中心液冷)与时间范围(2011至今约15年)内,公司具备较强且有实际证据支撑的竞争优势,对手难以在合理成本内复制: (1)市场地位:赛迪顾问数据显示2025-2026年中国液冷数据中心市占率56.8%,连续五年第一,AI推理场景超50%,全球浸没式液冷市占率约58%-65%,由第三方机构量化验证;(2)技术壁垒:公司自2011年起布局,累计部署超260MW,是国内唯一实现浸没相变液冷规模化商业部署的企业,自研冷媒配方与系统集成,MW级C8000 V3.0方案支持单机柜900kW以上、PUE低至1.04,已支撑曙光8000十万卡AI集群;(3)标准与生态壁垒:牵头制定全国首个冷板式液冷国家标准,深度参与多项行业标准制定;(4)工程化壁垒:青岛产业创新基地拥有全国最大的液冷全链条产线、CNAS认可焓差/理化实验室、四条先进生产线,研发投入约10%营收;(5)客户与落地壁垒:覆盖政府、金融、互联网、科研等关键行业。复制成本极高:需投入15年研发周期、建设完整实验与产线体系、构建芯片-整机-IDC生态合作并参与制定标准。限制:市占率数据主要依赖赛迪顾问等第三方机构,部分宣传材料存在公司自述色彩;搜索结果中部分'2026年'时间标签存疑,需以年报披露为准;液冷赛道竞争加剧(英维克等向全路线渗透),长期壁垒需持续验证。综合证据,给予8分。",
+            "source_urls": [
+                "https://www.stcn.com/article/detail/2626981.html",
+                "https://www.sugon.com/cut?id=2849&nav_id=48",
+                "https://dataenergy.sugon.com/c67937.jsp",
+                "https://www.sugon.com/cut?amp;nav_id=48&id=2762",
+                "https://www.sugon.com/product/storage/news_detail/2974",
+                "https://dataenergy.sugon.com/c69249.jsp",
+                "https://www.sugon.com/cut?id=2974&nav_id=48",
+                "https://www.ce.cn/cysc/newmain/yc/jsxw/202511/t20251124_2598377.shtml",
+                "https://dataenergy.sugon.com/c96761.jsp",
+                "https://dataenergy.sugon.com/c29223.jsp",
+                "https://www.sugon.com/cut?id=2245",
+                "https://dataenergy.sugon.com/w84105.jsp",
+                "https://www.sugon.com/cut?id=2762&nav_id=48",
+                "https://dataenergy.sugon.com/c40192.jsp",
+                "https://news.qq.com/rain/a/20260908A0650700",
+                "https://dataenergy.sugon.com/c46609.jsp"
+            ],
+            "published_date": null,
+            "information_as_of": null,
+            "check_level": "unverified_model_output",
+            "check_level_receipt_id": null
+        },
+        "IQS_06": {
+            "question_id": "IQS_06",
+            "status": "scored",
+            "score": 9,
+            "description": "竞争地位高度稳固,变化趋势进一步强化该稳固性。证据:1)据赛迪顾问《2025-2026年中国液冷数据中心市场报告》,曙光数创以56.8%的市场份额连续五年蝉联国内数据中心液冷设备市占率第一(从'四年第一'到'五年第一'为增强信号);AI推理场景市占率亦突破50%。2)技术壁垒突出:为国内唯一实现浸没相变液冷规模化部署的企业,2026年4月全球首发MW级相变浸没液冷整机柜C8000 V3.0,单柜功率超900kW,PUE低至1.04,散热能力提升3-5倍;形成'浸没引领+冷板跟进'双轨技术路线,全栈自研能力(冷却液配方、系统集成)。3)标准话语权:牵头编制我国首部数据中心液冷国家标准GB/T 48023-2026及《数据中心冷板式液冷系统技术规范》,累计牵头/参与5-7项国标、3项地标、7项行标、20余项团标。4)客户与订单支撑:在字节跳动、腾讯、京东等头部互联网厂商保持领先份额;2026Q1营收同比+782.53%,2026H1营收2.46亿元同比+75.56%,冷板液冷业务同比+290.09%;存货4.60亿元、合同负债1.08亿元(较年初+68.39%)显示在手订单充沛。5)全球化布局成型:'新加坡总部+马来西亚实验室+青岛工厂'三地协同,累计承接海外项目超600MW,东南亚200MW已落地,中东签独家协议,提供第二增长极。趋势判断:市占率连续五年攀升、技术标准引领、海外突破、订单饱满,均指向'增强'而非仅维持稳定,故给予高分。局限:行业渗透率仍<10%意味着赛道仍在快速扩张,新进入者(含华为、浪潮、英维克等)持续投入可能稀释份额;冷板液冷业务虽增长但毛利率仅8.43%,盈利质量待观察;2026Q1归母净利仍亏损扩大,商业化兑现与持续高研发投入形成短期张力。",
+            "source_urls": [
+                "https://basic.10jqka.com.cn/144/872808/operate.html",
+                "https://finance.sina.cn/2026-08-25/detail-inipqaan2312847.d.html",
+                "https://www.sugon.com/cut?id=2974&nav_id=48",
+                "https://stcn.com/article/detail/3504478.html",
+                "https://dataenergy.sugon.com/c87256.jsp",
+                "https://t.cj.sina.com.cn/articles/view/1659643027/62ec249302001sgyq",
+                "https://dataenergy.sugon.com/c67937.jsp",
+                "https://dataenergy.sugon.com/c69249.jsp",
+                "https://www.sugon.com/product/storage/news_detail/2974",
+                "https://gu.qq.com/resources/shy/news/detail-v2/index.html?t=1#/index?_tentrees_trans=0&id=SN2026073116295998ab8ae4",
+                "https://dataenergy.sugon.com/c40192.jsp",
+                "https://www.sugon.com/cut?id=2786&nav_id=",
+                "https://www.sugon.com/cut?id=2849&nav_id=48",
+                "https://dataenergy.sugon.com/c46609.jsp",
+                "https://www.sugon.com/cut?id=2974",
+                "https://www.sugon.com/cut?id=2762&nav_id=48"
+            ],
+            "published_date": null,
+            "information_as_of": null,
+            "check_level": "unverified_model_output",
+            "check_level_receipt_id": null
+        }
+    },
+    "execution_receipts": {
+        "IQS_05": {
+            "answer_sha256": "a53163523388c1fa247d92d16be0c5c806e101b36543633a0d8d6f7d8dd71233",
+            "answered_at": "2026-10-03T03:32:22.856893Z",
+            "input_question_sha256": "3c9daa8e090c5294062157b5b8bb45c8ecb86466221002f8055dd5d7bf3cab3a",
+            "provider": "minimax",
+            "requested_model": "MiniMax-M3",
+            "actual_model": "MiniMax-M3",
+            "request_id": null,
+            "response_id": "070f9c2034c219f915b76bee6cf84ba7",
+            "response_status": "completed",
+            "http_status_code": 200,
+            "failure_type": null,
+            "started_at": "2026-10-03T02:31:58.002861Z",
+            "completed_at": "2026-10-03T02:32:22.855990Z",
+            "attempt_id": "df2717bc-197e-4d6b-8c1d-2ae97b1f332f",
+            "prompt_sha256": "dce46f75a46129e435eb0fa93af1a6c1d124d81757627b57140a6abc6a1153e2",
+            "search_receipt_id": "call_01a0ff9ab0197e33ace2678f",
+            "search_status": "executed",
+            "source_urls": [
+                "https://www.stcn.com/article/detail/2626981.html",
+                "https://www.sugon.com/cut?id=2849&nav_id=48",
+                "https://dataenergy.sugon.com/c67937.jsp",
+                "https://www.sugon.com/cut?amp;nav_id=48&id=2762",
+                "https://www.sugon.com/product/storage/news_detail/2974",
+                "https://dataenergy.sugon.com/c69249.jsp",
+                "https://www.sugon.com/cut?id=2974&nav_id=48",
+                "https://www.ce.cn/cysc/newmain/yc/jsxw/202511/t20251124_2598377.shtml",
+                "https://dataenergy.sugon.com/c96761.jsp",
+                "https://dataenergy.sugon.com/c29223.jsp",
+                "https://www.sugon.com/cut?id=2245",
+                "https://dataenergy.sugon.com/w84105.jsp",
+                "https://www.sugon.com/cut?id=2762&nav_id=48",
+                "https://dataenergy.sugon.com/c40192.jsp",
+                "https://news.qq.com/rain/a/20260908A0650700",
+                "https://dataenergy.sugon.com/c46609.jsp"
+            ],
+            "web_search_calls": [
+                {
+                    "id": "call_01a0ff9aaebb78a29143a3b4",
+                    "status": "completed",
+                    "action_type": "search",
+                    "source_urls": []
+                },
+                {
+                    "id": "call_01a0ff9ab0197e33ace2678f",
+                    "status": "completed",
+                    "action_type": "search",
+                    "source_urls": [
+                        "https://www.stcn.com/article/detail/2626981.html",
+                        "https://www.sugon.com/cut?id=2849&nav_id=48",
+                        "https://dataenergy.sugon.com/c67937.jsp",
+                        "https://www.sugon.com/cut?amp;nav_id=48&id=2762",
+                        "https://www.sugon.com/product/storage/news_detail/2974",
+                        "https://dataenergy.sugon.com/c69249.jsp",
+                        "https://www.sugon.com/cut?id=2974&nav_id=48",
+                        "https://www.ce.cn/cysc/newmain/yc/jsxw/202511/t20251124_2598377.shtml",
+                        "https://dataenergy.sugon.com/c96761.jsp",
+                        "https://dataenergy.sugon.com/c29223.jsp",
+                        "https://www.sugon.com/cut?id=2245",
+                        "https://dataenergy.sugon.com/w84105.jsp",
+                        "https://www.sugon.com/cut?id=2762&nav_id=48",
+                        "https://dataenergy.sugon.com/c40192.jsp",
+                        "https://news.qq.com/rain/a/20260908A0650700",
+                        "https://dataenergy.sugon.com/c46609.jsp"
+                    ]
+                }
+            ],
+            "attempts": [
+                {
+                    "provider": "minimax",
+                    "request_id": null,
+                    "response_id": "070f9c2034c219f915b76bee6cf84ba7",
+                    "actual_model": "MiniMax-M3",
+                    "search_status": "executed",
+                    "response_status": "completed",
+                    "http_status_code": 200,
+                    "started_at": "2026-10-03T02:31:58.002861Z",
+                    "completed_at": "2026-10-03T02:32:22.855990Z",
+                    "attempt_id": "df2717bc-197e-4d6b-8c1d-2ae97b1f332f",
+                    "prompt_sha256": "dce46f75a46129e435eb0fa93af1a6c1d124d81757627b57140a6abc6a1153e2",
+                    "search_receipt_id": "call_01a0ff9ab0197e33ace2678f",
+                    "source_urls": [
+                        "https://www.stcn.com/article/detail/2626981.html",
+                        "https://www.sugon.com/cut?id=2849&nav_id=48",
+                        "https://dataenergy.sugon.com/c67937.jsp",
+                        "https://www.sugon.com/cut?amp;nav_id=48&id=2762",
+                        "https://www.sugon.com/product/storage/news_detail/2974",
+                        "https://dataenergy.sugon.com/c69249.jsp",
+                        "https://www.sugon.com/cut?id=2974&nav_id=48",
+                        "https://www.ce.cn/cysc/newmain/yc/jsxw/202511/t20251124_2598377.shtml",
+                        "https://dataenergy.sugon.com/c96761.jsp",
+                        "https://dataenergy.sugon.com/c29223.jsp",
+                        "https://www.sugon.com/cut?id=2245",
+                        "https://dataenergy.sugon.com/w84105.jsp",
+                        "https://www.sugon.com/cut?id=2762&nav_id=48",
+                        "https://dataenergy.sugon.com/c40192.jsp",
+                        "https://news.qq.com/rain/a/20260908A0650700",
+                        "https://dataenergy.sugon.com/c46609.jsp"
+                    ],
+                    "web_search_calls": [
+                        {
+                            "id": "call_01a0ff9aaebb78a29143a3b4",
+                            "status": "completed",
+                            "action_type": "search",
+                            "source_urls": []
+                        },
+                        {
+                            "id": "call_01a0ff9ab0197e33ace2678f",
+                            "status": "completed",
+                            "action_type": "search",
+                            "source_urls": [
+                                "https://www.stcn.com/article/detail/2626981.html",
+                                "https://www.sugon.com/cut?id=2849&nav_id=48",
+                                "https://dataenergy.sugon.com/c67937.jsp",
+                                "https://www.sugon.com/cut?amp;nav_id=48&id=2762",
+                                "https://www.sugon.com/product/storage/news_detail/2974",
+                                "https://dataenergy.sugon.com/c69249.jsp",
+                                "https://www.sugon.com/cut?id=2974&nav_id=48",
+                                "https://www.ce.cn/cysc/newmain/yc/jsxw/202511/t20251124_2598377.shtml",
+                                "https://dataenergy.sugon.com/c96761.jsp",
+                                "https://dataenergy.sugon.com/c29223.jsp",
+                                "https://www.sugon.com/cut?id=2245",
+                                "https://dataenergy.sugon.com/w84105.jsp",
+                                "https://www.sugon.com/cut?id=2762&nav_id=48",
+                                "https://dataenergy.sugon.com/c40192.jsp",
+                                "https://news.qq.com/rain/a/20260908A0650700",
+                                "https://dataenergy.sugon.com/c46609.jsp"
+                            ]
+                        }
+                    ],
+                    "usage": {
+                        "schema": "quick-scan-usage-v1",
+                        "input_tokens": 13879,
+                        "cached_input_tokens": 1152,
+                        "cache_creation_input_tokens": 0,
+                        "output_tokens": 1098,
+                        "reasoning_output_tokens": 0,
+                        "search_tool_calls": 2
+                    },
+                    "provider_config_ref": "minimax"
+                }
+            ],
+            "format_repair": null,
+            "dispatch_outcome": null
+        },
+        "IQS_06": {
+            "answer_sha256": "b5544163823e409d5e600843c0d225bcc75b4997e4cc2e8d3107c1c187bd468f",
+            "answered_at": "2026-10-03T03:32:41.922163Z",
+            "input_question_sha256": "6c61d778db26299e65b899aa25812872a92e0ab19bb08ff035938d61fa86177c",
+            "provider": "minimax",
+            "requested_model": "MiniMax-M3",
+            "actual_model": "MiniMax-M3",
+            "request_id": null,
+            "response_id": "070f9c38f23cabce49ed8b86d292b6e8",
+            "response_status": "completed",
+            "http_status_code": 200,
+            "failure_type": null,
+            "started_at": "2026-10-03T02:32:22.857485Z",
+            "completed_at": "2026-10-03T02:32:41.921653Z",
+            "attempt_id": "08e2d108-4d78-47f7-80e5-5111572755f4",
+            "prompt_sha256": "fae14e2edd54f5afdb75838a1583efea4d3863c2d0d647ade2a7e59f0aa8907d",
+            "search_receipt_id": "chatcmpl-tool-a0c0445678f3874a",
+            "search_status": "executed",
+            "source_urls": [
+                "https://basic.10jqka.com.cn/144/872808/operate.html",
+                "https://finance.sina.cn/2026-08-25/detail-inipqaan2312847.d.html",
+                "https://www.sugon.com/cut?id=2974&nav_id=48",
+                "https://stcn.com/article/detail/3504478.html",
+                "https://dataenergy.sugon.com/c87256.jsp",
+                "https://t.cj.sina.com.cn/articles/view/1659643027/62ec249302001sgyq",
+                "https://dataenergy.sugon.com/c67937.jsp",
+                "https://dataenergy.sugon.com/c69249.jsp",
+                "https://www.sugon.com/product/storage/news_detail/2974",
+                "https://gu.qq.com/resources/shy/news/detail-v2/index.html?t=1#/index?_tentrees_trans=0&id=SN2026073116295998ab8ae4",
+                "https://dataenergy.sugon.com/c40192.jsp",
+                "https://www.sugon.com/cut?id=2786&nav_id=",
+                "https://www.sugon.com/cut?id=2849&nav_id=48",
+                "https://dataenergy.sugon.com/c46609.jsp",
+                "https://www.sugon.com/cut?id=2974",
+                "https://www.sugon.com/cut?id=2762&nav_id=48"
+            ],
+            "web_search_calls": [
+                {
+                    "id": "chatcmpl-tool-9a9341564b586ec1",
+                    "status": "completed",
+                    "action_type": "search",
+                    "source_urls": []
+                },
+                {
+                    "id": "chatcmpl-tool-a0c0445678f3874a",
+                    "status": "completed",
+                    "action_type": "search",
+                    "source_urls": [
+                        "https://basic.10jqka.com.cn/144/872808/operate.html",
+                        "https://finance.sina.cn/2026-08-25/detail-inipqaan2312847.d.html",
+                        "https://www.sugon.com/cut?id=2974&nav_id=48",
+                        "https://stcn.com/article/detail/3504478.html",
+                        "https://dataenergy.sugon.com/c87256.jsp",
+                        "https://t.cj.sina.com.cn/articles/view/1659643027/62ec249302001sgyq",
+                        "https://dataenergy.sugon.com/c67937.jsp",
+                        "https://dataenergy.sugon.com/c69249.jsp",
+                        "https://www.sugon.com/product/storage/news_detail/2974",
+                        "https://gu.qq.com/resources/shy/news/detail-v2/index.html?t=1#/index?_tentrees_trans=0&id=SN2026073116295998ab8ae4",
+                        "https://dataenergy.sugon.com/c40192.jsp",
+                        "https://www.sugon.com/cut?id=2786&nav_id=",
+                        "https://www.sugon.com/cut?id=2849&nav_id=48",
+                        "https://dataenergy.sugon.com/c46609.jsp",
+                        "https://www.sugon.com/cut?id=2974",
+                        "https://www.sugon.com/cut?id=2762&nav_id=48"
+                    ]
+                }
+            ],
+            "attempts": [
+                {
+                    "provider": "minimax",
+                    "request_id": null,
+                    "response_id": "070f9c38f23cabce49ed8b86d292b6e8",
+                    "actual_model": "MiniMax-M3",
+                    "search_status": "executed",
+                    "response_status": "completed",
+                    "http_status_code": 200,
+                    "started_at": "2026-10-03T02:32:22.857485Z",
+                    "completed_at": "2026-10-03T02:32:41.921653Z",
+                    "attempt_id": "08e2d108-4d78-47f7-80e5-5111572755f4",
+                    "prompt_sha256": "fae14e2edd54f5afdb75838a1583efea4d3863c2d0d647ade2a7e59f0aa8907d",
+                    "search_receipt_id": "chatcmpl-tool-a0c0445678f3874a",
+                    "source_urls": [
+                        "https://basic.10jqka.com.cn/144/872808/operate.html",
+                        "https://finance.sina.cn/2026-08-25/detail-inipqaan2312847.d.html",
+                        "https://www.sugon.com/cut?id=2974&nav_id=48",
+                        "https://stcn.com/article/detail/3504478.html",
+                        "https://dataenergy.sugon.com/c87256.jsp",
+                        "https://t.cj.sina.com.cn/articles/view/1659643027/62ec249302001sgyq",
+                        "https://dataenergy.sugon.com/c67937.jsp",
+                        "https://dataenergy.sugon.com/c69249.jsp",
+                        "https://www.sugon.com/product/storage/news_detail/2974",
+                        "https://gu.qq.com/resources/shy/news/detail-v2/index.html?t=1#/index?_tentrees_trans=0&id=SN2026073116295998ab8ae4",
+                        "https://dataenergy.sugon.com/c40192.jsp",
+                        "https://www.sugon.com/cut?id=2786&nav_id=",
+                        "https://www.sugon.com/cut?id=2849&nav_id=48",
+                        "https://dataenergy.sugon.com/c46609.jsp",
+                        "https://www.sugon.com/cut?id=2974",
+                        "https://www.sugon.com/cut?id=2762&nav_id=48"
+                    ],
+                    "web_search_calls": [
+                        {
+                            "id": "chatcmpl-tool-9a9341564b586ec1",
+                            "status": "completed",
+                            "action_type": "search",
+                            "source_urls": []
+                        },
+                        {
+                            "id": "chatcmpl-tool-a0c0445678f3874a",
+                            "status": "completed",
+                            "action_type": "search",
+                            "source_urls": [
+                                "https://basic.10jqka.com.cn/144/872808/operate.html",
+                                "https://finance.sina.cn/2026-08-25/detail-inipqaan2312847.d.html",
+                                "https://www.sugon.com/cut?id=2974&nav_id=48",
+                                "https://stcn.com/article/detail/3504478.html",
+                                "https://dataenergy.sugon.com/c87256.jsp",
+                                "https://t.cj.sina.com.cn/articles/view/1659643027/62ec249302001sgyq",
+                                "https://dataenergy.sugon.com/c67937.jsp",
+                                "https://dataenergy.sugon.com/c69249.jsp",
+                                "https://www.sugon.com/product/storage/news_detail/2974",
+                                "https://gu.qq.com/resources/shy/news/detail-v2/index.html?t=1#/index?_tentrees_trans=0&id=SN2026073116295998ab8ae4",
+                                "https://dataenergy.sugon.com/c40192.jsp",
+                                "https://www.sugon.com/cut?id=2786&nav_id=",
+                                "https://www.sugon.com/cut?id=2849&nav_id=48",
+                                "https://dataenergy.sugon.com/c46609.jsp",
+                                "https://www.sugon.com/cut?id=2974",
+                                "https://www.sugon.com/cut?id=2762&nav_id=48"
+                            ]
+                        }
+                    ],
+                    "usage": {
+                        "schema": "quick-scan-usage-v1",
+                        "input_tokens": 15131,
+                        "cached_input_tokens": 256,
+                        "cache_creation_input_tokens": 0,
+                        "output_tokens": 611,
+                        "reasoning_output_tokens": 0,
+                        "search_tool_calls": 2
+                    },
+                    "provider_config_ref": "minimax"
+                }
+            ],
+            "format_repair": null,
+            "dispatch_outcome": null
+        }
+    }
+}
