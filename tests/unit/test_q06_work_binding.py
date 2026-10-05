@@ -525,3 +525,84 @@ def test_loader_provisional_multi_ref_fails_fast_verified_passes(tmp_path: Path)
     payload = load_identity_snapshot(str(ok))
     assert payload["source_binding_refs"] == ["BND_a", "BND_b"]
     assert payload["source_binding_ref"] == "BND_a"
+
+
+def test_e2e_public_cli_identity_snapshot_glue_no_redispatch(monkeypatch, tmp_path: Path) -> None:
+    """P2-3 (owner round-54 option b: receipt linkage deferred to Q10 — the
+    card wording is revised) + P2-4: PUBLIC CLI entry end-to-end with
+    ``--identity-snapshot``. Covers the runner glue layer (payload ->
+    lifecycle -> QAEngine) that produced P0-1: RUN1 dispatches exactly once
+    and lands the work item; RUN2 re-invocation refuses with ZERO additional
+    HTTP (JOB-10: no duplicate LLM calls)."""
+    import importlib.util
+    import json as _json
+    import sqlite3 as _sqlite3
+
+    harness_path = Path(__file__).resolve().parents[1] / "integration" / "test_quick_scan_cli.py"
+    spec = importlib.util.spec_from_file_location("qs_cli_harness", harness_path)
+    harness = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(harness)
+
+    snapshot = tmp_path / "snapshot.json"
+    snapshot.write_bytes(
+        _json.dumps(
+            {
+                "object_type": "entity",
+                "schema_version": "2.2.0",
+                "payload": {
+                    "entity_id": _REAL_UUID_ENTITY,
+                    "identity_revision": 1,
+                    "identity_state": "provisional",
+                    "listings": [{"source_binding_ref": "BND_fixture_q06"}],
+                },
+            },
+            ensure_ascii=False,
+        ).encode("utf-8")
+    )
+    extra = ["--identity-snapshot", str(snapshot)]
+
+    answer = (
+        '{"entity_id":"' + _REAL_UUID_ENTITY + '","company_name":"Fixture Corp",'
+        '"question_id":"IQS_05","score":8,"description":"基于公开来源的判断"}'
+    )
+    # RUN1: production activation — dispatch once, work item lands
+    exit1, out1, session1 = harness._invoke(
+        monkeypatch,
+        tmp_path,
+        entity_id=_REAL_UUID_ENTITY,
+        extra_argv=extra,
+        responses=[harness._response(content=answer)],
+    )
+    assert exit1 == 0, exit1
+    assert session1.post.call_count == 1
+    assert out1.exists()
+    result = _json.loads(out1.read_text(encoding="utf-8"))
+    assert "scored" in out1.read_text(encoding="utf-8")
+    assert result.get("entity", {}).get("entity_id") == _REAL_UUID_ENTITY
+
+    stores = list(tmp_path.rglob("quick_scan_work.sqlite"))
+    assert len(stores) == 1, stores
+    con = _sqlite3.connect(stores[0])
+    try:
+        rows = con.execute("SELECT status FROM work_item").fetchall()
+    finally:
+        con.close()
+    assert len(rows) == 1, rows
+    assert rows[0][0] not in {"pending", "leased"}, rows[0][0]
+
+    # RUN2: same inputs — refused, zero additional HTTP (no re-dispatch)
+    exit2, _out2, session2 = harness._invoke(
+        monkeypatch, tmp_path, entity_id=_REAL_UUID_ENTITY, extra_argv=extra
+    )
+    assert exit2 == 1, exit2
+    assert session2.post.call_count == 0
+    con = _sqlite3.connect(stores[0])
+    try:
+        rows2 = con.execute("SELECT status FROM work_item").fetchall()
+        attempts = con.execute("SELECT COUNT(*) FROM attempt").fetchone()[0]
+    finally:
+        con.close()
+    assert len(rows2) == 1
+    assert rows2[0][0] not in {"pending", "leased"}
+    assert attempts >= 1

@@ -339,6 +339,7 @@ def _invoke(
     provider_name="openai",
     fixture_cost_resolver=True,
     rate_cards=None,
+    extra_argv=None,
 ):
     question_file, _ = _write_inputs(
         tmp_path,
@@ -386,6 +387,8 @@ def _invoke(
         str(output_file),
         "--require-search",
     ]
+    if extra_argv:
+        argv.extend(extra_argv)
     monkeypatch.setattr("sys.argv", argv)
     exit_code = main_with_llm.main()
     return exit_code, output_file, session
