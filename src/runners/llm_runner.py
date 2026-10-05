@@ -6,8 +6,10 @@
 """
 
 import argparse
+import hashlib
 import json
 import sys
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, cast
 
@@ -35,6 +37,258 @@ from src.utils.quick_scan_work_store import QuickScanWorkStore
 from src.utils.quick_scan_work_transport import bind_quick_scan_budget
 
 logger = get_logger(__name__)
+
+
+def routing_fingerprint_for(questions: List[Any]) -> str:
+    """64-hex routing fingerprint derived from question TEXTS.
+
+    P0-1 (r1 review): never ``json.dumps`` Question objects — that raised
+    ``TypeError: Object of type Question is not JSON serializable`` and the
+    production activation path crashed before the first question.
+    """
+    texts = [q.text if isinstance(q, Question) else str(q) for q in questions]
+    return hashlib.sha256(
+        json.dumps(texts, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+
+def load_identity_snapshot(
+    path: str, *, expected_entity_id: Optional[str] = None
+) -> Dict[str, Any]:
+    """Load a W04 ``identity-export-g2b`` package into work-store identity
+    fields (Q06 option 1 production activation).
+
+    The snapshot SHA-256 is computed over the exact file bytes so the work
+    item's ``identity_snapshot_sha256`` pins the identity as-of that export.
+    ``expected_entity_id`` (the ``--entity-id`` argument) is cross-checked
+    against the package payload — a mismatch fails fast (r1 P1-2).
+    """
+    raw = Path(path).read_bytes()
+    package = json.loads(raw.decode("utf-8"))
+    if package.get("object_type") != "entity" or package.get("schema_version") != "2.2.0":
+        raise ValueError("identity snapshot: unsupported package type/version")
+    payload = package.get("payload")
+    if not isinstance(payload, dict):
+        raise ValueError("identity snapshot: missing payload")
+    entity_id = payload.get("entity_id")
+    if not isinstance(entity_id, str) or not entity_id.strip():
+        raise ValueError("identity snapshot: missing payload entity_id")
+    if expected_entity_id is not None and entity_id != expected_entity_id:
+        raise ValueError(
+            f"identity snapshot entity {entity_id} does not match --entity-id {expected_entity_id}"
+        )
+    listings = payload.get("listings") or []
+    refs: List[str] = []
+    for listing in listings:
+        ref = listing.get("source_binding_ref")
+        if isinstance(ref, str) and ref and ref not in refs:
+            refs.append(ref)
+    if not refs:
+        raise ValueError("identity snapshot: no source binding refs")
+    identity_revision = payload.get("identity_revision")
+    identity_state = payload.get("identity_state")
+    if type(identity_revision) is not int or identity_revision < 1:
+        raise ValueError("identity snapshot: invalid identity_revision")
+    if identity_state not in {"provisional", "verified"}:
+        raise ValueError("identity snapshot: invalid identity_state")
+    if identity_state == "provisional" and len(refs) != 1:
+        # r1 P1-3: fail fast here instead of per-question refusals at the store
+        # (provisional identity requires exactly one source binding).
+        raise ValueError(
+            "identity snapshot: provisional identity requires exactly one source binding"
+        )
+    return {
+        "entity_id": entity_id,
+        "identity_revision": identity_revision,
+        "source_binding_version": 1,
+        "identity_state": identity_state,
+        "source_binding_ref": refs[0],
+        "source_binding_refs": refs,
+        "identity_snapshot_sha256": hashlib.sha256(raw).hexdigest(),
+    }
+
+
+class QuickScanWorkLifecycle:
+    """Q06：把公共题路径绑定到 QuickScanWorkStore 的逐题生命周期。
+
+    契约（QAEngine 注入用）：
+    * ``before_question(question) -> dict``——按九元逻辑键 create_or_attach
+      并 claim（租约）+ prepare_attempt + mark_send_intent（transport 语义：
+      prepare→intent 在派发前提交）；成功返回 ``{"claimed": True,
+      "work_item_id", "lease", "attempt_id"}``，拒绝/非 pending 返回
+      ``{"claimed": False, "reason", ...}``（调用方不派发该题）。
+      **不得抛出**：store 错误一律降级为拒绝（reason=store_error:...）。
+    * ``after_question(handle, result)`` / ``after_question_failed(handle, msg)``
+      ——record **outcome="unknown"**（r1 P0-3：引擎缝隙无 transport 回执，
+      response_available 需真 2xx+回执、confirmed_failure 需可识别 provider
+      拒绝，均不得臆造）→ attempt=uncertain、work_item=uncertain 清租约：
+      claim 永不可再领（JOB-10 不重派发）、C04 视 uncertain 为 resume 而非
+      重问；Q07 answer checkpoint 落地后可升级为 result_ready+内容寻址证据。
+      记录失败静默记日志（store 对账兜底）。
+
+    身份字段由调用方注入（生产路径 ``--identity-snapshot``=W04 公开导出；
+    ``source_binding_version`` 取 1——W04 导出不含该字段，此处显式披露
+    （r1 P1-3），待权威版本随导出提供后替换）。``scope``/``scope_id`` 默认
+    entity 级（scope_id 回落 entity_id），listing 级由调用方显式传入。
+    ``prompt_sha256`` = sha256(``identity_snapshot_sha256|题面文本``)——
+    **渲染前代理**，渲染后真实哈希属 transport 层。``run_id`` 为 UTC 时间戳
+    派生、``scan_id`` 调用方给定（当前生产构造传 "scan-l02"）。
+    """
+
+    def __init__(
+        self,
+        store: QuickScanWorkStore,
+        *,
+        entity_id: str,
+        run_id: str,
+        scan_id: str,
+        identity: Dict[str, Any],
+        generation: int = 1,
+        lease_seconds: float = 600.0,
+        routing_fingerprint: str = "d" * 64,
+        route_id: str = "cli",
+        provider_name: str = "quick-scan-cli",
+        model_requested: str = "quick-scan",
+        scope: str = "entity",
+        scope_id: Optional[str] = None,
+    ) -> None:
+        self._store = store
+        self._entity_id = entity_id
+        self._run_id = run_id
+        self._scan_id = scan_id
+        self._identity = dict(identity)
+        self._generation = generation
+        self._lease_seconds = lease_seconds
+        self._routing_fingerprint = routing_fingerprint
+        self._route_id = route_id
+        self._provider_name = provider_name
+        self._model_requested = model_requested
+        self._scope = scope
+        self._scope_id = scope_id or entity_id
+
+    def before_question(self, question: Question) -> Dict[str, Any]:
+        text = question.text.strip()
+        question_id = question.question_id or (
+            "Q_" + hashlib.sha256(text.encode("utf-8")).hexdigest()[:12].upper()
+        )
+        fingerprint = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        try:
+            row = self._store.create_or_attach(
+                entity_id=self._entity_id,
+                question_id=question_id,
+                generation=self._generation,
+                scope=self._scope,
+                scope_id=self._scope_id,
+                identity_revision=self._identity["identity_revision"],
+                source_binding_version=self._identity["source_binding_version"],
+                identity_state=self._identity["identity_state"],
+                source_binding_ref=self._identity["source_binding_ref"],
+                source_binding_refs=list(self._identity["source_binding_refs"]),
+                identity_snapshot_sha256=self._identity["identity_snapshot_sha256"],
+                question_fingerprint=fingerprint,
+                routing_fingerprint=self._routing_fingerprint,
+                run_id=self._run_id,
+                scan_id=self._scan_id,
+            )
+            work_item_id = row["work_item_id"]
+            lease = self._store.claim(work_item_id, lease_seconds=self._lease_seconds)
+        except Exception as exc:  # noqa: BLE001 - store refusals degrade to skip
+            logger.warning("work claim 异常（%s: %s），本题不派发", type(exc).__name__, exc)
+            return {"claimed": False, "reason": f"store_error:{type(exc).__name__}"}
+        if lease is None:
+            logger.warning("work item %s 非 pending，本题不派发", work_item_id)
+            return {
+                "claimed": False,
+                "reason": "work_item_not_pending",
+                "work_item_id": work_item_id,
+            }
+        prompt_sha = hashlib.sha256(
+            (self._identity.get("identity_snapshot_sha256", "") + "|" + text).encode("utf-8")
+        ).hexdigest()
+        # Mirror the transport's request-identity derivation exactly: the key
+        # must be unique per (work_item + frozen request inputs) — the store
+        # rejects a key already used by another work item (r1 fix: scope must
+        # be part of uniqueness, so include work_item_id like the transport).
+        request_cache_key = (
+            "REQ_"
+            + hashlib.sha256(
+                json.dumps(
+                    {
+                        "work_item_id": work_item_id,
+                        "route_id": self._route_id,
+                        "provider": self._provider_name,
+                        "model_requested": self._model_requested,
+                        "prompt_sha256": prompt_sha,
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            ).hexdigest()
+        )
+        try:
+            attempt = self._store.prepare_attempt(
+                work_item_id,
+                lease,
+                route_id=self._route_id,
+                provider=self._provider_name,
+                model_requested=self._model_requested,
+                request_cache_key=request_cache_key,
+                prompt_sha256=prompt_sha,
+            )
+            # P0-3: commit send intent before dispatch (transport semantics:
+            # prepare -> mark_send_intent -> record outcome). Budget policy and
+            # route are supplied together; here both are None (no work-side
+            # budget reserve at mark time — Q09 wires that pair when its
+            # policy is active; bind_quick_scan_budget's dispatch-time reserve
+            # still covers the actual HTTP call).
+            self._store.mark_send_intent(work_item_id, lease, attempt["attempt_id"])
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("attempt prepare/intent 失败（%s），本题不派发", exc)
+            return {
+                "claimed": False,
+                "reason": f"attempt_intent_failed:{type(exc).__name__}",
+                "work_item_id": work_item_id,
+            }
+        return {
+            "claimed": True,
+            "reason": "claimed",
+            "work_item_id": work_item_id,
+            "lease": lease,
+            "attempt_id": attempt["attempt_id"],
+        }
+
+    def after_question(self, handle: Dict[str, Any], result: Any) -> None:
+        try:
+            # P0-3/r1: response_available requires a REAL transport receipt +
+            # 2xx (store rejects fabrication); at the engine seam no transport
+            # receipt exists, so the honest outcome is "unknown" -> attempt
+            # phase uncertain, work_item->uncertain (lease cleared: claim can
+            # never re-dispatch it; C04 treats uncertain as resume, not a fresh
+            # dispatch). Q07's answer checkpoint upgrades this to result_ready
+            # with content-addressed evidence when that card lands.
+            self._store.record_attempt_outcome(
+                handle["work_item_id"],
+                handle["lease"],
+                handle["attempt_id"],
+                outcome="unknown",
+            )
+        except Exception as exc:  # noqa: BLE001 - 记录失败交由 store 对账兜底
+            logger.error("record_attempt_outcome 失败（%s）", exc)
+
+    def after_question_failed(self, handle: Dict[str, Any], error_message: str) -> None:
+        try:
+            # P0-3: confirmed_failure requires a recognized provider refusal
+            # (store rejects unclassified failures); without transport evidence
+            # the honest outcome is "unknown" as well.
+            self._store.record_attempt_outcome(
+                handle["work_item_id"],
+                handle["lease"],
+                handle["attempt_id"],
+                outcome="unknown",
+                failure_category="dispatch_error",
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.error("record_attempt_outcome(failed) 失败（%s）", exc)
 
 
 def load_stock_list(file_path: str) -> list[str]:
@@ -269,6 +523,7 @@ class LLMRunner:
         config_format: str = "json",
         entity_id: Optional[str] = None,
         require_search: bool = False,
+        identity_snapshot: Optional[str] = None,
     ) -> int:
         """运行LLM模式处理。
 
@@ -280,6 +535,8 @@ class LLMRunner:
             output: 输出文件路径
             override: 是否覆盖已存在的文件
             config_format: 配置文件格式
+            identity_snapshot: 可选；W04 ``identity-export-g2b`` 身份包 JSON
+                路径——提供后逐题 work-item 生命周期激活（Q06），缺省关闭。
 
         Returns:
             退出码（0 表示成功，1 表示失败）
@@ -296,6 +553,13 @@ class LLMRunner:
             )
         if require_search and not entity_id:
             raise ValueError("--require-search必须显式提供 --entity-id，不能从公司名称猜测")
+        if identity_snapshot and not require_search:
+            raise ValueError("--identity-snapshot 需要与 --require-search 同时使用")
+        identity_payload = (
+            load_identity_snapshot(identity_snapshot, expected_entity_id=entity_id)
+            if identity_snapshot
+            else None
+        )
 
         self.logger.info("=" * 70)
         if company:
@@ -309,6 +573,7 @@ class LLMRunner:
                 config_format=config_format,
                 entity_id=entity_id,
                 require_search=require_search,
+                identity_payload=identity_payload,
             )
         else:
             self.logger.info("批量股票分析模式")
@@ -332,6 +597,7 @@ class LLMRunner:
         config_format: str,
         entity_id: Optional[str] = None,
         require_search: bool = False,
+        identity_payload: Optional[Dict[str, Any]] = None,
     ) -> int:
         """运行单公司处理模式。
 
@@ -477,7 +743,22 @@ class LLMRunner:
                 )
 
             answer_generator = AnswerGenerator()
-            qa_engine = QAEngine(llm_provider, answer_generator)
+            work_lifecycle = None
+            if identity_payload is not None:
+                if not entity_id:
+                    raise ValueError("--identity-snapshot 需要 --entity-id")
+                work_store = budget_store or QuickScanWorkStore(
+                    llm_config.config_file.parent / "quick_scan_work.sqlite"
+                )
+                work_lifecycle = QuickScanWorkLifecycle(
+                    work_store,
+                    entity_id=entity_id,
+                    run_id="run-" + time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()),
+                    scan_id="scan-l02",
+                    identity=identity_payload,
+                    routing_fingerprint=routing_fingerprint_for(questions),
+                )
+            qa_engine = QAEngine(llm_provider, answer_generator, work_item_lifecycle=work_lifecycle)
 
             # 处理问题
             if quick_scan_policy is not None and quick_scan_policy["configured"]:

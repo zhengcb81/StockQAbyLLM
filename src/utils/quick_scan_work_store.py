@@ -25,7 +25,10 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 SCHEMA_VERSION = 5
 _SAFE_ID = re.compile(r"^[A-Za-z0-9_.-]{1,160}$")
-_ENTITY_ID = re.compile(r"^ENT_[A-Za-z0-9_]+$")
+# Hyphens accepted per owner sign-off (2026-10-05 round-51): the W04
+# identity-export package issues ENT_<uuid> entity ids (e.g. the frozen
+# golden ENT_1b2a4d3e-0000-4a1b-8c2d-000000000001).
+_ENTITY_ID = re.compile(r"^ENT_[A-Za-z0-9_-]+$")
 _SECURITY_ID = re.compile(r"^SEC_[A-Za-z0-9_.]+$")
 _SEGMENT_ID = re.compile(r"^SEG_[A-Za-z0-9_]+$")
 _BINDING_ID = re.compile(r"^BND_[A-Za-z0-9_]+$")

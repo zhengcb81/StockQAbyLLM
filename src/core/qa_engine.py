@@ -35,6 +35,7 @@ class QAEngine:
         search_provider: SearchProvider,
         answer_generator: Optional[AnswerGenerator] = None,
         progress_reporter: Optional[ProgressReporter] = None,
+        work_item_lifecycle: Optional[Any] = None,
     ):
         """初始化 Q&A 引擎。
 
@@ -42,10 +43,15 @@ class QAEngine:
             search_provider: 搜索提供者实例
             answer_generator: 答案生成器实例（可选）
             progress_reporter: 进度报告器实例（可选）
+            work_item_lifecycle: 可选的逐题 work-item 生命周期钩子（Q06）。
+                契约：before_question(question)→handle（claimed/reason）、
+                after_question(handle, result)、after_question_failed(handle, error)。
+                缺省 None 时行为与本钩子引入前逐字节一致（Q06 选项 1）。
         """
         self.search_provider = search_provider
         self.answer_generator = answer_generator or AnswerGenerator()
         self.progress_reporter = progress_reporter or ConsoleReporter()
+        self.work_item_lifecycle = work_item_lifecycle
         logger.info("QAEngine 初始化完成（搜索提供者: %s）", search_provider.get_provider_name())
 
     def process_question(self, question_text: Any) -> QAResult:
@@ -127,6 +133,7 @@ class QAEngine:
 
         # 使用进度报告器
         self.progress_reporter.start_batch(len(question_texts))
+        refused_count = 0
 
         for i, question_text in enumerate(question_texts, 1):
             display_text = (
@@ -136,8 +143,58 @@ class QAEngine:
             msg = f"正在处理: {display_text[:DISPLAY_QUESTION_TRUNCATE]}..."
             self.progress_reporter.update_progress(i, len(question_texts), msg)
 
+            # Q06: work-item 生命周期（可选；claim 拒绝→不派发，记 error 结果）
+            lifecycle_handle: Optional[dict] = None
+            if self.work_item_lifecycle is not None:
+                try:
+                    hook_question = (
+                        question_text
+                        if isinstance(question_text, Question)
+                        else Question(text=question_text)
+                    )
+                except ValueError:
+                    hook_question = None
+                if hook_question is not None:
+                    lifecycle_handle = self.work_item_lifecycle.before_question(hook_question)
+                if lifecycle_handle is None or not lifecycle_handle.get("claimed"):
+                    reason = (lifecycle_handle or {}).get("reason") or "lifecycle_refused"
+                    logger.warning(
+                        "[%d/%d] work claim 拒绝（%s），不派发", i, len(question_texts), reason
+                    )
+                    refuse_question = hook_question or (
+                        question_text
+                        if isinstance(question_text, Question)
+                        else Question(text=question_text)
+                    )
+                    refuse_answer = Answer(
+                        text=f"work claim 拒绝（{reason}），本题未派发",
+                        score=None,
+                        status="error",
+                        source="work_store",
+                    )
+                    refuse_result = QAResult(
+                        question=refuse_question,
+                        answer=refuse_answer,
+                        metadata={
+                            "work_claim_refused": True,
+                            "work_claim_reason": reason,
+                            **(
+                                {"work_item_id": lifecycle_handle["work_item_id"]}
+                                if lifecycle_handle and lifecycle_handle.get("work_item_id")
+                                else {}
+                            ),
+                        },
+                    )
+                    refused_count += 1
+                    batch_result.add_result(refuse_result)
+                    fail_msg = f"[SKIP] 未派发: {display_text[:DISPLAY_QUESTION_TRUNCATE]}...  "
+                    self.progress_reporter.update_progress(i, len(question_texts), fail_msg)
+                    continue
+
             try:
                 result = self.process_question(question_text)
+                if self.work_item_lifecycle is not None and lifecycle_handle is not None:
+                    self.work_item_lifecycle.after_question(lifecycle_handle, result)
                 batch_result.add_result(result)
                 logger.info("[%d/%d] 处理成功", i, len(question_texts))
 
@@ -147,6 +204,8 @@ class QAEngine:
 
             except (ValidationError, ProcessingError) as e:
                 logger.error("[%d/%d] 处理失败: %s", i, len(question_texts), e)
+                if self.work_item_lifecycle is not None and lifecycle_handle is not None:
+                    self.work_item_lifecycle.after_question_failed(lifecycle_handle, str(e))
 
                 # 更新进度（失败）
                 fail_msg = f"[FAIL] 失败: {display_text[:DISPLAY_QUESTION_TRUNCATE]}...  "
@@ -170,9 +229,13 @@ class QAEngine:
                     # 如果连错误结果都无法创建，跳过此问题
                     logger.error("[%d/%d] 无法创建错误结果，跳过", i, len(question_texts))
 
-        self.progress_reporter.finish_batch(
-            f"批量处理完成，成功: {batch_result.processed_count}/{len(question_texts)}"
-        )
+        # P2-2 (r1): claim refusals are not dispatched work — report them
+        # separately instead of inflating the "成功 N/N" summary.
+        success = batch_result.processed_count - refused_count
+        summary = f"批量处理完成，成功: {success}/{len(question_texts)}"
+        if refused_count:
+            summary += f"（work拒绝未派发 {refused_count}）"
+        self.progress_reporter.finish_batch(summary)
         return batch_result
 
     def output_results(

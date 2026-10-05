@@ -266,6 +266,12 @@ def main():
         default=None,
         help="稳定发行人ID；与--require-search同时使用时必填，不会从名称推断",
     )
+    parser.add_argument(
+        "--identity-snapshot",
+        type=str,
+        default=None,
+        help="W04 identity-export-g2b 身份包 JSON 路径；提供后逐题 work-item 生命周期激活（Q06），需与 --require-search 同时使用",
+    )
 
     parser.add_argument("--verbose", "-v", action="store_true", help="启用详细日志输出")
 
@@ -293,6 +299,7 @@ def main():
             config_format=args.config_format,
             entity_id=args.entity_id,
             require_search=args.require_search,
+            identity_snapshot=args.identity_snapshot,
         )
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error("运行失败: %s", e, exc_info=True)
