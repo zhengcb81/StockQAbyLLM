@@ -1,0 +1,64 @@
+{
+ "provenance": {
+  "purpose": "B01-b live experiment entity prerequisite (provisional)",
+  "entity_source": "iqs:b2a_candidates/2026-10-03 (HK:06066)",
+  "owner_approval": "owner-2026-10-06-b01-sample-freeze",
+  "exchange_mic_source": "tests/fixtures/market_registry/iso10383_sample.csv",
+  "build_at": "2026-10-07T00:00:00Z"
+ },
+ "entity": {
+  "identity_schema_version": "2.0.0",
+  "identity_state": "provisional",
+  "identity_revision": 1,
+  "entity_id": "ENT_1af6804e-40c1-4c35-b190-ea691dba2c85",
+  "canonical_name": "中信建投证券股份有限公司",
+  "incorporation_country": "CN",
+  "scope_attestation_id": "ATT_a6be5f730d3247889affb583a09fee86",
+  "verified_issuer_receipt_id": null,
+  "company_wiki_ref": null,
+  "formal_stockwiki_profile": null,
+  "securities": [
+   {
+    "security_id": "SEC_4624b94e-7b31-4497-99ac-7846d5eaa1a4",
+    "entity_id": "ENT_1af6804e-40c1-4c35-b190-ea691dba2c85",
+    "market": "HK",
+    "exchange_raw": "SEHK",
+    "exchange": "XHKG",
+    "ticker": "06066",
+    "currency": "HKD",
+    "security_type": "ordinary",
+    "listing_status": "active",
+    "source_binding_ref": "BIND_0608aa4d-502b-4c33-9f98-c07878edc770",
+    "adr_ratio": null,
+    "ordinary_security_ref": null
+   }
+  ],
+  "segments": []
+ },
+ "source_bindings": [
+  {
+   "binding_ref": "BIND_0608aa4d-502b-4c33-9f98-c07878edc770",
+   "source_namespace": "iqs:b2a_candidates/2026-10-03",
+   "source_record_id": "HK:06066",
+   "source_canonical_name": "中信建投证券股份有限公司",
+   "security_id": "SEC_4624b94e-7b31-4497-99ac-7846d5eaa1a4",
+   "entity_id": "ENT_1af6804e-40c1-4c35-b190-ea691dba2c85",
+   "market": "HK",
+   "exchange_raw": "SEHK",
+   "ticker": "06066",
+   "status": "active"
+  }
+ ],
+ "issuer_receipt": {
+  "receipt_id": "ATT_a6be5f730d3247889affb583a09fee86",
+  "entity_id": "ENT_1af6804e-40c1-4c35-b190-ea691dba2c85",
+  "identity_revision": 1,
+  "kind": "provisional_scope",
+  "basis": "user_exact_security_attestation",
+  "actor_id": "owner-2026-10-06-b01-sample-freeze",
+  "scope": "listed_operating_company",
+  "negative_scope_flag": false,
+  "recorded_at": "2026-10-07T00:00:00Z",
+  "evidence_ref": null
+ }
+}

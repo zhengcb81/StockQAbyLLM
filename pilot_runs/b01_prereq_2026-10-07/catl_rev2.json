@@ -1,0 +1,65 @@
+{
+ "provenance": {
+  "purpose": "B01-b live experiment entity prerequisite (provisional)",
+  "entity_source": "iqs:b2a_candidates/2026-10-03 (CN-A:300750)",
+  "owner_approval": "owner-2026-10-06-b01-sample-freeze",
+  "exchange_mic_source": "tests/fixtures/market_registry/iso10383_sample.csv",
+  "build_at": "2026-10-07T00:00:00Z",
+  "revision_2_note": "prereq-review P1-1/P1-2: market label corrected CN-A->CN; receipt rebuilt at identity_revision=2 from the corrected store (no raw SQL in this step)"
+ },
+ "entity": {
+  "identity_schema_version": "2.0.0",
+  "identity_state": "provisional",
+  "identity_revision": 2,
+  "entity_id": "ENT_99ebb735-f072-41e4-8545-823bc012614f",
+  "canonical_name": "宁德时代新能源科技股份有限公司",
+  "incorporation_country": "CN",
+  "scope_attestation_id": "ATT_591235a8dd2a454f83d5ebac9aef1ca0",
+  "verified_issuer_receipt_id": null,
+  "company_wiki_ref": null,
+  "formal_stockwiki_profile": null,
+  "securities": [
+   {
+    "security_id": "SEC_989f53e1-55aa-4ac5-b0b2-bf2ba612b380",
+    "entity_id": "ENT_99ebb735-f072-41e4-8545-823bc012614f",
+    "market": "CN",
+    "exchange_raw": "SZSE",
+    "exchange": "XSHE",
+    "ticker": "300750",
+    "currency": "CNY",
+    "security_type": "ordinary",
+    "listing_status": "active",
+    "source_binding_ref": "BIND_ae8146ad-2678-4674-b5d8-292b8c7ab150",
+    "adr_ratio": null,
+    "ordinary_security_ref": null
+   }
+  ],
+  "segments": []
+ },
+ "source_bindings": [
+  {
+   "binding_ref": "BIND_ae8146ad-2678-4674-b5d8-292b8c7ab150",
+   "source_namespace": "iqs:b2a_candidates/2026-10-03",
+   "source_record_id": "CN-A:300750",
+   "source_canonical_name": "宁德时代新能源科技股份有限公司",
+   "security_id": "SEC_989f53e1-55aa-4ac5-b0b2-bf2ba612b380",
+   "entity_id": "ENT_99ebb735-f072-41e4-8545-823bc012614f",
+   "market": "CN",
+   "exchange_raw": "SZSE",
+   "ticker": "300750",
+   "status": "active"
+  }
+ ],
+ "issuer_receipt": {
+  "receipt_id": "ATT_591235a8dd2a454f83d5ebac9aef1ca0",
+  "entity_id": "ENT_99ebb735-f072-41e4-8545-823bc012614f",
+  "identity_revision": 2,
+  "kind": "provisional_scope",
+  "basis": "user_exact_security_attestation",
+  "actor_id": "owner-2026-10-06-b01-sample-freeze",
+  "scope": "listed_operating_company",
+  "negative_scope_flag": false,
+  "recorded_at": "2026-10-07T00:30:00Z",
+  "evidence_ref": null
+ }
+}
