@@ -340,6 +340,7 @@ def _invoke(
     fixture_cost_resolver=True,
     rate_cards=None,
     extra_argv=None,
+    spend_authorization="default",
 ):
     question_file, _ = _write_inputs(
         tmp_path,
@@ -389,6 +390,24 @@ def _invoke(
     ]
     if extra_argv:
         argv.extend(extra_argv)
+    if spend_authorization == "default":
+        snap = tmp_path / "spend_authorization.json"
+        snap.write_text(
+            json.dumps(
+                {
+                    "schema_version": "1.0.0",
+                    "currency": "USD",
+                    "hard_cap": 25,
+                    "pricing_snapshot_ref": "fixture-pricing-snapshot",
+                    "authorized_at": "2026-10-06T00:00:00Z",
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        argv.extend(["--spend-authorization", str(snap)])
+    elif spend_authorization is not None:
+        argv.extend(["--spend-authorization", str(spend_authorization)])
     monkeypatch.setattr("sys.argv", argv)
     exit_code = main_with_llm.main()
     return exit_code, output_file, session

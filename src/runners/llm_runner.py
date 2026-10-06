@@ -8,8 +8,10 @@
 import argparse
 import hashlib
 import json
+import re
 import sys
 import time
+import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional, cast
 
@@ -588,6 +590,38 @@ def cancel_pending_work(store: QuickScanWorkStore, work_item_ids: List[str]) -> 
     return outcomes
 
 
+def _spend_authorization_preflight(path: Optional[str]) -> Optional[str]:
+    """B01-a/BENCH-02: validate the spend-authorization snapshot for a
+    require-search run. Returns None when a valid snapshot authorizes the
+    run; otherwise a BOUNDED reason code for the explicit
+    needs_configuration result — before any attempt, reservation, or store
+    file exists."""
+    # r1 LOW-2: an absent flag falls back to the conventional default path
+    # (cwd-relative), matching the card wording; absence still blocks.
+    resolved = Path(path) if path else Path("spend_authorization.json")
+    try:
+        raw = resolved.read_text(encoding="utf-8")
+        payload = json.loads(raw)
+    except OSError:
+        return "spend_authorization_missing"
+    except ValueError:
+        return "spend_authorization_invalid"
+    if not isinstance(payload, dict) or payload.get("schema_version") != "1.0.0":
+        return "spend_authorization_invalid"
+    currency = payload.get("currency")
+    if not isinstance(currency, str) or not re.fullmatch(r"[A-Z]{3}", currency):
+        return "spend_authorization_invalid_currency"
+    hard_cap = payload.get("hard_cap")
+    if isinstance(hard_cap, bool) or not isinstance(hard_cap, (int, float)) or hard_cap <= 0:
+        return "spend_authorization_invalid_hard_cap"
+    snapshot_ref = payload.get("pricing_snapshot_ref")
+    if not isinstance(snapshot_ref, str) or not snapshot_ref.strip():
+        return "spend_authorization_missing_pricing_snapshot"
+    if not isinstance(payload.get("authorized_at"), str) or not payload["authorized_at"].strip():
+        return "spend_authorization_invalid_authorized_at"
+    return None
+
+
 def load_stock_list(file_path: str) -> list[str]:
     """从文件加载股票列表。
 
@@ -821,6 +855,7 @@ class LLMRunner:
         entity_id: Optional[str] = None,
         require_search: bool = False,
         identity_snapshot: Optional[str] = None,
+        spend_authorization: Optional[str] = None,
     ) -> int:
         """运行LLM模式处理。
 
@@ -852,6 +887,25 @@ class LLMRunner:
             raise ValueError("--require-search必须显式提供 --entity-id，不能从公司名称猜测")
         if identity_snapshot and not require_search:
             raise ValueError("--identity-snapshot 需要与 --require-search 同时使用")
+        # B01-a/BENCH-02: the public quick-scan entry fails closed on
+        # zero/unknown spend authorization BEFORE creating any dispatchable
+        # attempt — an explicit bounded blocked result, a fresh auditable run
+        # id, zero outbound requests, and zero budget/work rows.
+        if require_search:
+            blocked = _spend_authorization_preflight(spend_authorization)
+            if blocked is not None:
+                payload = {
+                    "schema": "stockqa.spend_preflight/1.0.0",
+                    "status": "needs_configuration",
+                    "blocked": True,
+                    "reason": blocked,
+                    "run_id": "run-"
+                    + time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+                    + "-"
+                    + uuid.uuid4().hex[:6],
+                }
+                print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+                return 2
         identity_payload = (
             load_identity_snapshot(identity_snapshot, expected_entity_id=entity_id)
             if identity_snapshot

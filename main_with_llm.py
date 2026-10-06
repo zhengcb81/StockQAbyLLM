@@ -272,6 +272,12 @@ def main():
         default=None,
         help="W04 identity-export-g2b 身份包 JSON 路径；提供后逐题 work-item 生命周期激活（Q06），需与 --require-search 同时使用",
     )
+    parser.add_argument(
+        "--spend-authorization",
+        type=str,
+        default=None,
+        help="B01-a：花费授权快照 JSON 路径（currency/hard_cap/pricing_snapshot_ref/authorized_at）；quick-scan require-search 运行必带，缺失或无效即入口 blocked（BENCH-02）",
+    )
 
     parser.add_argument("--verbose", "-v", action="store_true", help="启用详细日志输出")
 
@@ -300,6 +306,7 @@ def main():
             entity_id=args.entity_id,
             require_search=args.require_search,
             identity_snapshot=args.identity_snapshot,
+            spend_authorization=args.spend_authorization,
         )
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error("运行失败: %s", e, exc_info=True)
