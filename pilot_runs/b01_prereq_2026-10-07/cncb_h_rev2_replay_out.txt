@@ -1,0 +1,3 @@
+{"action":"entity-import","entity_id":"ENT_1af6804e-40c1-4c35-b190-ea691dba2c85","error_code":null,"identity_state":"provisional","imported_at":"2026-10-06T20:48:20Z","llm_calls":0,"network_calls":0,"phase_status":"entity_saved_receipt_recorded","receipt_id":"ATT_88b518cb64e74bbd866256b2aa788630","receipt_recorded":true,"rules_version":"quick_scan_entity_import/1.0.0"}
+
+EXIT=0

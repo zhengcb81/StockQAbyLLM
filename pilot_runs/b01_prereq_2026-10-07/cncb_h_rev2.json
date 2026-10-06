@@ -1,7 +1,7 @@
 {
  "provenance": {
   "purpose": "B01-b live experiment entity prerequisite (provisional)",
-  "entity_source": "iqs:b2a_candidates/2026-10-03 (HK:06066)",
+  "entity_source": "iqs:b2a_hk_discovery/2026-10-03 (CN_A_601066)",
   "owner_approval": "owner-2026-10-06-b01-sample-freeze",
   "exchange_mic_source": "tests/fixtures/market_registry/iso10383_sample.csv",
   "build_at": "2026-10-07T00:00:00Z",
