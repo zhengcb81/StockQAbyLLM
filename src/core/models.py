@@ -305,6 +305,86 @@ def _information_as_of_from_metadata(metadata: Mapping[str, Any]) -> Optional[st
     return _real_iso_date(metadata.get("information_as_of"))
 
 
+def final_transport_provider(*candidates: Any) -> Optional[str]:
+    """First credible transport provider among the candidates.
+
+    Shared by the output envelope and the Q07 checkpoint path so the two can
+    never disagree about which route actually answered (single source of
+    truth — card note “回执组装抽共享函数”).
+    """
+    for candidate in candidates:
+        if (
+            isinstance(candidate, dict)
+            and candidate.get("provider") in {"openai", "minimax", "mimo"}
+            and (candidate.get("response_id") or type(candidate.get("http_status_code")) is int)
+        ):
+            provider = candidate.get("provider")
+            return provider if isinstance(provider, str) else None
+    return None
+
+
+def execution_receipt_for_checkpoint(metadata: Any) -> Optional[Dict[str, Any]]:
+    """Q07: build the minimal trustworthy execution receipt for checkpointing.
+
+    Returns None unless the answer is checkpoint-quality: verified search,
+    completed response, 2xx HTTP, and the identity-bearing fields the
+    checkpoint needs (actual_model / response_id / attempt_id /
+    search_receipt_id). The remaining save-side input rules are enforced by
+    ``_preflight_checkpoint`` in llm_runner BEFORE any state is recorded;
+    missing or untrustworthy facts mean NO checkpoint is persisted — never a
+    fabricated success (LLM-07/I05).
+    """
+    if not isinstance(metadata, dict):
+        return None
+    execution = metadata.get("execution")
+    execution = execution if isinstance(execution, dict) else {}
+    attempts = metadata.get("attempts")
+    attempts = attempts if isinstance(attempts, list) else []
+    provider = final_transport_provider(execution, metadata, *reversed(attempts))
+    search_status = metadata.get("search_status")
+    response_status = execution.get("response_status")
+    http_status_code = execution.get("http_status_code")
+    completed_at = execution.get("completed_at")
+    if (
+        search_status != "executed"
+        or response_status != "completed"
+        or type(http_status_code) is not int
+        or not 200 <= http_status_code < 300
+        or provider is None
+        or not isinstance(completed_at, str)
+        or not completed_at
+    ):
+        return None
+    required = {
+        "actual_model": metadata.get("actual_model"),
+        "response_id": metadata.get("response_id"),
+        "attempt_id": execution.get("attempt_id"),
+        "search_receipt_id": execution.get("search_receipt_id"),
+    }
+    if any(not isinstance(value, str) or not value for value in required.values()):
+        return None
+    source_urls = metadata.get("source_urls")
+    source_urls = (
+        [url for url in source_urls if isinstance(url, str)]
+        if isinstance(source_urls, list)
+        else []
+    )
+    return {
+        "provider": provider,
+        "request_id": metadata.get("request_id"),
+        "response_id": required["response_id"],
+        "actual_model": required["actual_model"],
+        "search_status": search_status,
+        "response_status": response_status,
+        "http_status_code": http_status_code,
+        "attempt_id": required["attempt_id"],
+        "prompt_sha256": execution.get("prompt_sha256"),
+        "search_receipt_id": required["search_receipt_id"],
+        "completed_at": completed_at,
+        "source_urls": source_urls,
+    }
+
+
 def _published_date_from_receipt(metadata: Mapping[str, Any]) -> Optional[str]:
     """Answer-level published date = the ONE distinct dated cited source.
 
@@ -418,19 +498,10 @@ class QABatchResult:
             attempts = attempts if isinstance(attempts, list) else []
             final_model = metadata.get("model_requested", requested_model)
             provider_candidates = [execution, metadata, *reversed(attempts)]
-            final_provider = next(
-                (
-                    candidate["provider"]
-                    for candidate in provider_candidates
-                    if isinstance(candidate, dict)
-                    and candidate.get("provider") in {"openai", "minimax", "mimo"}
-                    and (
-                        candidate.get("response_id")
-                        or type(candidate.get("http_status_code")) is int
-                    )
-                ),
-                None,
-            )
+            # r1 P2-2: single source of truth with the Q07 checkpoint path —
+            # same predicate, output behavior unchanged (guarded by the CLI
+            # integration suite).
+            final_provider = final_transport_provider(*provider_candidates)
             credible_attempts = [
                 attempt
                 for attempt in attempts

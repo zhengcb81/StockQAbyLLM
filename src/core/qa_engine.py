@@ -3,6 +3,7 @@
 该模块是系统的核心，负责协调问题处理的整个流程。
 """
 
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from src.config.settings import (
@@ -18,6 +19,54 @@ from src.utils.console_reporter import ConsoleReporter
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+def _checkpoint_created_at(provenance: Dict[str, Any]) -> Optional[datetime]:
+    """Original execution time from checkpoint provenance (r1 P1-2: hydrated
+    answers must never forge answer.created_at with the hydration wall
+    clock). None keeps the dataclass default when provenance lacks a
+    parseable timestamp."""
+    raw = provenance.get("response_completed_at")
+    if not isinstance(raw, str) or not raw:
+        return None
+    try:
+        return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _provenance_metadata(provenance: Dict[str, Any]) -> Dict[str, Any]:
+    """Answer-level metadata reconstructed from checkpoint provenance so the
+    output envelope keeps the ORIGINAL execution receipt for hydrated answers
+    (r1 P1-2: provider / search_status / answered_at must survive
+    hydration instead of collapsing to null / not_attempted)."""
+    actual_provider = provenance.get("actual_provider")
+    return {
+        "actual_model": provenance.get("actual_model"),
+        "model_requested": provenance.get("model_requested"),
+        "request_id": provenance.get("request_id"),
+        "response_id": provenance.get("response_id"),
+        "search_status": provenance.get("search_status"),
+        "source_urls": provenance.get("source_urls") or [],
+        "execution": {
+            "provider": actual_provider,
+            "response_status": provenance.get("response_status"),
+            "http_status_code": provenance.get("http_status_code"),
+            "completed_at": provenance.get("response_completed_at"),
+            "attempt_id": provenance.get("provider_attempt_id"),
+            "prompt_sha256": provenance.get("provider_prompt_sha256")
+            or provenance.get("work_prompt_sha256"),
+            "search_receipt_id": provenance.get("search_receipt_id"),
+        },
+        "attempts": [
+            {
+                "provider": actual_provider,
+                "response_id": provenance.get("response_id"),
+                "http_status_code": provenance.get("http_status_code"),
+                "requested_model": provenance.get("model_requested"),
+            }
+        ],
+    }
 
 
 class QAEngine:
@@ -155,6 +204,46 @@ class QAEngine:
                 except ValueError:
                     hook_question = None
                 if hook_question is not None:
+                    # Q07: hydrate a stored answer checkpoint BEFORE any claim
+                    # (JOB-03/PAR-04) — saved questions are never re-dispatched;
+                    # hooks without hydrate_question keep the Q06 behavior.
+                    hydrate = getattr(self.work_item_lifecycle, "hydrate_question", None)
+                    checkpoint = hydrate(hook_question) if callable(hydrate) else None
+                    if checkpoint is not None:
+                        payload = checkpoint.get("payload") or {}
+                        stored = payload.get("answer") or {}
+                        provenance = payload.get("provenance") or {}
+                        original_time = _checkpoint_created_at(provenance)
+                        created_kwargs = (
+                            {"created_at": original_time} if original_time is not None else {}
+                        )
+                        hydrated_result = QAResult(
+                            question=hook_question,
+                            answer=Answer(
+                                text=str(stored.get("description") or ""),
+                                score=stored.get("score"),
+                                status=str(stored.get("status") or "scored"),
+                                source="answer_checkpoint",
+                                metadata=_provenance_metadata(provenance),
+                                **created_kwargs,
+                            ),
+                            metadata={
+                                "answer_checkpoint": {
+                                    "hydrated": True,
+                                    "provenance": payload.get("provenance"),
+                                    "attempt_id": checkpoint.get("attempt_id"),
+                                    "work_item_id": checkpoint.get("work_item_id"),
+                                    "checkpointed_at": checkpoint.get("checkpointed_at"),
+                                }
+                            },
+                        )
+                        batch_result.add_result(hydrated_result)
+                        logger.info("[%d/%d] Q07 水合已存检查点", i, len(question_texts))
+                        hyd_msg = (
+                            f"[HYD] 复用检查点: {display_text[:DISPLAY_QUESTION_TRUNCATE]}...  "
+                        )
+                        self.progress_reporter.update_progress(i, len(question_texts), hyd_msg)
+                        continue
                     lifecycle_handle = self.work_item_lifecycle.before_question(hook_question)
                 if lifecycle_handle is None or not lifecycle_handle.get("claimed"):
                     reason = (lifecycle_handle or {}).get("reason") or "lifecycle_refused"

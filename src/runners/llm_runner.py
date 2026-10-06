@@ -151,7 +151,11 @@ class QuickScanWorkLifecycle:
         model_requested: str = "quick-scan",
         scope: str = "entity",
         scope_id: Optional[str] = None,
+        budget_policy: Optional[Dict[str, Any]] = None,
+        budget_route: Optional[Dict[str, Any]] = None,
     ) -> None:
+        if (budget_policy is None) != (budget_route is None):
+            raise ValueError("budget_policy and budget_route must be supplied together")
         self._store = store
         self._entity_id = entity_id
         self._run_id = run_id
@@ -165,6 +169,8 @@ class QuickScanWorkLifecycle:
         self._model_requested = model_requested
         self._scope = scope
         self._scope_id = scope_id or entity_id
+        self._budget_policy = budget_policy
+        self._budget_route = budget_route
 
     def before_question(self, question: Question) -> Dict[str, Any]:
         text = question.text.strip()
@@ -237,11 +243,17 @@ class QuickScanWorkLifecycle:
             )
             # P0-3: commit send intent before dispatch (transport semantics:
             # prepare -> mark_send_intent -> record outcome). Budget policy and
-            # route are supplied together; here both are None (no work-side
-            # budget reserve at mark time — Q09 wires that pair when its
-            # policy is active; bind_quick_scan_budget's dispatch-time reserve
-            # still covers the actual HTTP call).
-            self._store.mark_send_intent(work_item_id, lease, attempt["attempt_id"])
+            # route are supplied together (Q09 wiring seam); both None keeps
+            # the Q06 probe semantics (no work-side reserve at mark time —
+            # bind_quick_scan_budget's dispatch-time reserve still covers the
+            # actual HTTP call).
+            self._store.mark_send_intent(
+                work_item_id,
+                lease,
+                attempt["attempt_id"],
+                budget_policy=self._budget_policy,
+                budget_route=self._budget_route,
+            )
         except Exception as exc:  # noqa: BLE001
             logger.warning("attempt prepare/intent 失败（%s），本题不派发", exc)
             return {
@@ -257,15 +269,137 @@ class QuickScanWorkLifecycle:
             "attempt_id": attempt["attempt_id"],
         }
 
+    def hydrate_question(self, question: Question) -> Optional[Dict[str, Any]]:
+        """Q07: the stored answer checkpoint for this question's logical work
+        item (JOB-03/PAR-04) — an idempotent ATTACH plus a read-only lookup,
+        never a claim: the engine hydrates instead of re-dispatching. Never
+        raises (the claim path would create the same logical row anyway)."""
+        text = question.text.strip()
+        question_id = question.question_id or (
+            "Q_" + hashlib.sha256(text.encode("utf-8")).hexdigest()[:12].upper()
+        )
+        fingerprint = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        try:
+            row = self._store.create_or_attach(
+                entity_id=self._entity_id,
+                question_id=question_id,
+                generation=self._generation,
+                scope=self._scope,
+                scope_id=self._scope_id,
+                identity_revision=self._identity["identity_revision"],
+                source_binding_version=self._identity["source_binding_version"],
+                identity_state=self._identity["identity_state"],
+                source_binding_ref=self._identity["source_binding_ref"],
+                source_binding_refs=list(self._identity["source_binding_refs"]),
+                identity_snapshot_sha256=self._identity["identity_snapshot_sha256"],
+                question_fingerprint=fingerprint,
+                routing_fingerprint=self._routing_fingerprint,
+                run_id=self._run_id,
+                scan_id=self._scan_id,
+            )
+            checkpoint = self._store.get_answer_checkpoint(row["work_item_id"])
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("hydrate check skipped (%s)", exc)
+            return None
+        if checkpoint:
+            logger.info("Q07 水合已存检查点（%s）", question_id)
+        return checkpoint
+
     def after_question(self, handle: Dict[str, Any], result: Any) -> None:
+        # Q07 layering (r2 P2-r2-1: no absolute claims): with a
+        # checkpoint-quality receipt the store closes the attempt
+        # (response_available) and persists the answer. EVERY deterministic
+        # input precondition is pre-checked before any state is recorded
+        # (verified identity, answer shape/I05, the route this attempt
+        # prepared, plus the full save input surface via _preflight); the
+        # non-preflightable window after a committed record (crash / lease
+        # race / DB error) is never double-recorded and is handed to lease
+        # recovery. Anything less stays on the Q06 honest-unknown path
+        # (no fabricated success).
+        if result is not None and self._identity.get("identity_state") == "verified":
+            receipt = None
+            answer_payload = None
+            try:
+                from src.core.models import execution_receipt_for_checkpoint
+
+                receipt = execution_receipt_for_checkpoint(
+                    getattr(getattr(result, "answer", None), "metadata", None)
+                )
+                question_id = getattr(getattr(result, "question", None), "question_id", None)
+                answer = getattr(result, "answer", None)
+                if receipt is not None and question_id and answer is not None:
+                    status = getattr(answer, "status", None)
+                    score = getattr(answer, "score", None)
+                    shape_ok = (
+                        status in {"scored", "unknown", "insufficient_evidence", "not_applicable"}
+                        and (
+                            type(score) is int and 1 <= score <= 10
+                            if status == "scored"
+                            else score is None
+                        )
+                        and receipt.get("actual_model") == self._model_requested
+                    )
+                    if shape_ok:
+                        answer_payload = {
+                            "entity_id": self._entity_id,
+                            "question_id": question_id,
+                            "status": status,
+                            "score": score,
+                            "description": getattr(answer, "text", ""),
+                        }
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("checkpoint receipt build skipped (%s)", exc)
+            if receipt is not None and answer_payload is not None:
+                # r1 P1-1: the FULL deterministic save surface runs first, with
+                # zero state recorded — a rejected input falls back to the
+                # honest-unknown path instead of stranding the attempt between
+                # response_available and a missing checkpoint.
+                try:
+                    _preflight_checkpoint(answer_payload, receipt)
+                except ValueError as exc:
+                    logger.warning("检查点预检拒绝（%s）——零状态降级为诚实 unknown", exc)
+                    receipt = None
+            if receipt is not None and answer_payload is not None:
+                recorded = False
+                try:
+                    from src.utils.quick_scan_work_store import (
+                        quick_scan_receipt_sha256,
+                    )
+
+                    receipt_sha256 = quick_scan_receipt_sha256(receipt)
+                    self._store.record_attempt_outcome(
+                        handle["work_item_id"],
+                        handle["lease"],
+                        handle["attempt_id"],
+                        outcome="response_available",
+                        receipt_sha256=receipt_sha256,
+                        http_status_code=receipt["http_status_code"],
+                        request_id=receipt.get("request_id"),
+                    )
+                    recorded = True
+                    self._store.save_answer_checkpoint(
+                        handle["work_item_id"],
+                        handle["lease"],
+                        handle["attempt_id"],
+                        answer=answer_payload,
+                        execution_receipt=receipt,
+                    )
+                    logger.info("Q07 检查点已存（%s）", answer_payload["question_id"])
+                    return
+                except Exception as exc:  # noqa: BLE001
+                    if recorded:
+                        # phase already committed to response_available: never
+                        # double-record; lease recovery owns the rest.
+                        logger.error("检查点已收执但保存异常（%s）——交由恢复流程", exc)
+                        return
+                    logger.warning("收执记录未完成（%s）——降级为诚实 unknown", exc)
         try:
             # P0-3/r1: response_available requires a REAL transport receipt +
-            # 2xx (store rejects fabrication); at the engine seam no transport
-            # receipt exists, so the honest outcome is "unknown" -> attempt
-            # phase uncertain, work_item->uncertain (lease cleared: claim can
-            # never re-dispatch it; C04 treats uncertain as resume, not a fresh
-            # dispatch). Q07's answer checkpoint upgrades this to result_ready
-            # with content-addressed evidence when that card lands.
+            # 2xx (store rejects fabrication); at the engine seam without a
+            # checkpoint-quality receipt the honest outcome is "unknown" ->
+            # attempt phase uncertain, work_item->uncertain (lease cleared:
+            # claim can never re-dispatch it; C04 treats uncertain as resume,
+            # not a fresh dispatch).
             self._store.record_attempt_outcome(
                 handle["work_item_id"],
                 handle["lease"],
@@ -289,6 +423,139 @@ class QuickScanWorkLifecycle:
             )
         except Exception as exc:  # noqa: BLE001
             logger.error("record_attempt_outcome(failed) 失败（%s）", exc)
+
+
+def _preflight_checkpoint(answer_payload: Dict[str, Any], receipt: Dict[str, Any]) -> None:
+    """Run EVERY input validation ``save_answer_checkpoint`` applies BEFORE any
+    state is recorded (r1 P1-1), using the store's own validators so the
+    pre-flight and the save can never disagree. Raises ValueError when the
+    answer/receipt is not checkpoint-quality — the caller then falls back to
+    the Q06 honest-unknown path with zero recorded state (no strand)."""
+    from src.utils.quick_scan_work_store import (
+        _ENTITY_ID,
+        _canonical_source_urls,
+        _safe,
+        _safe_text,
+        _sanitized_receipt,
+        _timestamp,
+        quick_scan_receipt_sha256,
+    )
+
+    if set(answer_payload) != {
+        "entity_id",
+        "question_id",
+        "status",
+        "score",
+        "description",
+    }:
+        raise ValueError("answer must match the normalized checkpoint contract")
+    if not _ENTITY_ID.fullmatch(_safe(answer_payload["entity_id"], "entity_id")):
+        raise ValueError("invalid answer entity_id")
+    _safe(answer_payload["question_id"], "question_id")
+    if answer_payload["status"] not in {
+        "scored",
+        "unknown",
+        "insufficient_evidence",
+        "not_applicable",
+    }:
+        raise ValueError("answer status is not reusable")
+    score = answer_payload["score"]
+    if answer_payload["status"] == "scored":
+        if type(score) is not int or not 1 <= score <= 10:
+            raise ValueError("scored answer requires an integer score from 1 to 10")
+    elif score is not None:
+        raise ValueError("non-scored answer must have a null score")
+    _safe_text(answer_payload["description"], "answer description", maximum=5000)
+    if not isinstance(receipt, dict):
+        raise ValueError("execution receipt is required")
+    sanitized = _sanitized_receipt(receipt)
+    if not sanitized:
+        raise ValueError("execution receipt is empty")
+    if sanitized.get("search_status") != "executed":
+        raise ValueError("answer checkpoint requires a verified search")
+    if sanitized.get("provider") not in {"openai", "minimax", "mimo"}:
+        raise ValueError("execution receipt has no verified provider")
+    _safe_text(sanitized.get("actual_model"), "actual_model", maximum=160)
+    _safe_text(sanitized.get("response_id"), "response_id", maximum=300)
+    _safe_text(sanitized.get("attempt_id"), "attempt_id", maximum=300)
+    _safe_text(sanitized.get("search_receipt_id"), "search_receipt_id", maximum=300)
+    if sanitized.get("response_status") != "completed":
+        raise ValueError("execution receipt response is not complete")
+    http_status_code = sanitized.get("http_status_code")
+    if type(http_status_code) is not int or not 200 <= http_status_code < 300:
+        raise ValueError("execution receipt has no successful HTTP status")
+    _timestamp(sanitized.get("completed_at"), "response completion timestamp")
+    _canonical_source_urls(sanitized.get("source_urls"))
+    if sanitized.get("request_id") is not None:
+        _safe_text(sanitized.get("request_id"), "request_id", maximum=300)
+    quick_scan_receipt_sha256(receipt)
+
+
+def recovery_report(store: QuickScanWorkStore, *, run_id: str, scan_id: str) -> Dict[str, Any]:
+    """Q07/JOB-04: read-only four-point crash partition for one run.
+
+    Every item of the run lands in EXACTLY ONE bucket — no silent task loss:
+    * ``pre_dispatch`` — pending (or leased without send intent): never sent,
+      no cost, safe to re-dispatch;
+    * ``unknown_in_flight`` — uncertain (or leased after send intent): the
+      response is unknown — listed separately, never blindly re-POSTed;
+    * ``persisted`` — has an answer checkpoint: never re-asked;
+    * ``import_ack_pending`` — result_ready/delivered without checkpoint yet
+      in the import/ACK flow (Q10's domain — annotated, re-import only);
+    * ``cancelled`` — state change, history kept (JOB-05).
+    """
+    items = store.list_run_items(run_id, scan_id)
+    report: Dict[str, Any] = {
+        "pre_dispatch": [],
+        "unknown_in_flight": [],
+        "persisted": [],
+        "import_ack_pending": [],
+        "cancelled": [],
+        "q10_import_ack_note": ("pre-ACK imports are Q10's domain: re-import only, never re-ask"),
+    }
+    for item in items:
+        work_item_id = item["work_item_id"]
+        try:
+            checkpoint = store.get_answer_checkpoint(work_item_id)
+        except Exception:  # noqa: BLE001
+            checkpoint = None
+        if checkpoint is not None:
+            report["persisted"].append(work_item_id)
+            continue
+        status = item.get("status")
+        if status == "pending":
+            report["pre_dispatch"].append(work_item_id)
+        elif status == "cancelled":
+            report["cancelled"].append(work_item_id)
+        elif status == "uncertain":
+            report["unknown_in_flight"].append(work_item_id)
+        elif status == "leased":
+            attempts = store.list_attempts(work_item_id)
+            sent = any(
+                attempt.get("phase") not in {"prepared", "abandoned_unsent"} for attempt in attempts
+            )
+            bucket = "unknown_in_flight" if sent else "pre_dispatch"
+            report[bucket].append(work_item_id)
+        elif status in {"result_ready", "delivered"}:
+            report["import_ack_pending"].append(work_item_id)
+        else:
+            report["unknown_in_flight"].append(work_item_id)
+    return report
+
+
+def cancel_pending_work(store: QuickScanWorkStore, work_item_ids: List[str]) -> Dict[str, str]:
+    """Q07/JOB-05: cancel not-yet-run work by STATE CHANGE (history kept).
+
+    Pending -> cancelled (idempotent); anything already running is refused
+    by name — never silently cancelled, never deleted.
+    """
+    outcomes: Dict[str, str] = {}
+    for work_item_id in work_item_ids:
+        try:
+            outcomes[work_item_id] = store.cancel_pending(work_item_id)
+        except Exception as exc:  # noqa: BLE001
+            outcomes[work_item_id] = f"refused:{type(exc).__name__}"
+    return outcomes
 
 
 def load_stock_list(file_path: str) -> list[str]:
