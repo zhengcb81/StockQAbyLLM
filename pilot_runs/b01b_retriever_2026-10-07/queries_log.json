@@ -1,0 +1,542 @@
+[
+ {
+  "listing_key": "CN-A:300750",
+  "qidx": 0,
+  "question_id": "IQS_01",
+  "query": "宁德时代 客户购买公司的产品或服务，是否获得足以支持持续付费的真实价值？"
+ },
+ {
+  "listing_key": "CN-A:300750",
+  "qidx": 1,
+  "question_id": "IQS_02",
+  "query": "宁德时代 现有收入在不持续加大获客或补贴投入的情况下，有多大比例能够延续？"
+ },
+ {
+  "listing_key": "CN-A:300750",
+  "qidx": 2,
+  "question_id": "IQS_04",
+  "query": "宁德时代 行业的供需和价值链分配，是否允许这家公司长期留下合理利润？"
+ },
+ {
+  "listing_key": "CN-A:300750",
+  "qidx": 3,
+  "question_id": "IQS_05",
+  "query": "宁德时代 公司在明确业务与时间范围内最主要的竞争优势，是否有实际证据且对手难以用合理成本复制？"
+ },
+ {
+  "listing_key": "CN-A:300750",
+  "qidx": 4,
+  "question_id": "IQS_06",
+  "query": "宁德时代 公司的竞争地位有多稳固，变化趋势是否支持这种稳固性？单列增强/稳定/恶化，不因上升速度本身加分。"
+ },
+ {
+  "listing_key": "CN-A:300750",
+  "qidx": 5,
+  "question_id": "IQS_07",
+  "query": "宁德时代 管理层过去对经营目标和重大项目的承诺，兑现得如何？"
+ },
+ {
+  "listing_key": "CN-A:300750",
+  "qidx": 6,
+  "question_id": "IQS_08",
+  "query": "宁德时代 扩大规模或遇到需求波动时，公司能否保持交付质量与成本纪律？"
+ },
+ {
+  "listing_key": "CN-A:300750",
+  "qidx": 7,
+  "question_id": "IQS_09",
+  "query": "宁德时代 组织能力是否足以延续，而不过度依赖少数关键个人？"
+ },
+ {
+  "listing_key": "CN-A:300750",
+  "qidx": 8,
+  "question_id": "IQS_10",
+  "query": "宁德时代 在正常景气和合理杠杆下，存量业务对必需资本的回报是否持续超过资金成本？"
+ },
+ {
+  "listing_key": "CN-A:300750",
+  "qidx": 9,
+  "question_id": "IQS_12",
+  "query": "宁德时代 资产、负债和利润的披露，是否足以可信地反映真实经济状况？"
+ },
+ {
+  "listing_key": "CN-A:300750",
+  "qidx": 10,
+  "question_id": "IQS_13",
+  "query": "宁德时代 管理层和控制人是否有公平对待普通股东的实际记录？"
+ },
+ {
+  "listing_key": "CN-A:300750",
+  "qidx": 11,
+  "question_id": "IQS_14",
+  "query": "宁德时代 历次再投资、并购、分红和回购，是否真正增加了每股经济价值？"
+ },
+ {
+  "listing_key": "CN-A:300750",
+  "qidx": 12,
+  "question_id": "IQS_15",
+  "query": "宁德时代 薪酬、股权激励和监督机制，是否鼓励长期每股回报而非短期做大数字？"
+ },
+ {
+  "listing_key": "CN-A:300750",
+  "qidx": 13,
+  "question_id": "IQS_16",
+  "query": "宁德时代 在合理压力情景下，不依赖乐观再融资，公司能否履行未来两年的刚性义务？"
+ },
+ {
+  "listing_key": "CN-A:300750",
+  "qidx": 14,
+  "question_id": "IQS_17",
+  "query": "宁德时代 失去关键客户、供应来源、产地或系统时，公司能否在可承受代价内恢复？"
+ },
+ {
+  "listing_key": "CN-A:300750",
+  "qidx": 15,
+  "question_id": "IQS_18",
+  "query": "宁德时代 最可能永久损害核心业务价值的一至两项实质变化，哪些会绕过现有优势，公司有哪些经验证的防御？"
+ },
+ {
+  "listing_key": "CN-A:300750",
+  "qidx": 16,
+  "question_id": "IQS_19",
+  "query": "宁德时代 未来三至五年，公司真正能触达且客户付得起的新增需求有多大？"
+ },
+ {
+  "listing_key": "CN-A:300750",
+  "qidx": 17,
+  "question_id": "IQS_20",
+  "query": "宁德时代 未来增长的主要驱动是否已被验证能从客户需求转为可持续利润，并扣除对存量业务、必要投入与股权融资的影响？"
+ },
+ {
+  "listing_key": "CN-A:300750",
+  "qidx": 18,
+  "question_id": "IQS_21",
+  "query": "宁德时代 新增资本在扣除存量业务被替代、转型投入和融资摊薄后，是否仍有吸引力的每股回报与足够再投资空间？"
+ },
+ {
+  "listing_key": "CN-A:300750",
+  "qidx": 19,
+  "question_id": "IQS_22",
+  "query": "宁德时代 当前价格隐含的增长、利润率和资本回报要求，是否在证据支持的能力范围内？"
+ },
+ {
+  "listing_key": "CN-A:300750",
+  "qidx": 20,
+  "question_id": "IQS_23",
+  "query": "宁德时代 在有依据的悲观情景下，普通股永久损失的可能性和幅度是否可承受？"
+ },
+ {
+  "listing_key": "CN-A:300750",
+  "qidx": 21,
+  "question_id": "IQS_24",
+  "query": "宁德时代 基本面价值通过什么机制、在多长时间内转成普通股东的实际回报，这条路径是否可靠？"
+ },
+ {
+  "listing_key": "CN-A:300750",
+  "qidx": 22,
+  "question_id": "OPERATING_01",
+  "query": "宁德时代 扣除维护性资本开支与必要营运资本后，现金创造能力如何？"
+ },
+ {
+  "listing_key": "CN-A:300750",
+  "qidx": 23,
+  "question_id": "INDUSTRIAL_01",
+  "query": "宁德时代 设备可靠性、客户认证和服务网络能否保持竞争优势？"
+ },
+ {
+  "listing_key": "CN-A:300750",
+  "qidx": 24,
+  "question_id": "INDUSTRIAL_02",
+  "query": "宁德时代 订单在取消、验收、质保和收款后具备多高利润确定性？"
+ },
+ {
+  "listing_key": "CN-A:300750",
+  "qidx": 25,
+  "question_id": "MATURE_01",
+  "query": "宁德时代 成熟业务的需求与现金创造能否在合理期限内维持？"
+ },
+ {
+  "listing_key": "CN-A:300750",
+  "qidx": 26,
+  "question_id": "MATURE_02",
+  "query": "宁德时代 当高回报扩张机会减少时，资本配置是否及时转向每股价值？"
+ },
+ {
+  "listing_key": "CN-A:300750",
+  "qidx": 27,
+  "question_id": "CYCLICAL_01",
+  "query": "宁德时代 剔除峰谷价格与利用率后，中周期回报是否创造价值？"
+ },
+ {
+  "listing_key": "CN-A:300750",
+  "qidx": 28,
+  "question_id": "CYCLICAL_02",
+  "query": "宁德时代 在历史可比低谷下，存续和必要投资能力如何？"
+ },
+ {
+  "listing_key": "CN-A:300750",
+  "qidx": 29,
+  "question_id": "CROSS_BORDER_01",
+  "query": "宁德时代 汇率、关税和跨境资金限制的净敞口是否可承受？"
+ },
+ {
+  "listing_key": "HK:06066",
+  "qidx": 0,
+  "question_id": "IQS_01",
+  "query": "中信建投证券 客户购买公司的产品或服务，是否获得足以支持持续付费的真实价值？"
+ },
+ {
+  "listing_key": "HK:06066",
+  "qidx": 1,
+  "question_id": "IQS_02",
+  "query": "中信建投证券 现有收入在不持续加大获客或补贴投入的情况下，有多大比例能够延续？"
+ },
+ {
+  "listing_key": "HK:06066",
+  "qidx": 2,
+  "question_id": "IQS_04",
+  "query": "中信建投证券 行业的供需和价值链分配，是否允许这家公司长期留下合理利润？"
+ },
+ {
+  "listing_key": "HK:06066",
+  "qidx": 3,
+  "question_id": "IQS_05",
+  "query": "中信建投证券 公司在明确业务与时间范围内最主要的竞争优势，是否有实际证据且对手难以用合理成本复制？"
+ },
+ {
+  "listing_key": "HK:06066",
+  "qidx": 4,
+  "question_id": "IQS_06",
+  "query": "中信建投证券 公司的竞争地位有多稳固，变化趋势是否支持这种稳固性？单列增强/稳定/恶化，不因上升速度本身加分。"
+ },
+ {
+  "listing_key": "HK:06066",
+  "qidx": 5,
+  "question_id": "IQS_07",
+  "query": "中信建投证券 管理层过去对经营目标和重大项目的承诺，兑现得如何？"
+ },
+ {
+  "listing_key": "HK:06066",
+  "qidx": 6,
+  "question_id": "IQS_08",
+  "query": "中信建投证券 扩大规模或遇到需求波动时，公司能否保持交付质量与成本纪律？"
+ },
+ {
+  "listing_key": "HK:06066",
+  "qidx": 7,
+  "question_id": "IQS_09",
+  "query": "中信建投证券 组织能力是否足以延续，而不过度依赖少数关键个人？"
+ },
+ {
+  "listing_key": "HK:06066",
+  "qidx": 8,
+  "question_id": "IQS_10",
+  "query": "中信建投证券 在正常景气和合理杠杆下，存量业务对必需资本的回报是否持续超过资金成本？"
+ },
+ {
+  "listing_key": "HK:06066",
+  "qidx": 9,
+  "question_id": "IQS_12",
+  "query": "中信建投证券 资产、负债和利润的披露，是否足以可信地反映真实经济状况？"
+ },
+ {
+  "listing_key": "HK:06066",
+  "qidx": 10,
+  "question_id": "IQS_13",
+  "query": "中信建投证券 管理层和控制人是否有公平对待普通股东的实际记录？"
+ },
+ {
+  "listing_key": "HK:06066",
+  "qidx": 11,
+  "question_id": "IQS_14",
+  "query": "中信建投证券 历次再投资、并购、分红和回购，是否真正增加了每股经济价值？"
+ },
+ {
+  "listing_key": "HK:06066",
+  "qidx": 12,
+  "question_id": "IQS_15",
+  "query": "中信建投证券 薪酬、股权激励和监督机制，是否鼓励长期每股回报而非短期做大数字？"
+ },
+ {
+  "listing_key": "HK:06066",
+  "qidx": 13,
+  "question_id": "IQS_16",
+  "query": "中信建投证券 在合理压力情景下，不依赖乐观再融资，公司能否履行未来两年的刚性义务？"
+ },
+ {
+  "listing_key": "HK:06066",
+  "qidx": 14,
+  "question_id": "IQS_17",
+  "query": "中信建投证券 失去关键客户、供应来源、产地或系统时，公司能否在可承受代价内恢复？"
+ },
+ {
+  "listing_key": "HK:06066",
+  "qidx": 15,
+  "question_id": "IQS_18",
+  "query": "中信建投证券 最可能永久损害核心业务价值的一至两项实质变化，哪些会绕过现有优势，公司有哪些经验证的防御？"
+ },
+ {
+  "listing_key": "HK:06066",
+  "qidx": 16,
+  "question_id": "IQS_19",
+  "query": "中信建投证券 未来三至五年，公司真正能触达且客户付得起的新增需求有多大？"
+ },
+ {
+  "listing_key": "HK:06066",
+  "qidx": 17,
+  "question_id": "IQS_20",
+  "query": "中信建投证券 未来增长的主要驱动是否已被验证能从客户需求转为可持续利润，并扣除对存量业务、必要投入与股权融资的影响？"
+ },
+ {
+  "listing_key": "HK:06066",
+  "qidx": 18,
+  "question_id": "IQS_21",
+  "query": "中信建投证券 新增资本在扣除存量业务被替代、转型投入和融资摊薄后，是否仍有吸引力的每股回报与足够再投资空间？"
+ },
+ {
+  "listing_key": "HK:06066",
+  "qidx": 19,
+  "question_id": "IQS_22",
+  "query": "中信建投证券 当前价格隐含的增长、利润率和资本回报要求，是否在证据支持的能力范围内？"
+ },
+ {
+  "listing_key": "HK:06066",
+  "qidx": 20,
+  "question_id": "IQS_23",
+  "query": "中信建投证券 在有依据的悲观情景下，普通股永久损失的可能性和幅度是否可承受？"
+ },
+ {
+  "listing_key": "HK:06066",
+  "qidx": 21,
+  "question_id": "IQS_24",
+  "query": "中信建投证券 基本面价值通过什么机制、在多长时间内转成普通股东的实际回报，这条路径是否可靠？"
+ },
+ {
+  "listing_key": "HK:06066",
+  "qidx": 22,
+  "question_id": "OPERATING_01",
+  "query": "中信建投证券 扣除维护性资本开支与必要营运资本后，现金创造能力如何？"
+ },
+ {
+  "listing_key": "HK:06066",
+  "qidx": 23,
+  "question_id": "INDUSTRIAL_01",
+  "query": "中信建投证券 设备可靠性、客户认证和服务网络能否保持竞争优势？"
+ },
+ {
+  "listing_key": "HK:06066",
+  "qidx": 24,
+  "question_id": "INDUSTRIAL_02",
+  "query": "中信建投证券 订单在取消、验收、质保和收款后具备多高利润确定性？"
+ },
+ {
+  "listing_key": "HK:06066",
+  "qidx": 25,
+  "question_id": "MATURE_01",
+  "query": "中信建投证券 成熟业务的需求与现金创造能否在合理期限内维持？"
+ },
+ {
+  "listing_key": "HK:06066",
+  "qidx": 26,
+  "question_id": "MATURE_02",
+  "query": "中信建投证券 当高回报扩张机会减少时，资本配置是否及时转向每股价值？"
+ },
+ {
+  "listing_key": "HK:06066",
+  "qidx": 27,
+  "question_id": "CYCLICAL_01",
+  "query": "中信建投证券 剔除峰谷价格与利用率后，中周期回报是否创造价值？"
+ },
+ {
+  "listing_key": "HK:06066",
+  "qidx": 28,
+  "question_id": "CYCLICAL_02",
+  "query": "中信建投证券 在历史可比低谷下，存续和必要投资能力如何？"
+ },
+ {
+  "listing_key": "HK:06066",
+  "qidx": 29,
+  "question_id": "CROSS_BORDER_01",
+  "query": "中信建投证券 汇率、关税和跨境资金限制的净敞口是否可承受？"
+ },
+ {
+  "listing_key": "US:NASDAQ:GOOGL-b01",
+  "qidx": 0,
+  "question_id": "IQS_01",
+  "query": "Alphabet 客户购买公司的产品或服务，是否获得足以支持持续付费的真实价值？"
+ },
+ {
+  "listing_key": "US:NASDAQ:GOOGL-b01",
+  "qidx": 1,
+  "question_id": "IQS_02",
+  "query": "Alphabet 现有收入在不持续加大获客或补贴投入的情况下，有多大比例能够延续？"
+ },
+ {
+  "listing_key": "US:NASDAQ:GOOGL-b01",
+  "qidx": 2,
+  "question_id": "IQS_04",
+  "query": "Alphabet 行业的供需和价值链分配，是否允许这家公司长期留下合理利润？"
+ },
+ {
+  "listing_key": "US:NASDAQ:GOOGL-b01",
+  "qidx": 3,
+  "question_id": "IQS_05",
+  "query": "Alphabet 公司在明确业务与时间范围内最主要的竞争优势，是否有实际证据且对手难以用合理成本复制？"
+ },
+ {
+  "listing_key": "US:NASDAQ:GOOGL-b01",
+  "qidx": 4,
+  "question_id": "IQS_06",
+  "query": "Alphabet 公司的竞争地位有多稳固，变化趋势是否支持这种稳固性？单列增强/稳定/恶化，不因上升速度本身加分。"
+ },
+ {
+  "listing_key": "US:NASDAQ:GOOGL-b01",
+  "qidx": 5,
+  "question_id": "IQS_07",
+  "query": "Alphabet 管理层过去对经营目标和重大项目的承诺，兑现得如何？"
+ },
+ {
+  "listing_key": "US:NASDAQ:GOOGL-b01",
+  "qidx": 6,
+  "question_id": "IQS_08",
+  "query": "Alphabet 扩大规模或遇到需求波动时，公司能否保持交付质量与成本纪律？"
+ },
+ {
+  "listing_key": "US:NASDAQ:GOOGL-b01",
+  "qidx": 7,
+  "question_id": "IQS_09",
+  "query": "Alphabet 组织能力是否足以延续，而不过度依赖少数关键个人？"
+ },
+ {
+  "listing_key": "US:NASDAQ:GOOGL-b01",
+  "qidx": 8,
+  "question_id": "IQS_10",
+  "query": "Alphabet 在正常景气和合理杠杆下，存量业务对必需资本的回报是否持续超过资金成本？"
+ },
+ {
+  "listing_key": "US:NASDAQ:GOOGL-b01",
+  "qidx": 9,
+  "question_id": "IQS_12",
+  "query": "Alphabet 资产、负债和利润的披露，是否足以可信地反映真实经济状况？"
+ },
+ {
+  "listing_key": "US:NASDAQ:GOOGL-b01",
+  "qidx": 10,
+  "question_id": "IQS_13",
+  "query": "Alphabet 管理层和控制人是否有公平对待普通股东的实际记录？"
+ },
+ {
+  "listing_key": "US:NASDAQ:GOOGL-b01",
+  "qidx": 11,
+  "question_id": "IQS_14",
+  "query": "Alphabet 历次再投资、并购、分红和回购，是否真正增加了每股经济价值？"
+ },
+ {
+  "listing_key": "US:NASDAQ:GOOGL-b01",
+  "qidx": 12,
+  "question_id": "IQS_15",
+  "query": "Alphabet 薪酬、股权激励和监督机制，是否鼓励长期每股回报而非短期做大数字？"
+ },
+ {
+  "listing_key": "US:NASDAQ:GOOGL-b01",
+  "qidx": 13,
+  "question_id": "IQS_16",
+  "query": "Alphabet 在合理压力情景下，不依赖乐观再融资，公司能否履行未来两年的刚性义务？"
+ },
+ {
+  "listing_key": "US:NASDAQ:GOOGL-b01",
+  "qidx": 14,
+  "question_id": "IQS_17",
+  "query": "Alphabet 失去关键客户、供应来源、产地或系统时，公司能否在可承受代价内恢复？"
+ },
+ {
+  "listing_key": "US:NASDAQ:GOOGL-b01",
+  "qidx": 15,
+  "question_id": "IQS_18",
+  "query": "Alphabet 最可能永久损害核心业务价值的一至两项实质变化，哪些会绕过现有优势，公司有哪些经验证的防御？"
+ },
+ {
+  "listing_key": "US:NASDAQ:GOOGL-b01",
+  "qidx": 16,
+  "question_id": "IQS_19",
+  "query": "Alphabet 未来三至五年，公司真正能触达且客户付得起的新增需求有多大？"
+ },
+ {
+  "listing_key": "US:NASDAQ:GOOGL-b01",
+  "qidx": 17,
+  "question_id": "IQS_20",
+  "query": "Alphabet 未来增长的主要驱动是否已被验证能从客户需求转为可持续利润，并扣除对存量业务、必要投入与股权融资的影响？"
+ },
+ {
+  "listing_key": "US:NASDAQ:GOOGL-b01",
+  "qidx": 18,
+  "question_id": "IQS_21",
+  "query": "Alphabet 新增资本在扣除存量业务被替代、转型投入和融资摊薄后，是否仍有吸引力的每股回报与足够再投资空间？"
+ },
+ {
+  "listing_key": "US:NASDAQ:GOOGL-b01",
+  "qidx": 19,
+  "question_id": "IQS_22",
+  "query": "Alphabet 当前价格隐含的增长、利润率和资本回报要求，是否在证据支持的能力范围内？"
+ },
+ {
+  "listing_key": "US:NASDAQ:GOOGL-b01",
+  "qidx": 20,
+  "question_id": "IQS_23",
+  "query": "Alphabet 在有依据的悲观情景下，普通股永久损失的可能性和幅度是否可承受？"
+ },
+ {
+  "listing_key": "US:NASDAQ:GOOGL-b01",
+  "qidx": 21,
+  "question_id": "IQS_24",
+  "query": "Alphabet 基本面价值通过什么机制、在多长时间内转成普通股东的实际回报，这条路径是否可靠？"
+ },
+ {
+  "listing_key": "US:NASDAQ:GOOGL-b01",
+  "qidx": 22,
+  "question_id": "OPERATING_01",
+  "query": "Alphabet 扣除维护性资本开支与必要营运资本后，现金创造能力如何？"
+ },
+ {
+  "listing_key": "US:NASDAQ:GOOGL-b01",
+  "qidx": 23,
+  "question_id": "INDUSTRIAL_01",
+  "query": "Alphabet 设备可靠性、客户认证和服务网络能否保持竞争优势？"
+ },
+ {
+  "listing_key": "US:NASDAQ:GOOGL-b01",
+  "qidx": 24,
+  "question_id": "INDUSTRIAL_02",
+  "query": "Alphabet 订单在取消、验收、质保和收款后具备多高利润确定性？"
+ },
+ {
+  "listing_key": "US:NASDAQ:GOOGL-b01",
+  "qidx": 25,
+  "question_id": "MATURE_01",
+  "query": "Alphabet 成熟业务的需求与现金创造能否在合理期限内维持？"
+ },
+ {
+  "listing_key": "US:NASDAQ:GOOGL-b01",
+  "qidx": 26,
+  "question_id": "MATURE_02",
+  "query": "Alphabet 当高回报扩张机会减少时，资本配置是否及时转向每股价值？"
+ },
+ {
+  "listing_key": "US:NASDAQ:GOOGL-b01",
+  "qidx": 27,
+  "question_id": "CYCLICAL_01",
+  "query": "Alphabet 剔除峰谷价格与利用率后，中周期回报是否创造价值？"
+ },
+ {
+  "listing_key": "US:NASDAQ:GOOGL-b01",
+  "qidx": 28,
+  "question_id": "CYCLICAL_02",
+  "query": "Alphabet 在历史可比低谷下，存续和必要投资能力如何？"
+ },
+ {
+  "listing_key": "US:NASDAQ:GOOGL-b01",
+  "qidx": 29,
+  "question_id": "CROSS_BORDER_01",
+  "query": "Alphabet 汇率、关税和跨境资金限制的净敞口是否可承受？"
+ }
+]

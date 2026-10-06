@@ -1,0 +1,36 @@
+{
+ "schema": "b01b_retriever_compare/1",
+ "run_at": "2026-10-07T00:00:00Z",
+ "budget": {
+  "calls_used": 240,
+  "search_request_cap": 500
+ },
+ "stats": {
+  "calls": {
+   "brave": 120,
+   "tavily": 120
+  },
+  "errors": []
+ },
+ "comparison": {
+  "CN-A:300750": {
+   "brave_urls": 202,
+   "tavily_urls": 64,
+   "overlap": 8,
+   "jaccard": 0.031
+  },
+  "HK:06066": {
+   "brave_urls": 176,
+   "tavily_urls": 60,
+   "overlap": 5,
+   "jaccard": 0.0216
+  },
+  "US:NASDAQ:GOOGL": {
+   "brave_urls": 171,
+   "tavily_urls": 61,
+   "overlap": 4,
+   "jaccard": 0.0175
+  }
+ },
+ "queries_sha256": "24cb0bafba6cce26579731805eb98995da4712052df9fea26a23b214374f9f0c"
+}
