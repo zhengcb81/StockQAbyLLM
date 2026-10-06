@@ -1007,8 +1007,16 @@ class OrderedSearchProviderCascade(SearchProvider):
         return True
 
     def _preferred_route_busy(self, route_id: str) -> bool:
-        from src.utils.quick_scan_work_transport import _BUDGET_BINDING
+        from src.utils.quick_scan_work_transport import (
+            _BUDGET_BINDING,
+            own_reservation_held,
+        )
 
+        # Q09: while THIS dispatch holds its own mark-time reservation the
+        # route must not be treated as busy by its own wait loop (admission
+        # already enforced capacity atomically at reserve time).
+        if own_reservation_held():
+            return False
         budget = _BUDGET_BINDING.get()
         if budget is None:
             return False

@@ -153,6 +153,7 @@ class QuickScanWorkLifecycle:
         scope_id: Optional[str] = None,
         budget_policy: Optional[Dict[str, Any]] = None,
         budget_route: Optional[Dict[str, Any]] = None,
+        deadline: Optional[float] = None,
     ) -> None:
         if (budget_policy is None) != (budget_route is None):
             raise ValueError("budget_policy and budget_route must be supplied together")
@@ -171,8 +172,16 @@ class QuickScanWorkLifecycle:
         self._scope_id = scope_id or entity_id
         self._budget_policy = budget_policy
         self._budget_route = budget_route
+        self._deadline = deadline
 
     def before_question(self, question: Question) -> Dict[str, Any]:
+        # Q09 step3: the time cap stops NEW dispatch only — no claim, no
+        # request, and the work item stays pending (already-claimed work
+        # keeps settling through its normal after_* path).
+        if self._deadline is not None and time.monotonic() > self._deadline:
+            logger.warning("时间上限已到，停止新派发")
+            return {"claimed": False, "reason": "time_cap_reached"}
+
         text = question.text.strip()
         question_id = question.question_id or (
             "Q_" + hashlib.sha256(text.encode("utf-8")).hexdigest()[:12].upper()
@@ -200,7 +209,10 @@ class QuickScanWorkLifecycle:
             lease = self._store.claim(work_item_id, lease_seconds=self._lease_seconds)
         except Exception as exc:  # noqa: BLE001 - store refusals degrade to skip
             logger.warning("work claim 异常（%s: %s），本题不派发", type(exc).__name__, exc)
-            return {"claimed": False, "reason": f"store_error:{type(exc).__name__}"}
+            return {
+                "claimed": False,
+                "reason": f"store_error:{type(exc).__name__}:{exc}",
+            }
         if lease is None:
             logger.warning("work item %s 非 pending，本题不派发", work_item_id)
             return {
@@ -254,11 +266,17 @@ class QuickScanWorkLifecycle:
                 budget_policy=self._budget_policy,
                 budget_route=self._budget_route,
             )
+            if self._budget_policy is not None:
+                # Q09: we now hold our own route slot — the cascade's busy
+                # wait must not deadlock on it (admission stays authoritative).
+                from src.utils.quick_scan_work_transport import _OWN_RESERVATION
+
+                _OWN_RESERVATION.set(True)
         except Exception as exc:  # noqa: BLE001
             logger.warning("attempt prepare/intent 失败（%s），本题不派发", exc)
             return {
                 "claimed": False,
-                "reason": f"attempt_intent_failed:{type(exc).__name__}",
+                "reason": f"attempt_intent_failed:{type(exc).__name__}:{exc}",
                 "work_item_id": work_item_id,
             }
         return {
@@ -306,6 +324,12 @@ class QuickScanWorkLifecycle:
         return checkpoint
 
     def after_question(self, handle: Dict[str, Any], result: Any) -> None:
+        try:
+            from src.utils.quick_scan_work_transport import _OWN_RESERVATION
+
+            _OWN_RESERVATION.set(False)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("own-reservation flag reset skipped (%s)", exc)
         # Q07 layering (r2 P2-r2-1: no absolute claims): with a
         # checkpoint-quality receipt the store closes the attempt
         # (response_available) and persists the answer. EVERY deterministic
@@ -410,6 +434,12 @@ class QuickScanWorkLifecycle:
             logger.error("record_attempt_outcome 失败（%s）", exc)
 
     def after_question_failed(self, handle: Dict[str, Any], error_message: str) -> None:
+        try:
+            from src.utils.quick_scan_work_transport import _OWN_RESERVATION
+
+            _OWN_RESERVATION.set(False)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("own-reservation flag reset skipped (%s)", exc)
         try:
             # P0-3: confirmed_failure requires a recognized provider refusal
             # (store rejects unclassified failures); without transport evidence
@@ -1017,6 +1047,26 @@ class LLMRunner:
                 work_store = budget_store or QuickScanWorkStore(
                     llm_config.config_file.parent / "quick_scan_work.sqlite"
                 )
+                # Q09: reserve-before-dispatch rides the activated lifecycle —
+                # when a policy is configured, the pair reserves against the
+                # FIRST ELIGIBLE route (the cascade may fall back afterwards;
+                # total-ledger conservation is unaffected, route attribution
+                # is the intended route — disclosed on the Q09 card).
+                budget_pair_policy = None
+                budget_pair_route = None
+                if quick_scan_policy is not None and quick_scan_policy.get("configured"):
+                    primary_route = next(
+                        (r for r in quick_scan_policy.get("routes", []) if r.get("eligible")),
+                        None,
+                    )
+                    if primary_route is not None:
+                        budget_pair_policy = quick_scan_policy
+                        budget_pair_route = {
+                            "route_id": primary_route["id"],
+                            "provider": primary_route["provider_config_ref"],
+                            "model_requested": primary_route["model"],
+                            "quota_group": primary_route["quota_group"],
+                        }
                 work_lifecycle = QuickScanWorkLifecycle(
                     work_store,
                     entity_id=entity_id,
@@ -1024,6 +1074,8 @@ class LLMRunner:
                     scan_id="scan-l02",
                     identity=identity_payload,
                     routing_fingerprint=routing_fingerprint_for(questions),
+                    budget_policy=budget_pair_policy,
+                    budget_route=budget_pair_route,
                 )
             qa_engine = QAEngine(llm_provider, answer_generator, work_item_lifecycle=work_lifecycle)
 

@@ -291,6 +291,19 @@ _WORK_BINDING: contextvars.ContextVar[Optional[QuickScanWorkBinding]] = contextv
 _ROUTE_BINDING: contextvars.ContextVar[Optional[QuickScanRouteBinding]] = contextvars.ContextVar(
     "quick_scan_route_binding", default=None
 )
+_OWN_RESERVATION: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "quick_scan_own_reservation", default=False
+)
+
+
+def own_reservation_held() -> bool:
+    """Q09: True while THIS dispatch already holds its own mark-time budget
+    reservation. The cascade's preferred-route busy WAIT must not deadlock on
+    its own slot — admission (mark_send_intent) remains the authoritative
+    capacity gate for every request."""
+    return _OWN_RESERVATION.get()
+
+
 _BUDGET_BINDING: contextvars.ContextVar[Optional[QuickScanBudgetBinding]] = contextvars.ContextVar(
     "quick_scan_budget_binding", default=None
 )
@@ -390,6 +403,13 @@ def bind_quick_scan_format_repair() -> Iterator[None]:
 
 def begin_quick_scan_send(prompt: str, system_prompt: str) -> Optional[QuickScanSendAttempt]:
     """Commit prepared + send-intent state before permitting the HTTP request."""
+    if own_reservation_held():
+        # Q09: THIS question's send was already admitted atomically at the
+        # lifecycle's mark-time reserve (one send = one reserve); re-admitting
+        # here would double-count the ledger and self-deadlock on our own
+        # route slot. None = proceed without a second admission — the same
+        # contract llm_client already uses when no binding exists.
+        return None
     work = _WORK_BINDING.get()
     route = _ROUTE_BINDING.get()
     budget = _BUDGET_BINDING.get()
