@@ -1,0 +1,5040 @@
+[
+ {
+  "company": "CN-A:300750",
+  "method": "group_10",
+  "question_id": "IQS_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目评估对象为虚构公司【示例工业设备股份有限公司（EXAMPLE）】，且本次任务标的 entity_id=ENT_99ebb735-... 对应标的公司=None、市场=None、代码=None；检索证据全部关于宁德时代（动力电池行业），与虚构工业设备标的在行业、商业模式、计费单位、供产销流程上均不匹配，无可比口径可据以判断客户付费价值。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_10",
+  "question_id": "IQS_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的为虚构工业设备公司，检索证据涉及宁德时代动力/储能电池业务，二者业务性质、客户结构、收入模式不具可比性；无法以现有证据评估存量收入延续性。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_10",
+  "question_id": "IQS_04",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目要求评估工业设备行业的供需与价值链分配；检索证据为动力电池行业资料，与题目行业模块（industrial 工业设备）不对应，不能据以对虚构标的评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_10",
+  "question_id": "IQS_05",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的为虚构工业设备公司，证据库为宁德时代电池资料；电池的规模/客户/技术壁垒无法迁移到工业设备标的，无法识别主要竞争优势及其复制成本。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_10",
+  "question_id": "IQS_06",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "竞争地位稳固性评估需基于标的所在工业设备赛道；证据全部指向宁德时代在动力电池/储能赛道地位，与虚构工业设备标的无可比份额/客户迁移指标。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_10",
+  "question_id": "IQS_07",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "管理层兑现评估需要虚构标的（EXAMPLE）管理层过往承诺与项目交付证据；证据库仅含宁德时代公开材料，对虚构公司管理层无可观察信号。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_10",
+  "question_id": "IQS_08",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "扩产/质量/成本纪律评估依赖标的工厂与产线具体信息；现有证据为宁德时代产能与一致性表述，对虚构工业设备公司无对应指标。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_10",
+  "question_id": "IQS_09",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "组织能力评估需要虚构标的（EXAMPLE）的核心岗位、接班、流失与制度化流程证据；现有检索证据均为宁德时代公开材料，不构成对虚构标的的证据基础。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_10",
+  "question_id": "IQS_10",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "存量业务回报超过资金成本的评估要求标的具备可核验投入资本与税后经营回报；现有证据虽涉及宁德时代 ROE/ROIC（[B50993b7e][B60d7696a]），但属于另一家公司，不应套用于虚构工业设备标的。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_10",
+  "question_id": "IQS_12",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "披露质量评估需要虚构标的（EXAMPLE）的财务报告、审计意见与会计政策；证据库为宁德时代 2024/2025 年报、半年报、评级报告（[B25f39310][B10ee4d2e][B153f0003][B910e53a7]），与虚构公司无关，无法判断其披露质量。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_10",
+  "question_id": "IQS_13",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的为None，题目对象为虚构公司'示例工业设备股份有限公司'，与检索证据所指向的真实公司（宁德时代/CATL, 300750.SZ）不匹配。证据不足以为虚构标的进行评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_10",
+  "question_id": "IQS_14",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的为None，题目对象为虚构公司'示例工业设备股份有限公司'，与检索证据所指向的真实公司（宁德时代/CATL, 300750.SZ）不匹配。证据不足以为虚构标的进行评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_10",
+  "question_id": "IQS_15",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的为None，题目对象为虚构公司'示例工业设备股份有限公司'，与检索证据所指向的真实公司（宁德时代/CATL, 300750.SZ）不匹配。证据不足以为虚构标的进行评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_10",
+  "question_id": "IQS_16",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的为None，题目对象为虚构公司'示例工业设备股份有限公司'，与检索证据所指向的真实公司（宁德时代/CATL, 300750.SZ）不匹配。证据不足以为虚构标的进行评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_10",
+  "question_id": "IQS_17",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的为None，题目对象为虚构公司'示例工业设备股份有限公司'，与检索证据所指向的真实公司（宁德时代/CATL, 300750.SZ）不匹配。证据不足以为虚构标的进行评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_10",
+  "question_id": "IQS_18",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的为None，题目对象为虚构公司'示例工业设备股份有限公司'，与检索证据所指向的真实公司（宁德时代/CATL, 300750.SZ）不匹配。证据不足以为虚构标的进行评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_10",
+  "question_id": "IQS_19",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的为None，题目对象为虚构公司'示例工业设备股份有限公司'，与检索证据所指向的真实公司（宁德时代/CATL, 300750.SZ）不匹配。证据不足以为虚构标的进行评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_10",
+  "question_id": "IQS_20",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的为None，题目对象为虚构公司'示例工业设备股份有限公司'，与检索证据所指向的真实公司（宁德时代/CATL, 300750.SZ）不匹配。证据不足以为虚构标的进行评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_10",
+  "question_id": "IQS_21",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的为None，题目对象为虚构公司'示例工业设备股份有限公司'，与检索证据所指向的真实公司（宁德时代/CATL, 300750.SZ）不匹配。证据不足以为虚构标的进行评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_10",
+  "question_id": "IQS_22",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的为None，题目对象为虚构公司'示例工业设备股份有限公司'，与检索证据所指向的真实公司（宁德时代/CATL, 300750.SZ）不匹配。证据不足以为虚构标的进行评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_10",
+  "question_id": "IQS_23",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构公司'示例工业设备股份有限公司'，标的实际为None，证据全部为宁德时代（电池行业），与虚构工业设备公司不存在主体对应关系，无法据当前证据评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_10",
+  "question_id": "IQS_24",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构公司'示例工业设备股份有限公司'，与检索证据中宁德时代（动力/储能电池龙头）不匹配，行业、商业模式、回报机制均不可比，不适用。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_10",
+  "question_id": "OPERATING_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目指定工业设备行业虚构标的，无法用电池行业的现金流数据回答工业设备公司的维护性Capex与营运资本问题。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_10",
+  "question_id": "INDUSTRIAL_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目针对工业设备类公司的设备可靠性、认证与服务网络，宁德时代属于电池/储能制造，非工业设备主体，不可迁移适用。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_10",
+  "question_id": "INDUSTRIAL_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "订单确定性涉及设备类定金、验收、质保等条款，宁德时代的电池订单/装机口径与此不可比，主体不匹配。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_10",
+  "question_id": "MATURE_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "成熟工业设备的需求与维护逻辑，与电池动力/储能业务的需求结构、替代趋势不同，证据不可用于该题。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_10",
+  "question_id": "MATURE_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "资本配置问题需针对工业设备主体的回报项目与分红回购行为；宁德时代虽有大额分红回购，但非题目标的对应主体。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_10",
+  "question_id": "CYCLICAL_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "周期回报问题需针对工业设备周期，宁德时代为电池/储能周期敏感型，与工业设备行业供给/价格结构不可比。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_10",
+  "question_id": "CYCLICAL_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "低谷存续能力依赖工业设备公司刚性开支结构，证据无法提供该类口径数据，主体不对应。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_10",
+  "question_id": "CROSS_BORDER_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "跨境敞口问题针对工业设备出口/收入币种与关税结构，宁德时代虽涉及海外业务，但与工业设备跨境口径不匹配。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_5",
+  "question_id": "IQS_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的实体为 None（entity_id=ENT_99ebb735-f072-41e4-8545-823bc012614f，身份态=provisional），题目对象与口径明确为'示例工业设备股份有限公司（虚构）'。检索证据虽围绕宁德时代（300750.SZ/HK3750），但与题目指定的虚构标的、公司类型（operating, industrial_mature）与口径不匹配，无法将宁德时代的事实证据直接映射至该虚构标的的客户价值评估。证据不足以支持对题目所列对象的评分，按规则不得猜测。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_5",
+  "question_id": "IQS_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的实体为 None，题目对象与口径明确为虚构的工业设备公司。检索证据全部关于宁德时代（动力电池/储能业务），与'示例工业设备股份有限公司（虚构）'在行业、业务模式（电池 vs 工业设备）、计费单位、供应链结构上均不可比，无法据此评估该虚构标的的收入延续性。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_5",
+  "question_id": "IQS_04",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的实体为 None，题目对象为虚构工业设备公司。检索证据涉及动力电池行业的供需与利润分配（车企议价、电池厂利润占比等），与题目指定的虚构工业设备标的的供需/价值链口径不匹配，不可直接套用。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_5",
+  "question_id": "IQS_05",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的实体为 None，题目对象为虚构工业设备公司。检索证据围绕宁德时代的成本/技术/规模/客户认证护城河，但题目指定对象、阶段与会计边界与电池行业龙头不同，无法据其证据对题目对象做竞争优势评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_5",
+  "question_id": "IQS_06",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的实体为 None，题目对象为虚构工业设备公司。检索证据描述了宁德时代国内/全球动力电池装车份额、海外毛利率、客户结构变化（车企'去宁化'）等趋势，但与题目指定的虚构工业设备标的、cycle_position='示例：不明'及industrial模块不匹配，无法评估该虚构标的的竞争地位稳固性。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_5",
+  "question_id": "IQS_07",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目明确指向'示例工业设备股份有限公司（虚构）'（entity_id=EXAMPLE_ENTITY_A，工业设备行业），而给定的检索证据全部围绕宁德时代（动力电池/新能源行业，entity_id=ENT_99ebb735-…）。主体不匹配，行业归属不同（industrial vs 动力电池/储能），无法将CATL证据合法地迁移到一个虚构的工业设备公司上做'管理层承诺兑现度'评估。标的字段标的公司亦为None，与题目中的虚构示例公司并非同一实体。按口径要求，不做猜测式映射，status=not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_5",
+  "question_id": "IQS_08",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目评估对象是'示例工业设备股份有限公司（虚构）'的扩张/波动下的交付质量与成本纪律，证据关注的是工业设备供产销、批次、爬坡损失等。检索证据主体为宁德时代（动力电池规模化制造、产能利用率、海外扩产），行业分类为新能源/电池，非industrial模块要求的工业设备口径。两者在产品形态、生产工艺、订单与验收逻辑上不可比，证据无法支撑对虚构工业设备公司的评分。status=not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_5",
+  "question_id": "IQS_09",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目针对虚构工业设备公司'示例工业设备股份有限公司'评估组织能力与关键个人依赖，证据关注核心岗位梯队、研发销售制度化、接班记录等。检索证据虽涉及宁德时代的部分组织动作（如乘用车业务调整为12个小组、ESG/激励机制），但主体不同、行业不同，且题目明确标的为虚构示例公司，不可将宁德时代的组织证据用于不存在的'示例工业设备股份有限公司'评估。status=not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_5",
+  "question_id": "IQS_10",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目评估'示例工业设备股份有限公司（虚构）'存量业务的资本回报与资金成本关系，要求中周期税后经营回报与投入资本口径。证据中虽有宁德时代的ROE/ROIC/净利率数据（如2025净利率约18%、全球市占率、净现金状况等），但评估对象在题目中明确为虚构工业设备公司，而非宁德时代；标的字段标的公司为None，且entity_id不匹配。按口径不能跨主体、不跨行业地把CATL回报数据用作工业设备公司的资本回报证据。status=not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_5",
+  "question_id": "IQS_12",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目评估'示例工业设备股份有限公司（虚构）'的披露质量与会计口径可信度。检索证据中确有宁德时代的审计意见、ESG/内控公告、跟踪评级、半年报/年报等公开披露文件，可用于评估CATL自身的披露可信度；但题目的entity_id=EXAMPLE_ENTITY_A、公司名='示例工业设备股份有限公司（虚构）'与CATL不一致，且题目声明为虚构示例。跨主体使用披露证据不符合'证据必须支撑对应claim'的要求，故status=not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_5",
+  "question_id": "IQS_13",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "对象与口径中明确标注 company 为'示例工业设备股份有限公司（虚构）'，标的字段 company 为 None，entity_id 为 EXAMPLE_ENTITY_A，属虚构占位公司；所有检索证据均指向宁德时代（300750），与题目对象不匹配。无法对一家虚构占位公司进行关联交易/资金占用/少数股东保护等治理事实的评估，证据不适用。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_5",
+  "question_id": "IQS_14",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构占位公司（示例工业设备股份有限公司），提供的所有检索证据均关于宁德时代，与题目对象不一致；无法对虚构公司的并购、回购、资本配置历史及每股价值进行评估，证据不适用。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_5",
+  "question_id": "IQS_15",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构占位公司，所有检索证据均指向宁德时代，与题目对象不匹配；无法评估该虚构公司的薪酬、股权激励和董事会监督机制，证据不适用。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_5",
+  "question_id": "IQS_16",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构占位公司，所有检索证据均指向宁德时代；无法评估该虚构公司在压力情景下的现金、债务、刚性义务履约能力，证据不适用。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_5",
+  "question_id": "IQS_17",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构占位公司，所有检索证据均指向宁德时代；无法评估该虚构公司的关键客户、供应商或产地替代与恢复能力，证据不适用。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_5",
+  "question_id": "IQS_18",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目明确标注对象为'示例工业设备股份有限公司（虚构）'，ticker=EXAMPLE、exchange=EXAMPLE_EXCHANGE，所有公司字段均为占位符；标的条目同样为'标的公司：None'且entity_id对应的实际公司未确认。检索证据全部关于宁德时代（CATL, 300750.SZ），与题目虚构标的并非同一公司、无可比口径，证据不可用于评价该虚构主体的永久性损害路径与防御。按系统指令不得猜测，标记 not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_5",
+  "question_id": "IQS_19",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构公司，标的实体为 None；检索证据全部针对宁德时代，覆盖其动力/储能电池、海外营收、市占率等具体业务，无法映射到'示例工业设备股份有限公司（虚构）'的客户预算、可触达市场或渗透率分析。证据与题目主体不匹配，不能据此给出可触达需求评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_5",
+  "question_id": "IQS_20",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目要求评估虚构工业设备公司新增业务从客户需求到可持续利润的转化证据。证据均来自宁德时代的麒麟电池、巧克力换电、海外扩产、并购等具体披露，无法对应'示例工业设备股份有限公司'的业务分部、量产/试点到付费的阶段链路或对存量业务的蚕食效应。主体不匹配，不予评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_5",
+  "question_id": "IQS_21",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目针对虚构公司新增资本回报、存量替代与摊薄净效果。证据全部围绕宁德时代（例如分红与回购 761 亿、200-400 亿注销式回购、海外建厂、产能扩张与在建 200GWh+ 等），无法套用于虚构主体的资本配置、融资条件与每股回报计算。主体不符，按指令不猜测。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_5",
+  "question_id": "IQS_22",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目要求以 2026-09-18 报价日评估虚构工业设备公司当前估值隐含的增长/利润率/资本回报要求。证据为宁德时代券商目标价（401.65-618 元）、市值约 1.77 万亿、A 股/港股代码 300750/3750.HK 等真实市场数据，与题目 EXAMPLE/EXAMPLE_EXCHANGE 虚构标的完全不对应，无法做反推基本面或可比估值。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_5",
+  "question_id": "IQS_23",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目明确指出标的为示例工业设备股份有限公司（虚构），entity_id 为 EXAMPLE_ENTITY_A、ticker 为 EXAMPLE，属于虚构标的。所给检索证据全部针对宁德时代（entity_id=ENT_99ebb735…，代码 300750.SZ / HK3750），为动力电池/储能行业龙头，与示例工业设备行业模块、可比业务模式、会计边界与周期结构均不匹配。无法将宁德时代证据套用于评估虚构工业设备公司的普通股下行风险与债权/摊薄缓冲，故判定 not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_5",
+  "question_id": "IQS_24",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构的示例工业设备股份有限公司，所给证据皆为宁德时代（300750.SZ/HK3750）公开资料。行业归属（动力电池+储能 vs 工业设备）、计费单位（GWh、Wh vs 设备台/套）、周期驱动（电动车产业链 vs 工业 Capex）、分红/回购口径均不可直接映射；不得以宁德时代的现金回报机制外推至虚构标的，故 not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_5",
+  "question_id": "OPERATING_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目主体为虚构示例工业设备股份有限公司，industry_modules=[industrial]。检索证据全部围绕宁德时代的经营现金流、维护/扩张资本开支与营运资本（如 2025 年经营性现金流 806.6 亿元、产能 676GWh+在建 200GWh），属于动力电池制造业口径，与虚构工业设备企业的供产销流程、自制/外包边界、计费单位均无可比性，故 not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_5",
+  "question_id": "INDUSTRIAL_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，关注设备可靠性、客户认证与维修网络。所给证据皆涉及动力电池（电芯一致性、整车厂认证、能量密度/快充等），与工业设备的产品形态、停机成本口径、备件与服务体系不属同一商业模式；不能以宁德时代的电芯壁垒套用至虚构工业设备的护城河评估，故 not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_5",
+  "question_id": "INDUSTRIAL_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构示例工业设备股份有限公司，关注订单取消、验收、质保与收款风险。检索证据为宁德时代的电池订单（如宝马 73 亿欧元长单、Stellantis 西班牙合资、印尼 IBC 投资）及车企议价博弈，订单计费与履约单位为电池 GWh/Wh，与工业设备订单的定金/验收/质保条款结构不同；不能将宁德时代的电池订单利润确定性套用于虚构工业设备标的，故 not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_5",
+  "question_id": "MATURE_01",
+  "status": "unknown",
+  "score": null,
+  "rationale": "题目对象明确为'示例工业设备股份有限公司（虚构）'（工业设备行业、成熟期、对周期敏感），但所提供的全部检索证据均指向宁德时代（CATL，锂电池/动力电池/储能行业），行业、商业模式、周期属性、产品/客户结构与目标公司不一致。无法基于宁德时代的份额、利润、分红、产能、研发等证据对一家虚构工业设备公司的需求复购、资产维护、替代趋势与核心客户做出任何评分性断言。根据'证据不足时 status 必须为 unknown，不得猜测'的硬性约束，本题无法打分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_5",
+  "question_id": "MATURE_02",
+  "status": "unknown",
+  "score": null,
+  "rationale": "题目要求评估'示例工业设备股份有限公司（虚构）'在高回报扩张机会减少时的资本配置（无效扩张、分配、回购价格、收缩投入）。检索证据全部关于宁德时代的回购、分红、扩产与对外投资，无法套用至一家虚构工业设备公司——两者的现金流来源、capex 强度、并购历史与股东结构均不具同质性，不能将宁德时代的回购注销、432亿净利、761亿股东回馈等数据视为可比披露或同行评议依据。证据与目标公司错配，本题无法打分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_5",
+  "question_id": "CYCLICAL_01",
+  "status": "unknown",
+  "score": null,
+  "rationale": "题目询问'示例工业设备股份有限公司（虚构）'剔除峰谷价格与利用率后的中周期回报与价值创造（全周期收益、正常化价格、维护投入）。证据中虽有宁德时代多年营收/净利、海外毛利率、产能利用率等数据，但其行业为动力电池+储能，与题目设定的工业设备周期属性、产品定价机制、产能永久过剩/技术替代的可比性均不同；'同业须同商业模式/阶段/期间/会计边界'的同口径要求无法满足，故不应将宁德时代数据外推至目标公司。本题无足够可比证据。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_5",
+  "question_id": "CYCLICAL_02",
+  "status": "unknown",
+  "score": null,
+  "rationale": "题目评估'示例工业设备股份有限公司（虚构）'在历史可比低谷下的存续与必要投资能力（低谷价格、债务、现金、刚性开支）。证据中的宁德时代财务数据（如2024年净利率、2026H1净利432.84亿、经营现金流、AAA 评级等）属于一家行业头部且处于上行/满产状态的电池企业，并非历史可比低谷样本；将其与一家虚构工业设备公司的潜在周期低谷相类比，违反'周期中点必须说明历史区间/供给结构是否仍可比'的口径要求。本题无法基于现有证据打分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_5",
+  "question_id": "CROSS_BORDER_01",
+  "status": "unknown",
+  "score": null,
+  "rationale": "题目关注'示例工业设备股份有限公司（虚构）'在汇率、关税和跨境资金限制下的净敞口（收入成本币种、套保、关税、汇出限制）。虽然宁德时代证据中确实涉及海外收入占比（2025年30.6%、2026H1达33.7%）、境外毛利率31.44%、欧盟/西班牙/印尼工厂布局等跨境敞口信息，但题目标的公司为虚构工业设备企业，其收入币种构成、产能国别分布、关税适用与套保安排均不可知，且与宁德时代业务模式/出口目的地结构不可比。基于'不得猜测'的硬性约束，本题无法打分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "batch_30",
+  "question_id": "IQS_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目明确指定标的为'示例工业设备股份有限公司（虚构）'，ticker=EXAMPLE，entity_id=EXAMPLE_ENTITY_A，与检索证据中的宁德时代（CATL/300750）无对应关系；标的对象亦为 None。虚构标的无法被证据支撑，亦不可将CATL证据外推。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "batch_30",
+  "question_id": "IQS_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目标的为虚构示例公司，证据仅涉及宁德时代动力电池业务，无法对应。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "batch_30",
+  "question_id": "IQS_04",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目标的为虚构示例公司，证据涉及的动力电池行业供需与价值链（车企vs电池厂利润分配）不适用于虚构工业设备公司。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "batch_30",
+  "question_id": "IQS_05",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目标的为虚构示例公司，证据所述宁德时代成本/技术/规模护城河不可外推。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "batch_30",
+  "question_id": "IQS_06",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目标的为虚构示例公司，证据所述CATL市占率与竞争地位变化不适用。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "batch_30",
+  "question_id": "IQS_07",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目标的为虚构示例公司，管理层承诺履行情况无法评估。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "batch_30",
+  "question_id": "IQS_08",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目标的为虚构示例公司，规模/波动下的交付质量与成本纪律证据缺失。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "batch_30",
+  "question_id": "IQS_09",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目标的为虚构示例公司，组织能力与接班无证据。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "batch_30",
+  "question_id": "IQS_10",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目标的为虚构示例公司，存量业务ROIC与资本成本对比无法构建。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "batch_30",
+  "question_id": "IQS_12",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目标的为虚构示例公司，财务披露可信度无对象可评。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "batch_30",
+  "question_id": "IQS_13",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目标的为虚构示例公司，股东公平对待无对象可评。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "batch_30",
+  "question_id": "IQS_14",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目标的为虚构示例公司，再投资/分红/回购历史无对象可评。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "batch_30",
+  "question_id": "IQS_15",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目标的为虚构示例公司，激励与监督机制无对象可评。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "batch_30",
+  "question_id": "IQS_16",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目标的为虚构示例公司，刚性义务履约能力无对象可评。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "batch_30",
+  "question_id": "IQS_17",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目标的为虚构示例公司，关键依赖与替代恢复无对象可评。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "batch_30",
+  "question_id": "IQS_18",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目标的为虚构示例公司，永久损害路径与防御无对象可评。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "batch_30",
+  "question_id": "IQS_19",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目标的为虚构示例公司，可触达新增需求无对象可评。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "batch_30",
+  "question_id": "IQS_20",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目标的为虚构示例公司，增长驱动从需求到利润的转化无对象可评。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "batch_30",
+  "question_id": "IQS_21",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目标的为虚构示例公司，新增资本回报与摊薄后股东净效果无对象可评。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "batch_30",
+  "question_id": "IQS_22",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目标的为虚构示例公司，价格隐含假设无对象可评。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "batch_30",
+  "question_id": "IQS_23",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目标的为虚构示例公司，悲观情景下普通股永久损失无对象可评。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "batch_30",
+  "question_id": "IQS_24",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目标的为虚构示例公司，价值兑现路径无对象可评。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "batch_30",
+  "question_id": "OPERATING_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目标的为虚构示例公司，自由现金流创造无对象可评。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "batch_30",
+  "question_id": "INDUSTRIAL_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目标的为虚构示例工业设备公司，证据均关于动力电池，无法套用。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "batch_30",
+  "question_id": "INDUSTRIAL_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目标的为虚构示例工业设备公司，订单/验收/收款确定性无对象可评。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "batch_30",
+  "question_id": "MATURE_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目标的为虚构示例公司，成熟业务需求与现金维持无对象可评。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "batch_30",
+  "question_id": "MATURE_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目标的为虚构示例公司，资本配置向每股价值转向无对象可评。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "batch_30",
+  "question_id": "CYCLICAL_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目标的为虚构示例公司，中周期回报与价值创造无对象可评。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "batch_30",
+  "question_id": "CYCLICAL_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目标的为虚构示例公司，低谷存续与必要投资能力无对象可评。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "batch_30",
+  "question_id": "CROSS_BORDER_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目标的为虚构示例公司，汇率/关税/资金限制净敞口无对象可评；虽然CATL有海外业务证据但不可外推至虚构标的。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "sequential_1",
+  "question_id": "IQS_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目口径明确指出评估对象为\"示例工业设备股份有限公司（虚构）\"，entity_id=EXAMPLE_ENTITY_A，且 security_id=EXAMPLE_SECURITY_A，属于虚构示例标的，与提供的检索证据所对应的实体（宁德时代/CATL，300750.SZ / HK3750）完全不一致。证据库中无任何来源提及\"示例工业设备股份有限公司\"或 EXAMPLE_ENTITY_A，亦无任何财务/客户/产品数据归属于该虚构实体。因此既无法以 CATL 证据替代评估虚构公司（违反\"同业须同商业模式/阶段/期间/会计边界\"及证据匹配原则），亦无法在不猜测的前提下就虚构主体给出真实价值判断。按规则以 not_applicable 处理，不输出分数。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "sequential_1",
+  "question_id": "IQS_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目明确要求评分的对象为示例工业设备股份有限公司（虚构），entity_id=EXAMPLE_ENTITY_A，ticker=EXAMPLE，与标的栏提供的实体不一致，且全部检索证据均指向宁德时代（动力电池行业），不存在与虚构工业设备公司主体对应的客户留存、订单履约、获客成本或收入可预测性证据。无法在给定锚点框架下对该虚构标的作出有效评分，按指令标记为 not_applicable，不得用宁德时代证据迁移推断。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "sequential_1",
+  "question_id": "IQS_04",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "对象与口径明确标注标的为'示例工业设备股份有限公司（虚构）'，ticker=EXAMPLE、exchange=EXAMPLE_EXCHANGE、entity_id=EXAMPLE_ENTITY_A，属占位/虚构标的，不存在可被检索的真实经营主体。所提供的检索证据全部指向宁德时代（300750.SZ / 03750.HK）这一真实动力电池企业，与题目设定的工业设备虚构公司在行业归属、商业模式、财务结构、客户/供应商关系上均不可比，无法据此对示例标的的供需与价值链分配做出有意义的评分。按评分口径，非scored时score=null，并说明不可评分的原因。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "sequential_1",
+  "question_id": "IQS_05",
+  "status": "error",
+  "score": null,
+  "rationale": "repair_parse:JSONDecodeError:Extra data: line 10 column 1 (char 140)",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "sequential_1",
+  "question_id": "IQS_06",
+  "status": "error",
+  "score": null,
+  "rationale": "repair_parse:JSONDecodeError:Expecting property name enclosed in double quotes: line 7 column 1 (char 122)",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "sequential_1",
+  "question_id": "IQS_07",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "标的实体为 None（entity_id=ENT_99ebb735-f072-41e4-8545-823bc012614f），题目要求的对象为虚构公司'示例工业设备股份有限公司（EXAMPLE_ENTITY_A / EXAMPLE_SECURITY_A）'。所提供的检索证据全部围绕宁德时代（300750/CATL），与题目所述虚构主体在身份、市场、代码、口径上均不匹配，且无任何关于该虚构公司管理层承诺与兑现情况的可验证证据。依据'证据不足时 status 必须为 unknown 或 not_applicable，不得猜测'的口径要求，无法进行评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "sequential_1",
+  "question_id": "IQS_08",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的公司在题目上下文中标记为None（entity_id=ENT_99ebb735-f072-41e4-8545-823bc012614f，无可识别的公司主体与市场代码）；题目对象与口径字段直接写明分析对象为'示例工业设备股份有限公司（虚构）'，属于虚构占位标的；提供的检索证据全部围绕宁德时代（CATL，动力电池/储能行业），与虚构的工业设备公司既非同行业、亦非同商业模式，无法据此对'工业设备公司在规模扩张或需求波动下的交付质量与成本纪律'做任何具有口径一致性的评分，因此不适用打分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "sequential_1",
+  "question_id": "IQS_09",
+  "status": "error",
+  "score": null,
+  "rationale": "repair_parse:JSONDecodeError:Extra data: line 10 column 1 (char 140)",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "sequential_1",
+  "question_id": "IQS_10",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目定义的对象为'示例工业设备股份有限公司（虚构）'，明文标注为虚构标的（fictional），标的栏同样显示市场/代码/身份态均为空/None。所有检索证据均指向真实存在的宁德时代（CATL，300750），与该虚构工业设备公司之间不存在业务、主体、行业或财务数据的对应关系，无法对虚构标的的存量业务资本回报vs资金成本做出有经济含义的判断，故按 not_applicable 处理，不给分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "sequential_1",
+  "question_id": "IQS_12",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象明确标注为'示例工业设备股份有限公司（虚构）'，ticker=EXAMPLE，entity_id=EXAMPLE_ENTITY_A，是占位虚构公司，不存在真实主体。检索证据全部指向宁德时代（300750），与本题虚构标的无关，无法对虚构公司进行任何资产、负债、利润披露可信度的实质评估。按规定应当 status=not_applicable，score=null，不得猜测。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "sequential_1",
+  "question_id": "IQS_13",
+  "status": "error",
+  "score": null,
+  "rationale": "repair_parse:JSONDecodeError:Extra data: line 2 column 1 (char 450)",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "sequential_1",
+  "question_id": "IQS_14",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的明确为虚构示例公司'示例工业设备股份有限公司'（entity_id=EXAMPLE_ENTITY_A，ticker=EXAMPLE），无任何可对应的真实公司基本面信息。所提供的全部检索证据均指向宁德时代（300750.SZ/03750.HK），与题目指定的标的完全不匹配，无法用于判断该虚构公司的再投资、并购、分红、回购对每股经济价值的影响。因此本题不可评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "sequential_1",
+  "question_id": "IQS_15",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象与口径明确指定 company='示例工业设备股份有限公司（虚构）'、ticker='EXAMPLE'、entity_id='EXAMPLE_ENTITY_A'，为一个虚构/示例标的。所提供的全部检索证据均围绕宁德时代（300750.SZ / HK3750），未包含任何与该虚构工业设备公司相关的薪酬、股权激励、考核指标、稀释、董事会监督或追索机制的事实信息。系统指令要求'证据不足时 status 必须为 unknown 或 not_applicable，不得猜测'，且证据对象与题目对象不一致，因此无法进行有效评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "sequential_1",
+  "question_id": "IQS_16",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的明确声明为虚构公司（公司名称含示例及虚构字样，ticker=EXAMPLE，entity_id=EXAMPLE_ENTITY_A），并非真实存在的主体。所提供的全部检索证据均指向真实存在的宁德时代（300750.SZ/3750.HK），与示例工业设备股份有限公司在主体身份、行业模块（industrial vs 动力电池/储能）、会计边界、口径上均不可对应，亦无任何证据涉及示例公司的可用现金、刚性债务、租赁承诺、担保、契约约束等具体科目。按证据不足时 status 必须为 unknown 或 not_applicable、不得猜测的原则，本题无法对虚构主体进行评分；不论将检索证据中的宁德时代现金流（如2026H1经营性现金流约602亿、2025年经营现金流806.6亿元、2026H1预收款492亿、A股史上最大回购400亿元并注销、现金分红761亿元等）移植到示例公司，均构成主体错配与口径外推，违反评分锚点中同业须同商业模式/阶段/期间/会计边界的硬约束，且可能构成对宁德时代披露数据的误用。因此不能给出正式评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "sequential_1",
+  "question_id": "IQS_17",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目中指定的对象为'示例工业设备股份有限公司（虚构）'，ticker 为 EXAMPLE，entity_id 为 EXAMPLE_ENTITY_A，明确标注为虚构示例标的。所提供的检索证据全部围绕宁德时代（300750.SZ/HK3750），与题目所指定的虚构标的在主体身份上完全不一致，无法将其客户集中度、供应链替代、产能恢复等证据映射到题目所问的'示例工业设备股份有限公司'上。证据与题目对象不匹配，无法形成可核验的评分依据。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "sequential_1",
+  "question_id": "IQS_18",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目所询问的对象为'示例工业设备股份有限公司（虚构）'，entity_id=EXAMPLE_ENTITY_A，属于明确标注的虚构/占位标的，不存在可对应的真实公司基本面。所提供的全部检索证据均指向宁德时代（CATL, 300750），与题目标的的口径、行业属性（动力电池 vs. 工业设备）、市场代码及身份态均不匹配，无法将CATL的技术替代风险、渠道迁移或监管约束直接迁移至该虚构标的进行评分。若强行套用将构成对不可信证据的误用并违反'不得猜测'原则，故判定为not_applicable，不输出正式评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "sequential_1",
+  "question_id": "IQS_19",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的明确标注为'示例工业设备股份有限公司（虚构）'，是一个虚构的占位公司，与提供的所有关于宁德时代（CATL）的检索证据不匹配。宁德时代是动力电池/储能电池制造商，而题目设定公司类型为工业设备运营公司（industry_modules=['industrial']，company_type='operating'），二者行业、商业模式、客户结构、产品/服务类别完全不同。无法将针对宁德时代的财务、客户、需求数据套用到虚构工业设备公司上。即便尝试从宁德时代证据推断（如全球动力电池40.2%份额、2025年营收4237亿元、净利润722亿元、储能/海外业务增长等），也违反了'同业须同商业模式/阶段/期间/会计边界'的同口径要求。因此不具备评分基础。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "sequential_1",
+  "question_id": "IQS_20",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象明确标注为'示例工业设备股份有限公司（虚构）'，entity_id=EXAMPLE_ENTITY_A，与标的实体ENT_99ebb735-f072-41e4-8545-823bc012614f（且标的company=None）不一致，且为虚构标的，无可核验主体；所提供的全部检索证据均围绕宁德时代（300750.SZ/03750.HK）展开，与该虚构工业设备公司在主体、业务分部、商业模式、报告口径上完全不同，不能用于评估虚构标的的客户需求转化、存量替代、必要投入与摊薄后净股东经济效果。无法满足scored所需的可核验主体基础，按口径不应给分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "sequential_1",
+  "question_id": "IQS_21",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目参数中明确标注目标公司为'示例工业设备股份有限公司（虚构）'，且标的公司字段为 None（entity_id 仅为占位符 ENT_99ebb735…）。题目询问的是新增资本扣除存量替代、转型投入和融资摊薄后的每股回报与再投资空间，需针对该虚构工业设备公司进行评估；而检索证据全部围绕宁德时代（动力电池/储能行业），与题目所指的'工业设备'虚构标的在行业、商业模式、阶段、会计边界上完全不匹配，无法进行同口径比较。依据评分口径'同业须同商业模式/阶段/期间/会计边界'，且证据不足时 status 必须为 unknown 或 not_applicable，不得猜测，因此判定为 not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "sequential_1",
+  "question_id": "IQS_22",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目要求的标的为'示例工业设备股份有限公司（虚构）'，entity_id=EXAMPLE_ENTITY_A，security_id=EXAMPLE_SECURITY_A，是明确的虚构公司且无真实身份态绑定。所提供的全部检索证据均围绕'宁德时代'（实体ID为ENT_99ebb735-f072-41e4-8545-823bc012614f，A股300750）展开，包括其财报、护城河、车企去宁化讨论、回购分红等。证据与题目要求的虚构标的之间不存在主体对应关系，标的entity_id不同、ticker不同（EXAMPLE vs 300750/3750）、公司性质不同（虚构示例 vs 真实上市）。在缺乏任何针对'示例工业设备股份有限公司'的可信证据的前提下，无法对该虚构标的的当前价格隐含的增长/利润率/资本回报要求是否在能力范围内进行任何评分判断，亦不应挪用宁德时代证据进行替代评分。状态判定为证据不足，不构成评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "sequential_1",
+  "question_id": "IQS_23",
+  "status": "error",
+  "score": null,
+  "rationale": "repair_parse:JSONDecodeError:Extra data: line 10 column 1 (char 140)",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "sequential_1",
+  "question_id": "IQS_24",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象明确为'示例工业设备股份有限公司（虚构）'（ticker=EXAMPLE, exchange=EXAMPLE_EXCHANGE, entity_id=EXAMPLE_ENTITY_A），属于虚构标的。检索证据全部为宁德时代（300750.SZ / 03750.HK）相关公开信息，与题目所指的虚构标的之间不存在任何身份、代码、市场或财务对应关系。无法将宁德时代的分红、回购、现金流、资本开支、股东回报政策等机制映射至一个虚构、无任何公开披露主体的'示例工业设备'公司上，因此'基本面价值通过什么机制转成普通股东实际回报'这一路径评估不具备可操作的标的锚点。依据评分口径'证据不足时 status 必须为 unknown 或 not_applicable，不得猜测'，应判定为 not_applicable，不给分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "sequential_1",
+  "question_id": "OPERATING_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "对象与口径中明确标注目标公司为'示例工业设备股份有限公司（虚构）'（ticker: EXAMPLE，entity_id: EXAMPLE_ENTITY_A），属于虚构主体；标的头部亦显示真实公司/代码为 None。所提供的全部检索证据均指向宁德时代（CATL，300750.SZ / 03750.HK），与该虚构目标在主体身份、行业模块（industrial vs 动力电池/储能）、会计口径、报告期与监管归属上均不可对应。基于'仅基于给定不可信检索证据回答'与'证据不足时 status 必须为 unknown 或 not_applicable，不得猜测'的硬约束，无法也不应将宁德时代的经营数据外推至虚构工业设备公司；公司根本不存在可核验的财务报表、经营现金流披露或资本开支明细，按材料题机制 status 判定为 not_applicable，score=null。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "sequential_1",
+  "question_id": "INDUSTRIAL_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象明确为'示例工业设备股份有限公司（虚构）'，是一家具名的虚构标的；而所提供的全部检索证据均指向宁德时代（CATL, 300750.SZ/HK3750）这家真实存在的动力电池/储能电池制造商，所属行业为电池新能源，并非通用工业设备制造业。题目所考察的核心维度——设备使用寿命、客户停机成本、认证周期（如车规级/工业设备准入认证）、维修服务网络密度——在所给证据中找不到对应工业设备业务的事实性表述；既有证据虽提及宁德时代的制造一致性 [Bee03dfba]、客户粘性/认证壁垒（汽车厂商2-5年合格供应商认证周期）[B59c703ee][B153f0003]、全球产能与售后布局 [Bb248478a][B857ea7d0]，但这些事实归属于宁德时代本身，不能转嫁或套用于题目所指的虚构工业设备公司。在标的与证据主体不一致、且关键指标无法从证据中验证的情况下，按规则不能猜测或强行套用其他公司证据打分，status 必须为 not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "sequential_1",
+  "question_id": "INDUSTRIAL_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的对象为 None（entity_id=ENT_99ebb735-f072-41e4-8545-823bc012614f），题目指向一家虚构的'示例工业设备股份有限公司（EXAMPLE）'，与所提供证据完全不匹配。全部检索证据均为宁德时代（CATL，动力电池/储能厂商）相关内容，包括其长协订单（如宝马73亿欧元订单）、预收款（492亿元）、账期优势（应收54天/应付261天）、产能与市占率等，属于动力电池产业链而非工业设备制造业务。题目要求的口径（订单取消/验收/质保/收款确定性、定金条款、工业设备产供销流程）所需的证据——例如工业设备类合同的分阶段验收条款、质保金计提比例、订单延期与取消历史数据——在所给证据中完全不存在。无法将CATL的电池业务证据合理映射到虚构的'工业设备公司'订单确定性的评分场景。",
+  "evidence_refs": [
+   "Bb348fae2",
+   "Bb70608e0",
+   "Be1b716ce",
+   "B7c7b479a",
+   "B7abe521b"
+  ]
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "sequential_1",
+  "question_id": "MATURE_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象与证据严重不匹配：(1) 题目明确指定标的为'示例工业设备股份有限公司（虚构）'，entity_id=EXAMPLE_ENTITY_A，属于虚构工业设备公司；(2) 所提供的全部检索证据均关于'宁德时代'（CATL），一家真实存在的动力电池/储能电池企业，并非工业设备行业，且与题目虚构标的无关；(3) 题目要求评估'成熟业务'的需求与现金创造可持续性，证据却涉及电池行业的新能源车配套、产能扩张、市占率变化等成长性议题，与'工业设备成熟业务'的口径不可类比；(4) 既无法将CATL等同于虚构标的，也无法从CATL的电池业务证据外推到虚构工业设备公司的成熟业务现金流维持能力。依据评分规则：标的为虚构公司且证据完全不匹配，status=not_applicable，不进行打分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "sequential_1",
+  "question_id": "MATURE_02",
+  "status": "error",
+  "score": null,
+  "rationale": "repair_parse:JSONDecodeError:Expecting value: line 1 column 2 (char 1)",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "sequential_1",
+  "question_id": "CYCLICAL_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目指定的目标对象为'示例工业设备股份有限公司（虚构）'（entity_id=EXAMPLE_ENTITY_A，ticker=EXAMPLE），明确标注为虚构公司，无法对其进行实质性周期评估。所提供的检索证据全部围绕宁德时代（300750.SZ）这一真实但与目标公司无关的企业，包括其财务表现、份额数据、客户结构、护城河分析等。虽然宁德时代本身的证据较为详实（涵盖2024-2026年财报、市占率、利润、海外业务、回购分红等），但由于目标公司与证据对象完全不匹配，无法将这些证据用于评估虚构标的的中周期回报创造价值能力。根据评分规则——'evidence不足时status必须为unknown或not_applicable，不得猜测'——且因标的为虚构，评估在概念上不可适用，故判定为not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "sequential_1",
+  "question_id": "CYCLICAL_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象明确标注为示例工业设备股份有限公司(虚构),ticker=EXAMPLE,entity_id=EXAMPLE_ENTITY_A,industry_modules=[industrial],属虚构标的。检索证据全部关于宁德时代(300750.SZ/03750.HK)的真实信息,无法对应到该虚构标的:一是主体不同(虚构 vs CATL真实上市主体);二是行业模块不同(题目要求industrial工业设备,而证据为动力电池/储能);三是阶段定义冲突(题目stage=mature且cycle_sensitive=true,company_type=operating,而证据显示CATL处于产能扩张+海外建厂+高分红回购的资本密集成长阶段,CATL自身亦非典型周期股);四是会计边界与币种口径不可复用。题目要求按1/5/10锚点评估历史可比低谷下存续与必要投资能力,需依赖低谷价格、债务结构、刚性开支、现金储备等指标,而检索证据中无任何针对示例工业设备股份有限公司的可比数据,亦无CATL作为工业设备同业的可比商业模式/阶段/期间依据。因此无法将CATL的财务数据用于评判该虚构标的,无法给出有",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "sequential_1",
+  "question_id": "CROSS_BORDER_01",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目要求评估对象为「示例工业设备股份有限公司（虚构）」，且题面【标的】字段标记 company=None、market=None、code=None，标的实体本身未指定。检索到的全部来源围绕宁德时代（300750.SZ / HK3750）展开，与题目所列虚构工业设备公司在行业、商业模式、地理敞口和会计边界上均不对应，无法用于对该虚构标的的汇率/关税/跨境资金限制净敞口进行评估。证据不足，按规则不得猜测，仅记录检索情况并将 status 设为 insufficient_evidence。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_3",
+  "question_id": "IQS_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构的示例工业设备股份有限公司(EXAMPLE),而全部检索证据均关于宁德时代(300750)。主体不一致,且标的字段本身为None、entity_id不对应、代码与交易所缺失;无法以宁德时代证据评估虚构工业设备公司的客户真实价值,证据不可外推,按口径要求不予猜测。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_3",
+  "question_id": "IQS_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目针对虚构标的示例工业设备股份有限公司询问收入延续性,所提供证据全部为宁德时代(动力电池行业)相关。两者行业、商业模式、产品形态与客户结构完全不同,证据不能用于回答虚构工业设备公司的续单/留存问题;标的字段全空,无法锚定。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_3",
+  "question_id": "IQS_04",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目要求评估虚构示例工业设备股份有限公司所处工业设备行业的供需与利润分配,而证据覆盖的是动力电池/储能行业(宁德时代)及部分车企供应链关系。行业不匹配,且标的代码/交易所/财报口径均缺失,证据不能用于本题结论,按证据不足则不评处理。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_3",
+  "question_id": "IQS_05",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目明确指定对象为「示例工业设备股份有限公司（虚构）」（entity_id=EXAMPLE_ENTITY_A，ticker=EXAMPLE，industry_modules=['industrial']），与【标的】中的 entity_id=ENT_99ebb735-f072-41e4-8545-823bc012614f 不一致；标的实体市场/代码均为 None，且身份态为 provisional rev=2。【不可信检索证据】全部围绕宁德时代（300750.SZ）展开，无任何关于虚构「示例工业设备股份有限公司」的证据。虚构标的无可检索事实，status 取 not_applicable，不做猜测评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_3",
+  "question_id": "IQS_06",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构的「示例工业设备股份有限公司」（EXAMPLE_ENTITY_A，EXAMPLE_EXCHANGE），与【标的】entity_id=ENT_99ebb735…不匹配；检索证据集合全部为宁德时代相关内容，无法用于评估该虚构标的的竞争地位与份额趋势。无法在不猜测的前提下回答，status 取 not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_3",
+  "question_id": "IQS_07",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构的「示例工业设备股份有限公司」（EXAMPLE_ENTITY_A），与【标的】entity_id=ENT_99ebb735…不一致，且无对应可验证证据；管理层承诺兑现情况必须基于该实体的历史披露与项目数据。检索证据仅覆盖宁德时代，无法映射至虚构标的，status 取 not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_3",
+  "question_id": "IQS_08",
+  "status": "not_applicable",
+  "score": 5,
+  "rationale": "IQS题目中company字段明确标注为'示例工业设备股份有限公司（虚构）'（EXAMPLE_ENTITY_A），且标的层面company=None，entity_id与证据中实际指向的宁德时代（ENT_99ebb735-f072-41e4-8545-823bc012614f，标的provisional rev=2，市场/代码均缺失）不一致。题目要求评估一家虚构示例公司的扩张期交付质量、成本纪律与爬坡能力，但所有检索证据均关于宁德时代（动力电池制造商），二者行业模块、商业模式、计费单位、会计边界均不可比，无法将CATL的产能/成本证据映射到'示例工业设备股份有限公司'。按口径规则'同业须同商业模式/阶段/期间/会计边界'与'证据不足时status必须为unknown或not_applicable，不得猜测'，应判定为not_applicable。外层score=5仅为传输兼容占位，非正式评分。",
+  "evidence_refs": [
+   "Bb348fae2",
+   "B55039095",
+   "B6231e009",
+   "B94400770",
+   "Bee03dfba",
+   "B3fc82252"
+  ]
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_3",
+  "question_id": "IQS_09",
+  "status": "not_applicable",
+  "score": 5,
+  "rationale": "IQS题目中company字段明确标注为'示例工业设备股份有限公司（虚构）'（EXAMPLE_ENTITY_A），标的company=None，标的entity_id（ENT_99ebb735-f072-41e4-8545-823bc012614f）与题目spec的EXAMPLE_ENTITY_A不对应。题目要求评估该虚构公司的核心岗位梯队、人员流失、接班与制度化组织能力，但检索证据全部指向宁德时代——一家处于完全不同行业（动力电池vs.工业设备）、不同商业模式、不同会计边界、不同产能/产品结构的实体，无法将宁德时代的研发激励、赛马机制或曾毓群个人影响力证据用于评估'示例工业设备股份有限公司'的组织延续性。按'同业须同商业模式/阶段/期间/会计边界'及'证据不足时不得猜测'，判定为not_applicable。外层score=5仅为传输兼容占位，非正式评分。",
+  "evidence_refs": [
+   "Bf494e82b",
+   "B01bf0414",
+   "B9796bae6",
+   "B7e95fbb0",
+   "B50993b7e",
+   "B1ce3c54d"
+  ]
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_3",
+  "question_id": "IQS_10",
+  "status": "missing_in_response",
+  "score": null,
+  "rationale": "question_id absent from response",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_3",
+  "question_id": "IQS_12",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目口径明确将目标公司标注为'示例工业设备股份有限公司（虚构）'，entity_id=EXAMPLE_ENTITY_A，security_id=EXAMPLE_SECURITY_A，属于虚构示例公司。所提供的全部检索证据均指向宁德时代（300750.SZ / 03750.HK），与题目所指的虚构标的之间不存在对应口径，无法将其审计意见、应收存货质量、费用资本化、表外义务、非经常损益等信息套用到虚构标的，因此不得据猜测评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_3",
+  "question_id": "IQS_13",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目将目标公司显式标为'示例工业设备股份有限公司（虚构）'，entity_id 与 security_id 均为 EXAMPLE 字段，不指向任何真实上市主体。检索证据全部关于宁德时代（关联交易、分红、股东减持等治理议题），与该虚构标的的母公司架构、少数股东安排、控制权结构并不一致，无法用宁德时代治理记录回答虚构示例公司的问题。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_3",
+  "question_id": "IQS_14",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目明确为虚构示例公司'示例工业设备股份有限公司'，缺少真实可验证的并购、再投资、分红与回购历史。检索证据反映的是宁德时代2024-2026年的回购（200-400亿元注销式回购）、分红（2024年50%、2025年20%、2026中期15%）与产能扩张数据，无法替代虚构公司的资本配置记录，资本配置是否创造每股价值无法在本证据下证实或证伪。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_3",
+  "question_id": "IQS_15",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目口径明确指向'示例工业设备股份有限公司（虚构）'，ticker=EXAMPLE，entity_id=EXAMPLE_ENTITY_A。但检索证据全部指向宁德时代（300750/CATL），属于动力电池行业而非通用工业设备行业，且为真实公司而非题目指定的虚构标的。证据与对象不匹配，无法将宁德时代的薪酬/股权激励/治理信息套用于虚构的'示例工业设备股份有限公司'，不予评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_3",
+  "question_id": "IQS_16",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目口径指向虚构的'示例工业设备股份有限公司'，证据全部来自宁德时代。两者行业属性（动力电池 vs 工业设备）、商业模式、资本结构和刚兑义务口径均不可比，无法用CATL的现金/负债/担保数据回答虚构工业设备公司未来两年偿付能力问题，status=not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_3",
+  "question_id": "IQS_17",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目口径要求评估虚构'示例工业设备股份有限公司'在失去关键客户/供应/产地/系统时的恢复能力，证据均为宁德时代与其上下游（锂矿、正负极材料、车企客户、电池产能）的关系。两个标的不对应，工业设备行业的关键依赖（设备品类、终端应用、零部件供应链、认证体系）与动力电池行业完全不同，不能用宁德时代的证据作答，status=not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_3",
+  "question_id": "IQS_18",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目明确指向\"示例工业设备股份有限公司（虚构）\"（ticker=EXAMPLE，entity_id=EXAMPLE_ENTITY_A），属于虚构示例公司；标的层面 company=None、ticker=None、entity_id=ENT_99ebb735…，并非工业设备公司。检索证据全部围绕宁德时代（动力电池企业），与题目所指的虚构工业设备标的在行业、商业模式、客户场景、计费单位等关键边界上均不可比，无法将CATL证据外推至虚构标的以判断其核心价值是否面临永久性损害及其防御，故 not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_3",
+  "question_id": "IQS_19",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目要求评估虚构\"示例工业设备股份有限公司\"未来三至五年可触达且客户付得起的新增需求，但题目对象在标的字段中 company=None，且 entity_id/ticker 均为占位/虚构示例标识。检索证据仅涉及宁德时代的电池/储能/换电业务需求结构（动力电池全球份额、储能毛利率、换电生态等），无法映射到工业设备行业的客户预算、渗透替代边界与量价分解，证据与题目口径失配，不能用于对虚构标的打分，故 not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_3",
+  "question_id": "IQS_20",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目评估对象为虚构\"示例工业设备股份有限公司\"（EXAMPLE/EXAMPLE_ENTITY_A），需考察其增长驱动从客户需求到可持续利润的转化、存量蚕食与摊薄影响，但标的 company=None，无可对应的真实主体。检索证据全部关于宁德时代（电动车动力电池+储能+海外业务+换电），业务结构、计费单位、客户议价机制、利润归属均与\"示例工业设备\"不可比，无法据此判断其增长–利润–摊薄闭环，故 not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_3",
+  "question_id": "IQS_21",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目要求评估的对象为示例工业设备股份有限公司（虚构），entity_id为EXAMPLE_ENTITY_A，属于占位/虚构标的，与标的字段（名称/代码/市场均为None，实体ID为ENT_99ebb735）不一致。所提供检索证据全部围绕宁德时代（300750.SZ/03750.HK，动力电池及储能行业），行业并非industrial工业设备，商业模式、计费单位、供产销流程存在本质差异。证据不足以支撑对虚构标的增量资本回报、存量替代损失、转型资本开支及股东净效果分析，故无法评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_3",
+  "question_id": "IQS_22",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目针对虚构的示例工业设备股份有限公司（EXAMPLE_EXCHANGE）评估隐含估值假设，所提供检索证据均关于宁德时代股价、回购、目标价（如400亿回购、券商目标价401.65-618元、2026年股价460元等），且quote_date与evidence检索基准日不完全一致。无法将宁德时代估值证据映射到虚构工业设备公司，且无对应报价日、股权边界、资本结构可比数据，故不作评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_3",
+  "question_id": "IQS_23",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目要求评估虚构示例工业设备股份有限公司在悲观情景下的永久损失可能性，需依赖资产可回收性、债权顺序、摊薄、业务失效等证据。所提供证据均涉及宁德时代（如2024年净利润507.45亿元、2025年净利润722亿元、约2500亿级净现金、AAA信用评级、产能利用率近满产等），与虚构标的完全不对应，且宁德时代为电池龙头、EXAMPLE为工业设备公司，二者周期敏感性、产能结构、应收账款风险特征不具可比性，故无法适用。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_3",
+  "question_id": "IQS_24",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目口径明确指定对象为'示例工业设备股份有限公司（虚构）'（ticker=EXAMPLE，行业模块=industrial，stage=mature，cycle_sensitive=true），但检索证据全部指向宁德时代（300750.SZ，动力电池/储能制造商）。题面主体与证据主体完全不匹配：EXAMPLE为虚构工业设备公司，无任何对应公开信息；宁德时代为电池企业，证据可用于评估CATL但不可外推到题目所要求的工业设备口径。在无法将宁德时代证据机械套用于'示例工业设备股份有限公司'的前提下，无法判断其基本面价值向普通股东转化的机制（分红/回购/每股现金增长等）是否可靠，故判定为 not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_3",
+  "question_id": "OPERATING_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目要求评估'示例工业设备股份有限公司（虚构）'在扣除维护性资本开支与必要营运资本后的现金创造能力，并需按工业设备行业特性说明供产销流程、计费单位、瓶颈等。检索证据虽包含宁德时代经营现金流（2025年806.6亿元、2026上半年净利润432.84亿元、扩产资本开支）等内容，但宁德时代为电池/储能制造企业，与题目指定的'示例工业设备'虚构主体在商业模式、计费单位（kWh vs 设备台套）、维护性资本开支定义、营运资本结构上均不可类比。在主体不匹配的情况下，无法按题目口径给出有效评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_3",
+  "question_id": "INDUSTRIAL_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目评估对象为'示例工业设备股份有限公司（虚构）'的设备可靠性、客户认证周期、服务网络等工业设备行业特定指标。证据集中讨论宁德时代的客户结构（宝马长期订单、整车厂去宁化）、技术专利、一致性等内容，均围绕动力电池而非工业设备。工业设备的可靠性/认证周期/服务网络指标（如使用寿命、停机成本、维修网络、验收方式）与电池企业的客户认证、装车份额、能量密度指标不存在可替换对应关系。题目主体与证据主体不一致，无法评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_3",
+  "question_id": "INDUSTRIAL_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "目标公司为示例工业设备股份有限公司（虚构），entity_id=EXAMPLE_ENTITY_A，而全部检索证据均指向宁德时代（CATL，300750.SZ，动力电池制造商）。两者行业、商业模式、计费单位与会计边界完全不同。证据中虽包含订单/回款/质保相关信息（如预收款54天/付款261天、宝马73亿欧元长单、客户认证2-5年粘性），但这些属于电池行业供需与车企供应链特征，无法外推至示例工业设备公司。题目要求按主要业务分部描述工业设备的供产销、产线装备、耗材与售后收入、客户资本开支与验收方式，证据空白，无可核验依据。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_3",
+  "question_id": "MATURE_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目针对示例工业设备公司，需评估成熟业务复购、资产维护、替代趋势与核心客户的现金可持续性。检索证据全部为宁德时代动力电池与储能业务内容（如2025营收4237亿元/净利润722亿元、海外毛利率31.44%、车企去宁化），与工业设备行业的存量维护、备件收入、工艺装备升级完全不同口径。无法基于电池行业证据判断工业设备业务的复购率、资产服务周期或客户Capex节奏，证据与目标公司不匹配。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_3",
+  "question_id": "MATURE_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目要求评估示例工业设备公司高回报机会减少后的资本配置（回购价格、收缩投入、分配比例）。检索证据含宁德时代相关分配信息（如200-400亿回购、分红率从50%降至15-20%、2024年45.53元/10股分红），但这些属于电池龙头企业的资本配置，不能套用到虚构工业设备公司的并购/收缩/再投资决策。题目要求说明产能扩张是否仍可比、是否进入永久过剩或技术替代阶段，证据缺失。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_3",
+  "question_id": "CYCLICAL_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的公司明确标注为 None（provisional entity_id=ENT_99ebb735-f072-41e4-8545-823bc012614f），且问题模板中的对象为'示例工业设备股份有限公司（虚构）'，属于虚构占位符，与检索证据所聚焦的宁德时代（300750.SZ/CATL，电力电池及储能制造商）既非同一主体，商业模式（电池制造 vs 工业设备）、阶段、计费单位、瓶颈环节均不匹配。无法在不引入主体错配假设的前提下，对一个身份态为 provisional 且未指定具体业务边界的目标进行周期回报评分。",
+  "evidence_refs": [
+   "Bb348fae2",
+   "B39b63b03",
+   "B5639f563"
+  ]
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_3",
+  "question_id": "CYCLICAL_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的公司为 None（provisional），问题对象为虚构的'示例工业设备股份有限公司'，而检索证据全部围绕宁德时代（CATL）展开。两者的业务分部、计费单位、刚性开支结构、维护性资本开支边界、产能瓶颈均不同；将电池制造商的低谷存续证据外推到一个身份态为 None 的虚构工业设备标的，缺乏同商业模式/同阶段的对照基础，按口径要求不得跨业态打分。",
+  "evidence_refs": [
+   "Bb348fae2",
+   "Bccef6c41",
+   "B94400770"
+  ]
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "group_3",
+  "question_id": "CROSS_BORDER_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的公司为 None（provisional），问题对象为虚构的'示例工业设备股份有限公司'，而检索证据指向宁德时代。宁德时代虽涉及海外收入、关税与汇兑事项，但与既定事实下的'示例工业设备股份有限公司'非同一主体，不能将 CATL 的境外收入占比、毛利率结构、汇兑与套保安排（来源 [B5639f563]、[B7abe521b]、[Ba7624e1b]）代入到身份态为 None 的虚构标的，故本问项不适用。",
+  "evidence_refs": [
+   "B5639f563",
+   "B7abe521b",
+   "B857ea7d0",
+   "Ba7624e1b"
+  ]
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "concurrent_4",
+  "question_id": "IQS_05",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象标注为'示例工业设备股份有限公司（虚构）'，是虚构占位标的；提供的检索证据全部为宁德时代（300750.SZ/CATL）的资讯、研报与公告内容，与虚构示例公司之间不存在主体一致性，无法将宁德时代的竞争优势证据归集到该示例标的的护城河评估上。依据'证据不足时 status 必须为 unknown 或 not_applicable，不得猜测'的硬约束，本题不作任何 1-10 整数评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "concurrent_4",
+  "question_id": "IQS_04",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目口径中的标的为「示例工业设备股份有限公司（虚构）」，ticker=EXAMPLE，entity_id=EXAMPLE_ENTITY_A，且【标的】段对应公司、代码均为 None，entity_id=ENT_99ebb735-f072-41e4-8545-823bc012614f，二者口径不一致；检索证据全部围绕宁德时代（动力电池行业），与「示例工业设备股份有限公司」这一虚构标的在业务、商业模式、行业供需结构上无可比性，无法将宁德时代行业证据迁移到一个虚构且未定义的工业设备公司上做供需与价值链分配评估。按规则 status=not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "concurrent_4",
+  "question_id": "IQS_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目口径明确将标的定义为示例工业设备股份有限公司（虚构，entity_id=EXAMPLE_ENTITY_A），属于虚构示例标的，不存在真实经营主体。所提供的检索证据全部针对宁德时代（300750），与该虚构标的的实体身份、业务模式、行业、披露口径均不一致，无法用于评估其收入延续性、客户留存、订单履约或获客维护成本等指标。在证据完全不对应且标的公司为虚构的情况下，按规则不得猜测评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "concurrent_4",
+  "question_id": "IQS_06",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目要求评估的对象为'示例工业设备股份有限公司（虚构）'（entity_id=EXAMPLE_ENTITY_A，ticker=EXAMPLE），且明确标注为虚构公司。然而，所有检索证据均指向'宁德时代'（300750.SZ/03750.HK）——一家动力电池与储能电池龙头企业，与题目所述'工业设备'行业、虚构主体完全不对应。无法将宁德时代的竞争地位、客户结构、替代方案进展等证据映射到虚构的工业设备公司上。即便证据本身丰富，由于主体失配，不构成对题目对象的有效证据，status 应为 insufficient_evidence。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "concurrent_4",
+  "question_id": "IQS_07",
+  "status": "missing_in_response",
+  "score": null,
+  "rationale": "question_id absent from response",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "concurrent_4",
+  "question_id": "IQS_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象明确标注为'示例工业设备股份有限公司（虚构）'，属于虚构占位标的，entity_id=EXAMPLE_ENTITY_A，非真实可投资标的。检索证据全部围绕宁德时代（300750.SZ/CATL，动力电池企业），与题目所述'工业设备'行业模块、口径、ticker=EXAMPLE完全不匹配，无任何证据可对应'示例工业设备股份有限公司'的客户价值、复购行为、停用后果或总使用成本。鉴于标的不存在且证据与对象无关，无法对客户真实价值进行有意义的打分或反推，按要求不得猜测，状态置为not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "concurrent_4",
+  "question_id": "IQS_10",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构公司'示例工业设备股份有限公司（EXAMPLE）'，所给检索证据全部指向宁德时代（CATL/300750），与题目标的口径和entity_id均不匹配，无法对该虚构标的进行存量业务回报与资金成本对比的评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "concurrent_4",
+  "question_id": "IQS_09",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目明确指向'示例工业设备股份有限公司（虚构）'，entity_id 为 EXAMPLE_ENTITY_A，ticker 为 EXAMPLE，属于占位/虚构标的，不存在真实经营实体可供评估组织能力。所有检索证据均指向宁德时代（300750），与题目主体不一致，无法将宁德时代的组织能力证据套用于虚构标的，因此无法对该虚构标的进行有效评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "concurrent_4",
+  "question_id": "IQS_14",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象明确为'示例工业设备股份有限公司（虚构）'（ticker=EXAMPLE，entity_id=EXAMPLE_ENTITY_A），是占位/虚构标的，与可检索证据全部对应的真实公司宁德时代（300750.SZ）并非同一主体。所有证据均关于CATL的研发投入、产能、分红、回购及产业链话语权，无法对'示例工业设备股份有限公司'历次再投资、并购、分红、回购的每股经济价值进行归因评分。虚构标的不存在可核验的财报、公告或交易记录，按规则须判为not_applicable，避免将CATL证据错配到虚构主体。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "concurrent_4",
+  "question_id": "IQS_13",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "本题目标公司为'示例工业设备股份有限公司（虚构）'，ticker='EXAMPLE'、exchange='EXAMPLE_EXCHANGE'、entity_id='EXAMPLE_ENTITY_A'、security_id='EXAMPLE_SECURITY_A'，均为占位/虚构标识，并非真实存在的主体。检索到的全部证据均指向宁德时代（300750.SZ / 03750.HK），与本题标的并非同一公司，无法用于评价'示例工业设备股份有限公司'的关联交易、资金占用、控制权与现金权偏离、资产转移或少数股东保护等治理表现。按指令——证据不足时 status 必须为 unknown 或 not_applicable、不得猜测，且对象为虚构示例不具有可投资研究意义——故判定 not_applicable，score=null。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "concurrent_4",
+  "question_id": "IQS_08",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目要求评估的对象为'示例工业设备股份有限公司（虚构）'（entity_id=EXAMPLE_ENTITY_A，ticker=EXAMPLE），而检索到的所有证据均指向宁德时代（300750.SZ / 03750.HK），与题干中明确标注的虚构示例公司非同一主体。标的公司字段（company=None、代码=None、entity_id=ENT_99ebb735…）亦未指向任何可识别的真实公司，无法将宁德时代的扩张批次、质量事故、交付周期、固定成本弹性、爬坡损失等证据机械套用于虚构示例公司的评估。题面'虚构'标记决定了不应基于第三方公司证据做实质评分，证据与对象不匹配，评分无意义，故判定not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "concurrent_4",
+  "question_id": "IQS_12",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目'对象与口径'明确将标的标记为'示例工业设备股份有限公司（虚构）'，entity_id=EXAMPLE_ENTITY_A、security_id=EXAMPLE_SECURITY_A、ticker=EXAMPLE，属于明确声明的虚构主体；本轮所有检索证据均指向宁德时代（300750.SZ / 3750.HK），披露口径包括其A股/H股定期报告、信用评级文件、券商研报、新闻报道等，与该虚构标的之间不存在任何经济实质或会计主体对应关系。审计意见、应收存货/金融资产质量、费用资本化政策、表外义务及非经常调整等披露质量要素，必须建立在特定公司报表与底稿之上，宁德时代的财务披露无法证明'示例工业设备股份有限公司'的披露可信度；反之亦然。因此无法用现有证据对题目口径下的标的进行评分，status取not_applicable，不输出正式分数。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "concurrent_4",
+  "question_id": "IQS_15",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的公司明确标注为'示例工业设备股份有限公司（虚构）'，entity_id=EXAMPLE_ENTITY_A、security_id=EXAMPLE_SECURITY_A 均为占位符，表明该标的为虚构/示例主体，不存在可检索的真实公司。题目要求评估其薪酬、股权激励和监督机制，但所有检索证据均指向宁德时代（CATL，300750.SZ）与本虚构标的无关，无法将任何激励、考核、稀释或董事会治理事实归因于该虚构实体。按指引'证据不足时 status 必须为 unknown 或 not_applicable，不得猜测'，且'非scored时内层score=null'，故判定为 not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "concurrent_4",
+  "question_id": "IQS_16",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的实体标识为None（entity_id=ENT_99ebb735-f072-41e4-8545-823bc012614f处于provisional rev=2态），且题目明确指定对象为虚构的'示例工业设备股份有限公司（EXAMPLE）'，并非实际存在的工业设备公司。证据库中检索到的全部资料均围绕宁德时代（动力电池企业），与题目所指的'示例工业设备股份有限公司'在行业、商业模式、会计边界、刚性义务结构上均不匹配，无法用以评估该虚构公司的可用现金、经营流入、债务租赁、担保、契约约束等履约能力指标。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "concurrent_4",
+  "question_id": "IQS_17",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为'示例工业设备股份有限公司（虚构）'，ticker='EXAMPLE'，entity_id='EXAMPLE_ENTITY_A'，明确标注为虚构公司，不存在可对应的真实实体。标的段落同样显示标的公司为 None，entity_id 与题目不匹配。所提供的检索证据全部围绕宁德时代（300750.SZ / HK3750），属于动力电池行业，与虚构的'示例工业设备股份有限公司'在行业、业务模式、客户/供应商结构上均无对应关系，无法将 CATL 的证据套用于该虚构标的进行任何有意义的评估。按规定对虚构主体或无法匹配的题目应判为 not_applicable，不进行猜测性评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "concurrent_4",
+  "question_id": "IQS_19",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目所定义的标的为'示例工业设备股份有限公司（虚构）'（entity_id=EXAMPLE_ENTITY_A），其明确标注为虚构标的，且属性为'工业设备'行业、'成熟'阶段、非周期敏感示例口径。检索证据全部围绕宁德时代（动力电池/储能行业），与本虚构工业设备标的在行业、商业模式、产品形态、客户结构、会计边界上均不匹配，无法形成关于'未来三至五年可触达新增需求'的可比证据链。题干自带参数如 cycle_position 已注明'不明，需要检索验证'，而检索证据未能补全该标的任何口径，故不适用评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "concurrent_4",
+  "question_id": "IQS_20",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目参数明确指定标的为'示例工业设备股份有限公司（虚构）'（entity_id=EXAMPLE_ENTITY_A，security_id=EXAMPLE_SECURITY_A），属虚构示例公司；所提供的全部检索证据均围绕宁德时代（300750.SZ/CATL）这一真实但不同的标的，无法对应到题目所指虚构标的，证据与标的不匹配，无法据以评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "concurrent_4",
+  "question_id": "IQS_18",
+  "status": "error",
+  "score": null,
+  "rationale": "repair_parse:JSONDecodeError:Extra data: line 2 column 1 (char 103)",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "concurrent_4",
+  "question_id": "IQS_21",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的为虚构公司'示例工业设备股份有限公司（EXAMPLE_ENTITY_A）'，证据库中所有条目均指向真实存在的宁德时代（300750.SZ/03750.HK）及其动力电池/储能业务。证据与目标实体的行业、商业模式、会计边界、产能/客户结构完全不匹配，无法将动力电池行业证据映射到'工业设备'虚构标的以回答新增资本回报问题。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "concurrent_4",
+  "question_id": "IQS_23",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "对象公司明确为'示例工业设备股份有限公司（虚构）'，entity_id=EXAMPLE_ENTITY_A、security_id=EXAMPLE_SECURITY_A 均为虚构占位符，与所检索证据集全部围绕宁德时代（300750）这一现实主体不匹配。在标的为虚构、无可比对披露、无真实财务/业务/资本结构数据的前提下，无法对'有依据的悲观情景下普通股永久损失的可能性和幅度'进行任何锚定于该公司的经济能力评估，故按评分指引判 not_applicable；不得以宁德时代证据外推至虚构示例公司。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "concurrent_4",
+  "question_id": "IQS_22",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目subject明确标注为'示例工业设备股份有限公司（虚构）'，ticker为'EXAMPLE'，entity_id为'EXAMPLE_ENTITY_A'，security_id为'EXAMPLE_SECURITY_A'，exchange为'EXAMPLE_EXCHANGE'，所有这些字段均为占位符/虚构标识，没有对应的真实标的、市场报价或可验证财务数据。提供的检索证据全部为宁德时代(CATL, 300750)相关内容，与本虚构标的无关，不能用于评估虚构标的的隐含增长、利润率或资本回报要求。按规则，无可用证据且标的非真实存在的，状态应为not_applicable，不给出分数。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "concurrent_4",
+  "question_id": "IQS_24",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目要求评估的对象是'示例工业设备股份有限公司（虚构）'（entity_id=EXAMPLE_ENTITY_A，ticker=EXAMPLE），为明确标注的虚构标的，且exchange、security_class、行业模块（industrial）等口径均为占位/示例值。所提供的全部检索证据均围绕宁德时代（300750.SZ/HK3750）展开，包括其财报、市占率、定价权、回购分红、技术护城河、车企去宁化等内容，与本题所述的虚构工业设备公司无任何对应关系——既无同一发行人，也无同一行业（动力电池 vs. industrial equipment）、同一商业模式或同一会计实体可供映射。因此，无法以宁德时代的现金流转化机制、分红回购记录、资本配置行为等作为该虚构标的'基本面价值转股东回报'路径的证据。依据评分规则'未知留空而非5'以及'非scored时内层score=null、说明原因'，本项应判定为not_applicable。若后续提供与EXAMPLE_ENTITY_A真实对应的同口径证据，可重新评估。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "concurrent_4",
+  "question_id": "INDUSTRIAL_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目要求评估的对象为'示例工业设备股份有限公司'（虚构工业设备公司），但提供的所有检索证据均关于宁德时代（动力电池/储能企业，股票代码300750），主体、行业类别与题目完全不匹配，无法用宁德时代的电池业务证据评估工业设备公司的可靠性、认证及服务网络竞争壁垒。标的对象实体ID（ENT_99ebb735-f072-41e4-8545-823bc012614f）亦未识别到具体公司，无法将证据映射到题目对象。按指令要求，证据不适用时不应猜测评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "concurrent_4",
+  "question_id": "OPERATING_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的实体未指定（标的=None，entity_id=ENT_99ebb735-f072-41e4-8545-823bc012614f 无对应公司），且题目指向一家明确标注为虚构的示例公司「示例工业设备股份有限公司」（ticker=EXAMPLE），与实际目标不一致。检索证据全部关于宁德时代（CATL），与题目中的虚构公司无任何对应关系，无法将 CATL 的现金流/资本开支数据归因于虚构标的。根据证据不足时 status 必须为 unknown 或 not_applicable 不得猜测的规则，判定为 not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "concurrent_4",
+  "question_id": "MATURE_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构的'示例工业设备股份有限公司'（ticker=EXAMPLE），而提供的全部检索证据均指向宁德时代（300750.SZ，动力电池/储能企业）。证据主体（动力电池行业、装车份额、市占率、车企去宁化、回购分红等）与题目要求的标的（工业设备制造业，cycle_sensitive、复购/资产维护/替代趋势/核心客户等成熟工业设备口径）之间不存在实体对应关系，证据不可用于评估该虚构标的的需求与现金创造可持续性。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "concurrent_4",
+  "question_id": "INDUSTRIAL_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象明确标注为示例工业设备股份有限公司（虚构，ticker=EXAMPLE, exchange=EXAMPLE_EXCHANGE），属于虚构示例标的；提供的检索证据全部指向宁德时代（动力电池制造商，300750.SZ / HK3750），其商业模式（电池-车企B2B配套+长协定价+储能）与工业设备制造（通用机械/专用装备-客户验收-质保-尾款）业务流完全不同，验收条款、定金比例、质保计提口径不可平移。同时as-of时点（2026-10-07）的证据虽多，但无法用于一个虚构且无公开披露的标的；不能以CATL数据替代虚构公司的订单兑现评估。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "concurrent_4",
+  "question_id": "CYCLICAL_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的实体company='示例工业设备股份有限公司（虚构）'，ticker='EXAMPLE'，entity_id='EXAMPLE_ENTITY_A'，明确标注为虚构示例标的，无真实经营数据、财务披露、市场报价或监管文件可供核验。同时【标的部分】标的公司=None，与题目所述虚构公司不构成可对齐的真实投资对象；检索证据池全部围绕宁德时代(300750)，与本题目所指的虚构工业设备公司在行业、商业模式、周期属性上均不可比，无法作为本体证据使用。因此本题在当前信息条件下无法对该虚构示例标的中周期回报是否创造价值进行实质评分，按规则标记为not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "concurrent_4",
+  "question_id": "MATURE_02",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目要求评估的对象为'示例工业设备股份有限公司（虚构）'（entity_id=EXAMPLE_ENTITY_A），而当前标的'company': None、entity_id=ENT_99ebb735-f072-41e4-8545-823bc012614f 实质未指定具体公司，且所有检索证据均围绕宁德时代（300750/CATL）展开，无法对应到题目所指的虚构工业设备公司，亦无法验证其资本配置、回购、分红、收缩投入等具体行为。在事实层面证据与题目对象错配，无法对题目做出有效评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "concurrent_4",
+  "question_id": "CROSS_BORDER_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的层面：题目明确指定研究对象为'示例工业设备股份有限公司（虚构）'（ticker=EXAMPLE, exchange=EXAMPLE_EXCHANGE, entity_id=EXAMPLE_ENTITY_A），且【标的】段注明标的公司为 None、身份态 provisional。检索证据全部指向宁德时代（300750/03750.HK）及其关联主体，与该虚构示例公司不存在身份对应关系，无法将宁德时代的收入币种分布、套保安排、关税敞口和跨境资金限制等信息用于评估该虚构标的的净敞口。此外，问句要求区分'当前表现/穿越周期能力/尚未兑现恢复假设'，而该虚构主体无任何可核验的经营、财务、产能、客户或资本流动数据。综上，无法对该虚构示例标的进行跨境敞口评分，证据与口径双重不适用。",
+  "evidence_refs": []
+ },
+ {
+  "company": "CN-A:300750",
+  "method": "concurrent_4",
+  "question_id": "CYCLICAL_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目明确指向'示例工业设备股份有限公司（虚构）'，ticker=EXAMPLE、security_id=EXAMPLE_SECURITY_A、entity_id=EXAMPLE_ENTITY_A，属于示例/虚构主体，非真实存续的上市公司，无法获取其历史可比低谷下的价格、债务、现金及刚性开支数据。同时【标的】字段中 company=None、entity_id=ENT_99ebb735-… 与题目中虚构主体不对应。所附检索证据全部关于宁德时代（CATL，300750）及其动力/储能电池业务和股价、回购、分红等内容，与题目所指的虚构工业设备公司主体、口径、行业（industrial modules）均不匹配，既不能用于评估其'低谷价格/债务/现金/刚性开支'，也无产能、订单、产供销流程等可比信息。按照规则——证据不足/主体不适用应判 unknown 或 not_applicable，不得猜测——本题判定为 not_applicable，不给出 1–10 分数。如需真实评分，请提供与题目对象一致的真实公司主体、可比周期数据及财报证据。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "batch_30",
+  "question_id": "IQS_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目要求评估的对象为示例工业设备股份有限公司（虚构），而所提供的检索证据全部为中信建投证券（601066.SH/6066.HK）的资料，与虚构工业设备公司不存在对应关系，无法据此外推评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "batch_30",
+  "question_id": "IQS_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，与中信建投证券证据不匹配，无法对收入延续性作出与题目口径相符的判断。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "batch_30",
+  "question_id": "IQS_04",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，证据为中信建投证券（券商），行业归属不一致，not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "batch_30",
+  "question_id": "IQS_05",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，竞争优势评估需基于该公司证据，证据集无关，not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "batch_30",
+  "question_id": "IQS_06",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，证据全部为中信建投证券，无法匹配，not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "batch_30",
+  "question_id": "IQS_07",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，管理层兑现评估缺乏对应公司证据，not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "batch_30",
+  "question_id": "IQS_08",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，规模与成本纪律评估与中信建投证券证据不匹配，not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "batch_30",
+  "question_id": "IQS_09",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，组织能力评估缺乏对应证据，not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "batch_30",
+  "question_id": "IQS_10",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，证据集中虽有中信建投ROE数据（来自[B16abc59f][B71c8fc09]），但与虚构公司主体不匹配，not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "batch_30",
+  "question_id": "IQS_12",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，财务披露质量评估无对应公司证据，not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "batch_30",
+  "question_id": "IQS_13",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，股东公平对待记录无对应证据，not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "batch_30",
+  "question_id": "IQS_14",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，资本配置记录无对应证据，not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "batch_30",
+  "question_id": "IQS_15",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，薪酬激励机制评估无对应证据，not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "batch_30",
+  "question_id": "IQS_16",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，债务履约能力评估无对应证据，not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "batch_30",
+  "question_id": "IQS_17",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，关键依赖恢复能力无对应证据，not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "batch_30",
+  "question_id": "IQS_18",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，结构性风险评估无对应证据，not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "batch_30",
+  "question_id": "IQS_19",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，新增需求空间评估无对应证据，not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "batch_30",
+  "question_id": "IQS_20",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，增长驱动转化评估无对应证据，not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "batch_30",
+  "question_id": "IQS_21",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，新增资本回报评估无对应证据，not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "batch_30",
+  "question_id": "IQS_22",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，估值合理性无对应证据，not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "batch_30",
+  "question_id": "IQS_23",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，悲观情景下损失评估无对应证据，not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "batch_30",
+  "question_id": "IQS_24",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，价值兑现路径无对应证据，not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "batch_30",
+  "question_id": "OPERATING_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，自由现金流评估无对应证据，not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "batch_30",
+  "question_id": "INDUSTRIAL_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，设备可靠性与服务网络优势评估无对应证据，not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "batch_30",
+  "question_id": "INDUSTRIAL_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，订单利润确定性评估无对应证据，not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "batch_30",
+  "question_id": "MATURE_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，成熟业务持续性无对应证据，not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "batch_30",
+  "question_id": "MATURE_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，资本配置转向每股价值评估无对应证据，not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "batch_30",
+  "question_id": "CYCLICAL_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，中周期回报评估无对应证据，not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "batch_30",
+  "question_id": "CYCLICAL_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，历史低谷下存续能力评估无对应证据，not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "batch_30",
+  "question_id": "CROSS_BORDER_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，跨境敞口评估无对应证据，not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_10",
+  "question_id": "IQS_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象与口径明确为'示例工业设备股份有限公司（虚构）'，属于虚构示例公司。标的对象identity=provisional，entity_id=ENT_1af6804e-40c1-4c35-b190-ea691dba2c85，无对应真实工业设备公司。所提供的检索证据全部关于'中信建投证券'（金融业），行业与业务模式与题目假定的工业设备制造完全不同，证据无法映射至虚构标的，无法作出有意义的评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_10",
+  "question_id": "IQS_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构的'示例工业设备股份有限公司'，标的provisional、entity未指明具体公司。检索证据均为中信建投证券相关材料，与虚构工业设备标的无可比业务结构或客户留存口径，evidence不可映射，评分无意义。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_10",
+  "question_id": "IQS_04",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目假定的'示例工业设备股份有限公司'为虚构公司，标的entity_id=ENT_1af6804e-40c1-4c35-b190-ea691dba2c85且身份态provisional。检索证据只覆盖证券公司中信建投（投行/财富/资管），与工业设备产业链供需与价值链分配无对应关系，无法在所要求的工业供需框架下评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_10",
+  "question_id": "IQS_05",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "公司为虚构示例标的，无可验证竞争优势存在。证据集中在中信建投证券的投行/财富管理业务及牌照、股东背景等行业属性，与工业设备业务条线下的竞争优势（如工艺、装备、耗材、转换成本）无关，故不适用。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_10",
+  "question_id": "IQS_06",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目要求评估虚构工业设备公司的竞争地位与趋势，而证据仅涉及中信建投证券的客户数、ROE、行业排名等金融指标，无法外推到一个虚构工业设备标的的份额/客户迁移/替代方案分析，因此not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_10",
+  "question_id": "IQS_07",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "对象为虚构示例公司，无管理层经营目标或重大项目的历史承诺可核验。证据中关于中信建投的高管变动（如刘成接任董事长、薪酬改革、债券承销目标）属于另一实体的承诺履约，与本题虚构标的无关。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_10",
+  "question_id": "IQS_08",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目针对虚构工业设备公司的产能/交付/成本纪律，证据只覆盖证券公司业务条线（投行项目储备、债券承销、APP月活、机构交易系统等），不涉及工业制造的扩产批次、固定成本弹性、爬坡损失等口径，无法用于本题。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_10",
+  "question_id": "IQS_09",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，无组织能力/梯队信息可观察。检索证据中关于中信建投的研究员人数、子公司管理、'四投联动'协同机制等，属于另一实体的组织能力，不能用作本题标的的依据。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_10",
+  "question_id": "IQS_10",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目要求评估虚构工业设备公司存量业务的资本回报，但所给证据均为中信建投证券的财务指标（ROE 11.9%、自营收入占比37.14%、资产负债率76.21%等），属于金融企业的权益回报口径，与工业设备公司的投入资本回报（ROIC）不可比，且题目公司为虚构，故not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_10",
+  "question_id": "IQS_12",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，无审计意见、应收存货、表外义务等披露口径可核验。证据中虽有中信建投的监管措施（北京证监局责令改正、深交所监管函）、审计评级等内容，但对应另一实体，与虚构工业设备标的的披露质量评估无关。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_10",
+  "question_id": "IQS_13",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构示例工业设备公司（EXAMPLE_ENTITY_A），无对应实体；检索证据全部为中信建投证券（601066/6066）相关内容，与标的行业、身份均不匹配，无法形成对示例公司的关联交易、资金占用或少数股东保护评估。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_10",
+  "question_id": "IQS_14",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构示例工业设备公司，evidence 中并无任何示例公司的再投资、并购、分红或回购数据；现有证据指向中信建投证券，无法外推。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_10",
+  "question_id": "IQS_15",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "对象为虚构示例工业设备公司，未披露其薪酬、股权激励或董事会构成；检索证据仅涉及中信建投证券高管薪酬变动（B07d6df3d/B6ea0cfd0），与示例公司无关。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_10",
+  "question_id": "IQS_16",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "对象为虚构示例工业设备公司，无其债务、租赁、资本或现金数据；evidence 涉及中信建投证券资本与负债（B6ea0cfd0），不适用。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_10",
+  "question_id": "IQS_17",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "对象为虚构示例工业设备公司，无法识别其关键客户、供应商或产地依赖；evidence 不覆盖示例公司。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_10",
+  "question_id": "IQS_18",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "对象为虚构示例工业设备公司，无其技术替代、渠道迁移或监管约束的具体分部敞口；evidence 与标的无关。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_10",
+  "question_id": "IQS_19",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "对象为虚构示例工业设备公司，无可触达需求或客户预算数据；evidence 中无对应行业 TAM 分析。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_10",
+  "question_id": "IQS_20",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "对象为虚构示例工业设备公司，无法验证其增长驱动是否已转为可持续利润；evidence 不匹配。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_10",
+  "question_id": "IQS_21",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "对象为虚构示例工业设备公司，缺乏其增量资本回报与必要投入数据；evidence 仅覆盖中信建投证券的资本运作，不能替代。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_10",
+  "question_id": "IQS_22",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "对象为虚构示例工业设备公司，无报价日股价或可比估值；evidence 中的报价（东方财富/新浪等）均为中信建投证券行情，与示例公司无关。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_10",
+  "question_id": "IQS_23",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目明确说明标的为'示例工业设备股份有限公司（虚构）'，属于虚构工业设备公司，与所提供证据（中信建投证券，601066.SH/6066.HK，综合性券商）不匹配；证据无法支撑对虚构工业设备公司在悲观情景下普通股永久损失的评估。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_10",
+  "question_id": "IQS_24",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目标的为虚构工业设备公司，所提供证据全部关于中信建投证券（券商），行业模块（industrial）与证据主体业务性质不一致，价值向普通股东转回报的机制无法从券商证据中推导。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_10",
+  "question_id": "OPERATING_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目要求评估虚构工业设备公司扣除维护性资本开支后的现金创造能力，证据主体为中信建投证券（券商），无对应工业设备经营性现金流、维护/扩张资本开支及应收存货变化数据可用。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_10",
+  "question_id": "INDUSTRIAL_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目询问设备可靠性、客户认证和服务网络等工业设备属性竞争优势，标的为虚构工业设备公司，证据为中信建投证券（券商），两类主体业务无对应关系，无法评估。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_10",
+  "question_id": "INDUSTRIAL_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目关注工业设备订单的定金、验收、质保与收款利润确定性，标的为虚构工业设备公司，证据主体为中信建投证券（券商），缺乏工业设备订单条款及现金回收数据。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_10",
+  "question_id": "MATURE_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目考察虚构工业设备公司成熟业务的需求与现金创造持久性，证据为中信建投证券（券商）相关公开信息，无法对应到工业设备复购、资产维护、核心客户等评估维度。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_10",
+  "question_id": "MATURE_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目考察虚构工业设备公司高回报机会减少后的资本配置转向每股价值的能力，证据为中信建投证券（券商），标的与证据主体不一致，无法进行评估。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_10",
+  "question_id": "CYCLICAL_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目询问虚构工业设备公司剔除峰谷价格/利用率后的中周期回报是否创造价值，证据为中信建投证券（券商），行业属性不匹配，无法评估工业设备全周期回报与维护投入。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_10",
+  "question_id": "CYCLICAL_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目询问虚构工业设备公司在历史可比低谷下的存续和必要投资能力，证据主体为中信建投证券（券商），缺乏工业设备低谷价格、债务、现金与刚性开支等对应数据。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_10",
+  "question_id": "CROSS_BORDER_01",
+  "status": "missing_in_response",
+  "score": null,
+  "rationale": "question_id absent from response",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_5",
+  "question_id": "IQS_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目主体公司为'示例工业设备股份有限公司（虚构）'，标的 entity_id=ENT_1af6804e-40c1-4c35-b190-ea691dba2c85 为 provisional 且 market/code 均为 None；检索证据全部关于中信建投证券（601066/6066.HK），属证券业，与题目所指的虚构工业设备公司既非同行业、亦非同一经营主体，无法用题目口径评估客户付费与价值。【B4ea62e8d】【B4773b496】",
+  "evidence_refs": [
+   "B4ea62e8d",
+   "B4773b496"
+  ]
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_5",
+  "question_id": "IQS_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目针对虚构工业设备公司评估收入留存与获客维持成本；现有证据全部为中信建投证券的证券业务讨论（如经纪/投行/资管收入结构），与题目主体的工业设备产品/服务订单留存逻辑完全不可比，不能给出对应评分。【B31ba3e84】【Bf7bcecda】",
+  "evidence_refs": [
+   "B31ba3e84",
+   "Bf7bcecda"
+  ]
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_5",
+  "question_id": "IQS_04",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目要求评估工业设备行业的供需与价值链利润分配；证据来源属于证券行业供需与牌照竞争分析（如投行缩量、再融资、两融业务等），与题目所指的'示例工业设备股份有限公司'所处的工业设备供需结构无对应关系。【B7b130661】【Bfdc...]",
+  "evidence_refs": [
+   "B7b130661",
+   "Bfdc...",
+   "B7b1accae"
+  ]
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_5",
+  "question_id": "IQS_05",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目要求评估虚构工业设备公司的可验证竞争优势；证据集中于中信建投证券在投行/财富管理/REITs 等证券业务上的相对位置（如类REITs承销规模第一、债券承销破万亿），属于证券业比较优势，不适用于工业设备公司。【B9f0eae02】【Bfd078d9f】",
+  "evidence_refs": [
+   "B9f0eae02",
+   "Bfd078d9f"
+  ]
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_5",
+  "question_id": "IQS_06",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目针对虚构工业设备公司的竞争地位稳固性与趋势；证据为中信建投证券的ROE排名、自营占比等证券业内指标，与题目主体行业模块 industry_modules=['industrial'] 无交集，无法用作竞争地位评估依据。【Bb5c9583e】【B71c8fc09】",
+  "evidence_refs": [
+   "Bb5c9583e",
+   "B71c8fc09"
+  ]
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_5",
+  "question_id": "IQS_07",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目明确标注标的为'示例工业设备股份有限公司（虚构）'，entity_id=EXAMPLE_ENTITY_A，ticker=EXAMPLE。所有可检索证据均指向中信建投证券（601066.sh/6066.hk），属大型综合证券公司，行业、业务模式、口径均与虚构工业设备公司完全不同，无法用于本题关于管理层经营目标与项目承诺兑现情况的评价。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_5",
+  "question_id": "IQS_08",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目要求评估工业设备公司在规模扩张或需求波动时的交付质量与成本纪律，标的为虚构公司。检索证据均为中信建投证券相关材料（证券公司经纪、自营、投行业务），与工业设备制造业务在工艺、装备、供应链、计费单位、爬坡路径等方面无任何可比性，无法形成有效评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_5",
+  "question_id": "IQS_09",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目要求评估工业设备公司组织能力与梯队建设。标的为虚构示例公司。检索证据仅覆盖中信建投证券的董事会、薪酬改革等证券业组织议题，不能外推到工业设备公司的研发-销售-生产组织能力评估，无可比口径。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_5",
+  "question_id": "IQS_10",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目要求评估工业设备公司存量业务回报是否持续超过资金成本。标的为虚构工业设备公司。检索证据虽涉及中信建投证券的ROE、杠杆等指标，但中信建投非本题标的，且金融企业适用权益资本口径与工业制造企业税后经营回报口径不同，证据不可迁移使用。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_5",
+  "question_id": "IQS_12",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目要求评估工业设备公司财务披露真实性。标的为虚构示例公司。检索证据虽提及中信建投被监管责令改正（B95452305、B77a8f6da）等合规事项，但与虚构工业设备公司的应收存货、费用资本化、表外义务等口径无关，无法用于本题评价。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_5",
+  "question_id": "IQS_13",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象明确标注为\"示例工业设备股份有限公司（虚构）\"，entity_id 与 ticker 均为占位符（EXAMPLE_ENTITY_A / EXAMPLE），标的身份态为 provisional，且提供的检索证据全部指向中信建投证券（601066/6066），属于不同主体，无法对虚构标的进行公平对待普通股东的实质性评估。",
+  "evidence_refs": [
+   "B4ea62e8d",
+   "B4773b496"
+  ]
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_5",
+  "question_id": "IQS_14",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，标的代码与身份态缺失，证据库仅含中信建投证券相关材料，无法评估该虚构公司历次再投资、并购、分红与回购对每股经济价值的影响。",
+  "evidence_refs": [
+   "B0fcc9380",
+   "Bedef7555"
+  ]
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_5",
+  "question_id": "IQS_15",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，entity_id=EXAMPLE_ENTITY_A 无对应真实标的，证据池与题目主体不匹配，无法判断其薪酬、股权激励与监督机制是否鼓励长期每股回报。",
+  "evidence_refs": [
+   "B07d6df3d",
+   "B6ea0cfd0"
+  ]
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_5",
+  "question_id": "IQS_16",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，无可验证的财务数据、债务结构或现金储备信息，无法评估其在压力情景下对未来两年刚性义务的履行能力。",
+  "evidence_refs": [
+   "B6ea0cfd0",
+   "B35b07fe0"
+  ]
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_5",
+  "question_id": "IQS_17",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，未给出真实客户、供应商、产地或系统依赖信息，证据中关于中信建投证券的内容与工业设备业务无对应关系，无法评估替代与恢复能力。",
+  "evidence_refs": [
+   "B85f1d7dc",
+   "Ba2d1ef06"
+  ]
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_5",
+  "question_id": "IQS_18",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象明确为'示例工业设备股份有限公司（虚构）'，属于虚构占位标的；所提供的检索证据全部围绕中信建投证券（601066/6066），一家综合性证券公司，与题目所述工业设备行业、虚构实体EXAMPLE_ENTITY_A在行业、公司身份、会计边界上完全不匹配。无可用于评估'永久损害核心业务价值的技术替代/渠道迁移/监管约束/商业模式失效'的标的特定证据，故无法按锚点评分。",
+  "evidence_refs": [
+   "B4ea62e8d",
+   "B4773b496",
+   "B95452305"
+  ]
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_5",
+  "question_id": "IQS_19",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构的'示例工业设备股份有限公司'，但检索证据仅覆盖中信建投证券（投行/经纪/资管/财富管理分部），不包含任何工业设备客户预算、可触达市场或渗透替代边界数据。两者的产品-市场契合、客户付费证据与产业链位置完全不同，无法用以评估未来三至五年可触达新增需求规模。",
+  "evidence_refs": [
+   "B4ea62e8d",
+   "B7ca4d65c",
+   "Bfd078d9f"
+  ]
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_5",
+  "question_id": "IQS_20",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目要求拆分'示例工业设备股份有限公司'从客户需求到利润的转化路径，而检索证据均关于中信建投证券的'四投联动'战略、投行/资管业务及监管处罚等，不存在工业设备公司新业务单位经济、存量替代、转型投入或摊薄的可验证证据；标的与证据错配，无法按锚点评分。",
+  "evidence_refs": [
+   "B7b1accae",
+   "Bc762658a",
+   "Bb359e208"
+  ]
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_5",
+  "question_id": "IQS_21",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目针对虚构工业设备公司的'新增资本—存量替代—转型投入—融资摊薄—每股回报'链条进行评估，证据全部为中信建投证券（证券公司）的资本结构、永续次级债、合并传闻等内容，不构成工业设备业务的新批次经济性证据；标的错配，按口径无法评分。",
+  "evidence_refs": [
+   "B35b07fe0",
+   "B7fe1eb42",
+   "B6ea0cfd0"
+  ]
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_5",
+  "question_id": "IQS_22",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目要求评估'示例工业设备股份有限公司'隐含估值所需增长/利润率/资本回报，而检索证据为中信建投证券的ROE、自营收入占比、估值评论等证券行业数据。标的为虚构工业设备公司，且报价日、口径均标记为示例，无可对应的真实报价与股权边界可供反推基本面；证据与标的错配，按规则不予猜测评分。",
+  "evidence_refs": [
+   "Bd1ce5d70",
+   "B71c8fc09",
+   "Bb5c9583e"
+  ]
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_5",
+  "question_id": "IQS_23",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的为虚构示例工业设备公司（entity_id=EXAMPLE_ENTITY_A），证据库中检索到的中信建投证券材料与该公司无对应关系，且该公司明确标注为虚构，无任何可引用的财务、负债或资产回收数据。无法对普通股永久损失可能性进行评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_5",
+  "question_id": "IQS_24",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的公司为虚构示例工业设备公司，证据库中的中信建投证券材料属于另一实体的券商业务披露，与该虚构工业设备公司无对应关系。无法评估价值转化为股东回报的机制。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_5",
+  "question_id": "OPERATING_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的为虚构工业设备公司，证据库中无该虚构公司的经营现金流、维护性资本开支或营运资本数据；中信建投证券是综合性券商，其现金流口径与工业设备业务不可比，故not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_5",
+  "question_id": "INDUSTRIAL_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的为虚构工业设备公司，无任何关于其设备寿命、停机成本、客户认证周期或维修网络的信息；中信建投证券为券商，与工业设备可靠性议题无关。无法评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_5",
+  "question_id": "INDUSTRIAL_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的为虚构工业设备公司，证据库中不存在该虚构公司的订单条款、定金、验收或质保数据；中信建投证券材料描述券商投行项目保荐，与工业设备订单履约机制不属同一商业模式。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_5",
+  "question_id": "MATURE_01",
+  "status": "not_applicable",
+  "score": 5,
+  "rationale": "题目参数明确指定标的为'示例工业设备股份有限公司（虚构）'，entity_id=EXAMPLE_ENTITY_A，industry_modules=['industrial']，针对工业设备制造业的复购、资产维护、替代趋势、核心客户需求及现金创造能力设计。但实际检索目标为中信建投证券（601066.SH/6066.HK），属于综合性证券金融服务行业，业务模式为投行/经纪/资管/自营/财富管理等，无工业设备制造业务，工业设备类问题框架不适用。证据集全部围绕证券业务，无法套用至工业设备需求维护与现金创造问题，故判定 not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_5",
+  "question_id": "MATURE_02",
+  "status": "not_applicable",
+  "score": 5,
+  "rationale": "题目参数标的为'示例工业设备股份有限公司（虚构）'，entity_id=EXAMPLE_ENTITY_A，industry_modules=['industrial']，问题关注制造业资本配置、回购价格、低效扩张收缩等工业公司框架。中信建投证券为综合券商，虽涉及资本配置与分红议题（如2025年永续次级债、分红政策等），但无工业设备制造对应的'产能维护/扩张/收缩'维度。题目模板与实际公司业务模式根本性错配，判定 not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_5",
+  "question_id": "CYCLICAL_01",
+  "status": "not_applicable",
+  "score": 5,
+  "rationale": "题目参数标的为'示例工业设备股份有限公司（虚构）'，entity_id=EXAMPLE_ENTITY_A，cycle_sensitive=true，cycle_position需验证，问题指向工业设备的中周期回报、正常化价格与维护投入。中信建投证券为金融服务企业，不存在工业品价格周期、利用率、维护性资本开支等概念。虽然证券市场本身有周期性，但题目框架与券商业务的经济逻辑不匹配，判定 not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_5",
+  "question_id": "CYCLICAL_02",
+  "status": "not_applicable",
+  "score": 5,
+  "rationale": "题目参数标的为'示例工业设备股份有限公司（虚构）'，entity_id=EXAMPLE_ENTITY_A，关注低谷价格、债务、现金、刚性开支以评估工业制造企业在价格低谷下的存续能力。中信建投证券虽也面临市场低谷，但题目框架（产品价格下行/产能利用率/客户资本开支）系工业设备业逻辑，不适用于券商业务结构（券商低谷期考验的是自营敞口、佣金费率、两融规模等不同维度）。参数错配，判定 not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_5",
+  "question_id": "CROSS_BORDER_01",
+  "status": "not_applicable",
+  "score": 5,
+  "rationale": "题目参数标的为'示例工业设备股份有限公司（虚构）'，entity_id=EXAMPLE_ENTITY_A，关注汇率、关税、跨境资金限制等工业制造企业的进出口敞口。中信建投证券虽通过中信建投（国际）金融控股有限公司开展跨境业务并涉及港股IPO，但题目框架针对工业制造企业的收入成本币种、关税暴露、套保政策，与券商的跨境金融服务业务模式根本性不同。参数错配，判定 not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "sequential_1",
+  "question_id": "IQS_01",
+  "status": "unknown",
+  "score": null,
+  "rationale": "题目口径明确指向'示例工业设备股份有限公司（虚构）'，标的entity_id=ENT_1af6804e-40c1-4c35-b190-ea691dba2c85对应company_name=None、ticker=None，与虚构示例公司无明确对应关系。所提供的检索证据全部围绕中信建投证券（601066.SH/6066.HK）这一综合性投资银行/券商的业务展开，包括投行、债券承销、REITs、财富管理、资管、自营等业务，与'工业设备产品/服务的客户付费价值'问题在行业、商业模式、客户对象上完全不匹配：券商的客户多为上市公司、机构投资者、政府和高净值个人，其'付费产品'是承销/保荐/经纪/资管等服务，而非可被客户'停止使用'后影响产出的实体设备；且中信建投作为券商并非工业设备制造商，证据中亦无任何工业设备客户、使用成本、复购行为或停用后果的可核验信息。证据与题干错配，无法用于评估目标公司客户价值是否足以支撑持续付费，亦无法区分当前表现、穿越周期能力或未兑现假设，故判定为证据不足，不予打分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "sequential_1",
+  "question_id": "IQS_02",
+  "status": "unknown",
+  "score": null,
+  "rationale": "题目明确指出标的为'示例工业设备股份有限公司（虚构）'，属于虚构/占位公司，不存在真实经济实体可供评估其收入持续性、客户留存、订单履约、获客维护成本等指标。所提供的检索证据全部围绕'中信建投证券'（601066.SH/6066.HK），属于证券行业综合金融服务商，与题目所指的工业设备制造行业、商业模式、口径均不匹配，无法构成对虚构标的任何口径下的可核验证据。按照'未知留空而非5'的评分纪律，且证据与标的不相关，应判为证据不足，无法给出有效评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "sequential_1",
+  "question_id": "IQS_04",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目要求评估的对象为'示例工业设备股份有限公司（虚构）'（ticker=EXAMPLE）的行业供需与价值链分配，但检索证据全部围绕中信建投证券（601066.SH/6066.HK）——一家综合性投资银行/证券公司，未包含任何工业设备制造行业的供给、价格纪律、客户/供应商议价、利润池归属等证据。标的实体ID(ENT_1af6804e)与公司名称(中信建投证券)虽已识别，但与IQS_04所问的工业设备行业供需/价值链口径不匹配；证据无法支撑对'示例工业设备股份有限公司'作出任何评分判断。按'证据不足时status必须为unknown或not_applicable，不得猜测'及'未知留空而非5'的要求，不予打分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "sequential_1",
+  "question_id": "IQS_05",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目中明确标注的标的为'示例工业设备股份有限公司（虚构）'，ticker=EXAMPLE、entity_id=EXAMPLE_ENTITY_A、security_id=EXAMPLE_SECURITY_A、exchange=EXAMPLE_EXCHANGE、industry_modules=['industrial'] 等关键字段均为占位符（示例/虚构），并非真实可识别的公司实体。给定检索证据全部围绕中信建投证券（601066.SH / 6066.HK）这一真实券商标的展开，与题目所称'工业设备股份有限公司'在行业、公司类型、主营业务、计费单位、产供销流程等方面均无可比性。即便假设中信建投证据可勉强引用，亦无法证明'示例工业设备股份有限公司'存在具体竞争优势，更无法满足评分锚点中'机制和经济回报均有长期证据、复制代价显著'的要求。按系统指引，对虚构/占位标的不得猜测或套用其他公司证据给分，因此判定为 not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "sequential_1",
+  "question_id": "IQS_06",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的公司为'示例工业设备股份有限公司（虚构）'，entity_id=EXAMPLE_ENTITY_A，明确标注为虚构标的，且标的代码/市场均不可识别（EXAMPLE_EXCHANGE）。检索证据全部为关于'中信建投证券'（实体身份态为 provisional rev=2，与虚构标的不对应）的信息，与本题所问的工业设备公司无任何业务、口径或主体对应关系。无法对虚构标的的竞争地位、份额、客户构成、替代方案进展等作出任何真实判断。按指令'未知留空而非5'且'不得猜测'，判定为 not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "sequential_1",
+  "question_id": "IQS_07",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目询问对象为虚构的'示例工业设备股份有限公司（EXAMPLE/EXAMPLE_ENTITY_A）'，而所有检索证据均指向中信建投证券（601066.SH/6066.HK），两者为完全不同的标的（行业、公司类型、entity_id均不匹配）。无法在不引入虚构内容的前提下对虚构示例公司的管理层承诺兑现情况进行评估，故判定为不适用。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "sequential_1",
+  "question_id": "IQS_08",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目要求评估的是'示例工业设备股份有限公司（虚构）'在扩张或需求波动下的交付质量与成本纪律能力，但检索证据全部围绕'中信建投证券'（A+H上市的综合性证券公司，业务为投行/经纪/资管/自营/财富管理等）。标的行业属性（工业设备制造）与证据主体（证券公司）完全错位，证据中不存在任何关于工业设备产线、产能爬坡、固定成本结构、批次质量事故、交付周期、OEM/自制边界、耗材/售后收入等可供评估的工业制造信息。因此该题目在当前证据集下无法评分，标记为not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "sequential_1",
+  "question_id": "IQS_09",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目对象为虚构的'示例工业设备股份有限公司'（industry_modules=industrial，stage=mature，cycle_sensitive=true），但所给【不可信检索证据】全部围绕中信建投证券股份有限公司（601066.SH/6066.HK）这一证券业金融服务公司，且题面 ticker=EXAMPLE 与 entity_id=EXAMPLE_ENTITY_A 也未对应任何检索到的工业设备公司。证据与题目口径完全不匹配：缺工业设备制造业务的产销研/工艺装备/客户资本开支/备件售后等关键事实，也无核心岗位梯队、关键人员流失记录、接班计划与授权记录等可直接引用的资料。无法在工业设备口径下评估组织能力与对关键个人的依赖度，故按规则 status=insufficient_evidence，score=null。外层兼容传输占位 score=5 仅为格式占位，绝非正式评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "sequential_1",
+  "question_id": "IQS_10",
+  "status": "error",
+  "score": null,
+  "rationale": "repair_parse:JSONDecodeError:Extra data: line 11 column 1 (char 141)",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "sequential_1",
+  "question_id": "IQS_12",
+  "status": "error",
+  "score": null,
+  "rationale": "repair_parse:JSONDecodeError:Extra data: line 2 column 1 (char 103)",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "sequential_1",
+  "question_id": "IQS_13",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目参数明确指定评估对象为'示例工业设备股份有限公司（虚构）'，ticker=EXAMPLE，entity_id=EXAMPLE_ENTITY_A，属于占位/虚构标的，不存在可核查的真实公司记录。所给检索证据全部指向中信建投证券（ENT_1af6804e-40c1-4c35-b190-ea691dba2c85），与题目中虚构的标的并非同一公司，无法用于评估'示例工业设备股份有限公司'管理层对普通股东的公平对待记录。题目对象与现有证据口径不一致，按规则不能将中信建投的事实迁移至虚构标的，应判定为不适用。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "sequential_1",
+  "question_id": "IQS_14",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构公司'示例工业设备股份有限公司'（EXAMPLE_ENTITY_A），行业模块为industrial（工业设备）。但所有检索证据均围绕中信建投证券（601066.SH，一家综合性证券公司）展开，包括其年报摘要、再融资公告、信用评级报告、监管函及行业研究等。中信建投证券属于证券业（金融），与题目指定的'工业设备'行业模块在商业模式、会计边界、产能/供需逻辑上完全不同，无法作为题目虚构工业设备公司再投资/并购/分红/回购对每股经济价值影响的有效证据。证据与题目对象及口径不可比，不能基于此评估投入资本回报、并购减值、回购价格合理性、失败项目退出等指标。按规定，无可信证据时不得猜测，状态置为not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "sequential_1",
+  "question_id": "IQS_15",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "IQS_15 对象与口径字段明确标注 company='示例工业设备股份有限公司（虚构）'、ticker='EXAMPLE'、entity_id='EXAMPLE_ENTITY_A'、security_id='EXAMPLE_SECURITY_A'，标的栏亦为占位状态（entity_id=ENT_1af6804e-40c1-4c35-b190-ea691dba2c85、市场/代码=None、身份态=provisional rev=2），属虚构占位标的；所检索的不可信证据集合全部围绕中信建投证券股份有限公司（601066.SH / 6066.HK），与 IQS_15 所要求的'示例工业设备股份有限公司'在主体身份、行业（工业设备 vs. 证券Ⅱ）、实体编号、证券代码上均不一致，无法以中信建投的薪酬/股权激励/监督证据来回答虚构工业设备公司的考核指标、稀释、管理层风险承担、追索约束与董事会监督问题。依据'证据不足时 status 必须为 unknown 或 not_applicable，不得猜测'的口径与'非scored时内层score=null、说明原因'的强制要求，给出 not_app",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "sequential_1",
+  "question_id": "IQS_16",
+  "status": "error",
+  "score": null,
+  "rationale": "repair_parse:JSONDecodeError:Extra data: line 10 column 1 (char 140)",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "sequential_1",
+  "question_id": "IQS_17",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目口径明确指出对象为'示例工业设备股份有限公司（虚构）'（entity_id=EXAMPLE_ENTITY_A，ticker=EXAMPLE），属虚构工业设备公司；而提供的全部检索证据均指向'中信建投证券股份有限公司'（601066.SH / 6066.HK），一家综合性投资银行/券商，二者在行业、业务模式、关键依赖类型（工业设备的供应商、客户、产线、库存 vs 券商的客户资产、交易席位、牌照、IT系统）上完全不匹配，证据无法支撑对所问对象的评估。同时，本题问的是'失去关键客户、供应来源、产地或系统时的恢复能力'，属于工业设备/制造业口径，对券商不适用。因此无法评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "sequential_1",
+  "question_id": "IQS_18",
+  "status": "error",
+  "score": null,
+  "rationale": "repair_parse:JSONDecodeError:Extra data: line 2 column 1 (char 461)",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "sequential_1",
+  "question_id": "IQS_19",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象明确标注为\"示例工业设备股份有限公司（虚构）\"，ticker=\"EXAMPLE\"、entity_id=\"EXAMPLE_ENTITY_A\"，是占位/虚构标的，无法对其未来三至年的可触达需求做任何有意义的评分。检索证据集全部围绕中信建投证券（601066.SH/6066.HK）——一家综合性证券公司，而非工业设备制造商；其经营业绩、投行业务排名、ROE、自营收入占比等指标与\"工业设备\"赛道的新增客户需求、可触达市场、渗透替代边界等口径不存在同商业模式可比性，不能套用为该虚构标的的TAM/SAM/SOM分析证据。鉴于无任何与工业设备公司业务相关的可引用证据，亦无目标公司的真实财务/客户/订单数据，遵循\"未知留空而非5\"的原则，按不可评分处理。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "sequential_1",
+  "question_id": "IQS_20",
+  "status": "missing_in_response",
+  "score": null,
+  "rationale": "question_id absent from response",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "sequential_1",
+  "question_id": "IQS_21",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构示例公司'示例工业设备股份有限公司'（ticker=EXAMPLE, exchange=EXAMPLE_EXCHANGE, entity_id=EXAMPLE_ENTITY_A, security_id=EXAMPLE_SECURITY_A），标的字段company/code/market均为None或占位符，未指向任何可识别的真实工业设备公司；所提供的全部检索证据均围绕中信建投证券（601066.SH/6066.HK）——一家综合性投资银行/证券公司，属于证券Ⅱ行业而非工业设备制造业，其业务结构、资本占用方式、再投资经济性、存量业务可替代性、转型投入与融资摊薄逻辑与题目要求的'工业设备'口径完全不可比。无法基于上述证据对虚构工业设备标的的新增资本回报扣除存量替代/转型投入/摊薄后的每股价值进行评估，故判定为not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "sequential_1",
+  "question_id": "IQS_22",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目明确标注对象为'示例工业设备股份有限公司（虚构）'，属于虚构标的，不存在可验证的财务数据、报价、估值或资本结构证据。所提供的检索证据全部指向中信建投证券（601066.SH/6066.HK）这一综合性投资银行/券商，与题目所要求的'示例工业设备'行业模块、operating+cycle_sensitive+industrial行业属性完全错位。标的实体身份态为provisional（entity_id=ENT_1af6804e-40c1-4c35-b190-ea691dba2c85，market=None, code=None），无法将其与中信建投证券映射为同一标的，且即便将其视作中信建投，也无法满足题目设定的'示例工业设备股份有限公司'口径。因此无法对虚构标的价格隐含的增长率、利润率、资本回报要求是否在能力范围内做出有意义的经济评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "sequential_1",
+  "question_id": "IQS_23",
+  "status": "unknown",
+  "score": null,
+  "rationale": "题目主体为虚构工业设备公司（示例工业设备股份有限公司，EXAMPLE_ENTITY_A），但所给检索证据全部围绕中信建投证券（601066.SH/6066.HK）这一综合证券公司，未包含任何关于该虚构工业设备公司的业务结构、资产负债、周期位臵、产销流程、产能/客户资本开支或摊薄安排的可核验信息。无法就'普通股永久损失可能性与幅度是否可承受'形成有依据的判断，亦无同业可比口径可作历史区间或供给结构基准。依据评分指引'未知留空而非5'，故不评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "sequential_1",
+  "question_id": "IQS_24",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "标的在题目中被显式定义为'示例工业设备股份有限公司（虚构）'（ticker=EXAMPLE, entity_id=EXAMPLE_ENTITY_A），属于虚构标的，不存在可对应的真实发行人基本面、每股现金增长、分红、回购、汇出限制等可验证证据。检索证据全部指向中信建投证券（601066.SH/6066.HK），与本题虚构标的的'工业设备'行业、口径和身份均不匹配，无法将中信建投证券的资料外推至虚构标的进行'价值转普通股东回报路径'的评估，故无法评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "sequential_1",
+  "question_id": "OPERATING_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "【标的与评分框架严重不匹配】题目'对象与口径'声明公司为'示例工业设备股份有限公司（虚构）'且 industry_modules=['industrial']，要求评估维护性资本开支、应收存货变化、供产销流程、产能等工业口径指标。但 entity_id（ENT_1af6804e）对应的实际检索证据全部指向中信建投证券股份有限公司（601066.SH/6066.HK）——一家A+H上市的大型综合性投资银行/券商，属于金融机构而非工业设备制造商。证券业几乎无维护性资本开支、不存在传统意义的应收存货，供产销/工艺装备等工业框架项完全不适用。无法在不扭曲评估口径的前提下把'维护资本开支+必要营运资本'框架套用于券商；故按系统约定标记为 not_applicable，score=null。",
+  "evidence_refs": [
+   "Bedef7555",
+   "B0fcc9380",
+   "B4ea62e8d"
+  ]
+ },
+ {
+  "company": "HK:06066",
+  "method": "sequential_1",
+  "question_id": "INDUSTRIAL_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的为虚构的'示例工业设备股份有限公司'（entity_id=EXAMPLE_ENTITY_A），证据库中所有检索条目均指向中信建投证券（601066.SH/6066.HK），一家综合性证券公司，与工业设备制造业务在主营业务、商业模式、客户群体、产品形态上完全无关。问题关注设备可靠性、客户认证、停机成本、维修网络等工业设备行业维度，所有证据均不涉及设备寿命、装备工艺、耗材、售后收入、客户资本开支与验收方式等关键议题，无法建立任何有效证据-评分映射。依据指令：未scored时内层score=null；仅外层兼容传输用5，绝非正式评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "sequential_1",
+  "question_id": "INDUSTRIAL_02",
+  "status": "unknown",
+  "score": null,
+  "rationale": "题目明确标注标的为虚构的示例工业设备股份有限公司（EXAMPLE/EXAMPLE_ENTITY_A），属工业设备制造口径；检索证据全部指向中信建投证券股份有限公司（601066.SH/6066.HK），系以证券经纪、自营投资和投行为主的综合券商，与工业设备制造业务、定金验收质保计提及回款等订单履约口径无任何对应关系。既不存在可对应的真实标的，也无工业设备订单取消、验收确认、质保负债或收款进度的证据，故无法在1-10锚点上给出有依据的评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "sequential_1",
+  "question_id": "MATURE_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目中指定的对象为'示例工业设备股份有限公司（虚构）'，ticker为EXAMPLE，entity_id为EXAMPLE_ENTITY_A，是一个虚构的工业设备公司。然而，【标的】实际为中信建投证券（entity_id=ENT_1af6804e-40c1-4c35-b190-ea691dba2c85），所属市场为None、代码为None，且全部检索结果均围绕中信建投证券这家综合性投资银行/证券公司展开，无任何关于'示例工业工业设备'或工业设备制造业的证据。题目所考察的'复购/资产维护/替代趋势/核心客户'等成熟业务维度属于工业设备制造业的分析口径，与中信建投证券（券商）的商业模式（投行/经纪/资管/自营）不匹配，无法将券商业务的证据套用于工业设备公司的成熟度评估。因此该题与实际标的及证据不适用，标记为not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "sequential_1",
+  "question_id": "MATURE_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "无法评分。题目对象与证据严重不匹配：(1) 标的字段标的公司为None，无明确被评主体；(2) 题目中company明确为'示例工业设备股份有限公司（虚构）'、ticker为'EXAMPLE'，是一个虚构的工业设备公司，与任何真实标的无关；(3) 给定的所有检索证据均指向中信建投证券（601066.SH/6066.HK）这一真实的综合性证券公司，属于金融业而非工业行业，其业务范围（投行/财富管理/资管/自营/经纪）与题目所设工业设备的资本开支/产供销流程完全不匹配，证据无法用于评估'工业设备公司在高回报扩张机会减少时是否转向每股价值'这一命题。证据不适用，不得猜测评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "sequential_1",
+  "question_id": "CYCLICAL_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为'示例工业设备股份有限公司（虚构）'（ticker=EXAMPLE, entity_id=EXAMPLE_ENTITY_A），明确标注为虚构标的。检索证据全部为中信建投证券相关条目（券商行业信息），与该虚构工业设备公司无任何对应关系，无法就中周期回报、维护投入、全周期收益等指标进行任何有意义的核实或推算。按要求，无相关证据时 status 不得给 scored，亦不得猜测，故判定为 not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "sequential_1",
+  "question_id": "CYCLICAL_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象与检索证据存在根本性不匹配：(1) 题目对象明确为'示例工业设备股份有限公司（虚构）'（entity_id=EXAMPLE_ENTITY_A，industry_modules=['industrial']，cycle_sensitive=true），属于虚构的工业设备类公司；(2) 标的公司字段为 None，entity_id（ENT_1af6804e-40c1-4c35-b190-ea691dba2c85）与题目 entity_id 不一致；(3) 所有检索证据均围绕中信建投证券（601066.SH/6066.HK），属于综合性证券/投资银行业务，与工业设备制造在商业模式、收入驱动、周期敏感性来源（资本市场交投 vs 制造业产能/订单/资本开支）、成本结构（人力/合规 vs 原材料/折旧/产能维护）上完全不同，证据无法用于评估工业设备公司在历史可比低谷下的存续与必要投资能力。无第二曲线、刚性开支、产能/装备维护、客户验收等工业设备口径证据可引用。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "sequential_1",
+  "question_id": "CROSS_BORDER_01",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目对象明确为'示例工业设备股份有限公司（虚构）'，entity_id=EXAMPLE_ENTITY_A，标的实体与证据库中所有来源均不对应。检索到的全部证据均指向中信建投证券（601066.SH/6066.HK）——一家综合性证券公司，与虚构的工业设备公司既非同行业、亦非同实体，无法就收入成本币种、套保、关税、汇出限制等跨境敞口维度形成有效映射。按评分口径，未知须留空而非5，证据不足时status=insufficient_evidence，不给出正式评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "concurrent_4",
+  "question_id": "IQS_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的明确标注为'示例工业设备股份有限公司（虚构）'，entity_id 与 ticker 均为 EXAMPLE 占位符，属虚构标的不存在真实经营实体，因此不存在可验证的客户价值、复购行为或支付意愿证据。检索证据全部围绕中信建投证券（601066.SH / 6066.HK），与该虚构工业设备公司的产品/服务/客户支付意愿评估无任何对应关系，不构成可引用证据。在无真实标的与无相关证据条件下，按规则 status=not_applicable、score 留空，不得以猜测或借代方式给出评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "concurrent_4",
+  "question_id": "IQS_05",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目对象明确标注为'示例工业设备股份有限公司（虚构）'（entity_id=EXAMPLE_ENTITY_A，security_id=EXAMPLE_SECURITY_A），是虚构公司，无任何可核验业务、财务或市场数据可供评估其竞争优势。所有检索证据均指向另一家真实主体——中信建投证券（601066.SH / 6066.HK），包括其公司简介、业绩、监管事项等，均与'示例工业设备股份有限公司'无关，不能用于评估虚构工业设备公司的护城河/竞争优势。依据评分口径'未知留空而非5'，无法给出 score。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "concurrent_4",
+  "question_id": "IQS_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的明确标注为'示例工业设备股份有限公司（虚构）'（ticker=EXAMPLE，entity_id=EXAMPLE_ENTITY_A），属于虚构示例标的，检索证据全部围绕中信建投证券（601066.SH/6066.HK），与示例工业设备公司无任何主体、赛道、商业模式对应关系，既不存在客户留存/重复需求/订单履约等可核验证据，亦无法判断其周期性或收入持续性，按要求不得猜测，应判定为 not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "concurrent_4",
+  "question_id": "IQS_07",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象明确标注为虚构示例工业设备股份有限公司（entity_id=EXAMPLE_ENTITY_A，ticker=EXAMPLE），系虚构标的，不存在真实经营主体可供评估管理层承诺兑现情况。检索证据全部为中信建投证券（601066.SH / 6066.HK）相关公开信息，与所述工业设备虚构标的既非同行业（证券业 vs 工业设备）、亦非同主体，且证据中无任何关于该虚构公司管理层经营目标、重大项目承诺或兑现进度的内容。按非scored时内层score=null要求，无法给出有效评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "concurrent_4",
+  "question_id": "IQS_04",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "对象与口径声明的标的公司为示例工业设备股份有限公司（虚构），industry_modules为industrial，但提供的全部检索证据均指向中信建投证券（601066.SH/6066.HK），一家全国性大型综合证券公司，所属行业为证券Ⅱ，而非工业设备制造业。题目要求评估工业设备制造行业的供需、价格纪律、客户与供应商议价、利润池归属等结构性问题，而证据中无任何关于工业设备制造业务、产能、原材料、订单、客户验收或价值链分配的可引用信息。即便尝试基于中信建投证券的证据作答，也违反同业须同商业模式、阶段、期间、会计边界的同口径原则，且证券业的牌照壁垒、佣金与承销定价等与工业设备制造行业的供需逻辑完全不具有可比性。因此判定为不可评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "concurrent_4",
+  "question_id": "IQS_08",
+  "status": "missing_in_response",
+  "score": null,
+  "rationale": "question_id absent from response",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "concurrent_4",
+  "question_id": "IQS_09",
+  "status": "missing_in_response",
+  "score": null,
+  "rationale": "question_id absent from response",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "concurrent_4",
+  "question_id": "IQS_06",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目模板的对象与口径明确标注company为示例工业设备股份有限公司（虚构），ticker为EXAMPLE，entity_id为EXAMPLE_ENTITY_A，所指对象为虚构示例工业设备公司，并非真实可分析标的。【标的】段中标的公司为None，身份态为provisional，无对应真实主体。所附检索证据全部指向中信建投证券（601066.SH/6066.HK，综合性证券公司），与题目口径（工业设备、operating、industry_modules包含industrial、cycle_sensitive为true）既非同行业也非同商业模式，无法用证券行业的投行/经纪/资管/自营份额、监管处罚、ROE、客户迁徙等指标去评判一家虚构工业设备公司的竞争壁垒、价格回报、客户锁定、替代风险、产能装备耗材结构等。该问题在当前标的与证据下不构成可评分任务，故判定为not_applicable，不输出1-10评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "concurrent_4",
+  "question_id": "IQS_12",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构的'示例工业设备股份有限公司'（ticker=EXAMPLE, entity_id=EXAMPLE_ENTITY_A），并非真实存在的发行人；检索证据全部针对另一真实主体中信建投证券（601066.SH/6066.HK，entity_id=ENT_1af6804e-40c1-4c35-b190-ea691dba2c85）。在缺少任何关于虚构标的的资产、负债、利润披露、审计意见、应收存货质量、费用资本化、表外义务或非经常调整的证据情况下，无法对其财务披露质量进行有意义的经济实质判断。题目设定与可用证据口径不匹配，应判为 not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "concurrent_4",
+  "question_id": "IQS_10",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象明确标注为示例工业设备股份有限公司（虚构），ticker为EXAMPLE，属于虚构占位标的，不存在可评估的真实公司实体。提供的检索证据全部涉及中信建投证券（601066.SH/6066.HK），与题目所指定的虚构标的在主体、业务模式、行业归属（industrial模块要求工业设备行业而非证券金融业）上均不相关。根据规则，商业化前没有经济含义时标not_applicable，且证据不足时不得猜测，因此本条目无法评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "concurrent_4",
+  "question_id": "IQS_16",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目要求评估的对象为'示例工业设备股份有限公司（虚构）'，entity_id 写作 EXAMPLE_ENTITY_A，ticker 为 EXAMPLE，exchange 为 EXAMPLE_EXCHANGE，明确标识为虚构示例标的。然而，给定的全部检索证据均围绕'中信建投证券股份有限公司'（601066.SH / 6066.HK），属于证券行业综合金融服务商，与题干所示工业设备公司、商业模式、收入结构、客户类型、产能与供应链逻辑完全不同，无法复用做现金流刚性义务、资本性支出、租赁与承诺、担保与契约约束等压力测试。证据中也未出现任何与示例工业设备公司相关的可用现金、经营性现金流、债务到期分布、产能与折旧、订单与回款等内容。由于标的为虚构且缺乏任何与该公司匹配的公开披露证据，依据评分锚点（未知留空而非5）与状态规则（证据不足时不得猜测），本项无法给出有效评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "concurrent_4",
+  "question_id": "IQS_15",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目scope指定对象为'示例工业设备股份有限公司（虚构）'（entity_id=EXAMPLE_ENTITY_A，ticker=EXAMPLE），与本次标的（entity_id=ENT_1af6804e-40c1-4c35-b190-ea691dba2c85，标的公司=None）不一致；检索证据全部为中信建投证券股份有限公司（601066.SH/6066.HK）相关信息，与题目口径所指对象在身份、行业、商业模式上均不匹配，无法据以对所述标的的薪酬/股权激励/监督机制进行评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "concurrent_4",
+  "question_id": "IQS_14",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目所要求的对象为示例/虚构的'示例工业设备股份有限公司（EXAMPLE/EXAMPLE_ENTITY_A）'，属于占位实体。所提供的全部检索证据均指向中信建投证券（601066.SH / 6066.HK），与题目所述工业设备类标的、商业模式、阶段与会计口径完全不匹配，无可核验的再投资/并购/分红/回购/每股经济价值相关事实，无法进行评分判断。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "concurrent_4",
+  "question_id": "IQS_13",
+  "status": "scored",
+  "score": 5,
+  "rationale": "对象：依据题目口径字段（EXAMPLE_ENTITY_A）与题面问题，结合检索证据库实际指向中信建投证券股份有限公司（601066.SH/6066.HK，entity_id=ENT_1af6804e-40c1-4c35-b190-ea691dba2c85）。评估维度：管理层与控股股东是否公平对待普通股东（关联交易、资金占用、控制权与现金流权、资产转移、少数股东保护）。\n\n有利证据：(1) 股权结构含北京金控、中央汇金、中信集团三大国资法人股东[B4773b496]，监督制衡机制存在；(2) 2026Q1年化ROE 11.9%，处行业前列[B71c8fc09]，2024年净利润同比+2.68%、经营性现金流2025年同比+181.53%[B6ea0cfd0]，反映价值创造能力；(3) 治理透明：定期披露投资者关系活动记录、年度/半年度报告、债券募集说明书完整可查[B5a63ac95][B4e62255f][B35b07fe0]；(4) 未发现直接关联交易侵占或资产转移至大股东的证据；(5) 重大资本运作（永续次级债）归类为权益工具、计入所有者权益，程序合规[B5a63ac95]；(6) ",
+  "evidence_refs": [
+   "B95452305",
+   "Bf39cae92",
+   "B77a8f6da",
+   "B4773b496",
+   "B71c8fc09",
+   "B6ea0cfd0",
+   "B07d6df3d",
+   "Ba8f769ac",
+   "B5a63ac95",
+   "Bcf574582",
+   "Bb359e208",
+   "B7f0cae0fa",
+   "B4e62255f",
+   "B35b07fe0"
+  ]
+ },
+ {
+  "company": "HK:06066",
+  "method": "concurrent_4",
+  "question_id": "IQS_17",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目对象为虚构的'示例工业设备股份有限公司'（EXAMPLE_ENTITY_A / EXAMPLE_SECURITY_A），但检索证据全部围绕中信建投证券（一家综合性证券公司，代码601066.SH/6066.HK），与题目所指的工业设备公司无任何业务、口径或主体对应关系。题目关注的关键依赖（关键客户、供应来源、产地、系统替代及恢复能力）在证券行业和工业设备行业之间不具有可类比性，且中信建投的证据无法用以评估一家虚构工业设备公司的供应商集中度、产能替代、客户切换成本或库存保护等机制。因此无法基于给定证据进行评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "concurrent_4",
+  "question_id": "IQS_20",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构示例公司'示例工业设备股份有限公司（EXAMPLE_ENTITY_A）'，所有检索证据均指向中信建投证券（601066.SH/6066.HK），与题目口径无任何对应关系；无法也无需对虚构标的进行评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "concurrent_4",
+  "question_id": "IQS_19",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目明确指定标的为'示例工业设备股份有限公司（虚构）'，entity_id=EXAMPLE_ENTITY_A，ticker=EXAMPLE，属于虚构工业设备公司。所提供的全部检索证据均指向中信建投证券股份有限公司（601066.SH/6066.HK），系一家真实存在的证券行业综合性投资银行，与题目口径中的虚构工业设备标的在行业（金融服务业 vs. 工业设备）、公司性质（真实 vs. 虚构）上均不匹配。无法将证据中的客户预算、可触达市场、渗透与替代边界、量价分解等维度映射到不存在的虚构工业设备公司。证据对该题目既不可引用，也不足以支撑任何评分判断，故维持 not_applicable，未给出 1-10 整数评分，也不以 5 替代。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "concurrent_4",
+  "question_id": "IQS_18",
+  "status": "error",
+  "score": null,
+  "rationale": "repair_parse:JSONDecodeError:Expecting ',' delimiter: line 6 column 27 (char 112)",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "concurrent_4",
+  "question_id": "IQS_21",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的明确为'示例工业设备股份有限公司（虚构）'，为虚构标的，无真实实体可供检索与评估；系统提供的实体标识亦为 None/provisional 状态。检索证据全部指向中信建投证券（601066.SH/6066.HK），与本题标的（虚构工业设备公司）完全无关，无法形成针对新增资本经济性、存量替代损失、转型投入与摊薄等问题的任何有效判断。按评分口径规则，非真实标的或无对应证据的题目应判为 not_applicable，不得猜测给分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "concurrent_4",
+  "question_id": "IQS_22",
+  "status": "error",
+  "score": null,
+  "rationale": "repair_parse:JSONDecodeError:Extra data: line 10 column 1 (char 140)",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "concurrent_4",
+  "question_id": "IQS_24",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构的'示例工业设备股份有限公司'，且标的entity_id=ENT_1af6804e-40c1-4c35-b190-ea691dba2c85的市场/代码均为None、身份态为provisional。所有检索证据均指向中信建投证券（601066.SH/6066.HK），属综合性投资银行/证券公司，与题目要求的'industrial equipment / 工业设备、mature、cycle_sensitive、cycle_position待验证'标的口径完全不匹配——公司类型、商业模式、周期属性、计费单位、产能/供需结构等关键基本面维度均无法用证券业证据映射或归一化处理。按要求，事实性断言必须基于证据；当前既无对应实体的工业设备基本面证据，也无法对虚构标的进行价值兑现机制的可靠评分，故判定为not_applicable，不输出1–10整数分。",
+  "evidence_refs": [
+   "Bedef7555",
+   "B4773b496",
+   "B0fcc9380"
+  ]
+ },
+ {
+  "company": "HK:06066",
+  "method": "concurrent_4",
+  "question_id": "OPERATING_01",
+  "status": "error",
+  "score": null,
+  "rationale": "repair_parse:JSONDecodeError:Extra data: line 2 column 1 (char 109)",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "concurrent_4",
+  "question_id": "IQS_23",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目口径中的对象为虚构占位公司示例工业设备股份有限公司（ticker=EXAMPLE，entity_id=EXAMPLE_ENTITY_A），并不存在可对应的真实主体。提供的检索证据全部围绕中信建投证券股份有限公司（601066.SH/6066.HK）这家综合性投资银行，与题设工业设备公司无任何业务、资产、行业或资本结构层面的对应关系。无法用证券业证据评估工业设备公司的普通股永久损失风险——周期正常化、资产可回收性、债权顺序、摊薄、业务失效等关键维度均无相关证据支撑。依据评分口径未知留空而非5及证据不足时 status 必须为 unknown 或 not_applicable 不得猜测，判定为 not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "concurrent_4",
+  "question_id": "INDUSTRIAL_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目口径明确标注标的公司为'示例工业设备股份有限公司（虚构）'（ticker=EXAMPLE，entity_id=EXAMPLE_ENTITY_A），属于虚构示例公司，不存在真实可评估的标的。所提供的检索证据全部为中信建投证券（601066.SH/6066.HK）相关材料，与工业设备制造、设备可靠性、客户认证（UL/CE/API等行业认证）及维修服务网络等议题无关，无法支撑设备使用寿命、停机成本、认证周期或维修网络等指标的评判。在缺乏同口径证据且标的不存在的情况下，按指引不得猜测，应留空评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "concurrent_4",
+  "question_id": "INDUSTRIAL_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的明确标注为'示例工业设备股份有限公司（虚构）'（entity_id=EXAMPLE_ENTITY_A），属于虚构主体。所提供的全部检索证据均指向中信建投证券（601066.SH/6066.HK），与该虚构工业设备公司无任何业务对应关系：证据涉及投行承销、经纪业务、自营投资、财富管理、REITs、债券承销、监管函、薪酬变动等内容[Bedef7555][B9f0eae02][B7a19ddba][B95452305][Bf39cae92][B6ea0cfd0]，但未涉及任何工业设备产品的订单签订、定金收取、验收流程、质保计提或回款数据。按照评分口径，无法对虚构主体的订单利润确定性进行任何实质评估，亦无法计算定金比例、验收周期、延期取消率、质保拨备占比等指标。证据与题目口径完全错配，评分不可执行。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "concurrent_4",
+  "question_id": "MATURE_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的为虚构示例公司(示例工业设备股份有限公司/EXAMPLE)，无可信检索证据指向该实体。现有全部证据均涉及中信建投证券(601066.SH/6066.HK)，属于证券行业而非工业设备行业，无法对资本配置转向每股价值进行任何评估。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "concurrent_4",
+  "question_id": "MATURE_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的明确标注为'示例工业设备股份有限公司（虚构）'（EXAMPLE_ENTITY_A），且实体ID/证券ID均为占位符（EXAMPLE_SECURITY_A、EXAMPLE_EXCHANGE、EXAMPLE）。检索证据全部关于中信建投证券（601066.SH/6066.HK），一家综合性券商，业务范围涵盖投行/财富管理/资管/自营/REITs等证券业务，与'工业设备制造'完全不属于同一行业、同一商业模式、同一阶段。无法用证券公司的证据评估'工业设备成熟业务的需求维持与现金创造'（复购、资产维护、替代趋势、核心客户等口径）。证据与标的不匹配，不应强行套用或猜测。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "concurrent_4",
+  "question_id": "CYCLICAL_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目指定标的为'示例工业设备股份有限公司（虚构）'，entity_id=EXAMPLE_ENTITY_A、security_id=EXAMPLE_SECURITY_A，明确为虚构示例公司，无真实经营、债务、现金及周期数据可供检索评分。检索证据全部关于中信建投证券（601066.SH / 6066.HK），属于证券行业综合金融服务商，与'工业设备'行业、商业模式及会计口径完全不一致，证据与题目标的不匹配，无法形成有效评分。",
+  "evidence_refs": [
+   "B4ea62e8d"
+  ]
+ },
+ {
+  "company": "HK:06066",
+  "method": "concurrent_4",
+  "question_id": "CYCLICAL_01",
+  "status": "unknown",
+  "score": null,
+  "rationale": "题目对象为'示例工业设备股份有限公司（虚构）'，entity_id=EXAMPLE_ENTITY_A、ticker=EXAMPLE、exchange=EXAMPLE_EXCHANGE，明确标注为虚构示例，且标的层标的公司=None（entity_id=ENT_1af6804e-40c1-4c35-b190-ea691dba2c85）。提供的检索证据全部围绕中信建投证券（601066.SH/6066.HK）——一家综合性投资银行/券商，与工业设备公司的中周期回报分析（产销流程、产能利用率、维护投入、资本开支周期、客户验收节奏等）完全不对口。无任何可比同业（同类工业设备商）的正常化价格、全周期收益或维护投入证据，亦无EXAMPLE_ENTITY_A可验证的财务或运营数据。按规则'证据不足时不得猜测'，无法满足1/5/10锚点的任何评分条件，故留空。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "concurrent_4",
+  "question_id": "CROSS_BORDER_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目明确要求评估的对象为'示例工业设备股份有限公司（虚构）'（ticker=EXAMPLE, entity_id=EXAMPLE_ENTITY_A），是一个虚构的工业设备公司。而所有检索证据全部指向中信建投证券（601066.SH/6066.HK）这家综合性证券公司，没有任何一条证据涉及工业设备制造业务的收入成本币种构成、套保安排、关税敞口或汇出限制等跨境净敞口相关事项。证据内容（投行业务、自营投资、财富管理、REITs、债券承销等）属于证券业经营特征，与工业设备公司的评估维度（产销流程、计费单位、产能瓶颈、客户资本开支与验收方式等）完全不对口。鉴于对象为虚构且证据完全不相关，无法给出任何有意义的评分，判定为 not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_3",
+  "question_id": "IQS_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象与口径明确为'示例工业设备股份有限公司（虚构）'，ticker=EXAMPLE，行业模块=['industrial']，而标的公司 entity_id=ENT_1af6804e-40c1-4c35-b190-ea691dba2c85 为中信建投证券（证券业，A+H上市券商，代码601066.SH/6066.HK），与题目所述的虚构工业设备公司不属于同一商业实体/商业模式/行业，IQS_01（客户价值与复购）所需的'产品或服务使用价值、总使用成本、独立客户复购、停止使用后果'等证据框架与证券公司的客户结构不匹配，因此不适用。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_3",
+  "question_id": "IQS_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象与口径为'示例工业设备股份有限公司（虚构）'（EXAMPLE，industrial 模块），标的 entity_id=ENT_1af6804e-40c1-4c35-b190-ea691dba2c85 为中信建投证券（综合投行/券商），IQS_02（收入延续性、客户留存/重复需求、获客维护成本、订单取消与履约）的问题框架系为工业设备产品销售/订阅式业务而设，与券商按经纪/投行/资管/自营分部的收入结构口径不可比，题目与标的不匹配，不适用。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_3",
+  "question_id": "IQS_04",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象与口径为'示例工业设备股份有限公司（虚构）'（EXAMPLE，industrial 模块，cycle_sensitive=true），标的 entity_id=ENT_1af6804e-40c1-4c35-b190-ea691dba2c85 为中信建投证券（证券业，非工业设备制造商；其行业供需/价值链分配逻辑为牌照、资本金与监管周期，而非常规工业品产能-价格周期）。IQS_04（行业供需与价值链分配、产能/价格纪律、客户供应商议价）所需的供产销与产能口径与证券公司不适用，因此不适用。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_3",
+  "question_id": "IQS_05",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构的'示例工业设备股份有限公司（EXAMPLE）'，标的实体标识为 provisional（None）。检索证据全部围绕中信建投证券（601066/6066）一家综合性证券公司，涉及投行/财富管理/经纪/资管/自营等证券业务，而题目要求评估的是工业设备制造公司的竞争优势与复制壁垒——业务模式、生产流程、客户场景、产能/装备等核心维度完全不匹配，无可引用证据支撑对工业设备公司的护城河判断，因此 not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_3",
+  "question_id": "IQS_06",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构的'示例工业设备股份有限公司（EXAMPLE）'，标的实体标识 provisional（None）。检索证据均为中信建投证券相关公开资料，涉及券商行业的经济份额、客户迁移、监管处罚等，与工业设备公司的竞争地位、产能周期、替代方案等评估维度不相关，按给定证据无法对该虚构标的进行评分，故 not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_3",
+  "question_id": "IQS_07",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构的'示例工业设备股份有限公司（EXAMPLE）'，标的实体标识 provisional（None）。检索证据聚焦中信建投证券的管理层变动（如刘成接任董事长、原董事长王常青退休等）[Bb359e208][Ba8f769ac]，但题目要求评估的是该虚构工业设备公司管理层在经营目标和重大项目上的承诺兑现情况——目标公司不同、行业不同、口径不同，无法基于上述证据作答，故 not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_3",
+  "question_id": "IQS_08",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题面标的公司为示例工业设备股份有限公司（虚构），行业模块industrial，标的口径为provisional且市场/代码均为None；检索证据全部指向中信建投证券（601066.SH/6066.HK，证券业），与虚构工业设备公司在业务模式、行业、口径、entity_id上均不匹配，无法对工业设备公司在扩张或波动下的交付质量与成本纪律形成直接证据。按口径要求未知留空而非5，判定not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_3",
+  "question_id": "IQS_09",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题面标的公司为虚构的工业设备公司，证据集合全部为中信建投证券的公司治理、薪酬、人事变动、子公司布局等信息，与工业设备制造业的核心岗位梯队、人员流失、接班、研发销售制度化评估框架不匹配；无法以证券业证据类比推断工业设备公司的组织能力延续性。判定not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_3",
+  "question_id": "IQS_10",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题面公司为示例工业设备股份有限公司（虚构），评估口径要求中周期税后经营回报与投入资本、对必需资本的回报是否超过资金成本，属实体工业企业的资本回报框架；证据集合覆盖中信建投证券（金融业，含ROE、权益乘数、永续次级债等金融企业口径指标），按口径要求金融企业使用合适权益资本口径且对象实体本身为虚构，证据与对象不匹配，判定not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_3",
+  "question_id": "IQS_12",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目明确标注对象为'示例工业设备股份有限公司（虚构）'，ticker='EXAMPLE'，属于虚构示例标的，且无真实公开披露可检索；所提供的检索证据全部为中信建投证券（601066.SH / 6066.HK）相关材料，与虚构工业设备公司无关，无法用以评估资产/负债/利润披露的可信度。按规定不得猜测或套用他司证据，故判定为不适用。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_3",
+  "question_id": "IQS_13",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构的'示例工业设备股份有限公司（虚构）'，不存在真实公司治理、关联交易或股东保护事实可供核验；所有检索证据均指向中信建投证券，与题目标的口径不匹配，无法评估管理层与控制人对普通股东的公平对待记录，故判定为不适用。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_3",
+  "question_id": "IQS_14",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构的'示例工业设备股份有限公司（虚构）'，不存在真实的再投资、并购、分红或回购历史可供考察资本配置纪律；检索证据全部为中信建投证券相关材料，与本虚构标的无关，不能据其推断每股经济价值创造情况，故判定为不适用。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_3",
+  "question_id": "IQS_15",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目明确指向'示例工业设备股份有限公司（虚构）'，标的实体entity_id=ENT_1af6804e-40c1-4c35-b190-ea691dba2c85身份态为provisional、无市场/代码；检索证据全部关于中信建投证券（601066.SH/6066.HK），属于证券业而非工业设备行业，与题目虚构对象和标的均不对应，无法对激励/监督机制做出任何有意义的评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_3",
+  "question_id": "IQS_16",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司（EXAMPLE/EXAMPLE_EXCHANGE），标的实体provisional无标识；证据均涉及中信建投证券（券商）。券商业务模式（资本中介、自营、经纪）与工业设备公司的供产销、产能、客户验收逻辑完全不同，且题目的虚构标的本身就声明不存在，故刚性义务覆盖问题无法套用现有证据。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_3",
+  "question_id": "IQS_17",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目针对虚构工业设备公司询问关键客户/供应商/产地/系统失效的恢复能力；标的实体为provisional无标识；检索证据为中信建投证券相关材料，与工业设备业务的供应链/客户依赖结构无关，不存在可对位的事实基础。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_3",
+  "question_id": "IQS_18",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目明确标注目标公司为'示例工业设备股份有限公司（虚构）'（ticker=EXAMPLE，entity_id=EXAMPLE_ENTITY_A），属于虚构标的；所提供检索证据全部围绕中信建投证券（601066.SH/6066.HK）一家综合性券商的经营业绩、业务结构、监管处罚等，与题目所指的工业设备虚构标的无关，且证据不存在任何关于示例工业设备公司核心业务、技术替代、渠道迁移或监管约束的内容，因此无法基于现有证据进行评分。",
+  "evidence_refs": [
+   "B0fcc9380",
+   "B4ea62e8d",
+   "B4773b496"
+  ]
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_3",
+  "question_id": "IQS_19",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目所列对象为虚构的工业设备公司（entity_id=EXAMPLE_ENTITY_A），而检索证据集合指向中信建投证券（601066.SH），属于不同行业、不同业务模式、不同生命阶段的对象；证据未涉及任何工业设备客户预算、可触达市场、量价分析，无法对'示例工业设备股份有限公司'未来三至五年可触达新增需求进行有意义的判断，故不适用评分。",
+  "evidence_refs": [
+   "B7fe1eb42",
+   "B1822f4de",
+   "B6ea0cfd0"
+  ]
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_3",
+  "question_id": "IQS_20",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目以虚构的'示例工业设备股份有限公司'为对象，要求评估其增长驱动是否能从客户需求转化为可持续利润；检索证据均为中信建投证券（综合性投资银行）的业务数据、薪酬改革、并购传闻、监管处罚等内容，与工业设备公司的产品/试点、付费采用、并购汇率拆分、存量替代等议题完全不匹配，无可引用的相关事实，状态必须为 not_applicable。",
+  "evidence_refs": [
+   "B07d6df3d",
+   "B9284b981",
+   "B3a9b3018"
+  ]
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_3",
+  "question_id": "IQS_21",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目口径明确指定对象为虚构的示例工业设备股份有限公司（entity_id=EXAMPLE_ENTITY_A），且行业模块为 industrial，要求按工业制造口径评估新增资本回报、存量替代、转型投入与摊薄等议题。所有检索证据均指向中信建投证券（601066.SH/6066.HK，entity_id=ENT_1af6804e），属综合性证券业，与题目虚构标的既非同主体也非同行业，证据与题目主体错配且标的为虚构，无法评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_3",
+  "question_id": "IQS_22",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目标的是虚构工业设备公司（EXAMPLE_ENTITY_A），需以工业口径反推估值隐含的增长、利润率与资本回报要求。检索证据全部属于中信建投证券（证券业，ENT_1af6804e），主体错配且行业不可比，无法用券商估值框架替代工业设备估值，故不适用。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_3",
+  "question_id": "IQS_23",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目标的是虚构工业设备公司（EXAMPLE_ENTITY_A），需评估永久损失情景下的资产可回收性、债权顺序、产能过剩与技术替代风险。检索证据只覆盖中信建投证券（ENT_1af6804e），属证券业，资产结构与破产回收逻辑与工业设备公司完全不可比，标的虚构且证据错配，无法评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_3",
+  "question_id": "IQS_24",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象明确标注为虚构的示例工业设备股份有限公司（ticker=EXAMPLE，entity_id=EXAMPLE_ENTITY_A），标的公司本身亦为 None（entity_id=ENT_1af6804e-40c1-4c35-b190-ea691dba2c85）。所给检索证据全部关于中信建投证券股份有限公司（601066.SH/6066.HK），属证券行业，并非工业设备制造业。证据无法支持任何关于工业设备公司分红、回购、每股价值累积与现金回报路径的判断，且虚构对象不存在可验证的财务或治理事实。按口径要求，非 scored 时内层 score 须为 null。",
+  "evidence_refs": [
+   "B4773b496",
+   "B0fcc9380",
+   "Bedef7555",
+   "B4ea62e8d"
+  ]
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_3",
+  "question_id": "OPERATING_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构的示例工业设备股份有限公司（entity_id=EXAMPLE_ENTITY_A），标的本身为 None。证据库仅覆盖中信建投证券（一家综合性券商），不包含任何工业设备企业的维护性资本开支、营运资本变动、经营现金流分项数据。问题所要求的供产销流程、自制外包边界、计费单位和瓶颈以及维护更新、提效和现金分配安排在证券业务下口径不同，且无该虚构公司的产销与产能信息可用，无法套用锚点评分。",
+  "evidence_refs": [
+   "Bedef7555",
+   "B8e880ac6",
+   "B4773b496",
+   "B6ea0cfd0"
+  ]
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_3",
+  "question_id": "INDUSTRIAL_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目要求评估设备可靠性、客户认证和服务网络等工业设备行业指标，对象为虚构的示例工业设备股份有限公司。检索证据完全围绕中信建投证券（投行/财富管理/自营/资管等业务线），不涉及设备寿命、停机成本、维修网络、终端客户资本开支与验收等工业指标；中信建投本身亦非工业设备制造商。即便仅看中信建投，也只能评估其金融服务能力，与本题工业设备维度无关。按规则不予猜测评分。",
+  "evidence_refs": [
+   "Bedef7555",
+   "B4773b496",
+   "B85f1d7dc",
+   "B6f973e01"
+  ]
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_3",
+  "question_id": "INDUSTRIAL_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构的示例工业设备股份有限公司（entity_id=EXAMPLE_ENTITY_A，industry_modules=[industrial]），与检索证据覆盖的中信建投证券（综合性证券公司，601066.SH/6066.HK）无对应关系；中信建投非工业制造企业，不存在可对照的订单定金、验收、质保、收款链证据，不可评分。",
+  "evidence_refs": [
+   "B4ea62e8d",
+   "B4773b496"
+  ]
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_3",
+  "question_id": "MATURE_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构的示例工业设备股份有限公司（entity_id=EXAMPLE_ENTITY_A，company_type=operating，industry=industrial），而检索证据全部围绕中信建投证券（金融服务、券商业务）。工业设备行业的复购、资产维护、替代趋势、核心客户证据不适用于证券公司，证据不足不可评分。",
+  "evidence_refs": [
+   "B4ea62e8d",
+   "B4773b496"
+  ]
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_3",
+  "question_id": "MATURE_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构的示例工业设备股份有限公司（entity_id=EXAMPLE_ENTITY_A），与中信建投证券不一致；中信建投虽涉及永续次级债、回购、分红等资本配置动作，但题目语境（产能扩张、收缩投入、无效资本支出）属于工业制造逻辑，对证券公司而言口径与商业模式不可比，不应套用。",
+  "evidence_refs": [
+   "B5a63ac95",
+   "B35b07fe0"
+  ]
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_3",
+  "question_id": "CYCLICAL_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目口径明确指向'示例工业设备股份有限公司（虚构）'（虚构工业设备制造企业），但检索证据全部为中信建投证券（601066.SH/6066.HK）的相关信息。标的实体为 None/临时态，与题目虚构工业设备企业不同；且中信建投属于证券业而非工业设备制造业，其供产销流程、自制/外包边界、计费单位、产能与利用率等口径无法套用到工业设备公司以评估中周期回报是否创造价值。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_3",
+  "question_id": "CYCLICAL_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目要求评估'示例工业设备股份有限公司（虚构）'在历史可比低谷下的存续与必要投资能力，需工业设备制造业务的供产销链条、产能与利用率、固定开支结构等证据。检索证据均指向中信建投证券（证券业），行业属性、商业模式与会计边界均与题目虚构口径不同；且标的为 None/临时态，无法对应题目中的 EXAMPLE_ENTITY_A。",
+  "evidence_refs": []
+ },
+ {
+  "company": "HK:06066",
+  "method": "group_3",
+  "question_id": "CROSS_BORDER_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目要求评估'示例工业设备股份有限公司（虚构）'在汇率/关税/跨境资金限制下的净敞口，需制造业供应链的进出口结构、外币收入成本、套保安排等。检索证据为中信建投证券的资料，与题目虚构的工业设备企业不同实体、不同行业、不同商业模式；标的为 None/临时态，与 EXAMPLE_ENTITY_A 不匹配。中信建投虽有 H 股上市与国际业务，但其敞口属性是金融机构（券商跨境业务、汇兑损益等），与工业设备制造业所需的汇率/关税分析框架不可互通，不能据以评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_10",
+  "question_id": "IQS_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "评估对象为虚构的'示例工业设备股份有限公司'，提供的检索证据全部关于Alphabet/Google（搜索、广告、云业务），与虚构标的公司的客户产品使用、付费价值问题无任何对应关系，无法据此评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_10",
+  "question_id": "IQS_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的为虚构的工业设备公司，证据均涉及Alphabet/Google的广告、云、AI业务收入延续性，两者商业模式（互联网平台 vs 工业设备）完全不同，证据不适用。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_10",
+  "question_id": "IQS_04",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "问题询问工业设备行业的供需结构与利润分配，证据是关于科技/互联网行业的Alphabet相关材料，无法用于工业设备公司分析。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_10",
+  "question_id": "IQS_05",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "评估标的为虚构工业设备公司，证据谈的是Alphabet在搜索/云/AI/TPU等方面的竞争优势，与工业设备行业无对应关系。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_10",
+  "question_id": "IQS_06",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的为虚构工业设备公司，证据为Alphabet的市场地位（搜索份额、云业务、反垄断），行业与标的不匹配。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_10",
+  "question_id": "IQS_07",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的为虚构工业设备公司，管理层兑现情况无法评估；证据中关于Pichai、Alphabet管理层的内容属于另一家公司，无参考价值。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_10",
+  "question_id": "IQS_08",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "问题针对工业设备公司的交付质量与成本纪律，证据为Alphabet的资本支出和AI算力扩张，与工业设备交付周期、质量事故无关。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_10",
+  "question_id": "IQS_09",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的为虚构工业设备公司，组织能力与人才梯队无对象可评估；证据中Pichai等管理层信息属Alphabet，与标的不对应。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_10",
+  "question_id": "IQS_10",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的为虚构工业设备公司，证据为Alphabet的ROE 32%、市值、自由现金流等指标，无法对应工业设备公司的资本回报问题。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_10",
+  "question_id": "IQS_12",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的为虚构工业设备公司，无披露可供评估；证据中Alphabet的财报透明度与审计信息无法迁移至另一不相关标的。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_10",
+  "question_id": "IQS_13",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目要求评估的是虚构公司'示例工业设备股份有限公司（EXAMPLE）'的管理层与控制人对普通股东的公平对待记录，但检索证据全部为Alphabet/谷歌相关资料，与标的公司（entity_id=ENT_97bf6a65-a9e6-43f0-8409-c5695e2f6e1e，市场/代码均为None）不对应，且标的公司本身信息缺失，无法判断其是否存在关联交易、资金占用、控制权与现金权分离、资产转移或少数股东保护问题。证据不足，不能给出评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_10",
+  "question_id": "IQS_14",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目要求评估虚构公司'示例工业设备股份有限公司（EXAMPLE）'历次再投资、并购、分红和回购对每股经济价值的影响，但检索证据均围绕Alphabet/谷歌的AI资本开支、回购与分红历史（如8110亿美元采购承诺、3460亿美元回购等），与虚构工业设备标的完全无关，且标的自身无任何公开资料可供验证投入回报、并购减值、回购价格或摊薄情况。证据不足。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_10",
+  "question_id": "IQS_15",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目要求评估虚构公司'示例工业设备股份有限公司（EXAMPLE）'的薪酬、股权激励和监督机制是否鼓励长期每股回报，但检索证据仅包含Alphabet的高管薪酬结构（基础薪酬+股权激励、长期股权托管等一般性论述）以及双层股权架构的学术讨论，无法对应到虚构工业设备标的的考核指标、稀释、管理层风险承担、追索约束与董事会监督记录。证据不足。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_10",
+  "question_id": "IQS_16",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目要求评估虚构公司'示例工业设备股份有限公司（EXAMPLE）'在未来两年压力情景下履行刚性义务的能力，但检索证据全部是Alphabet/谷歌的现金、债务与资本支出信息（如2424.74亿美元现金及有价证券、8110亿美元未来采购承诺、981.65亿美元长期债务等），与虚构工业设备标的无关，且标的自身无任何财务或债务披露。证据不足。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_10",
+  "question_id": "IQS_17",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目要求评估虚构公司'示例工业设备股份有限公司（EXAMPLE）'在失去关键客户、供应来源、产地或系统时的恢复能力，但检索证据均为Alphabet/谷歌的AI芯片（TPU）、云业务、YouTube等内容，与工业设备行业无关，无法判断虚构标的的关键依赖、替代认证、客户流失情景或库存合同保护。证据不足。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_10",
+  "question_id": "IQS_18",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目要求识别可能永久损害虚构公司'示例工业设备股份有限公司（EXAMPLE）'核心业务价值的实质变化，但检索证据全部为Alphabet/谷歌面临的反垄断拆分（如AdX与广告服务器强制出售）、AI竞争压力等内容，与虚构工业设备标的的核心业务、技术替代、监管约束或商业模式完全不对应。证据不足。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_10",
+  "question_id": "IQS_19",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目要求评估虚构公司'示例工业设备股份有限公司（EXAMPLE）'未来三至五年可触达且客户付得起的新增需求，但检索证据全部为Alphabet/谷歌的云业务增长（48%、82%）、AI应用、TPU需求等内容，与虚构工业设备标的的客户预算、可进入市场、渗透与替代边界完全不对应。证据不足。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_10",
+  "question_id": "IQS_20",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目要求评估虚构公司'示例工业设备股份有限公司（EXAMPLE）'增长驱动从客户需求转化为可持续利润的能力，但检索证据均关于Alphabet/谷歌的Gemini AI变现、云业务订单储备、搜索广告韧性等，与虚构工业设备标的的自然量价、新业务利润池归属、存量替代或股权摊薄无关。证据不足。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_10",
+  "question_id": "IQS_21",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目要求评估虚构公司'示例工业设备股份有限公司（EXAMPLE）'新增资本扣除存量替代、转型投入和融资摊薄后的每股回报，但检索证据全部为Alphabet/谷歌的资本开支与采购承诺（如2026年大额资本支出指引、8110亿美元未履行采购承诺），与虚构工业设备标的的增量资本回报、转型投入及股权摊薄完全无关。证据不足。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_10",
+  "question_id": "IQS_22",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目要求评估虚构公司'示例工业设备股份有限公司（EXAMPLE）'当前价格隐含的增长、利润率和资本回报要求是否在能力范围内，但检索证据全部为Alphabet/谷歌的估值讨论（如17倍市盈率、市值2.26-2.53万亿美元、目标价区间210-250美元），且虚构标的的报价日、股权边界、估值倍数均无任何披露，无法进行反推分析。证据不足。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_10",
+  "question_id": "IQS_23",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "对象公司为'示例工业设备股份有限公司（虚构）'，ticker=EXAMPLE，exchange=EXAMPLE_EXCHANGE，属于明确标注的虚构标的。所提供的检索证据全部围绕Alphabet/Google（GOOGL/GOOG），与该虚构工业设备公司无任何对应关系；标的entity_id也非问题所指的EXAMPLE_ENTITY_A。在缺乏与虚构标的相关的任何可验证财务、债务、资本结构或行业数据的情况下，无法对该公司普通股永久损失风险进行评分，故按不可评处理。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_10",
+  "question_id": "IQS_24",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "对象公司为虚构工业设备企业（EXAMPLE_ENTITY_A）。检索证据仅覆盖Alphabet/Google的市值、回购、分红与AI资本开支等内容，无法用于评估该虚构标的的现金回报路径、分红回购政策或汇出限制。在标的本身不存在可获取公开信息的前提下，本题无法打分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_10",
+  "question_id": "OPERATING_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "OPERATING_01需要评估虚构标的'示例工业设备股份有限公司'的经营现金流、维护性资本开支与营运资本变化。证据库中无任何与该公司经营现金流、资本性支出或营运资本相关的可验证数据；Alphabet相关数据虽提及现金流与资本开支，但与本虚构标的无关。故不予评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_10",
+  "question_id": "INDUSTRIAL_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "INDUSTRIAL_01要求分析虚构工业设备公司的设备可靠性、客户认证和服务网络竞争优势。证据全部关于Alphabet/Google（互联网搜索、云、广告、AI、TPU），与工业设备的工艺、寿命、停机成本、维修网络等议题无对应关系。无法基于现有证据评估。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_10",
+  "question_id": "INDUSTRIAL_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "INDUSTRIAL_02需要评估虚构工业设备公司的订单取消、验收、质保与收款利润确定性。证据中无任何关于示例工业设备公司订单结构、定金、验收条款或质保计提的信息。所有证据均围绕Alphabet，与本题标的无关。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_10",
+  "question_id": "MATURE_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "MATURE_01针对虚构标的'示例工业设备股份有限公司'的核心需求与现金创造持续性。Alphabet相关的广告/云业务周期性证据不能替代该虚构公司复购、维护投入或核心客户流失的工业设备行业评估。证据错配，本题无法评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_10",
+  "question_id": "MATURE_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "MATURE_02需评估虚构标的的资本配置与每股价值回报。证据涉及的Alphabet回购、首次分红、暂停回购等内容仅适用于Alphabet真实公司，与示例工业设备公司无关。在虚构标的上无任何公开分配/扩张/回购数据，无法评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_10",
+  "question_id": "CYCLICAL_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "CYCLICAL_01要求测算虚构工业设备公司剔除峰谷后中周期回报是否创造价值。证据仅覆盖Alphabet的季度营收/营业利润与AI CapEx周期，但与该虚构工业设备公司的设备价格、利用率、维护投入等周期属性不匹配。无可用证据。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_10",
+  "question_id": "CYCLICAL_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "CYCLICAL_02需考察虚构工业设备公司在低谷下的现金、债务与必要投资能力。证据未提供该虚构公司任何财务结构信息，Alphabet相关现金/债务数据无法替代。证据不足，予以not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_10",
+  "question_id": "CROSS_BORDER_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "CROSS_BORDER_01评估虚构工业设备公司的汇率、关税与跨境资金净敞口。证据中无任何关于示例工业设备公司收入/成本币种、套保、关税暴露或汇出限制的信息；Alphabet相关证据与之无关。本题不适用评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_5",
+  "question_id": "IQS_01",
+  "status": "error",
+  "score": null,
+  "rationale": "repair_parse:JSONDecodeError:Expecting value: line 3 column 1 (char 389)",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_5",
+  "question_id": "IQS_02",
+  "status": "error",
+  "score": null,
+  "rationale": "repair_parse:JSONDecodeError:Expecting value: line 3 column 1 (char 389)",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_5",
+  "question_id": "IQS_04",
+  "status": "error",
+  "score": null,
+  "rationale": "repair_parse:JSONDecodeError:Expecting value: line 3 column 1 (char 389)",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_5",
+  "question_id": "IQS_05",
+  "status": "error",
+  "score": null,
+  "rationale": "repair_parse:JSONDecodeError:Expecting value: line 3 column 1 (char 389)",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_5",
+  "question_id": "IQS_06",
+  "status": "error",
+  "score": null,
+  "rationale": "repair_parse:JSONDecodeError:Expecting value: line 3 column 1 (char 389)",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_5",
+  "question_id": "IQS_07",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "标的为'示例工业设备股份有限公司（虚构）'，entity_id/security_id 均为 EXAMPLE 占位符，所有检索证据均指向 Alphabet/Google，与目标虚构工业设备公司无任何关联，无法评估其管理层承诺兑现情况。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_5",
+  "question_id": "IQS_08",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "标的为虚构工业设备公司，无可对应的供产销流程、固定成本结构、扩张批次或质量事故证据，检索证据全部为 Alphabet/Google 信息，与本题口径不匹配。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_5",
+  "question_id": "IQS_09",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "标的为虚构工业设备公司，无梯队、人员流失、接班或制度化研发/销售相关证据，检索证据与目标公司无关。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_5",
+  "question_id": "IQS_10",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "标的为虚构工业设备公司，无投入资本、经营回报或资本成本数据，证据全部对应 Alphabet/Google，无法评估存量业务回报是否超过资金成本。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_5",
+  "question_id": "IQS_12",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "标的为虚构工业设备公司，无审计意见、应收存货质量、费用资本化或表外义务相关证据，检索证据均涉及 Alphabet/Google，与目标不匹配。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_5",
+  "question_id": "IQS_13",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的明确为'示例工业设备股份有限公司（虚构）'，entity_id 解析为 None；提供的检索证据全部关于 Alphabet/Google，与虚构工业设备标的及对应 entity_id 不对应，无可评分标的。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_5",
+  "question_id": "IQS_14",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "IQS 对象为虚构公司，entity_id=None；检索证据仅覆盖 Alphabet/Google，不能用于评估'示例工业设备股份有限公司'的再投资/并购/分红/回购记录。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_5",
+  "question_id": "IQS_15",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "目标公司为虚构的'示例工业设备股份有限公司'，且系统标的状态 entity_id=None；证据集为 Alphabet/Google，无法对虚构标的的薪酬激励与监督机制评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_5",
+  "question_id": "IQS_16",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的为虚构公司，entity_id=None，无真实财报或债务/承诺数据；现有 Alphabet 证据与'示例工业设备股份有限公司'无关，不能用于压力情景下的偿付能力评估。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_5",
+  "question_id": "IQS_17",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的为虚构的'示例工业设备股份有限公司'，entity_id=None，无客户/供应商/产地依赖信息；Alphabet 证据不能替代该虚构标的的弹性评估。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_5",
+  "question_id": "IQS_18",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目指向的对象为'示例工业设备股份有限公司（虚构）'，标的元数据中 company 为 None，无真实实体可对应；检索证据全部围绕 Alphabet/Google（互联网/云计算/广告），与虚构工业设备公司的分部、客户、产供销流程、护城河等无任何映射，无法对'核心业务永久损害路径'进行任何可验证判断。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_5",
+  "question_id": "IQS_19",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目要求评估虚构工业设备公司未来三至五年可触达且客户付得起的新增需求；标的身份缺失（company=None），检索证据仅涉及 Alphabet 的搜索/云/广告/AI 业务 TAM 与营收，无法据此拆分工业设备行业的客户预算、可进入市场、量价分解，故无法给出有依据的评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_5",
+  "question_id": "IQS_20",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，需评估增长驱动从客户需求到可持续利润的转化、存量替代、转型投入与摊薄；标的元数据未指明实际公司，检索证据为 Alphabet 的 AI 资本开支与云业务讨论，对工业设备公司的产品/试点→付费采用→利润链条无任何支撑信息。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_5",
+  "question_id": "IQS_21",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目对象为虚构工业设备公司，需评估新增资本回报、存量替代、转型投入与摊薄后的每股效果；标的 company=None，证据集中于 Alphabet 的回购历史、Capex 与现金流，与工业设备公司再投资边界、营运资金、融资条件无对应，无法形成判断。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_5",
+  "question_id": "IQS_22",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目要求反推价格隐含的增长/利润率/资本回报要求是否在证据范围内，但对象为虚构工业设备公司（ticker=EXAMPLE，exchange=EXAMPLE_EXCHANGE），无报价、无可比公司、无估值锚点；检索证据均为 Alphabet（GOOGL/GOOG）的估值与目标价讨论，对虚构工业设备标的完全不可用。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_5",
+  "question_id": "IQS_23",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的实体为None（entity_id=ENT_97bf6a65-a9e6-43f0-8409-c5695e2f6e1e，市场/代码均为空），题目对象为虚构的'示例工业设备股份有限公司'，检索证据全部关于Alphabet/Google，与工业设备公司及题目主体均无对应关系，无法建立分析口径。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_5",
+  "question_id": "IQS_24",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的实体为None，题目对象为虚构工业设备公司；检索证据全部关于Alphabet/Google，缺少任何关于该虚构公司的财务数据、股东回报机制、回购、分红等可验证信息。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_5",
+  "question_id": "OPERATING_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的实体为None，题目对象为虚构工业设备公司；现有证据均为Alphabet/Google相关，无法获取该公司的经营现金流、维护性资本开支、应收存货变化等数据，无法评估自由现金流转化能力。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_5",
+  "question_id": "INDUSTRIAL_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的实体为None，题目对象为虚构工业设备公司；现有证据均为Alphabet/Google相关，未涉及设备可靠性、客户认证、维修网络等工业设备行业关键指标。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_5",
+  "question_id": "INDUSTRIAL_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的实体为None，题目对象为虚构工业设备公司；现有证据均为Alphabet/Google相关，缺乏订单条款、验收、质保计提等工业设备行业利润确定性相关证据。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_5",
+  "question_id": "MATURE_01",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "标的为虚构的'示例工业设备股份有限公司'（工业设备行业），但提供的全部检索证据均关于Alphabet/谷歌（互联网科技公司），两者行业、商业模式、需求结构、资产维护逻辑完全不同。无法用关于谷歌搜索广告、云计算、TPUs或回购分红的证据来评估一家工业设备公司的存量需求、维护投入与核心客户复购行为。证据与标的严重不匹配，无法评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_5",
+  "question_id": "MATURE_02",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "问题要求评估工业设备公司的资本配置（无效扩张、回购价格、收缩投入），而检索证据全部围绕Alphabet的AI资本支出承诺（8110亿美元）、回购历史与分红。Alphabet并非工业设备公司，其'高回报扩张机会减少'的情境与工业设备成熟业务的资本配置逻辑不可比。无相关证据支持评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_5",
+  "question_id": "CYCLICAL_01",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "问题需要剔除峰谷价格与利用率后评估工业设备公司的中周期回报。证据中虽涉及Alphabet的部分季度业绩（如2022年Q4广告承压、2025年Q4高增长），但Alphabet是科技/互联网公司，其'周期'主要源于广告需求与AI投资节奏，与工业设备的供需周期（产能、利用率、价格）机制不同。无法将Alphabet数据外推到示例工业设备公司。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_5",
+  "question_id": "CYCLICAL_02",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "问题需评估工业设备公司在历史可比低谷下的存续与必要投资能力。证据中的Alphabet现金/债务数据（如净现金状态、2424.74亿美元现金及有价证券、负债率30.5%）属于科技公司财务结构，与工业设备公司在低谷期面临的固定成本、产能维护资本开支压力没有可比性。标的与证据行业错配，无法评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_5",
+  "question_id": "CROSS_BORDER_01",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "问题要求评估工业设备公司的汇率、关税、跨境资金净敞口。证据中虽有Alphabet全球广告与云业务的提及，但其美元收入为主、外币敞口主要来自欧洲汇率波动，与工业设备公司典型的多币种收入、出口关税、原材料进口等敞口结构不同。证据不足以支持工业设备口径的评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_3",
+  "question_id": "IQS_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的明确标注为'示例工业设备股份有限公司（虚构）'（entity_id=EXAMPLE_ENTITY_A），所有检索证据均指向Alphabet/Google（GOOGL/GOOG），与该虚构工业设备公司无任何关联。无法对一家虚构标的的客户价值、复购行为、停止使用后果做出任何基于证据的判断。",
+  "evidence_refs": [
+   "Bec73cccf",
+   "Be93c8070",
+   "B1d5dfdbf",
+   "B21b138ef",
+   "B47d15ed5"
+  ]
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_3",
+  "question_id": "IQS_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的为虚构工业设备公司（EXAMPLE_ENTITY_A），所提供检索证据全部关于Alphabet/Google，未涉及该虚构标的的客户留存、订单履约、获客成本或续约数据。无相关证据支撑评分。",
+  "evidence_refs": [
+   "Bec73cccf",
+   "Be93c8070",
+   "B21b138ef",
+   "B47d15ed5",
+   "B8e90ba34"
+  ]
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_3",
+  "question_id": "IQS_04",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的为虚构工业设备公司（EXAMPLE_ENTITY_A），检索证据全部为Alphabet/Google相关内容，无法用于判断工业设备行业的供需结构、价格纪律、上下游议价或利润池归属。不存在可比证据。",
+  "evidence_refs": [
+   "Bec73cccf",
+   "Be93c8070",
+   "B21b138ef",
+   "B47d15ed5",
+   "B32430876"
+  ]
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_3",
+  "question_id": "IQS_05",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "标的公司为None，IQS_05询问的对象为虚构的'示例工业设备股份有限公司'，但全部检索证据均与Alphabet/Google相关，无任何关于该虚构标的或其行业的可引用证据，无法评估其竞争优势、转换障碍或复制成本。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_3",
+  "question_id": "IQS_06",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "标的公司为None，IQS_06询问的对象为虚构的'示例工业设备股份有限公司'，检索证据全部为Alphabet/Google资讯，未涉及该虚构标的的客户份额、定价权或替代方案进展，无法评估其竞争地位的稳固性或趋势方向。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_3",
+  "question_id": "IQS_07",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "标的公司为None，IQS_07询问的对象为虚构的'示例工业设备股份有限公司'，检索证据全部为Alphabet/Google资讯，无该虚构标的任何管理层承诺、资本开支指引或执行轨迹数据，无法评估承诺兑现情况。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_3",
+  "question_id": "IQS_08",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的实体为 None（entity_id=ENT_97bf6a65-a9e6-43f0-8409-c5695e2f6e1e），且题目明确标注对象为'示例工业设备股份有限公司（虚构）'，entity_id=EXAMPLE_ENTITY_A，与标的不匹配。检索证据全部为 Alphabet/Google 相关内容，与该虚构工业设备公司无关。无法对虚构示例标的进行评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_3",
+  "question_id": "IQS_09",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的实体为 None，题目对象为虚构的'示例工业设备股份有限公司'（EXAMPLE_ENTITY_A），与给定的标的 entity_id 不对应。检索证据均为 Alphabet/Google 相关，与虚构标的无关。组织梯队、人员流失、接班等证据不存在。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_3",
+  "question_id": "IQS_10",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的实体为 None，题目对象为虚构的'示例工业设备股份有限公司'（EXAMPLE_ENTITY_A），无法评估其资本回报与资金成本。可用证据全部为 Alphabet/Google 的财务与资本支出信息，与该虚构标的无关。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_3",
+  "question_id": "IQS_12",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "标的为虚构公司'示例工业设备股份有限公司'（entity_id=EXAMPLE_ENTITY_A），且根实体标的亦为None（ENT_97bf6a65）。检索证据全部为Alphabet/谷歌相关信息，与该虚构工业设备公司的资产负债利润披露、审计意见、应收存货质量、费用资本化、表外义务等无任何关联。无任何可引用的相关证据，无法评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_3",
+  "question_id": "IQS_13",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "标的为虚构公司'示例工业设备股份有限公司'，无实际披露。证据集中于Alphabet治理结构、双重股权等讨论，但与该虚构工业设备公司的关联交易、资金占用、控制权与现金流分离、少数股东保护等议题完全无关。不存在任何可引用的关联证据。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_3",
+  "question_id": "IQS_14",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "标的为虚构公司'示例工业设备股份有限公司'，无再投资、并购、分红和回购历史可供评估。检索证据虽涉及Alphabet的回购（3460亿美元回购历史）、分红（2024年首次季度股息）、AI资本支出承诺（8110亿美元未履行采购承诺）等配置记录，但与该虚构工业设备公司的资本配置纪律无关。无相关证据可评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_3",
+  "question_id": "IQS_15",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目针对的是'示例工业设备股份有限公司（虚构）'，entity_id 为 EXAMPLE_ENTITY_A，security_id 为 EXAMPLE_SECURITY_A，行业为 industrial。但提供的全部检索证据均围绕 Alphabet Inc./Google（互联网/云计算/AI），无任何关于该虚构工业设备公司及其薪酬/股权激励/董事会监督的证据。无法建立因果关联。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_3",
+  "question_id": "IQS_16",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目考察的是'示例工业设备股份有限公司（虚构）'在压力情景下的债务/刚性义务覆盖能力。证据池仅覆盖 Alphabet 的资本支出承诺（8110 亿美元）、现金流、回购历史等内容，与该虚构标的的可用现金、经营流入、债务/租赁/担保、契约约束均不对应，无法评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_3",
+  "question_id": "IQS_17",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目要求评估'示例工业设备股份有限公司（虚构）'在失去关键客户/供应商/产地时的可恢复性。证据仅涉及 Alphabet 的供应链（如 TPU、Anthropic、第三方云算力采购）以及云业务客户集中度等，与虚构工业设备公司的客户结构、替代认证周期、库存保护均不匹配，不足以判断。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_3",
+  "question_id": "IQS_18",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目要求评估的标的为'示例工业设备股份有限公司（虚构）'（entity_id=EXAMPLE_ENTITY_A，industry=industrial，ticker=EXAMPLE），而提供的检索证据全部围绕Alphabet/谷歌（科技/互联网行业），二者行业、商业模式、地理市场、计费单位、客户场景均不匹配，无任何一项证据涉及该虚构工业设备公司的核心业务、技术替代、渠道迁移或监管暴露，因此无法据现有证据进行评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_3",
+  "question_id": "IQS_19",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目考察的是'示例工业设备股份有限公司（虚构）'未来三至五年可触达且客户付得起的新增需求规模（含客户预算、TAM、渗透率与替代边界），但全部检索证据均关于Alphabet/谷歌的云业务、广告、TPU与AI需求，与该虚构工业设备公司的客户预算、产品线或可触达市场不相关，缺乏任何可引用的同口径证据。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_3",
+  "question_id": "IQS_20",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目要求验证'示例工业设备股份有限公司（虚构）'从客户需求到可持续利润的转化路径、并购汇率拆分、存量替代与摊薄后净股东经济效果。证据库聚焦Alphabet的AI资本开支、回购停止、增发摊薄与云业务利润释放，与该虚构工业设备公司的增长驱动、产供销流程、计费单位或必要投入无可比性，故无法据现有证据得出结论。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_3",
+  "question_id": "IQS_21",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目明确针对虚构标的'示例工业设备股份有限公司'（ticker=EXAMPLE），证据集中于Alphabet/Google等公司，与该虚构工业设备公司无对应关系；标的字段也显示company=None、entity_id=ENT_97bf6a65-a9e6-43f0-8409-c5695e2f6e1e未能解析为题目要求的具体公司。无法评估新增资本回报、存量替代、转型投入、融资摊薄等关键项。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_3",
+  "question_id": "IQS_22",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目针对虚构标的'示例工业设备股份有限公司'（ticker=EXAMPLE，exchange=EXAMPLE_EXCHANGE），而所有检索证据均涉及Alphabet/Google、Alphabet Inc.及其股价、估值与AI资本开支，与工业设备行业虚构标的无关。无法就报价日估值隐含的增长、利润率与资本回报要求做反推分析。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_3",
+  "question_id": "IQS_23",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目针对虚构标的'示例工业设备股份有限公司'，证据均针对Alphabet/Google，无法判断该虚构工业设备公司的周期正常化、资产可回收性、债权顺序、摊薄、业务失效等情景下的永久损失风险。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_3",
+  "question_id": "IQS_24",
+  "status": "unknown",
+  "score": null,
+  "rationale": "题目所要求评估的目标公司为'示例工业设备股份有限公司（虚构）'（ticker=EXAMPLE），属于明确声明的虚构标的，且 entity_id 与 security_id 均为占位符（EXAMPLE_ENTITY_A / EXAMPLE_SECURITY_A）。本次提供的全部检索证据均为关于 Alphabet/Google 母公司（GOOGL/GOOG）的财报、资本开支、回购、分红与监管事件等内容，与目标工业设备公司在主体、业务模式、计费单位、产能、供应链、行业模块上完全不相关，无法对'基本面价值通过何种机制、在多长时间内转成普通股东实际回报'做出任何有意义的判断。依据系统提示'证据不足时 status 必须为 unknown 或 not_applicable，不得猜测'，本项判定为 unknown。",
+  "evidence_refs": [
+   "Bc5caf00f",
+   "B8e90ba34",
+   "B342dd0fd",
+   "B011f9bea"
+  ]
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_3",
+  "question_id": "OPERATING_01",
+  "status": "unknown",
+  "score": null,
+  "rationale": "目标公司为虚构的'示例工业设备股份有限公司'，其口径（currency=CNY, industry_modules=['industrial'], stage=mature, cycle_sensitive=true）与本次检索证据集合（全部围绕 Alphabet/Google 的搜索广告、Cloud、Capex、回购、AI 算力投入）完全不对应。无法获取任何与该公司维护性资本开支、营运资本投入、经营现金流转化相关的可引用证据。同样无法构建同商业模式/同阶段/同会计边界的可比基准。依据'未知留空而非5'与'不得猜测'原则，本项判定为 unknown。",
+  "evidence_refs": [
+   "B236631b0",
+   "Ba1e32368",
+   "Bc2229c4d",
+   "Bd7061a87"
+  ]
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_3",
+  "question_id": "INDUSTRIAL_01",
+  "status": "unknown",
+  "score": null,
+  "rationale": "题目要求评估工业设备公司的设备可靠性、客户认证周期、服务网络、停机成本等竞争壁垒证据。标的为虚构工业设备公司，本次证据全部为互联网/云计算/AI 行业（Alphabet/Google）的二手报道、卖方研报与监管新闻，无任何关于设备使用寿命、维修网络、OEM/终端客户认证流程或售后服务收入构成的可用证据，亦无产能、工艺装备、耗材占比等可用于工业模块评分的口径信息。本项判定为 unknown。",
+  "evidence_refs": [
+   "Bec73cccf",
+   "B32430876",
+   "B0bfb016e",
+   "B50bb441c"
+  ]
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_3",
+  "question_id": "INDUSTRIAL_02",
+  "status": "error",
+  "score": null,
+  "rationale": "repair_parse:JSONDecodeError:Expecting property name enclosed in double quotes: line 1 column 137 (char 136)",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_3",
+  "question_id": "MATURE_01",
+  "status": "error",
+  "score": null,
+  "rationale": "repair_parse:JSONDecodeError:Expecting property name enclosed in double quotes: line 1 column 137 (char 136)",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_3",
+  "question_id": "MATURE_02",
+  "status": "error",
+  "score": null,
+  "rationale": "repair_parse:JSONDecodeError:Expecting property name enclosed in double quotes: line 1 column 137 (char 136)",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_3",
+  "question_id": "CYCLICAL_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象明确标注为'示例工业设备股份有限公司（虚构）'，且标的实体为None；检索证据全部围绕Alphabet（谷歌母公司），与虚构的工业设备公司无任何主体对应，无法评估中周期回报或维护投入。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_3",
+  "question_id": "CYCLICAL_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构的'示例工业设备股份有限公司'，标的实体为None；检索证据均为Alphabet相关材料，无法用来评判一家虚构工业设备企业在历史可比低谷下的存续与必要投资能力。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "group_3",
+  "question_id": "CROSS_BORDER_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构的'示例工业设备股份有限公司'，标的实体为None；现有证据全部为Alphabet（美国科技控股集团）的资料，不能作为评估虚构工业设备公司汇率/关税/跨境资金敞口的依据。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "batch_30",
+  "question_id": "IQS_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为虚构的'示例工业设备股份有限公司'，entity_id 不匹配；检索证据全部关于 Alphabet/谷歌（科技互联网集团），与虚构工业设备公司无业务、商业模式或行业对应关系，无法基于证据作答。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "batch_30",
+  "question_id": "IQS_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的为虚构工业设备公司，证据为 Alphabet 相关内容，与客户留存/复购/订阅等口径无法对应，不能基于证据评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "batch_30",
+  "question_id": "IQS_04",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目主体为'示例工业设备股份有限公司（虚构）'，证据全部是关于 Alphabet 的搜索/广告/云/AI 业务，无工业设备行业供需与价值链证据。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "batch_30",
+  "question_id": "IQS_05",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "问题针对虚构工业设备公司的竞争优势，证据为 Alphabet 科技/互联网平台优势，主体不一致，不能映射到工业设备场景。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "batch_30",
+  "question_id": "IQS_06",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的为虚构公司，证据关于 Alphabet 的搜索/云/AI 竞争地位，与工业设备公司竞争格局无关。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "batch_30",
+  "question_id": "IQS_07",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "管理层承诺兑现情况需针对标的，标的为虚构公司，且 entity_id 不指向 Alphabet，证据无法映射。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "batch_30",
+  "question_id": "IQS_08",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "规模与成本纪律证据需对应标的；标的为虚构工业设备公司，Alphabet 数据不能用作工业设备产能与交付评价。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "batch_30",
+  "question_id": "IQS_09",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "组织能力/接班证据需基于标的，标的为虚构公司，与 Alphabet 治理结构无对应。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "batch_30",
+  "question_id": "IQS_10",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "资本回报口径需基于标的财务，标的为虚构公司，Alphabet 数据不能用于评价虚构工业设备公司。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "batch_30",
+  "question_id": "IQS_12",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "披露可信性需针对标的财报与审计，标的为虚构公司，Alphabet 披露口径不可替代。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "batch_30",
+  "question_id": "IQS_13",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "少数股东保护问题需基于标的治理结构，标的为虚构公司，证据中关于 Alphabet 同股不同权等内容不构成对虚构公司的评价。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "batch_30",
+  "question_id": "IQS_14",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "资本配置与每股价值评价需基于标的，标的为虚构公司，Alphabet 回购/分红记录不可代入。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "batch_30",
+  "question_id": "IQS_15",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "薪酬激励需对应标的，标的为虚构公司，Alphabet 高管薪酬分析不适用于此。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "batch_30",
+  "question_id": "IQS_16",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "财务弹性需基于标的的债务与现金流，标的为虚构公司，无法用 Alphabet 财务替代。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "batch_30",
+  "question_id": "IQS_17",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "关键依赖恢复能力需针对标的的供应链/客户/产地，标的为虚构公司，与 Alphabet 不对应。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "batch_30",
+  "question_id": "IQS_18",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "永久性损害风险评估需基于标的业务结构，标的为虚构公司，与 Alphabet 不可替换。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "batch_30",
+  "question_id": "IQS_19",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "新增需求规模需基于标的的细分市场，标的为虚构工业设备公司，Alphabet 的搜索/云需求前景不适用。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "batch_30",
+  "question_id": "IQS_20",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "增长驱动需对应标的业务，标的为虚构公司，Alphabet 增长路径（云/AI/Gemini）不能映射。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "batch_30",
+  "question_id": "IQS_21",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "增量资本回报需基于标的，标的为虚构公司，不能用 Alphabet 数据替代。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "batch_30",
+  "question_id": "IQS_22",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "估值隐含假设需对应标的的报价，标的为虚构公司（无 ticker/交易所），Alphabet 估值不可代入。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "batch_30",
+  "question_id": "IQS_23",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "下行情景分析需基于标的资产负债结构，标的为虚构公司，不能用 Alphabet 资本支出承诺替代。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "batch_30",
+  "question_id": "IQS_24",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "价值兑现路径需基于标的分红/回购/资本运作，标的为虚构公司，Alphabet 现金分配记录不可替代。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "batch_30",
+  "question_id": "OPERATING_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "自由现金流需基于标的财务报表，标的为虚构工业设备公司，Alphabet OCF/资本支出数据不能代入。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "batch_30",
+  "question_id": "INDUSTRIAL_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "设备可靠性/认证/服务网络需针对工业设备标的，标的为虚构公司，Alphabet 内容不构成工业设备证据。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "batch_30",
+  "question_id": "INDUSTRIAL_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "订单取消/验收/质保需基于标的业务，标的为虚构公司，Alphabet 数据为云/广告合同性质，不能映射。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "batch_30",
+  "question_id": "MATURE_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "成熟业务需求与现金需基于标的，标的为虚构公司，无法用 Alphabet 替代评价。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "batch_30",
+  "question_id": "MATURE_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "资本配置转向每股价值需基于标的，标的为虚构公司，Alphabet 资本配置不能代入。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "batch_30",
+  "question_id": "CYCLICAL_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "周期中点回报需基于标的行业周期，标的为虚构工业设备公司，Alphabet 数据不能用于工业设备周期评价。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "batch_30",
+  "question_id": "CYCLICAL_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "周期低谷存续能力需基于标的财务结构，标的为虚构公司，Alphabet 数据不适用。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "batch_30",
+  "question_id": "CROSS_BORDER_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "汇率/关税/汇出限制需基于标的的国际化结构，标的为虚构工业设备公司，Alphabet 全球业务敞口不能作为该虚构标的的证据。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "concurrent_4",
+  "question_id": "IQS_05",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目明确标注标的公司为'示例工业设备股份有限公司（虚构）'，ticker=EXAMPLE、entity_id=EXAMPLE_ENTITY_A 为占位符，不存在真实可查证的工业设备公司主体。所提供的检索证据全部围绕 Alphabet/Google（GOOGL/GOOG），与该虚构工业设备公司在行业、业务模式、会计口径上均无可比性，无法评估其竞争优势、复制成本、规模机制或转换障碍。根据指令'证据不足时 status 必须为 unknown 或 not_applicable，不得猜测'，且题面自承为虚构标的，因此判定为 not_applicable，不给出评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "concurrent_4",
+  "question_id": "IQS_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的为'示例工业设备股份有限公司（虚构）'，明确定义为虚构公司（entity_id=EXAMPLE_ENTITY_A，ticker=EXAMPLE），不存在的实体无法进行真实的收入延续性分析。所有提供的检索证据均围绕Alphabet/Google（GOOGL/GOOG），与该虚构工业设备公司完全无关，无法用于评估其客户留存、订单取消率、获客维护成本或存量需求履约可预测性等指标。按题目要求，非scored时内层score=null。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "concurrent_4",
+  "question_id": "IQS_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目要求评估的对象为'示例工业设备股份有限公司（虚构）'（entity_id=EXAMPLE_ENTITY_A），而提供的检索证据全部关于Alphabet/谷歌母公司（GOOGL/GOOG），与目标公司无任何对应关系。标的字段亦为None（entity_id=ENT_97bf6a65-a9e6-43f0-8409-c5695e2f6e1e），与题目所指的虚构工业设备公司不同。因此题目与证据主体不匹配，无法对虚构公司的客户价值、复购、停用后果等指标做出任何有意义的判断。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "concurrent_4",
+  "question_id": "IQS_06",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "The target company is explicitly defined as fictional ('示例工业设备股份有限公司（虚构）') with placeholder identifiers (entity_id=EXAMPLE_ENTITY_A, security_id=EXAMPLE_SECURITY_A, ticker=EXAMPLE). There is no real underlying entity whose competitive position can be assessed. All retrieved evidence pertains to Alphabet/Google (GOOGL/GOOG), which is a technology conglomerate, not an industrial equipment company, and is entirely irrelevant to the specified fictional entity. No evidence was found—nor could be foun",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "concurrent_4",
+  "question_id": "IQS_04",
+  "status": "error",
+  "score": null,
+  "rationale": "repair_parse:JSONDecodeError:Expecting value: line 1 column 100 (char 99)",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "concurrent_4",
+  "question_id": "IQS_08",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的明确标注为虚构公司（示例工业设备股份有限公司，ticker=EXAMPLE，entity_id=EXAMPLE_ENTITY_A），不存在真实公开披露或市场数据可供检索。所提供的检索证据全部围绕Alphabet/Google（GOOGL/GOOG），与虚构的工业设备公司在主体、业务、行业、商业模式上完全无关，无法用于评估其交付质量、成本纪律、扩张批次、爬坡损失或周期弹性等题目所要求的指标。鉴于标的不存在且无任何可引用的对应证据，按证据不足且对象不可适用处理，不给出评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "concurrent_4",
+  "question_id": "IQS_09",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的公司明确标注为'示例工业设备股份有限公司（虚构）'（entity_id=EXAMPLE_ENTITY_A），是一个虚构主体，不存在真实的组织能力、核心岗位梯队、人员流失记录、接班计划或制度化研发现金流可供评估。提供的检索证据全部围绕Alphabet/Google（GOOGL/GOOG），与该虚构工业设备公司无任何对应关系，无法据以推断其组织能力是否足以延续或对关键个人的依赖程度。因此本题目不适用评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "concurrent_4",
+  "question_id": "IQS_07",
+  "status": "error",
+  "score": null,
+  "rationale": "repair_parse:JSONDecodeError:Extra data: line 2 column 1 (char 110)",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "concurrent_4",
+  "question_id": "IQS_10",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为'示例工业设备股份有限公司（虚构）'，ticker为EXAMPLE，系明确标注的虚构占位标的，无真实公司主体、无上市实体、无可对应的财务披露。检索证据全部围绕Alphabet/Google（GOOGL/GOOG），与该虚构工业设备公司在行业、商业模式、会计边界、规模阶段上均不可比，无法据以评估'存量业务对必需资本的回报是否持续超过资金成本'。依照评分口径，本题不构成可经济实质打分的对象，标为not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "concurrent_4",
+  "question_id": "IQS_12",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目对象为虚构的'示例工业设备股份有限公司'（entity_id=EXAMPLE_ENTITY_A），所有检索证据均指向Alphabet/Google（GOOGL.O/GOOG.O），与题目所要求的工业设备公司、其审计/监管事项、应收存货质量、费用资本化、表外义务及非经常调整等口径完全无关。无法在现有证据基础上对虚构标的的资产负债表/利润表披露可信度做任何有效推断。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "concurrent_4",
+  "question_id": "IQS_14",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象明确标注为'示例工业设备股份有限公司（虚构）'，ticker='EXAMPLE'、exchange='EXAMPLE_EXCHANGE'、entity_id='EXAMPLE_ENTITY_A'、security_id='EXAMPLE_SECURITY_A'均为占位符，非真实可投资标的。所有检索证据均指向Alphabet/Google（GOOGL/GOOG），与该虚构工业设备公司无任何关联，且标的段的entity_id（ENT_97bf6a65…）亦与题目不一致。既不存在真实公司财务数据、再投资/并购/分红/回购记录，也无可比同业或历史周期证据，无法对每股经济价值创造能力进行任何有意义评分，故按规则判定为not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "concurrent_4",
+  "question_id": "IQS_13",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "目标公司明确标注为虚构（'示例工业设备股份有限公司（虚构）'），ticker为EXAMPLE、exchange为EXAMPLE_EXCHANGE、entity_id为EXAMPLE_ENTITY_A、security_id为EXAMPLE_SECURITY_A，均为占位符，不存在可检索的真实实体。题头'标的'字段亦显示标的公司为None（entity_id=ENT_97bf6a65-a9e6-43f0-8409-c5695e2f6e1e），与题目中的EXAMPLE_ENTITY_A不一致，进一步说明无对应真实标的。所提供的全部检索证据均围绕Alphabet/Google（GOOGL/GOOG）展开，与虚构工业设备公司无任何关联，无法用于评估其管理层/控制人对普通股东的公平对待记录（关联交易、资金占用、控制权与现金流分离、资产转移、少数股东保护等）。无法在虚假标的上进行有效评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "concurrent_4",
+  "question_id": "IQS_17",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目对象为'示例工业设备股份有限公司（虚构）'，属于虚构占位标的，不存在可核验的公开披露资料（招股说明书、定期报告、交易所公告、客户/供应商合同披露等）。检索证据全部围绕Alphabet/Google，与本虚构标的的业务结构、供应链、客户集中度、产地分布、替代认证周期等关键依赖要素无任何对应关系，无法据此对'关键客户/供应来源/产地或系统失效后的恢复能力'作出有意义的事实判断。按'未知留空而非5'的口径要求，只能判为证据不足。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "concurrent_4",
+  "question_id": "IQS_16",
+  "status": "error",
+  "score": null,
+  "rationale": "repair_parse:JSONDecodeError:Extra data: line 2 column 1 (char 312)",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "concurrent_4",
+  "question_id": "IQS_18",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目询问的对象为'示例工业设备股份有限公司（虚构）'，entity_id=EXAMPLE_ENTITY_A，标的公司被明确标注为虚构示例。所有提供的检索证据均关于Alphabet/Google（GOOGL/GOOG），与题目所询问的虚构工业设备公司无关，无法找到任何与该公司相关的技术替代、渠道迁移、监管约束、商业模式或防御能力的事实证据。按照'证据不足时 status 必须为 unknown 或 not_applicable，不得猜测'以及'未知留空而非5'的要求，无法给出评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "concurrent_4",
+  "question_id": "IQS_21",
+  "status": "error",
+  "score": null,
+  "rationale": "HTTP 529",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "concurrent_4",
+  "question_id": "IQS_19",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目明确标注标的为'示例工业设备股份有限公司（虚构）'，为占位/虚构标的，无真实公司基本面、产能、客户、订单或财务数据可供评估；检索证据全部指向Alphabet/Google，与该虚构工业设备标的无关，无法依据证据评估其可触达新增需求。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "concurrent_4",
+  "question_id": "IQS_20",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为'示例工业设备股份有限公司（虚构）'，entity_id=EXAMPLE_ENTITY_A，security_id=EXAMPLE_SECURITY_A，明确标注为虚构示例公司，不存在真实可检索的标的实体；所提供的全部检索证据均围绕Alphabet/Google（GOOGL/GOOG），与该虚构工业设备公司无任何业务、财务或股权关联，无法构成对其'未来增长驱动从客户需求向可持续利润转化'的评估依据，故不予评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "concurrent_4",
+  "question_id": "IQS_15",
+  "status": "error",
+  "score": null,
+  "rationale": "HTTP 529",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "concurrent_4",
+  "question_id": "IQS_22",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象明确标注为'示例工业设备股份有限公司（虚构）'，entity_id=EXAMPLE_ENTITY_A、security_id=EXAMPLE_SECURITY_A、ticker=EXAMPLE，均为虚构占位符，不存在真实可分析的主体。检索证据全部关于Alphabet/Google（GOOGL/GOOG），与虚构工业设备公司无任何对应关系，无可引用的标的定价、财务报表、产能、订单、估值或可比数据，因此无法对'当前价格隐含的增长、利润率和资本回报要求'进行反推或评分，按口径要求判定为not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "concurrent_4",
+  "question_id": "IQS_24",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的明确标注为虚构示例公司（示例工业设备股份有限公司），entity_id=EXAMPLE_ENTITY_A、ticker=EXAMPLE，非真实可投资主体；所附检索证据均为Alphabet/谷歌相关材料，与该虚构标的之间不存在可对应的基本面、分红、回购或现金流归属机制信息。无法对虚构主体按IQS_24框架进行经济能力评分，依据证据不足时status必须为unknown或not_applicable且不得猜测的原则，判定为not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "concurrent_4",
+  "question_id": "INDUSTRIAL_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目明确指定标的为'示例工业设备股份有限公司（虚构）'，ticker=EXAMPLE，且顶层【标的】中'标的公司：None'，entity_id 未对应任何真实工业设备公司。检索证据全部为 Alphabet/Google 相关内容，与工业设备可靠性、客户认证及服务网络议题完全无关。无法对虚构标的进行评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "concurrent_4",
+  "question_id": "IQS_23",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "对象为虚构示例公司'示例工业设备股份有限公司（虚构），ticker=EXAMPLE，entity_id=EXAMPLE_ENTITY_A'，不指向任何真实可检索主体；检索证据全部围绕 Alphabet/Google（ENT_97bf6a65-a9e6-43f0-8409-c5695e2f6e1e 对应的科技集团），与题目中的'示例工业设备股份有限公司'在行业、商业模式、阶段、会计边界上完全不可比，无法映射到 IQS_23 要求的'工业设备、周期敏感、成熟阶段、普通股永久损失承压'分析框架。根据评分口径'同业须同商业模式/阶段/期间/会计边界'以及'未知留空而非5'，本评分为 not_applicable，不输出 5 分占位。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "concurrent_4",
+  "question_id": "INDUSTRIAL_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象明确标注为'示例工业设备股份有限公司（虚构）'，属于虚构标的，不存在可被研究或评分的真实公司。所有检索证据均指向Alphabet/Google（科技公司），与工业设备制造业务、订单定金/验收/质保/收款流程完全无关，无法据此评判虚构公司的订单利润确定性。按指令对虚构标的记为not_applicable，不输出正式评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "concurrent_4",
+  "question_id": "OPERATING_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的实体 entity_id=ENT_97bf6a65-a9e6-43f0-8409-c5695e2f6e1e 对应 company 字段为 None，且题目口径中公司明确标注为虚构占位（示例工业设备股份有限公司（虚构），ticker=EXAMPLE），无真实经营主体可供评估。检索证据全部为 Alphabet/Google 相关内容，与该虚构工业设备标的的业务模式、行业归属、报告口径均不匹配，无法构成对其经营现金流、维护性资本开支或营运资本变动的有效证据，故 status=not_applicable、score=null。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "concurrent_4",
+  "question_id": "CYCLICAL_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象明确标注为'示例工业设备股份有限公司（虚构）'，ticker=EXAMPLE、entity_id=EXAMPLE_ENTITY_A、industry_modules=['industrial']、cycle_sensitive=true，属于虚构工业设备公司模板。题目标的公司与【不可信检索证据】中全部条目所对应的实体（Alphabet/谷歌，NASDAQ:GOOGL/GOOG）完全不匹配：行业归属（互联网/科技 vs 工业设备）、周期属性（弱周期 vs 高周期敏感）、商业模式（广告+云服务 vs 工业制造）、财务口径（USD vs CNY）均不同。即便忽略'虚构'标签，也无任何检索证据能够支持对工业设备公司进行中周期回报（全周期收益、正常化价格、维护投入）评估，因此无法以 Alphabet 证据代替工业设备公司的评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "concurrent_4",
+  "question_id": "CYCLICAL_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象明确标注为'示例工业设备股份有限公司（虚构）'，ticker为EXAMPLE、exchange为EXAMPLE_EXCHANGE、entity_id为EXAMPLE_ENTITY_A，系占位/虚构标的，非真实可研究实体。所提供的全部检索证据均围绕Alphabet/Google（互联网科技、母公司控股结构），与工业设备行业的周期敏感性、低谷存续能力、债务/现金/刚性开支等评估维度无业务、商业模式或财务可比性。因此本题无法对真实工业设备公司进行评分，状态判定为not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "concurrent_4",
+  "question_id": "MATURE_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的公司为'示例工业设备股份有限公司（虚构）'，ticker=EXAMPLE，entity_id=EXAMPLE_ENTITY_A，属于题目明确标注的虚构/示例主体，且系统传入的 entity_id=ENT_97bf6a65-a9e6-43f0-8409-c5695e2f6e1e 亦非该虚构主体。检索证据全部指向 Alphabet/Google（GOOGL/GOOG），与题目中的'工业设备'主营、'示例口径'会计边界、CNY 报价币种、12-31 财年及 cycle_sensitive 周期设定均无可比性，无法用于评判该虚构工业设备公司的资本配置、回购效率、收缩投入或每股价值行为。依据评分锚点说明——'未知留空而非5'、'非scored时内层score=null'，本项无法给出有意义的评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "concurrent_4",
+  "question_id": "MATURE_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的明确标注为虚构示例公司（示例工业设备股份有限公司（虚构），entity_id=EXAMPLE_ENTITY_A），所有检索证据均为Alphabet/Google相关资料，与目标公司完全无关。无可引用的、与该虚构工业设备公司相关的需求/复购/资产维护/替代趋势/核心客户事实证据，无法基于不可信检索证据对成熟业务需求与现金创造能否在合理期限内维持作任何事实性判断。依据评分规则，证据不足且主体为虚构示例，不进行猜测式评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "concurrent_4",
+  "question_id": "CROSS_BORDER_01",
+  "status": "missing_in_response",
+  "score": null,
+  "rationale": "question_id absent from response",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "sequential_1",
+  "question_id": "IQS_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的公司为虚构实体（示例工业设备股份有限公司，ticker=EXAMPLE，entity_id=EXAMPLE_ENTITY_A），所有检索证据均指向Alphabet/Google，与该公司无任何关联。无法对不存在的虚构标的进行客户价值评估。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "sequential_1",
+  "question_id": "IQS_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的明确标注为虚构示例公司（示例工业设备股份有限公司，entity_id=EXAMPLE_ENTITY_A），并非真实存在企业；所有检索证据均指向 Alphabet Inc. (GOOGL/GOOG)，与该虚构标的无关，且缺乏任何关于示例公司的客户留存、订单履约、获客维护成本、收入结构等信息，无法进行收入延续性评估。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "sequential_1",
+  "question_id": "IQS_04",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目明确要求分析'示例工业设备股份有限公司（虚构）'（ticker=EXAMPLE）的工业设备行业供需与价值链分配，而标的 entity_id=ENT_97bf6a65-a9e6-43f0-8409-c5695e2f6e1e 在元数据中公司名、市场、代码均为 None，且身份态信息无法与该虚构工业设备公司匹配。提供的全部检索证据均围绕 Alphabet/Google（科技/互联网/云计算行业）的业务结构、财务表现、AI 资本开支、回购与治理等议题，与工业设备行业的供需、价格纪律、客户/供应商议价、利润池归属等评分维度无任何对应关系。无法基于不相关证据对一家虚构工业设备公司进行 IQS_04 评分，故判定为 not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "sequential_1",
+  "question_id": "IQS_05",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "标的明确标注为'示例工业设备股份有限公司（虚构）'，entity_id为占位符EXAMPLE_ENTITY_A，非真实上市公司。所有检索证据均与Alphabet/Google相关（Bc5caf00f、Be795bef0、B1d5dfdbf等），与工业设备行业虚构标的毫无关联，无法验证其竞争优势机制、利润来源、复制成本或转换障碍。缺少任何可验证的事实性输入以支撑1-10评分，故无法给出score。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "sequential_1",
+  "question_id": "IQS_06",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的明确标注为虚构公司'示例工业设备股份有限公司'，entity_id与security_id均为占位符(EXAMPLE_ENTITY_A/EXAMPLE_SECURITY_A)，现实中不存在该公司或对应证券。所附检索证据全部为Alphabet/Google相关资讯，与该虚构工业设备标的无关，无法对其竞争地位、经济份额、客户迁移、替代方案等进行任何事实性判断。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "sequential_1",
+  "question_id": "IQS_07",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的为虚构示例公司'示例工业设备股份有限公司'，ticker=EXAMPLE、exchange=EXAMPLE_EXCHANGE、entity_id=EXAMPLE_ENTITY_A，无真实经营实体可供评估。所检索到的全部证据均涉及Alphabet/Google（GOOGL/GOOG），与本题标的口径完全不匹配，无法对管理层承诺兑现情况进行任何事实性判断。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "sequential_1",
+  "question_id": "IQS_08",
+  "status": "unknown",
+  "score": null,
+  "rationale": "标的为虚构的'示例工业设备股份有限公司'（entity_id=EXAMPLE_ENTITY_A），所有检索证据均指向Alphabet/Google（GOOGL/GOOG），与目标公司的行业（industrial）、身份及经营范围完全无关，且目标公司本身为虚构标的，不存在可核验的公开披露、招股说明书、年报、产能/交付/质量数据、批次扩产记录或成本弹性数据。无法就'扩大规模或遇到需求波动时能否保持交付质量与成本纪律'形成任何基于证据的判断，包括当前表现、穿越周期能力及未兑现假设均无可引用来源。按照评分锚点'未知留空而非5'以及'事实性断言必须引用方括号内的source_id'的要求，本题status=unknown，仅作传输占位用score=5。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "sequential_1",
+  "question_id": "IQS_09",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为'示例工业设备股份有限公司（虚构）'，entity_id=EXAMPLE_ENTITY_A，明确标注为虚构标的，无对应真实公司、交易所代码或监管披露。检索证据全部指向Alphabet/Google（GOOGL/GOOG），与本虚构工业设备标的无关，无任何可验证的核心岗位梯队、人员流失、接班计划、研发与销售制度化、授权记录等信息。无法对组织能力进行任何评分，故判定为not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "sequential_1",
+  "question_id": "IQS_10",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象明确标注为虚构标的（示例工业设备股份有限公司，entity_id=EXAMPLE_ENTITY_A，ticker=EXAMPLE），不存在真实财务数据。检索证据全部围绕Alphabet/谷歌母公司的广告、云业务、估值与回购，与工业设备行业及该虚构实体无关，无法对其存量业务回报与必需资本回报是否持续超过资金成本做出有效判断。按规则中商业化前无经济含义或对象为虚构实体应标not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "sequential_1",
+  "question_id": "IQS_12",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "目标公司为示例工业设备股份有限公司（虚构），entity_id 与 security_id 均为占位符（EXAMPLE_ENTITY_A / EXAMPLE_SECURITY_A），并非真实存在的上市或运营实体。所有检索证据均围绕 Alphabet/Google（GOOGL/GOOG）展开，与该虚构标的的工业设备主业、审计披露、应收存货质量、费用资本化、表外义务或非经常调整等评估维度完全不相关。无法对一家不存在的虚构公司进行资产、负债和利润披露可信度的实质性评估，故判定为 not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "sequential_1",
+  "question_id": "IQS_13",
+  "status": "unknown",
+  "score": null,
+  "rationale": "标的在题干中被明确标注为'示例工业设备股份有限公司（虚构）'，entity_id=ENT_97bf6a65-a9e6-43f0-8409-c5695e2f6e1e 对应的标的公司为 None，市场与代码均为 None。提供的检索证据全部指向 Alphabet/Google（GOOGL/GOOG），与该虚构工业设备公司无任何对应关系，无法用于评估其管理层与控制人对普通股东的公平对待记录，包括关联交易、资金占用、控制权与现金流权偏离、资产转移、少数股东保护等方面。无法形成可核验的关联交易披露、监管处罚或股东诉讼记录，证据不足以打分。按系统约束，'未知留空而非5'。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "sequential_1",
+  "question_id": "IQS_14",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的为虚构公司'示例工业设备股份有限公司（示例EXAMPLE/EXAMPLE_EXCHANGE/EXAMPLE_ENTITY_A/EXAMPLE_SECURITY_A）'，不属于任何真实上市主体，无可核验的财务数据、再投资记录、并购历史、分红与回购记录。所提供的全部检索证据均指向Alphabet Inc.（GOOGL/GOOG），与本问题所指的虚构工业设备公司在主体、业务分部、行业、会计口径与期间上完全不匹配，无任何证据可用于评估其'再投资/并购/分红/回购是否增加每股经济价值'。依据评分口径'未知留空而非5'及'不得猜测'，无法给出有效评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "sequential_1",
+  "question_id": "IQS_15",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目要求评估的标的为'示例工业设备股份有限公司（虚构）'，entity_id=EXAMPLE_ENTITY_A，明确标注为虚构公司，无真实可查实体。提供的全部检索证据均指向Alphabet/Google（GOOGL/GOOG），与该虚构工业设备公司在主体、业务模式、行业、信息披露等方面完全不对应，无法将Alphabet的薪酬、股权激励及治理证据外推至虚构标的。鉴于标的不存在真实对应实体，且无可引用的同口径证据，按评分口径应记录为不适用而非猜测评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "sequential_1",
+  "question_id": "IQS_16",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目所标的公司为'示例工业设备股份有限公司（虚构）'，entity_id和security_id均为占位符（EXAMPLE_ENTITY_A / EXAMPLE_SECURITY_A），属于虚构标的；提供的检索证据全部为Alphabet/Google相关，与该虚构标的无关。无法对虚构实体的可用现金、经营现金流、刚性债务/租赁/承诺、担保与契约约束进行任何核实，因此不能给出评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "sequential_1",
+  "question_id": "IQS_17",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "对象公司为'示例工业设备股份有限公司（虚构）'（ticker=EXAMPLE, entity_id=EXAMPLE_ENTITY_A），属于明确标注的虚构标的，不存在真实经营实体、真实供应链/客户结构、真实财务披露。检索证据均为关于Alphabet/Google的公开资料，与该虚构工业设备公司无任何对应关系，无法对其关键客户/供应来源/产地/系统失效下的恢复能力进行实质性评估，按规则不进行评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "sequential_1",
+  "question_id": "IQS_18",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为'示例工业设备股份有限公司（虚构）'，属于虚构标的（entity_id=EXAMPLE_ENTITY_A, security_id=EXAMPLE_SECURITY_A），且提供的全部检索证据均围绕Alphabet/Google（GOOGL/GOOG）展开，无任何与'示例工业设备股份有限公司'相关的可验证公开信息。无法对虚构标的进行结构性损害评估，status=not_applicable。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "sequential_1",
+  "question_id": "IQS_19",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目标的对象明确标注为'示例工业设备股份有限公司（虚构）'，entity_id和security_id均为占位符（EXAMPLE_ENTITY_A / EXAMPLE_SECURITY_A），不存在真实可检索的公司实体与可比业务。提供的全部检索证据均指向Alphabet/Google（搜索引擎、云计算、AI、广告），与工业设备行业、示例标的的客户预算、可触达市场、量价模型均无任何对应关系。无法构造可触达需求、渗透边界或预算支付能力的证据链，亦无同业可比基准。按规则不得猜测、不允许套用Alphabet叙事替代虚构工业设备公司的TAM测算。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "sequential_1",
+  "question_id": "IQS_20",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目明确标注标的公司为虚构示例公司「示例工业设备股份有限公司」(entity_id=EXAMPLE_ENTITY_A, security_id=EXAMPLE_SECURITY_A, ticker=EXAMPLE)。所有检索证据均围绕Alphabet/Google及其子板块（搜索广告、云计算、YouTube、TPU、AI 资本支出、回购、监管诉讼等），与该虚构工业设备公司完全无关，无法对题目所问的客户需求→可持续利润转化、存量业务蚕食、必要投入与摊薄后股东经济效果等口径做任何事实性判断。按规则：标的为虚构且无匹配证据时，status=not_applicable，不予猜测评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "sequential_1",
+  "question_id": "IQS_21",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "题目对象为虚构的'示例工业设备股份有限公司'（entity_id=EXAMPLE_ENTITY_A），所提供检索证据全部指向Alphabet/谷歌（GOOGL/GOOG），与题干标的公司无任何对应关系，无法获取关于该虚构公司的增量资本回报、存量业务替代效应、转型资本开支、融资条件、股权摊薄、再投资空间饱和度等任何相关事实。无法按照1/5/10锚点进行有效评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "sequential_1",
+  "question_id": "IQS_22",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象明确标注为虚构公司'示例工业设备股份有限公司'（ticker=EXAMPLE, exchange=EXAMPLE_EXCHANGE, entity_id=EXAMPLE_ENTITY_A, security_id=EXAMPLE_SECURITY_A）。所有检索证据均与Alphabet/Google（GOOGL/GOOG）相关，涉及该公司2025–2026年财报、云业务、AI资本开支、回购与分红、反垄断诉讼等资讯，与该虚构工业设备公司在业务模式、阶段、行业、会计标准、币种等方面均无可比性，亦不存在可验证的报价、股权边界、资本结构或可比同业数据。因此无法就'当前价格隐含的增长、利润率和资本回报要求是否在证据支持的能力范围内'形成任何评估。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "sequential_1",
+  "question_id": "IQS_23",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "该题目标的公司明确标注为示例工业设备股份有限公司（虚构），属于虚构示例主体，并非真实存在的上市或经营性企业，因此无法对其普通股永久损失的可能性与幅度进行实质性评估。所提供的检索证据全部围绕Alphabet/Google（GOOGL/GOOG），与本题虚构标的无关。鉴于标的为虚构示例，无可核验的公司基本面、财报、债务结构、债权顺序、资产可回收性、业务持续性或摊薄数据，亦无周期定位或行业供给侧证据，故评分无依据，不适用。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "sequential_1",
+  "question_id": "IQS_24",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的公司为'示例工业设备股份有限公司'，是题目声明的虚构公司（ticker=EXAMPLE, exchange=EXAMPLE_EXCHANGE, entity_id=EXAMPLE_ENTITY_A）。检索证据全部为关于Alphabet/谷歌的内容，与该虚构标的无关，无法评估其基本面价值向普通股东回报的转化机制。不存在可验证的真实财务数据、分红记录、回购历史或资产释放安排可供分析。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "sequential_1",
+  "question_id": "OPERATING_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "标的为虚构占位公司（示例工业设备股份有限公司 / EXAMPLE / EXAMPLE_ENTITY_A），所提供检索证据全部指向 Alphabet (GOOGL/GOOG) 的业务与财务表现，与目标标的实体身份、口径（CNY、CNY、12-31 财年、industrial 模块）完全不一致，无法据以评估其扣除维护性资本开支与必要营运资本后的现金创造能力，亦无任何可验证的财务指标（如经营现金流、维护性 capex、应收存货变动）可归集到该虚构标的。按指令，对无法归因到目标标的的问题，给出 not_applicable，不输出评分。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "sequential_1",
+  "question_id": "INDUSTRIAL_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "本题问的对象为'示例工业设备股份有限公司（EXAMPLE）'，属于工业设备制造行业，需评估其设备可靠性、客户认证与服务网络的竞争优势。但提供的检索证据全部围绕 Alphabet（谷歌母公司）的业务、财务、广告/云业务/AI 战略及分析师观点，无一条涉及工业设备使用寿命、停机成本、客户认证周期或维修/保养网络的证据。实体身份态为 verified 但 entity_id 对应公司为 None，与题目标的（工业设备公司）无法匹配。证据与题目要求的标的、行业和评估维度完全无关，无法对工业设备可靠性/认证/服务网络进行任何评估。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "sequential_1",
+  "question_id": "INDUSTRIAL_02",
+  "status": "insufficient_evidence",
+  "score": null,
+  "rationale": "所提供检索证据全部围绕Alphabet/Google（其重组背景、AI投资、云计算、Q4 2025财报等），与题目所要求的'示例工业设备股份有限公司（虚构）'订单确定性（取消、验收、质保计提、收款）无任何对应内容。标的company='示例工业设备股份有限公司（虚构）'、entity_id='EXAMPLE_ENTITY_A'为虚构示例，且as_of 2026-09-19之前的证据中未出现任何工业设备同业、同业可比数据或订单条款/质保计提/履约保证金等关键证据。无法就订单在取消、验收、质保和收款后的利润确定性形成任何可引用结论。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "sequential_1",
+  "question_id": "MATURE_01",
+  "status": "error",
+  "score": null,
+  "rationale": "repair_parse:JSONDecodeError:Extra data: line 2 column 1 (char 115)",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "sequential_1",
+  "question_id": "MATURE_02",
+  "status": "error",
+  "score": null,
+  "rationale": "repair_parse:JSONDecodeError:Extra data: line 2 column 1 (char 334)",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "sequential_1",
+  "question_id": "CYCLICAL_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目对象为'示例工业设备股份有限公司'（虚构工业设备公司），但全部检索证据均关于Alphabet/谷歌（科技公司），与工业设备周期性公司中周期回报评估完全无关，无法进行任何实质性打分。该题针对的是周期性工业设备公司，需考察全周期收益、正常化价格、维护投入与产能供需结构，而证据集中于Alphabet的广告、云业务、AI资本开支与股权回购等内容，两者行业、商业模式、周期属性均不匹配，不适用同一评分口径。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "sequential_1",
+  "question_id": "CYCLICAL_02",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目明确说明标的为'示例工业设备股份有限公司（虚构）'，ticker='EXAMPLE'，exchange='EXAMPLE_EXCHANGE'，entity_id='EXAMPLE_ENTITY_A'，是一个虚构示例公司，不存在真实财务数据。检索证据全部为Alphabet（谷歌母公司）相关资讯，与该虚构工业设备公司无关。无法评估其在历史可比低谷下的存续与必要投资能力。",
+  "evidence_refs": []
+ },
+ {
+  "company": "US:NASDAQ:GOOGL",
+  "method": "sequential_1",
+  "question_id": "CROSS_BORDER_01",
+  "status": "not_applicable",
+  "score": null,
+  "rationale": "题目设定的标的公司为'示例工业设备股份有限公司（虚构）'，entity_id=EXAMPLE_ENTITY_A，与顶部提供的实体 ENT_97bf6a65-a9e6-43f0-8409-c5695e2f6e1e 不一致，且问题参数明确标注 company/ticker/exchange/security_id/security_class/accounting_standard/cycle_position 等均为'示例'或虚构。检索证据全部为 Alphabet/Google 相关内容，与题目中虚构的工业设备公司无任何对应关系，无法据此评估其跨境汇率/关税/资金限制净敞口，故无法评分。",
+  "evidence_refs": []
+ }
+]

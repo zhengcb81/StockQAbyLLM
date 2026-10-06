@@ -1,0 +1,223 @@
+{
+ "summary": {
+  "CN-A:300750|sequential_1": {
+   "total": 30,
+   "scored": 0,
+   "unknown": 0,
+   "other": 30,
+   "mean_score": null,
+   "statuses": {
+    "not_applicable": 20,
+    "error": 6,
+    "insufficient_evidence": 4
+   }
+  },
+  "CN-A:300750|concurrent_4": {
+   "total": 30,
+   "scored": 0,
+   "unknown": 0,
+   "other": 30,
+   "mean_score": null,
+   "statuses": {
+    "not_applicable": 26,
+    "insufficient_evidence": 2,
+    "missing_in_response": 1,
+    "error": 1
+   }
+  },
+  "CN-A:300750|group_3": {
+   "total": 30,
+   "scored": 0,
+   "unknown": 0,
+   "other": 30,
+   "mean_score": null,
+   "statuses": {
+    "not_applicable": 29,
+    "missing_in_response": 1
+   }
+  },
+  "CN-A:300750|group_5": {
+   "total": 30,
+   "scored": 0,
+   "unknown": 5,
+   "other": 25,
+   "mean_score": null,
+   "statuses": {
+    "not_applicable": 25,
+    "unknown": 5
+   }
+  },
+  "CN-A:300750|group_10": {
+   "total": 30,
+   "scored": 0,
+   "unknown": 0,
+   "other": 30,
+   "mean_score": null,
+   "statuses": {
+    "not_applicable": 30
+   }
+  },
+  "CN-A:300750|batch_30": {
+   "total": 30,
+   "scored": 0,
+   "unknown": 0,
+   "other": 30,
+   "mean_score": null,
+   "statuses": {
+    "not_applicable": 30
+   }
+  },
+  "HK:06066|sequential_1": {
+   "total": 30,
+   "scored": 0,
+   "unknown": 4,
+   "other": 26,
+   "mean_score": null,
+   "statuses": {
+    "unknown": 4,
+    "insufficient_evidence": 4,
+    "not_applicable": 17,
+    "error": 4,
+    "missing_in_response": 1
+   }
+  },
+  "HK:06066|concurrent_4": {
+   "total": 30,
+   "scored": 1,
+   "unknown": 1,
+   "other": 28,
+   "mean_score": 5.0,
+   "statuses": {
+    "not_applicable": 19,
+    "insufficient_evidence": 4,
+    "missing_in_response": 2,
+    "scored": 1,
+    "error": 3,
+    "unknown": 1
+   }
+  },
+  "HK:06066|group_3": {
+   "total": 30,
+   "scored": 0,
+   "unknown": 0,
+   "other": 30,
+   "mean_score": null,
+   "statuses": {
+    "not_applicable": 30
+   }
+  },
+  "HK:06066|group_5": {
+   "total": 30,
+   "scored": 0,
+   "unknown": 0,
+   "other": 30,
+   "mean_score": null,
+   "statuses": {
+    "not_applicable": 25,
+    "insufficient_evidence": 5
+   }
+  },
+  "HK:06066|group_10": {
+   "total": 30,
+   "scored": 0,
+   "unknown": 0,
+   "other": 30,
+   "mean_score": null,
+   "statuses": {
+    "not_applicable": 29,
+    "missing_in_response": 1
+   }
+  },
+  "HK:06066|batch_30": {
+   "total": 30,
+   "scored": 0,
+   "unknown": 0,
+   "other": 30,
+   "mean_score": null,
+   "statuses": {
+    "not_applicable": 30
+   }
+  },
+  "US:NASDAQ:GOOGL|sequential_1": {
+   "total": 30,
+   "scored": 0,
+   "unknown": 2,
+   "other": 28,
+   "mean_score": null,
+   "statuses": {
+    "not_applicable": 23,
+    "insufficient_evidence": 3,
+    "unknown": 2,
+    "error": 2
+   }
+  },
+  "US:NASDAQ:GOOGL|concurrent_4": {
+   "total": 30,
+   "scored": 0,
+   "unknown": 0,
+   "other": 30,
+   "mean_score": null,
+   "statuses": {
+    "not_applicable": 22,
+    "error": 5,
+    "insufficient_evidence": 2,
+    "missing_in_response": 1
+   }
+  },
+  "US:NASDAQ:GOOGL|group_3": {
+   "total": 30,
+   "scored": 0,
+   "unknown": 3,
+   "other": 27,
+   "mean_score": null,
+   "statuses": {
+    "not_applicable": 12,
+    "insufficient_evidence": 12,
+    "unknown": 3,
+    "error": 3
+   }
+  },
+  "US:NASDAQ:GOOGL|group_5": {
+   "total": 30,
+   "scored": 0,
+   "unknown": 0,
+   "other": 30,
+   "mean_score": null,
+   "statuses": {
+    "error": 5,
+    "insufficient_evidence": 15,
+    "not_applicable": 10
+   }
+  },
+  "US:NASDAQ:GOOGL|group_10": {
+   "total": 30,
+   "scored": 0,
+   "unknown": 0,
+   "other": 30,
+   "mean_score": null,
+   "statuses": {
+    "not_applicable": 20,
+    "insufficient_evidence": 10
+   }
+  },
+  "US:NASDAQ:GOOGL|batch_30": {
+   "total": 30,
+   "scored": 0,
+   "unknown": 0,
+   "other": 30,
+   "mean_score": null,
+   "statuses": {
+    "not_applicable": 30
+   }
+  }
+ },
+ "failure_stages": {
+  "parse": 21,
+  "http": 2
+ },
+ "requests_used": 329,
+ "usage_total": {
+  "prompt_tokens": 3894261,
+  "completion_tokens": 236102
+ }
+}
