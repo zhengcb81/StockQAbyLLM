@@ -1,7 +1,7 @@
 {
   "format_version": "1.0.0",
   "package_id": "QA-NET-01",
-  "generated_at_utc": "2026-10-07T11:10:05Z",
+  "generated_at_utc": "2026-10-07T11:13:08Z",
   "repository": "C:/Users/郑曾波/Projects/StockQAbyLLM",
   "note": "Index of this package's own changed files, test logs and delivery documents. Contains no secrets and no raw provider responses.",
   "artifacts": [
@@ -122,8 +122,8 @@
     {
       "path": "docs/handoff/QA-NET-01/handoff.json",
       "kind": "delivery",
-      "bytes": 14160,
-      "sha256": "d15c4b4f42b42a99f471ba1933a0878639a77016adc35d24aba80b74cdadd3dc"
+      "bytes": 14306,
+      "sha256": "da87bab5b15e8c7a5d6c628d02c31851b3f0f9d990d4d8d8ad1e0115b695c8ee"
     },
     {
       "path": "docs/handoff/QA-NET-01/summary.md",

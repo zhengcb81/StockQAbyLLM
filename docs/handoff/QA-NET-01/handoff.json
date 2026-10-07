@@ -7,8 +7,8 @@
     "repository": "C:/Users/郑曾波/Projects/StockQAbyLLM",
     "base_ref": "master",
     "base_commit": "6a9ff13864ebb160d5c4ab3cf2f42155d9f4aa99",
-    "result_ref": "",
-    "result_commit": null,
+    "result_ref": "master",
+    "result_commit": "610de6a4c66ca86f835775fee1e986c012b8c888",
     "worktree_before": {
       "state": "dirty",
       "dirty_path_count": 7,
@@ -16,8 +16,8 @@
     },
     "worktree_after": {
       "state": "dirty",
-      "dirty_path_count": 27,
-      "manifest_sha256": "0cb5e3ebec7ba45e177d891ba21a35f88041aa562782b3a67b6e5c95fcb4256f"
+      "dirty_path_count": 7,
+      "manifest_sha256": "dc0b3cad08c2a1b6bc17c5667e708e3f913e707d1c165b7471d53638255cba32"
     }
   },
   "scope": {
@@ -293,7 +293,7 @@
     "开工基线 6a9ff13；实施期间另一 lane（G2-SQA-CHECKS）在同一仓提交 5 个 commit 到 0f8fbfa（.github/workflows、.pre-commit-config.yaml、pyproject.toml、requirements-lock.txt、scripts/checks.py、CONTRIBUTING/README、.planning/、docs/implementation/g2-stockqa-checks/ 及其两个新测试），与本包 changed_paths 无交集；本包全部验证与提交均在 0f8fbfa 之上进行，未改动对方文件。",
     "独立审查未做（review.status=not_run），不得自填 approved。",
     "共享 TEMP 清理：按会话时间窗删除 22 个 pytest 编号根；首次删除 pytest-921（含非本包产物）因 PermissionError 被拒绝后立即停止该次删除，该根随后由 pytest 自身 basetemp 轮转移除；详见 isolation.md。",
-    "worktree_after 记录的是本包全部写入完成、提交之前的工作树状态（27 条状态行）；result_ref/result_commit 在随后的交付提交完成后回填到同目录 handoff.json/artifacts.json。"
+    "交付提交 result_commit=610de6a4c66ca86f835775fee1e986c012b8c888（master）；本 handoff.json/artifacts.json 的 result 字段与最终 worktree_after 在随后的定稿提交中写入，定稿提交 sha 由 worker 在回执中一并报告。result_commit 指向的提交即代码与交付证据的主体提交。"
   ],
   "next_action": "总控从 IQS 根运行 python -B -X utf8 scripts/parallel_handoff_cli.py --catalog docs/implementation/parallel-lanes/packages/2026-10-07/manifest.json --package-id QA-NET-01 --input <本 handoff.json> 做形状预检，再独立核验 artifacts.json 中的 hash、日志与隔离记录；本包为离线批次，live 与跨仓联调由总控另行安排。"
 }
