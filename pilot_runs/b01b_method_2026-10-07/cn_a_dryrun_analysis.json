@@ -1,0 +1,64 @@
+{
+ "summary": {
+  "sequential_1": {
+   "scored": 28,
+   "mean": 7.43,
+   "cited": 28,
+   "statuses": {
+    "scored": 28,
+    "error": 2
+   }
+  },
+  "concurrent_4": {
+   "scored": 10,
+   "mean": 7.5,
+   "cited": 11,
+   "statuses": {
+    "scored": 10,
+    "insufficient_evidence": 1,
+    "error": 19
+   }
+  },
+  "group_3": {
+   "scored": 30,
+   "mean": 7.7,
+   "cited": 30,
+   "statuses": {
+    "scored": 30
+   }
+  },
+  "group_5": {
+   "scored": 29,
+   "mean": 7.66,
+   "cited": 30,
+   "statuses": {
+    "scored": 29,
+    "insufficient_evidence": 1
+   }
+  },
+  "group_10": {
+   "scored": 19,
+   "mean": 7.74,
+   "cited": 21,
+   "statuses": {
+    "scored": 19,
+    "insufficient_evidence": 2,
+    "missing_in_response": 9
+   }
+  },
+  "batch_30": {
+   "scored": 30,
+   "mean": 7.53,
+   "cited": 30,
+   "statuses": {
+    "scored": 30
+   }
+  }
+ },
+ "agreement": {
+  "questions_ge2": 30,
+  "within1": 26,
+  "exact": 10,
+  "spread_mean": 0.8
+ }
+}

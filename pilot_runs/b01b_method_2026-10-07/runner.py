@@ -109,12 +109,12 @@ POOL_FILES = {
 }
 
 MAX_TOKENS_FOR = {
-    1: 6000,
-    3: 9000,
-    5: 12000,
-    10: 16000,
-    30: 24000,
-}  # run-2 stall root cause: finish=length (reasoning prose burned the 2000-token budget before JSON)
+    1: 131072,
+    3: 131072,
+    5: 131072,
+    10: 131072,
+    30: 131072,
+}  # official recommended cap for M3 (docs); probe: batch_30 returned 30/30 at 131072 vs 1/30 at 24000 (finish=length truncation artifact eliminated)
 
 
 def sha(obj) -> str:
@@ -724,9 +724,21 @@ def main():
         default=None,
         help="comma-separated company keys to run (resume filter)",
     )
+    ap.add_argument(
+        "--methods",
+        type=str,
+        default=None,
+        help="comma-separated method names to run (resume filter)",
+    )
     args = ap.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
     plan, rendered = make_plan()
+    wanted_methods = None
+    if args.methods:
+        wanted_methods = {m.strip() for m in args.methods.split(",") if m.strip()}
+        unknown_m = wanted_methods - {m["method"] for m in METHODS}
+        if unknown_m:
+            raise SystemExit(f"unknown methods: {sorted(unknown_m)}")
     if args.companies:
         wanted = {k.strip() for k in args.companies.split(",") if k.strip()}
         keys = {c["key"] for c in plan["companies"]}
@@ -734,10 +746,20 @@ def main():
         if unknown:
             raise SystemExit(f"unknown companies: {sorted(unknown)}")
         plan["companies"] = [c for c in plan["companies"] if c["key"] in wanted]
-        plan["request_total"] = sum(c["requests"] for c in plan["companies"])
+    if wanted_methods:
+        for c in plan["companies"]:
+            c["methods"] = [m for m in c["methods"] if m["method"] in wanted_methods]
+    if args.companies or wanted_methods:
+        plan["request_total"] = sum(m["requests"] for c in plan["companies"] for m in c["methods"])
         print(
             json.dumps(
-                {"resume_filter": sorted(wanted), "request_total": plan["request_total"]},
+                {
+                    "resume_filter": {
+                        "companies": args.companies,
+                        "methods": args.methods,
+                        "request_total": plan["request_total"],
+                    }
+                },
                 ensure_ascii=False,
             )
         )

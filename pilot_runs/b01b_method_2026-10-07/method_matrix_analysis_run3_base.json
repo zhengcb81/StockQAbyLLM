@@ -1,0 +1,193 @@
+{
+ "matrix": {
+  "CN-A:300750|sequential_1": {
+   "scored": 27,
+   "mean": 7.52,
+   "cited": 29,
+   "other": {
+    "insufficient_evidence": 2,
+    "error": 1
+   }
+  },
+  "CN-A:300750|concurrent_4": {
+   "scored": 28,
+   "mean": 7.54,
+   "cited": 29,
+   "other": {
+    "insufficient_evidence": 1,
+    "error": 1
+   }
+  },
+  "CN-A:300750|group_3": {
+   "scored": 28,
+   "mean": 7.54,
+   "cited": 28,
+   "other": {
+    "missing_in_response": 2
+   }
+  },
+  "CN-A:300750|group_5": {
+   "scored": 29,
+   "mean": 7.59,
+   "cited": 30,
+   "other": {
+    "insufficient_evidence": 1
+   }
+  },
+  "CN-A:300750|group_10": {
+   "scored": 21,
+   "mean": 7.0,
+   "cited": 21,
+   "other": {
+    "missing_in_response": 9
+   }
+  },
+  "CN-A:300750|batch_30": {
+   "scored": 1,
+   "mean": 8.0,
+   "cited": 1,
+   "other": {
+    "missing_in_response": 29
+   }
+  },
+  "HK:06066|sequential_1": {
+   "scored": 16,
+   "mean": 6.25,
+   "cited": 29,
+   "other": {
+    "insufficient_evidence": 13,
+    "error": 1
+   }
+  },
+  "HK:06066|concurrent_4": {
+   "scored": 12,
+   "mean": 5.92,
+   "cited": 30,
+   "other": {
+    "insufficient_evidence": 18
+   }
+  },
+  "HK:06066|group_3": {
+   "scored": 19,
+   "mean": 6.32,
+   "cited": 27,
+   "other": {
+    "error": 3,
+    "insufficient_evidence": 7,
+    "not_applicable": 1
+   }
+  },
+  "HK:06066|group_5": {
+   "scored": 22,
+   "mean": 6.5,
+   "cited": 26,
+   "other": {
+    "insufficient_evidence": 4,
+    "missing_in_response": 4
+   }
+  },
+  "HK:06066|group_10": {
+   "scored": 10,
+   "mean": 5.8,
+   "cited": 11,
+   "other": {
+    "missing_in_response": 18,
+    "not_applicable": 2
+   }
+  },
+  "HK:06066|batch_30": {
+   "scored": 28,
+   "mean": 6.11,
+   "cited": 28,
+   "other": {
+    "not_applicable": 2
+   }
+  },
+  "US:NASDAQ:GOOGL|sequential_1": {
+   "scored": 19,
+   "mean": 7.05,
+   "cited": 28,
+   "other": {
+    "error": 2,
+    "insufficient_evidence": 9
+   }
+  },
+  "US:NASDAQ:GOOGL|concurrent_4": {
+   "scored": 21,
+   "mean": 6.86,
+   "cited": 30,
+   "other": {
+    "insufficient_evidence": 9
+   }
+  },
+  "US:NASDAQ:GOOGL|group_3": {
+   "scored": 15,
+   "mean": 6.73,
+   "cited": 22,
+   "other": {
+    "missing_in_response": 8,
+    "insufficient_evidence": 7
+   }
+  },
+  "US:NASDAQ:GOOGL|group_5": {
+   "scored": 21,
+   "mean": 7.1,
+   "cited": 26,
+   "other": {
+    "insufficient_evidence": 3,
+    "not_applicable": 2,
+    "missing_in_response": 4
+   }
+  },
+  "US:NASDAQ:GOOGL|group_10": {
+   "scored": 10,
+   "mean": 7.1,
+   "cited": 12,
+   "other": {
+    "missing_in_response": 18,
+    "insufficient_evidence": 2
+   }
+  },
+  "US:NASDAQ:GOOGL|batch_30": {
+   "scored": 28,
+   "mean": 7.71,
+   "cited": 30,
+   "other": {
+    "insufficient_evidence": 2
+   }
+  }
+ },
+ "agreement": {
+  "CN-A:300750": {
+   "ge2": 30,
+   "within1": 24,
+   "exact": 5,
+   "spread_mean": 1.03
+  },
+  "HK:06066": {
+   "ge2": 25,
+   "within1": 20,
+   "exact": 4,
+   "spread_mean": 1.04
+  },
+  "US:NASDAQ:GOOGL": {
+   "ge2": 27,
+   "within1": 15,
+   "exact": 4,
+   "spread_mean": 1.48
+  }
+ },
+ "overall_status": {
+  "scored": 355,
+  "missing_in_response": 92,
+  "insufficient_evidence": 78,
+  "error": 8,
+  "not_applicable": 7
+ },
+ "requests": 283,
+ "failures": 6,
+ "usage": {
+  "prompt_tokens": 3843236,
+  "completion_tokens": 251458
+ }
+}

@@ -1,0 +1,2265 @@
+{
+ "schema": "b01b_method_run/1",
+ "started_at": "2026-10-06T23:38:27+00:00",
+ "finished_at": "2026-10-07T00:28:43+00:00",
+ "plan": {
+  "seed": 20261007,
+  "request_cap": 600,
+  "generation": {
+   "temperature": 0,
+   "model": "MiniMax-M3",
+   "provider": "minimax",
+   "attempt": "1+1 format-repair"
+  },
+  "prompts_sha256": {
+   "CN-A:300750": "be161c38c9384de5d400de29e72a7466c2957902d4e8ec3137019dba4b0e01b0",
+   "HK:06066": "9bb6101b6a3a6923deb66f62a3ef8e4ccab3b7fbb2c84a688d0ed98f2d44a3e0",
+   "US:NASDAQ:GOOGL": "a3242d894a01e81cd0ab007f74c4641fe2ad594d40e71cf3133bd86bf89711c8"
+  },
+  "question_render_sha256": "fb3e6f7d0d55f05aefeb707742dcf950e8056486696b6c5e9974a9785626e701"
+ },
+ "requests_used": 252,
+ "failures": [
+  {
+   "company": "CN-A:300750",
+   "method": "sequential_1",
+   "chunk_index": 9,
+   "question_ids": [
+    "IQS_12"
+   ],
+   "attempts": [
+    {
+     "kind": "format_repair",
+     "usage": {
+      "total_tokens": 17066,
+      "total_characters": 0,
+      "prompt_tokens": 16725,
+      "completion_tokens": 341,
+      "completion_tokens_details": {
+       "reasoning_tokens": 0
+      },
+      "prompt_tokens_details": {
+       "cached_tokens": 16256
+      }
+     },
+     "latency_s": 7.63
+    }
+   ],
+   "usage": {
+    "total_tokens": 16691,
+    "total_characters": 0,
+    "prompt_tokens": 16314,
+    "completion_tokens": 377,
+    "completion_tokens_details": {
+     "reasoning_tokens": 0
+    },
+    "prompt_tokens_details": {
+     "cached_tokens": 16256
+    }
+   },
+   "latency_s": 10.49,
+   "response_id": "0714bbc05607ae4c32a99392a08ae68d",
+   "error": "repair_parse:JSONDecodeError:Expecting ',' delimiter: line 1 column 455 (char 454)",
+   "stage": "parse"
+  },
+  {
+   "company": "CN-A:300750",
+   "method": "sequential_1",
+   "chunk_index": 24,
+   "question_ids": [
+    "INDUSTRIAL_02"
+   ],
+   "attempts": [],
+   "error": "HTTP 422",
+   "stage": "http"
+  },
+  {
+   "company": "CN-A:300750",
+   "method": "concurrent_4",
+   "chunk_index": 12,
+   "question_ids": [
+    "IQS_15"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "CN-A:300750",
+   "method": "concurrent_4",
+   "chunk_index": 13,
+   "question_ids": [
+    "IQS_16"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "CN-A:300750",
+   "method": "concurrent_4",
+   "chunk_index": 14,
+   "question_ids": [
+    "IQS_17"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "CN-A:300750",
+   "method": "concurrent_4",
+   "chunk_index": 11,
+   "question_ids": [
+    "IQS_14"
+   ],
+   "attempts": [],
+   "usage": {
+    "total_tokens": 17441,
+    "total_characters": 0,
+    "prompt_tokens": 16315,
+    "completion_tokens": 1126,
+    "completion_tokens_details": {
+     "reasoning_tokens": 0
+    },
+    "prompt_tokens_details": {
+     "cached_tokens": 16128
+    }
+   },
+   "latency_s": 24.1,
+   "response_id": "0714beef29989e529e015a9f6ae29662",
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "CN-A:300750",
+   "method": "concurrent_4",
+   "chunk_index": 15,
+   "question_ids": [
+    "IQS_18"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "CN-A:300750",
+   "method": "concurrent_4",
+   "chunk_index": 17,
+   "question_ids": [
+    "IQS_20"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "CN-A:300750",
+   "method": "concurrent_4",
+   "chunk_index": 16,
+   "question_ids": [
+    "IQS_19"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "CN-A:300750",
+   "method": "concurrent_4",
+   "chunk_index": 18,
+   "question_ids": [
+    "IQS_21"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "CN-A:300750",
+   "method": "concurrent_4",
+   "chunk_index": 19,
+   "question_ids": [
+    "IQS_22"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "CN-A:300750",
+   "method": "concurrent_4",
+   "chunk_index": 20,
+   "question_ids": [
+    "IQS_23"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "CN-A:300750",
+   "method": "concurrent_4",
+   "chunk_index": 21,
+   "question_ids": [
+    "IQS_24"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "CN-A:300750",
+   "method": "concurrent_4",
+   "chunk_index": 22,
+   "question_ids": [
+    "OPERATING_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "CN-A:300750",
+   "method": "concurrent_4",
+   "chunk_index": 23,
+   "question_ids": [
+    "INDUSTRIAL_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "CN-A:300750",
+   "method": "concurrent_4",
+   "chunk_index": 24,
+   "question_ids": [
+    "INDUSTRIAL_02"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "CN-A:300750",
+   "method": "concurrent_4",
+   "chunk_index": 25,
+   "question_ids": [
+    "MATURE_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "CN-A:300750",
+   "method": "concurrent_4",
+   "chunk_index": 26,
+   "question_ids": [
+    "MATURE_02"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "CN-A:300750",
+   "method": "concurrent_4",
+   "chunk_index": 27,
+   "question_ids": [
+    "CYCLICAL_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "CN-A:300750",
+   "method": "concurrent_4",
+   "chunk_index": 28,
+   "question_ids": [
+    "CYCLICAL_02"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "CN-A:300750",
+   "method": "concurrent_4",
+   "chunk_index": 29,
+   "question_ids": [
+    "CROSS_BORDER_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "batch_30",
+   "chunk_index": 0,
+   "question_ids": [
+    "IQS_01",
+    "IQS_02",
+    "IQS_04",
+    "IQS_05",
+    "IQS_06",
+    "IQS_07",
+    "IQS_08",
+    "IQS_09",
+    "IQS_10",
+    "IQS_12",
+    "IQS_13",
+    "IQS_14",
+    "IQS_15",
+    "IQS_16",
+    "IQS_17",
+    "IQS_18",
+    "IQS_19",
+    "IQS_20",
+    "IQS_21",
+    "IQS_22",
+    "IQS_23",
+    "IQS_24",
+    "OPERATING_01",
+    "INDUSTRIAL_01",
+    "INDUSTRIAL_02",
+    "MATURE_01",
+    "MATURE_02",
+    "CYCLICAL_01",
+    "CYCLICAL_02",
+    "CROSS_BORDER_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "group_10",
+   "chunk_index": 0,
+   "question_ids": [
+    "IQS_01",
+    "IQS_02",
+    "IQS_04",
+    "IQS_05",
+    "IQS_06",
+    "IQS_07",
+    "IQS_08",
+    "IQS_09",
+    "IQS_10",
+    "IQS_12"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "group_10",
+   "chunk_index": 1,
+   "question_ids": [
+    "IQS_13",
+    "IQS_14",
+    "IQS_15",
+    "IQS_16",
+    "IQS_17",
+    "IQS_18",
+    "IQS_19",
+    "IQS_20",
+    "IQS_21",
+    "IQS_22"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "group_10",
+   "chunk_index": 2,
+   "question_ids": [
+    "IQS_23",
+    "IQS_24",
+    "OPERATING_01",
+    "INDUSTRIAL_01",
+    "INDUSTRIAL_02",
+    "MATURE_01",
+    "MATURE_02",
+    "CYCLICAL_01",
+    "CYCLICAL_02",
+    "CROSS_BORDER_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "group_5",
+   "chunk_index": 0,
+   "question_ids": [
+    "IQS_01",
+    "IQS_02",
+    "IQS_04",
+    "IQS_05",
+    "IQS_06"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "group_5",
+   "chunk_index": 1,
+   "question_ids": [
+    "IQS_07",
+    "IQS_08",
+    "IQS_09",
+    "IQS_10",
+    "IQS_12"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "group_5",
+   "chunk_index": 2,
+   "question_ids": [
+    "IQS_13",
+    "IQS_14",
+    "IQS_15",
+    "IQS_16",
+    "IQS_17"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "group_5",
+   "chunk_index": 3,
+   "question_ids": [
+    "IQS_18",
+    "IQS_19",
+    "IQS_20",
+    "IQS_21",
+    "IQS_22"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "group_5",
+   "chunk_index": 4,
+   "question_ids": [
+    "IQS_23",
+    "IQS_24",
+    "OPERATING_01",
+    "INDUSTRIAL_01",
+    "INDUSTRIAL_02"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "group_5",
+   "chunk_index": 5,
+   "question_ids": [
+    "MATURE_01",
+    "MATURE_02",
+    "CYCLICAL_01",
+    "CYCLICAL_02",
+    "CROSS_BORDER_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "sequential_1",
+   "chunk_index": 0,
+   "question_ids": [
+    "IQS_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "sequential_1",
+   "chunk_index": 1,
+   "question_ids": [
+    "IQS_02"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "sequential_1",
+   "chunk_index": 2,
+   "question_ids": [
+    "IQS_04"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "sequential_1",
+   "chunk_index": 3,
+   "question_ids": [
+    "IQS_05"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "sequential_1",
+   "chunk_index": 4,
+   "question_ids": [
+    "IQS_06"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "sequential_1",
+   "chunk_index": 5,
+   "question_ids": [
+    "IQS_07"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "sequential_1",
+   "chunk_index": 6,
+   "question_ids": [
+    "IQS_08"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "sequential_1",
+   "chunk_index": 7,
+   "question_ids": [
+    "IQS_09"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "sequential_1",
+   "chunk_index": 8,
+   "question_ids": [
+    "IQS_10"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "sequential_1",
+   "chunk_index": 9,
+   "question_ids": [
+    "IQS_12"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "sequential_1",
+   "chunk_index": 10,
+   "question_ids": [
+    "IQS_13"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "sequential_1",
+   "chunk_index": 11,
+   "question_ids": [
+    "IQS_14"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "sequential_1",
+   "chunk_index": 12,
+   "question_ids": [
+    "IQS_15"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "sequential_1",
+   "chunk_index": 13,
+   "question_ids": [
+    "IQS_16"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "sequential_1",
+   "chunk_index": 14,
+   "question_ids": [
+    "IQS_17"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "sequential_1",
+   "chunk_index": 15,
+   "question_ids": [
+    "IQS_18"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "sequential_1",
+   "chunk_index": 16,
+   "question_ids": [
+    "IQS_19"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "sequential_1",
+   "chunk_index": 17,
+   "question_ids": [
+    "IQS_20"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "sequential_1",
+   "chunk_index": 18,
+   "question_ids": [
+    "IQS_21"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "sequential_1",
+   "chunk_index": 19,
+   "question_ids": [
+    "IQS_22"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "sequential_1",
+   "chunk_index": 20,
+   "question_ids": [
+    "IQS_23"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "sequential_1",
+   "chunk_index": 21,
+   "question_ids": [
+    "IQS_24"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "sequential_1",
+   "chunk_index": 22,
+   "question_ids": [
+    "OPERATING_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "sequential_1",
+   "chunk_index": 23,
+   "question_ids": [
+    "INDUSTRIAL_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "sequential_1",
+   "chunk_index": 24,
+   "question_ids": [
+    "INDUSTRIAL_02"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "sequential_1",
+   "chunk_index": 25,
+   "question_ids": [
+    "MATURE_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "sequential_1",
+   "chunk_index": 26,
+   "question_ids": [
+    "MATURE_02"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "sequential_1",
+   "chunk_index": 27,
+   "question_ids": [
+    "CYCLICAL_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "sequential_1",
+   "chunk_index": 28,
+   "question_ids": [
+    "CYCLICAL_02"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "sequential_1",
+   "chunk_index": 29,
+   "question_ids": [
+    "CROSS_BORDER_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "concurrent_4",
+   "chunk_index": 3,
+   "question_ids": [
+    "IQS_05"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "concurrent_4",
+   "chunk_index": 2,
+   "question_ids": [
+    "IQS_04"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "concurrent_4",
+   "chunk_index": 0,
+   "question_ids": [
+    "IQS_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "concurrent_4",
+   "chunk_index": 1,
+   "question_ids": [
+    "IQS_02"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "concurrent_4",
+   "chunk_index": 5,
+   "question_ids": [
+    "IQS_07"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "concurrent_4",
+   "chunk_index": 4,
+   "question_ids": [
+    "IQS_06"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "concurrent_4",
+   "chunk_index": 7,
+   "question_ids": [
+    "IQS_09"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "concurrent_4",
+   "chunk_index": 6,
+   "question_ids": [
+    "IQS_08"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "concurrent_4",
+   "chunk_index": 8,
+   "question_ids": [
+    "IQS_10"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "concurrent_4",
+   "chunk_index": 9,
+   "question_ids": [
+    "IQS_12"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "concurrent_4",
+   "chunk_index": 10,
+   "question_ids": [
+    "IQS_13"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "concurrent_4",
+   "chunk_index": 11,
+   "question_ids": [
+    "IQS_14"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "concurrent_4",
+   "chunk_index": 12,
+   "question_ids": [
+    "IQS_15"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "concurrent_4",
+   "chunk_index": 14,
+   "question_ids": [
+    "IQS_17"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "concurrent_4",
+   "chunk_index": 13,
+   "question_ids": [
+    "IQS_16"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "concurrent_4",
+   "chunk_index": 15,
+   "question_ids": [
+    "IQS_18"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "concurrent_4",
+   "chunk_index": 16,
+   "question_ids": [
+    "IQS_19"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "concurrent_4",
+   "chunk_index": 17,
+   "question_ids": [
+    "IQS_20"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "concurrent_4",
+   "chunk_index": 18,
+   "question_ids": [
+    "IQS_21"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "concurrent_4",
+   "chunk_index": 19,
+   "question_ids": [
+    "IQS_22"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "concurrent_4",
+   "chunk_index": 20,
+   "question_ids": [
+    "IQS_23"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "concurrent_4",
+   "chunk_index": 21,
+   "question_ids": [
+    "IQS_24"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "concurrent_4",
+   "chunk_index": 22,
+   "question_ids": [
+    "OPERATING_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "concurrent_4",
+   "chunk_index": 23,
+   "question_ids": [
+    "INDUSTRIAL_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "concurrent_4",
+   "chunk_index": 25,
+   "question_ids": [
+    "MATURE_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "concurrent_4",
+   "chunk_index": 24,
+   "question_ids": [
+    "INDUSTRIAL_02"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "concurrent_4",
+   "chunk_index": 26,
+   "question_ids": [
+    "MATURE_02"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "concurrent_4",
+   "chunk_index": 27,
+   "question_ids": [
+    "CYCLICAL_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "concurrent_4",
+   "chunk_index": 28,
+   "question_ids": [
+    "CYCLICAL_02"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "concurrent_4",
+   "chunk_index": 29,
+   "question_ids": [
+    "CROSS_BORDER_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "group_3",
+   "chunk_index": 0,
+   "question_ids": [
+    "IQS_01",
+    "IQS_02",
+    "IQS_04"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "group_3",
+   "chunk_index": 1,
+   "question_ids": [
+    "IQS_05",
+    "IQS_06",
+    "IQS_07"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "group_3",
+   "chunk_index": 2,
+   "question_ids": [
+    "IQS_08",
+    "IQS_09",
+    "IQS_10"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "group_3",
+   "chunk_index": 3,
+   "question_ids": [
+    "IQS_12",
+    "IQS_13",
+    "IQS_14"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "group_3",
+   "chunk_index": 4,
+   "question_ids": [
+    "IQS_15",
+    "IQS_16",
+    "IQS_17"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "group_3",
+   "chunk_index": 5,
+   "question_ids": [
+    "IQS_18",
+    "IQS_19",
+    "IQS_20"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "group_3",
+   "chunk_index": 6,
+   "question_ids": [
+    "IQS_21",
+    "IQS_22",
+    "IQS_23"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "group_3",
+   "chunk_index": 7,
+   "question_ids": [
+    "IQS_24",
+    "OPERATING_01",
+    "INDUSTRIAL_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "group_3",
+   "chunk_index": 8,
+   "question_ids": [
+    "INDUSTRIAL_02",
+    "MATURE_01",
+    "MATURE_02"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "HK:06066",
+   "method": "group_3",
+   "chunk_index": 9,
+   "question_ids": [
+    "CYCLICAL_01",
+    "CYCLICAL_02",
+    "CROSS_BORDER_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "group_10",
+   "chunk_index": 0,
+   "question_ids": [
+    "IQS_01",
+    "IQS_02",
+    "IQS_04",
+    "IQS_05",
+    "IQS_06",
+    "IQS_07",
+    "IQS_08",
+    "IQS_09",
+    "IQS_10",
+    "IQS_12"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "group_10",
+   "chunk_index": 1,
+   "question_ids": [
+    "IQS_13",
+    "IQS_14",
+    "IQS_15",
+    "IQS_16",
+    "IQS_17",
+    "IQS_18",
+    "IQS_19",
+    "IQS_20",
+    "IQS_21",
+    "IQS_22"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "group_10",
+   "chunk_index": 2,
+   "question_ids": [
+    "IQS_23",
+    "IQS_24",
+    "OPERATING_01",
+    "INDUSTRIAL_01",
+    "INDUSTRIAL_02",
+    "MATURE_01",
+    "MATURE_02",
+    "CYCLICAL_01",
+    "CYCLICAL_02",
+    "CROSS_BORDER_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "group_5",
+   "chunk_index": 0,
+   "question_ids": [
+    "IQS_01",
+    "IQS_02",
+    "IQS_04",
+    "IQS_05",
+    "IQS_06"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "group_5",
+   "chunk_index": 1,
+   "question_ids": [
+    "IQS_07",
+    "IQS_08",
+    "IQS_09",
+    "IQS_10",
+    "IQS_12"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "group_5",
+   "chunk_index": 2,
+   "question_ids": [
+    "IQS_13",
+    "IQS_14",
+    "IQS_15",
+    "IQS_16",
+    "IQS_17"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "group_5",
+   "chunk_index": 3,
+   "question_ids": [
+    "IQS_18",
+    "IQS_19",
+    "IQS_20",
+    "IQS_21",
+    "IQS_22"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "group_5",
+   "chunk_index": 4,
+   "question_ids": [
+    "IQS_23",
+    "IQS_24",
+    "OPERATING_01",
+    "INDUSTRIAL_01",
+    "INDUSTRIAL_02"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "group_5",
+   "chunk_index": 5,
+   "question_ids": [
+    "MATURE_01",
+    "MATURE_02",
+    "CYCLICAL_01",
+    "CYCLICAL_02",
+    "CROSS_BORDER_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "group_3",
+   "chunk_index": 0,
+   "question_ids": [
+    "IQS_01",
+    "IQS_02",
+    "IQS_04"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "group_3",
+   "chunk_index": 1,
+   "question_ids": [
+    "IQS_05",
+    "IQS_06",
+    "IQS_07"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "group_3",
+   "chunk_index": 2,
+   "question_ids": [
+    "IQS_08",
+    "IQS_09",
+    "IQS_10"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "group_3",
+   "chunk_index": 3,
+   "question_ids": [
+    "IQS_12",
+    "IQS_13",
+    "IQS_14"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "group_3",
+   "chunk_index": 4,
+   "question_ids": [
+    "IQS_15",
+    "IQS_16",
+    "IQS_17"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "group_3",
+   "chunk_index": 5,
+   "question_ids": [
+    "IQS_18",
+    "IQS_19",
+    "IQS_20"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "group_3",
+   "chunk_index": 6,
+   "question_ids": [
+    "IQS_21",
+    "IQS_22",
+    "IQS_23"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "group_3",
+   "chunk_index": 7,
+   "question_ids": [
+    "IQS_24",
+    "OPERATING_01",
+    "INDUSTRIAL_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "group_3",
+   "chunk_index": 8,
+   "question_ids": [
+    "INDUSTRIAL_02",
+    "MATURE_01",
+    "MATURE_02"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "group_3",
+   "chunk_index": 9,
+   "question_ids": [
+    "CYCLICAL_01",
+    "CYCLICAL_02",
+    "CROSS_BORDER_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "batch_30",
+   "chunk_index": 0,
+   "question_ids": [
+    "IQS_01",
+    "IQS_02",
+    "IQS_04",
+    "IQS_05",
+    "IQS_06",
+    "IQS_07",
+    "IQS_08",
+    "IQS_09",
+    "IQS_10",
+    "IQS_12",
+    "IQS_13",
+    "IQS_14",
+    "IQS_15",
+    "IQS_16",
+    "IQS_17",
+    "IQS_18",
+    "IQS_19",
+    "IQS_20",
+    "IQS_21",
+    "IQS_22",
+    "IQS_23",
+    "IQS_24",
+    "OPERATING_01",
+    "INDUSTRIAL_01",
+    "INDUSTRIAL_02",
+    "MATURE_01",
+    "MATURE_02",
+    "CYCLICAL_01",
+    "CYCLICAL_02",
+    "CROSS_BORDER_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "concurrent_4",
+   "chunk_index": 0,
+   "question_ids": [
+    "IQS_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "concurrent_4",
+   "chunk_index": 2,
+   "question_ids": [
+    "IQS_04"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "concurrent_4",
+   "chunk_index": 3,
+   "question_ids": [
+    "IQS_05"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "concurrent_4",
+   "chunk_index": 1,
+   "question_ids": [
+    "IQS_02"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "concurrent_4",
+   "chunk_index": 4,
+   "question_ids": [
+    "IQS_06"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "concurrent_4",
+   "chunk_index": 5,
+   "question_ids": [
+    "IQS_07"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "concurrent_4",
+   "chunk_index": 6,
+   "question_ids": [
+    "IQS_08"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "concurrent_4",
+   "chunk_index": 7,
+   "question_ids": [
+    "IQS_09"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "concurrent_4",
+   "chunk_index": 8,
+   "question_ids": [
+    "IQS_10"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "concurrent_4",
+   "chunk_index": 9,
+   "question_ids": [
+    "IQS_12"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "concurrent_4",
+   "chunk_index": 10,
+   "question_ids": [
+    "IQS_13"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "concurrent_4",
+   "chunk_index": 11,
+   "question_ids": [
+    "IQS_14"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "concurrent_4",
+   "chunk_index": 12,
+   "question_ids": [
+    "IQS_15"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "concurrent_4",
+   "chunk_index": 13,
+   "question_ids": [
+    "IQS_16"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "concurrent_4",
+   "chunk_index": 15,
+   "question_ids": [
+    "IQS_18"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "concurrent_4",
+   "chunk_index": 14,
+   "question_ids": [
+    "IQS_17"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "concurrent_4",
+   "chunk_index": 16,
+   "question_ids": [
+    "IQS_19"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "concurrent_4",
+   "chunk_index": 17,
+   "question_ids": [
+    "IQS_20"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "concurrent_4",
+   "chunk_index": 18,
+   "question_ids": [
+    "IQS_21"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "concurrent_4",
+   "chunk_index": 19,
+   "question_ids": [
+    "IQS_22"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "concurrent_4",
+   "chunk_index": 20,
+   "question_ids": [
+    "IQS_23"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "concurrent_4",
+   "chunk_index": 22,
+   "question_ids": [
+    "OPERATING_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "concurrent_4",
+   "chunk_index": 21,
+   "question_ids": [
+    "IQS_24"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "concurrent_4",
+   "chunk_index": 23,
+   "question_ids": [
+    "INDUSTRIAL_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "concurrent_4",
+   "chunk_index": 25,
+   "question_ids": [
+    "MATURE_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "concurrent_4",
+   "chunk_index": 26,
+   "question_ids": [
+    "MATURE_02"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "concurrent_4",
+   "chunk_index": 24,
+   "question_ids": [
+    "INDUSTRIAL_02"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "concurrent_4",
+   "chunk_index": 27,
+   "question_ids": [
+    "CYCLICAL_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "concurrent_4",
+   "chunk_index": 29,
+   "question_ids": [
+    "CROSS_BORDER_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "concurrent_4",
+   "chunk_index": 28,
+   "question_ids": [
+    "CYCLICAL_02"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "sequential_1",
+   "chunk_index": 0,
+   "question_ids": [
+    "IQS_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "sequential_1",
+   "chunk_index": 1,
+   "question_ids": [
+    "IQS_02"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "sequential_1",
+   "chunk_index": 2,
+   "question_ids": [
+    "IQS_04"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "sequential_1",
+   "chunk_index": 3,
+   "question_ids": [
+    "IQS_05"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "sequential_1",
+   "chunk_index": 4,
+   "question_ids": [
+    "IQS_06"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "sequential_1",
+   "chunk_index": 5,
+   "question_ids": [
+    "IQS_07"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "sequential_1",
+   "chunk_index": 6,
+   "question_ids": [
+    "IQS_08"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "sequential_1",
+   "chunk_index": 7,
+   "question_ids": [
+    "IQS_09"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "sequential_1",
+   "chunk_index": 8,
+   "question_ids": [
+    "IQS_10"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "sequential_1",
+   "chunk_index": 9,
+   "question_ids": [
+    "IQS_12"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "sequential_1",
+   "chunk_index": 10,
+   "question_ids": [
+    "IQS_13"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "sequential_1",
+   "chunk_index": 11,
+   "question_ids": [
+    "IQS_14"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "sequential_1",
+   "chunk_index": 12,
+   "question_ids": [
+    "IQS_15"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "sequential_1",
+   "chunk_index": 13,
+   "question_ids": [
+    "IQS_16"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "sequential_1",
+   "chunk_index": 14,
+   "question_ids": [
+    "IQS_17"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "sequential_1",
+   "chunk_index": 15,
+   "question_ids": [
+    "IQS_18"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "sequential_1",
+   "chunk_index": 16,
+   "question_ids": [
+    "IQS_19"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "sequential_1",
+   "chunk_index": 17,
+   "question_ids": [
+    "IQS_20"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "sequential_1",
+   "chunk_index": 18,
+   "question_ids": [
+    "IQS_21"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "sequential_1",
+   "chunk_index": 19,
+   "question_ids": [
+    "IQS_22"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "sequential_1",
+   "chunk_index": 20,
+   "question_ids": [
+    "IQS_23"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "sequential_1",
+   "chunk_index": 21,
+   "question_ids": [
+    "IQS_24"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "sequential_1",
+   "chunk_index": 22,
+   "question_ids": [
+    "OPERATING_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "sequential_1",
+   "chunk_index": 23,
+   "question_ids": [
+    "INDUSTRIAL_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "sequential_1",
+   "chunk_index": 24,
+   "question_ids": [
+    "INDUSTRIAL_02"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "sequential_1",
+   "chunk_index": 25,
+   "question_ids": [
+    "MATURE_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "sequential_1",
+   "chunk_index": 26,
+   "question_ids": [
+    "MATURE_02"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "sequential_1",
+   "chunk_index": 27,
+   "question_ids": [
+    "CYCLICAL_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "sequential_1",
+   "chunk_index": 28,
+   "question_ids": [
+    "CYCLICAL_02"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "sequential_1",
+   "chunk_index": 29,
+   "question_ids": [
+    "CROSS_BORDER_01"
+   ],
+   "attempts": [],
+   "error": "HTTP 429",
+   "stage": "http"
+  }
+ ],
+ "results_count": 540,
+ "usage_total": {
+  "prompt_tokens": 1058876,
+  "completion_tokens": 87616
+ }
+}

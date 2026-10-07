@@ -1,0 +1,477 @@
+{
+ "matrix": {
+  "CN-A:300750|sequential_1": {
+   "scored": 27,
+   "mean": 7.52,
+   "cited": 29,
+   "missing": 0,
+   "statuses": {
+    "scored": 27,
+    "insufficient_evidence": 2,
+    "error": 1
+   }
+  },
+  "CN-A:300750|concurrent_4": {
+   "scored": 28,
+   "mean": 7.54,
+   "cited": 29,
+   "missing": 0,
+   "statuses": {
+    "scored": 28,
+    "insufficient_evidence": 1,
+    "error": 1
+   }
+  },
+  "CN-A:300750|group_3": {
+   "scored": 28,
+   "mean": 7.54,
+   "cited": 28,
+   "missing": 2,
+   "statuses": {
+    "scored": 28,
+    "missing_in_response": 2
+   }
+  },
+  "CN-A:300750|group_5": {
+   "scored": 15,
+   "mean": 8.0,
+   "cited": 16,
+   "missing": 14,
+   "statuses": {
+    "scored": 15,
+    "missing_in_response": 14,
+    "insufficient_evidence": 1
+   }
+  },
+  "CN-A:300750|group_10": {
+   "scored": 12,
+   "mean": 7.42,
+   "cited": 12,
+   "missing": 18,
+   "statuses": {
+    "scored": 12,
+    "missing_in_response": 18
+   }
+  },
+  "CN-A:300750|batch_30": {
+   "scored": 30,
+   "mean": 7.2,
+   "cited": 30,
+   "missing": 0,
+   "statuses": {
+    "scored": 30
+   }
+  },
+  "HK:06066|sequential_1": {
+   "scored": 16,
+   "mean": 6.25,
+   "cited": 29,
+   "missing": 0,
+   "statuses": {
+    "insufficient_evidence": 13,
+    "scored": 16,
+    "error": 1
+   }
+  },
+  "HK:06066|concurrent_4": {
+   "scored": 12,
+   "mean": 5.92,
+   "cited": 30,
+   "missing": 0,
+   "statuses": {
+    "insufficient_evidence": 18,
+    "scored": 12
+   }
+  },
+  "HK:06066|group_3": {
+   "scored": 19,
+   "mean": 6.32,
+   "cited": 27,
+   "missing": 0,
+   "statuses": {
+    "scored": 19,
+    "error": 3,
+    "insufficient_evidence": 7,
+    "not_applicable": 1
+   }
+  },
+  "HK:06066|group_5": {
+   "scored": 15,
+   "mean": 6.33,
+   "cited": 26,
+   "missing": 4,
+   "statuses": {
+    "scored": 15,
+    "missing_in_response": 4,
+    "insufficient_evidence": 11
+   }
+  },
+  "HK:06066|group_10": {
+   "scored": 10,
+   "mean": 5.9,
+   "cited": 19,
+   "missing": 9,
+   "statuses": {
+    "scored": 10,
+    "missing_in_response": 9,
+    "insufficient_evidence": 9,
+    "not_applicable": 2
+   }
+  },
+  "HK:06066|batch_30": {
+   "scored": 1,
+   "mean": 7.0,
+   "cited": 1,
+   "missing": 29,
+   "statuses": {
+    "scored": 1,
+    "missing_in_response": 29
+   }
+  },
+  "US:NASDAQ:GOOGL|sequential_1": {
+   "scored": 19,
+   "mean": 7.05,
+   "cited": 28,
+   "missing": 0,
+   "statuses": {
+    "scored": 19,
+    "error": 2,
+    "insufficient_evidence": 9
+   }
+  },
+  "US:NASDAQ:GOOGL|concurrent_4": {
+   "scored": 21,
+   "mean": 6.86,
+   "cited": 30,
+   "missing": 0,
+   "statuses": {
+    "scored": 21,
+    "insufficient_evidence": 9
+   }
+  },
+  "US:NASDAQ:GOOGL|group_3": {
+   "scored": 15,
+   "mean": 6.73,
+   "cited": 22,
+   "missing": 8,
+   "statuses": {
+    "scored": 15,
+    "missing_in_response": 8,
+    "insufficient_evidence": 7
+   }
+  },
+  "US:NASDAQ:GOOGL|group_5": {
+   "scored": 21,
+   "mean": 7.1,
+   "cited": 22,
+   "missing": 8,
+   "statuses": {
+    "scored": 21,
+    "missing_in_response": 8,
+    "insufficient_evidence": 1
+   }
+  },
+  "US:NASDAQ:GOOGL|group_10": {
+   "scored": 12,
+   "mean": 6.92,
+   "cited": 12,
+   "missing": 18,
+   "statuses": {
+    "scored": 12,
+    "missing_in_response": 18
+   }
+  },
+  "US:NASDAQ:GOOGL|batch_30": {
+   "scored": 30,
+   "mean": 7.27,
+   "cited": 30,
+   "missing": 0,
+   "statuses": {
+    "scored": 30
+   }
+  }
+ },
+ "agreement": {
+  "CN-A:300750": {
+   "ge2": 30,
+   "within1": 24,
+   "pct": 80,
+   "exact": 2,
+   "spread_mean": 1.13
+  },
+  "HK:06066": {
+   "ge2": 24,
+   "within1": 22,
+   "pct": 92,
+   "exact": 9,
+   "spread_mean": 0.71
+  },
+  "US:NASDAQ:GOOGL": {
+   "ge2": 29,
+   "within1": 15,
+   "pct": 52,
+   "exact": 2,
+   "spread_mean": 1.69
+  }
+ },
+ "overall_status": {
+  "scored": 331,
+  "insufficient_evidence": 88,
+  "error": 8,
+  "missing_in_response": 110,
+  "not_applicable": 3
+ },
+ "receipt": {
+  "schema": "b01b_method_run_merged/1",
+  "provenance": [
+   {
+    "part": "sequential_1+concurrent_4+group_3",
+    "source": "method_run_receipt_run3_base.json",
+    "requests": 283,
+    "failures": 6
+   },
+   {
+    "part": "group_10+batch_30+group_5 (max_completion_tokens raised 24000->131072 after finish=length truncation artifact confirmed by probe: 30/30 at 131072)",
+    "source": "rerun receipt",
+    "requests": 32,
+    "failures": 0
+   }
+  ],
+  "requests_total": 315,
+  "failures_total": 6,
+  "failure_detail": {
+   "base": [
+    {
+     "company": "CN-A:300750",
+     "method": "sequential_1",
+     "chunk_index": 20,
+     "question_ids": [
+      "IQS_23"
+     ],
+     "attempts": [
+      {
+       "kind": "format_repair",
+       "usage": {
+        "total_tokens": 18299,
+        "total_characters": 0,
+        "prompt_tokens": 17325,
+        "completion_tokens": 974,
+        "completion_tokens_details": {
+         "reasoning_tokens": 0
+        },
+        "prompt_tokens_details": {
+         "cached_tokens": 16256
+        }
+       },
+       "latency_s": 17.75
+      }
+     ],
+     "usage": {
+      "total_tokens": 17291,
+      "total_characters": 0,
+      "prompt_tokens": 16317,
+      "completion_tokens": 974,
+      "completion_tokens_details": {
+       "reasoning_tokens": 0
+      },
+      "prompt_tokens_details": {
+       "cached_tokens": 16256
+      }
+     },
+     "latency_s": 20.73,
+     "response_id": "071504cce172ead638e44ced0d059046",
+     "error": "repair_parse:JSONDecodeError:Expecting ',' delimiter: line 1 column 908 (char 907)",
+     "stage": "parse"
+    },
+    {
+     "company": "CN-A:300750",
+     "method": "concurrent_4",
+     "chunk_index": 19,
+     "question_ids": [
+      "IQS_22"
+     ],
+     "attempts": [
+      {
+       "kind": "format_repair",
+       "usage": {
+        "total_tokens": 19506,
+        "total_characters": 0,
+        "prompt_tokens": 17925,
+        "completion_tokens": 1581,
+        "completion_tokens_details": {
+         "reasoning_tokens": 0
+        },
+        "prompt_tokens_details": {
+         "cached_tokens": 16256
+        }
+       },
+       "latency_s": 13.95
+      }
+     ],
+     "usage": {
+      "total_tokens": 17891,
+      "total_characters": 0,
+      "prompt_tokens": 16310,
+      "completion_tokens": 1581,
+      "completion_tokens_details": {
+       "reasoning_tokens": 0
+      },
+      "prompt_tokens_details": {
+       "cached_tokens": 16256
+      }
+     },
+     "latency_s": 28.67,
+     "response_id": "07150740aa1e9dc5b6e70e59e947d208",
+     "error": "repair_parse:JSONDecodeError:Expecting ',' delimiter: line 1 column 1752 (char 1751)",
+     "stage": "parse"
+    },
+    {
+     "company": "HK:06066",
+     "method": "sequential_1",
+     "chunk_index": 10,
+     "question_ids": [
+      "IQS_13"
+     ],
+     "attempts": [
+      {
+       "kind": "format_repair",
+       "usage": {
+        "total_tokens": 16372,
+        "total_characters": 0,
+        "prompt_tokens": 16091,
+        "completion_tokens": 281,
+        "prompt_tokens_details": {
+         "cached_tokens": 15731
+        }
+       },
+       "latency_s": 10.21
+      }
+     ],
+     "usage": {
+      "total_tokens": 16057,
+      "total_characters": 0,
+      "prompt_tokens": 15731,
+      "completion_tokens": 326,
+      "prompt_tokens_details": {
+       "cached_tokens": 128
+      }
+     },
+     "latency_s": 7.68,
+     "response_id": "071509b554de28c1021e3d8073a67f21",
+     "error": "repair_parse:JSONDecodeError:Expecting ',' delimiter: line 1 column 392 (char 391)",
+     "stage": "parse"
+    },
+    {
+     "company": "HK:06066",
+     "method": "group_3",
+     "chunk_index": 5,
+     "question_ids": [
+      "IQS_18",
+      "IQS_19",
+      "IQS_20"
+     ],
+     "attempts": [
+      {
+       "kind": "format_repair",
+       "usage": {
+        "total_tokens": 19785,
+        "total_characters": 0,
+        "prompt_tokens": 18488,
+        "completion_tokens": 1297,
+        "completion_tokens_details": {
+         "reasoning_tokens": 0
+        },
+        "prompt_tokens_details": {
+         "cached_tokens": 17152
+        }
+       },
+       "latency_s": 14.71
+      }
+     ],
+     "usage": {
+      "total_tokens": 18454,
+      "total_characters": 0,
+      "prompt_tokens": 17153,
+      "completion_tokens": 1301,
+      "completion_tokens_details": {
+       "reasoning_tokens": 0
+      },
+      "prompt_tokens_details": {
+       "cached_tokens": 15104
+      }
+     },
+     "latency_s": 24.55,
+     "response_id": "07150bc0f6fc04d22a471766ecfed301",
+     "error": "repair_parse:JSONDecodeError:Expecting ',' delimiter: line 1 column 472 (char 471)",
+     "stage": "parse"
+    },
+    {
+     "company": "US:NASDAQ:GOOGL",
+     "method": "sequential_1",
+     "chunk_index": 4,
+     "question_ids": [
+      "IQS_06"
+     ],
+     "attempts": [],
+     "usage": {
+      "total_tokens": 15055,
+      "total_characters": 0,
+      "prompt_tokens": 13615,
+      "completion_tokens": 1440,
+      "completion_tokens_details": {
+       "reasoning_tokens": 0
+      },
+      "prompt_tokens_details": {
+       "cached_tokens": 13568
+      }
+     },
+     "latency_s": 35.75,
+     "response_id": "07150fdd1aed692a432227bfaaacef28",
+     "error": "HTTP 529",
+     "stage": "http"
+    },
+    {
+     "company": "US:NASDAQ:GOOGL",
+     "method": "sequential_1",
+     "chunk_index": 17,
+     "question_ids": [
+      "IQS_20"
+     ],
+     "attempts": [
+      {
+       "kind": "format_repair",
+       "usage": {
+        "total_tokens": 15002,
+        "total_characters": 0,
+        "prompt_tokens": 14415,
+        "completion_tokens": 587,
+        "prompt_tokens_details": {
+         "cached_tokens": 13676
+        }
+       },
+       "latency_s": 6.12
+      }
+     ],
+     "usage": {
+      "total_tokens": 14381,
+      "total_characters": 0,
+      "prompt_tokens": 13676,
+      "completion_tokens": 705,
+      "prompt_tokens_details": {
+       "cached_tokens": 128
+      }
+     },
+     "latency_s": 10.32,
+     "response_id": "071510e98524cdd570565a23b9bceaba",
+     "error": "repair_parse:JSONDecodeError:Expecting ',' delimiter: line 1 column 867 (char 866)",
+     "stage": "parse"
+    }
+   ],
+   "rerun": []
+  },
+  "usage_total": {
+   "prompt_tokens": 4452444,
+   "completion_tokens": 331888
+  }
+ }
+}

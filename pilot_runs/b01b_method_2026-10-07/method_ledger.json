@@ -17,19 +17,19 @@
   ],
   "attempts": [],
   "usage": {
-   "total_tokens": 25899,
+   "total_tokens": 26381,
    "total_characters": 0,
    "prompt_tokens": 22057,
-   "completion_tokens": 3842,
+   "completion_tokens": 4324,
    "completion_tokens_details": {
     "reasoning_tokens": 0
    },
    "prompt_tokens_details": {
-    "cached_tokens": 15616
+    "cached_tokens": 256
    }
   },
-  "latency_s": 56.42,
-  "response_id": "0714b975a8866341c54fa4f1e111af7b",
+  "latency_s": 82.92,
+  "response_id": "071513ce2f04d4189c9061b9534c4e32",
   "error": null
  },
  {
@@ -50,19 +50,19 @@
   ],
   "attempts": [],
   "usage": {
-   "total_tokens": 26479,
+   "total_tokens": 25432,
    "total_characters": 0,
    "prompt_tokens": 22186,
-   "completion_tokens": 4293,
+   "completion_tokens": 3246,
    "completion_tokens_details": {
     "reasoning_tokens": 0
    },
    "prompt_tokens_details": {
-    "cached_tokens": 15616
+    "cached_tokens": 256
    }
   },
-  "latency_s": 63.34,
-  "response_id": "0714b9ad9a2efcb06be091797a191b35",
+  "latency_s": 56.68,
+  "response_id": "071514214f8081c8dfca964c3b6a19b3",
   "error": null
  },
  {
@@ -83,19 +83,16 @@
   ],
   "attempts": [],
   "usage": {
-   "total_tokens": 25944,
+   "total_tokens": 25473,
    "total_characters": 0,
    "prompt_tokens": 21810,
-   "completion_tokens": 4134,
-   "completion_tokens_details": {
-    "reasoning_tokens": 0
-   },
+   "completion_tokens": 3663,
    "prompt_tokens_details": {
-    "cached_tokens": 16128
+    "cached_tokens": 128
    }
   },
-  "latency_s": 56.54,
-  "response_id": "0714b9ecafabc93d6edc61a2806ad99b",
+  "latency_s": 58.13,
+  "response_id": "071514592f99eefb4c1be993a3eb5596",
   "error": null
  },
  {
@@ -111,16 +108,16 @@
   ],
   "attempts": [],
   "usage": {
-   "total_tokens": 20344,
+   "total_tokens": 21072,
    "total_characters": 0,
    "prompt_tokens": 18880,
-   "completion_tokens": 1464,
+   "completion_tokens": 2192,
    "prompt_tokens_details": {
     "cached_tokens": 128
    }
   },
-  "latency_s": 13.78,
-  "response_id": "0714ba25fb1c28b0f9f228f66c589806",
+  "latency_s": 37.06,
+  "response_id": "07151494e9b95c26eebc9a0749d5e8a9",
   "error": null
  },
  {
@@ -136,16 +133,16 @@
   ],
   "attempts": [],
   "usage": {
-   "total_tokens": 20557,
+   "total_tokens": 20933,
    "total_characters": 0,
    "prompt_tokens": 18864,
-   "completion_tokens": 1693,
+   "completion_tokens": 2069,
    "prompt_tokens_details": {
     "cached_tokens": 128
    }
   },
-  "latency_s": 30.95,
-  "response_id": "0714ba3365af0fc2c829a8440332db4c",
+  "latency_s": 35.69,
+  "response_id": "071514b9f6a349761ff1404441e3c2f7",
   "error": null
  },
  {
@@ -161,16 +158,16 @@
   ],
   "attempts": [],
   "usage": {
-   "total_tokens": 21237,
+   "total_tokens": 21102,
    "total_characters": 0,
    "prompt_tokens": 18824,
-   "completion_tokens": 2413,
+   "completion_tokens": 2278,
    "prompt_tokens_details": {
     "cached_tokens": 128
    }
   },
-  "latency_s": 22.15,
-  "response_id": "0714ba526024e2b81276334dd24aa6b6",
+  "latency_s": 37.1,
+  "response_id": "071514dc3058373881d1868079512f49",
   "error": null
  },
  {
@@ -184,18 +181,32 @@
    "IQS_21",
    "IQS_22"
   ],
-  "attempts": [],
+  "attempts": [
+   {
+    "kind": "format_repair",
+    "usage": {
+     "total_tokens": 22975,
+     "total_characters": 0,
+     "prompt_tokens": 21036,
+     "completion_tokens": 1939,
+     "prompt_tokens_details": {
+      "cached_tokens": 19049
+     }
+    },
+    "latency_s": 25.75
+   }
+  ],
   "usage": {
-   "total_tokens": 20859,
+   "total_tokens": 21002,
    "total_characters": 0,
    "prompt_tokens": 19049,
-   "completion_tokens": 1810,
+   "completion_tokens": 1953,
    "prompt_tokens_details": {
     "cached_tokens": 128
    }
   },
-  "latency_s": 20.62,
-  "response_id": "0714ba68ad0884ae12754986f0af9495",
+  "latency_s": 29.23,
+  "response_id": "07151501d4a919a189d93f6557771e4c",
   "error": null
  },
  {
@@ -211,16 +222,16 @@
   ],
   "attempts": [],
   "usage": {
-   "total_tokens": 20641,
+   "total_tokens": 20763,
    "total_characters": 0,
    "prompt_tokens": 18780,
-   "completion_tokens": 1861,
+   "completion_tokens": 1983,
    "prompt_tokens_details": {
-    "cached_tokens": 15682
+    "cached_tokens": 128
    }
   },
-  "latency_s": 14.95,
-  "response_id": "0714ba7d24ae5184cd22f19df9dd40c6",
+  "latency_s": 35.6,
+  "response_id": "07151538e035d27a175684d411115fc8",
   "error": null
  },
  {
@@ -236,19 +247,19 @@
   ],
   "attempts": [],
   "usage": {
-   "total_tokens": 20678,
+   "total_tokens": 20991,
    "total_characters": 0,
    "prompt_tokens": 18717,
-   "completion_tokens": 1961,
+   "completion_tokens": 2274,
    "completion_tokens_details": {
     "reasoning_tokens": 0
    },
    "prompt_tokens_details": {
-    "cached_tokens": 18688
+    "cached_tokens": 128
    }
   },
-  "latency_s": 36.97,
-  "response_id": "0714ba8c9b90f50310f5cffd16e1b07a",
+  "latency_s": 39.4,
+  "response_id": "0715155c1bda5ac72b38eab1b429872a",
   "error": null
  },
  {
@@ -289,1569 +300,17 @@
   ],
   "attempts": [],
   "usage": {
-   "total_tokens": 43634,
+   "total_tokens": 42736,
    "total_characters": 0,
    "prompt_tokens": 34679,
-   "completion_tokens": 8955,
+   "completion_tokens": 8057,
    "prompt_tokens_details": {
     "cached_tokens": 128
    }
   },
-  "latency_s": 78.51,
-  "response_id": "0714bab18a9d75d46589764c2f2c2e9f",
+  "latency_s": 102.4,
+  "response_id": "071515844922319ee9ecfb8e24d42bf3",
   "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "sequential_1",
-  "chunk_index": 0,
-  "question_ids": [
-   "IQS_01"
-  ],
-  "attempts": [
-   {
-    "kind": "format_repair",
-    "usage": {
-     "total_tokens": 18437,
-     "total_characters": 0,
-     "prompt_tokens": 17390,
-     "completion_tokens": 1047,
-     "completion_tokens_details": {
-      "reasoning_tokens": 0
-     },
-     "prompt_tokens_details": {
-      "cached_tokens": 16128
-     }
-    },
-    "latency_s": 14.7
-   }
-  ],
-  "usage": {
-   "total_tokens": 17356,
-   "total_characters": 0,
-   "prompt_tokens": 16308,
-   "completion_tokens": 1048,
-   "completion_tokens_details": {
-    "reasoning_tokens": 0
-   },
-   "prompt_tokens_details": {
-    "cached_tokens": 16128
-   }
-  },
-  "latency_s": 21.37,
-  "response_id": "0714baff055d0287c5b93c94a524dbe1",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "sequential_1",
-  "chunk_index": 1,
-  "question_ids": [
-   "IQS_02"
-  ],
-  "attempts": [
-   {
-    "kind": "format_repair",
-    "usage": {
-     "total_tokens": 17974,
-     "total_characters": 0,
-     "prompt_tokens": 17166,
-     "completion_tokens": 808,
-     "prompt_tokens_details": {
-      "cached_tokens": 16319
-     }
-    },
-    "latency_s": 5.67
-   }
-  ],
-  "usage": {
-   "total_tokens": 17132,
-   "total_characters": 0,
-   "prompt_tokens": 16319,
-   "completion_tokens": 813,
-   "prompt_tokens_details": {
-    "cached_tokens": 128
-   }
-  },
-  "latency_s": 9.46,
-  "response_id": "0714bb230a38f2baac304ea2a058c149",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "sequential_1",
-  "chunk_index": 2,
-  "question_ids": [
-   "IQS_04"
-  ],
-  "attempts": [
-   {
-    "kind": "format_repair",
-    "usage": {
-     "total_tokens": 18752,
-     "total_characters": 0,
-     "prompt_tokens": 17579,
-     "completion_tokens": 1173,
-     "completion_tokens_details": {
-      "reasoning_tokens": 0
-     },
-     "prompt_tokens_details": {
-      "cached_tokens": 16128
-     }
-    },
-    "latency_s": 15.46
-   }
-  ],
-  "usage": {
-   "total_tokens": 17545,
-   "total_characters": 0,
-   "prompt_tokens": 16312,
-   "completion_tokens": 1233,
-   "completion_tokens_details": {
-    "reasoning_tokens": 0
-   },
-   "prompt_tokens_details": {
-    "cached_tokens": 15616
-   }
-  },
-  "latency_s": 21.08,
-  "response_id": "0714bb32782d2cdcf45a1b5d970c5ea3",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "sequential_1",
-  "chunk_index": 3,
-  "question_ids": [
-   "IQS_05"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 17447,
-   "total_characters": 0,
-   "prompt_tokens": 16344,
-   "completion_tokens": 1103,
-   "prompt_tokens_details": {
-    "cached_tokens": 128
-   }
-  },
-  "latency_s": 11.05,
-  "response_id": "0714bb57427f235a899c95e7d11bcb68",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "sequential_1",
-  "chunk_index": 4,
-  "question_ids": [
-   "IQS_06"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 17197,
-   "total_characters": 0,
-   "prompt_tokens": 16345,
-   "completion_tokens": 852,
-   "completion_tokens_details": {
-    "reasoning_tokens": 0
-   },
-   "prompt_tokens_details": {
-    "cached_tokens": 16256
-   }
-  },
-  "latency_s": 17.49,
-  "response_id": "0714bb62f91cc381b98e8f996f8bdaad",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "sequential_1",
-  "chunk_index": 5,
-  "question_ids": [
-   "IQS_07"
-  ],
-  "attempts": [
-   {
-    "kind": "format_repair",
-    "usage": {
-     "total_tokens": 17958,
-     "total_characters": 0,
-     "prompt_tokens": 17156,
-     "completion_tokens": 802,
-     "prompt_tokens_details": {
-      "cached_tokens": 16303
-     }
-    },
-    "latency_s": 7.46
-   }
-  ],
-  "usage": {
-   "total_tokens": 17122,
-   "total_characters": 0,
-   "prompt_tokens": 16303,
-   "completion_tokens": 819,
-   "prompt_tokens_details": {
-    "cached_tokens": 128
-   }
-  },
-  "latency_s": 10.3,
-  "response_id": "0714bb74f8142f79120a286f05c12ecf",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "sequential_1",
-  "chunk_index": 6,
-  "question_ids": [
-   "IQS_08"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 17383,
-   "total_characters": 0,
-   "prompt_tokens": 16307,
-   "completion_tokens": 1076,
-   "prompt_tokens_details": {
-    "cached_tokens": 128
-   }
-  },
-  "latency_s": 12.4,
-  "response_id": "0714bb851a317a0b3bde0f9d936cde91",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "sequential_1",
-  "chunk_index": 7,
-  "question_ids": [
-   "IQS_09"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 17283,
-   "total_characters": 0,
-   "prompt_tokens": 16307,
-   "completion_tokens": 976,
-   "completion_tokens_details": {
-    "reasoning_tokens": 0
-   },
-   "prompt_tokens_details": {
-    "cached_tokens": 16256
-   }
-  },
-  "latency_s": 21.16,
-  "response_id": "0714bb92870892792139c91bda9c3fbe",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "sequential_1",
-  "chunk_index": 8,
-  "question_ids": [
-   "IQS_10"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 17854,
-   "total_characters": 0,
-   "prompt_tokens": 16381,
-   "completion_tokens": 1473,
-   "completion_tokens_details": {
-    "reasoning_tokens": 0
-   },
-   "prompt_tokens_details": {
-    "cached_tokens": 16256
-   }
-  },
-  "latency_s": 25.13,
-  "response_id": "0714bba758968376060009825cbd68fc",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "sequential_1",
-  "chunk_index": 9,
-  "question_ids": [
-   "IQS_12"
-  ],
-  "attempts": [
-   {
-    "kind": "format_repair",
-    "usage": {
-     "total_tokens": 17066,
-     "total_characters": 0,
-     "prompt_tokens": 16725,
-     "completion_tokens": 341,
-     "completion_tokens_details": {
-      "reasoning_tokens": 0
-     },
-     "prompt_tokens_details": {
-      "cached_tokens": 16256
-     }
-    },
-    "latency_s": 7.63
-   }
-  ],
-  "usage": {
-   "total_tokens": 16691,
-   "total_characters": 0,
-   "prompt_tokens": 16314,
-   "completion_tokens": 377,
-   "completion_tokens_details": {
-    "reasoning_tokens": 0
-   },
-   "prompt_tokens_details": {
-    "cached_tokens": 16256
-   }
-  },
-  "latency_s": 10.49,
-  "response_id": "0714bbc05607ae4c32a99392a08ae68d",
-  "error": "repair_parse:JSONDecodeError:Expecting ',' delimiter: line 1 column 455 (char 454)"
- },
- {
-  "company": "CN-A:300750",
-  "method": "sequential_1",
-  "chunk_index": 10,
-  "question_ids": [
-   "IQS_13"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 17040,
-   "total_characters": 0,
-   "prompt_tokens": 16306,
-   "completion_tokens": 734,
-   "prompt_tokens_details": {
-    "cached_tokens": 128
-   }
-  },
-  "latency_s": 12.06,
-  "response_id": "0714bbd298b0490943199515e572e877",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "sequential_1",
-  "chunk_index": 11,
-  "question_ids": [
-   "IQS_14"
-  ],
-  "attempts": [
-   {
-    "kind": "format_repair",
-    "usage": {
-     "total_tokens": 18536,
-     "total_characters": 0,
-     "prompt_tokens": 17533,
-     "completion_tokens": 1003,
-     "completion_tokens_details": {
-      "reasoning_tokens": 0
-     },
-     "prompt_tokens_details": {
-      "cached_tokens": 16128
-     }
-    },
-    "latency_s": 12.81
-   }
-  ],
-  "usage": {
-   "total_tokens": 17499,
-   "total_characters": 0,
-   "prompt_tokens": 16315,
-   "completion_tokens": 1184,
-   "completion_tokens_details": {
-    "reasoning_tokens": 0
-   },
-   "prompt_tokens_details": {
-    "cached_tokens": 16128
-   }
-  },
-  "latency_s": 23.92,
-  "response_id": "0714bbde5677eee1fb576045a6881e83",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "sequential_1",
-  "chunk_index": 12,
-  "question_ids": [
-   "IQS_15"
-  ],
-  "attempts": [
-   {
-    "kind": "format_repair",
-    "usage": {
-     "total_tokens": 18014,
-     "total_characters": 0,
-     "prompt_tokens": 17221,
-     "completion_tokens": 793,
-     "completion_tokens_details": {
-      "reasoning_tokens": 0
-     },
-     "prompt_tokens_details": {
-      "cached_tokens": 16256
-     }
-    },
-    "latency_s": 9.09
-   }
-  ],
-  "usage": {
-   "total_tokens": 17187,
-   "total_characters": 0,
-   "prompt_tokens": 16313,
-   "completion_tokens": 874,
-   "completion_tokens_details": {
-    "reasoning_tokens": 0
-   },
-   "prompt_tokens_details": {
-    "cached_tokens": 16256
-   }
-  },
-  "latency_s": 21.3,
-  "response_id": "0714bc0352a8e1d03eef75f8e85ea5de",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "sequential_1",
-  "chunk_index": 13,
-  "question_ids": [
-   "IQS_16"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 17365,
-   "total_characters": 0,
-   "prompt_tokens": 16320,
-   "completion_tokens": 1045,
-   "completion_tokens_details": {
-    "reasoning_tokens": 0
-   },
-   "prompt_tokens_details": {
-    "cached_tokens": 15616
-   }
-  },
-  "latency_s": 22.08,
-  "response_id": "0714bc21203af7450c475bfc9524dcd0",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "sequential_1",
-  "chunk_index": 14,
-  "question_ids": [
-   "IQS_17"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 17386,
-   "total_characters": 0,
-   "prompt_tokens": 16318,
-   "completion_tokens": 1068,
-   "completion_tokens_details": {
-    "reasoning_tokens": 0
-   },
-   "prompt_tokens_details": {
-    "cached_tokens": 15616
-   }
-  },
-  "latency_s": 19.89,
-  "response_id": "0714bc3733bff7d31904baca3893b613",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "sequential_1",
-  "chunk_index": 15,
-  "question_ids": [
-   "IQS_18"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 17504,
-   "total_characters": 0,
-   "prompt_tokens": 16367,
-   "completion_tokens": 1137,
-   "completion_tokens_details": {
-    "reasoning_tokens": 0
-   },
-   "prompt_tokens_details": {
-    "cached_tokens": 15616
-   }
-  },
-  "latency_s": 20.48,
-  "response_id": "0714bc4bc6599a181b89a1b4f03d7aed",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "sequential_1",
-  "chunk_index": 16,
-  "question_ids": [
-   "IQS_19"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 16958,
-   "total_characters": 0,
-   "prompt_tokens": 16317,
-   "completion_tokens": 641,
-   "prompt_tokens_details": {
-    "cached_tokens": 128
-   }
-  },
-  "latency_s": 10.84,
-  "response_id": "0714bc605a6bcd837433bd43145f955c",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "sequential_1",
-  "chunk_index": 17,
-  "question_ids": [
-   "IQS_20"
-  ],
-  "attempts": [
-   {
-    "kind": "format_repair",
-    "usage": {
-     "total_tokens": 17649,
-     "total_characters": 0,
-     "prompt_tokens": 17080,
-     "completion_tokens": 569,
-     "prompt_tokens_details": {
-      "cached_tokens": 16406
-     }
-    },
-    "latency_s": 6.71
-   }
-  ],
-  "usage": {
-   "total_tokens": 17046,
-   "total_characters": 0,
-   "prompt_tokens": 16406,
-   "completion_tokens": 640,
-   "prompt_tokens_details": {
-    "cached_tokens": 128
-   }
-  },
-  "latency_s": 9.71,
-  "response_id": "0714bc6b2a0818759e79585f5d9c4c39",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "sequential_1",
-  "chunk_index": 18,
-  "question_ids": [
-   "IQS_21"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 17552,
-   "total_characters": 0,
-   "prompt_tokens": 16397,
-   "completion_tokens": 1155,
-   "completion_tokens_details": {
-    "reasoning_tokens": 0
-   },
-   "prompt_tokens_details": {
-    "cached_tokens": 15616
-   }
-  },
-  "latency_s": 33.48,
-  "response_id": "0714bc7b7c30d32359721c8cfd74f39c",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "sequential_1",
-  "chunk_index": 19,
-  "question_ids": [
-   "IQS_22"
-  ],
-  "attempts": [
-   {
-    "kind": "format_repair",
-    "usage": {
-     "total_tokens": 18811,
-     "total_characters": 0,
-     "prompt_tokens": 17611,
-     "completion_tokens": 1200,
-     "completion_tokens_details": {
-      "reasoning_tokens": 0
-     },
-     "prompt_tokens_details": {
-      "cached_tokens": 16256
-     }
-    },
-    "latency_s": 11.41
-   }
-  ],
-  "usage": {
-   "total_tokens": 17577,
-   "total_characters": 0,
-   "prompt_tokens": 16310,
-   "completion_tokens": 1267,
-   "completion_tokens_details": {
-    "reasoning_tokens": 0
-   },
-   "prompt_tokens_details": {
-    "cached_tokens": 16256
-   }
-  },
-  "latency_s": 24.36,
-  "response_id": "0714bc9d91075177d6c280c9daa6aae0",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "sequential_1",
-  "chunk_index": 20,
-  "question_ids": [
-   "IQS_23"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 17644,
-   "total_characters": 0,
-   "prompt_tokens": 16317,
-   "completion_tokens": 1327,
-   "completion_tokens_details": {
-    "reasoning_tokens": 0
-   },
-   "prompt_tokens_details": {
-    "cached_tokens": 16128
-   }
-  },
-  "latency_s": 21.62,
-  "response_id": "0714bcc0f9b0226a5022a7a372aa746a",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "sequential_1",
-  "chunk_index": 21,
-  "question_ids": [
-   "IQS_24"
-  ],
-  "attempts": [
-   {
-    "kind": "format_repair",
-    "usage": {
-     "total_tokens": 18279,
-     "total_characters": 0,
-     "prompt_tokens": 17328,
-     "completion_tokens": 951,
-     "completion_tokens_details": {
-      "reasoning_tokens": 0
-     },
-     "prompt_tokens_details": {
-      "cached_tokens": 16128
-     }
-    },
-    "latency_s": 13.77
-   }
-  ],
-  "usage": {
-   "total_tokens": 17294,
-   "total_characters": 0,
-   "prompt_tokens": 16333,
-   "completion_tokens": 961,
-   "completion_tokens_details": {
-    "reasoning_tokens": 0
-   },
-   "prompt_tokens_details": {
-    "cached_tokens": 16128
-   }
-  },
-  "latency_s": 17.7,
-  "response_id": "0714bcd6291ad8ba34f4ff13fa454ab3",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "sequential_1",
-  "chunk_index": 22,
-  "question_ids": [
-   "OPERATING_01"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 16912,
-   "total_characters": 0,
-   "prompt_tokens": 16297,
-   "completion_tokens": 615,
-   "completion_tokens_details": {
-    "reasoning_tokens": 0
-   },
-   "prompt_tokens_details": {
-    "cached_tokens": 16256
-   }
-  },
-  "latency_s": 14.69,
-  "response_id": "0714bcf56ec84329fc57634dba64271d",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "sequential_1",
-  "chunk_index": 23,
-  "question_ids": [
-   "INDUSTRIAL_01"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 17206,
-   "total_characters": 0,
-   "prompt_tokens": 16286,
-   "completion_tokens": 920,
-   "completion_tokens_details": {
-    "reasoning_tokens": 0
-   },
-   "prompt_tokens_details": {
-    "cached_tokens": 16256
-   }
-  },
-  "latency_s": 20.46,
-  "response_id": "0714bd0401f87a13018e59353361b83b",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "sequential_1",
-  "chunk_index": 24,
-  "question_ids": [
-   "INDUSTRIAL_02"
-  ],
-  "attempts": [],
-  "error": "HTTP 422"
- },
- {
-  "company": "CN-A:300750",
-  "method": "sequential_1",
-  "chunk_index": 25,
-  "question_ids": [
-   "MATURE_01"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 17460,
-   "total_characters": 0,
-   "prompt_tokens": 16286,
-   "completion_tokens": 1174,
-   "completion_tokens_details": {
-    "reasoning_tokens": 0
-   },
-   "prompt_tokens_details": {
-    "cached_tokens": 16256
-   }
-  },
-  "latency_s": 20.65,
-  "response_id": "0714bd40fa78cee81272d55222ba46e3",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "sequential_1",
-  "chunk_index": 26,
-  "question_ids": [
-   "MATURE_02"
-  ],
-  "attempts": [
-   {
-    "kind": "format_repair",
-    "usage": {
-     "total_tokens": 17665,
-     "total_characters": 0,
-     "prompt_tokens": 16998,
-     "completion_tokens": 667,
-     "prompt_tokens_details": {
-      "cached_tokens": 16290
-     }
-    },
-    "latency_s": 5.97
-   }
-  ],
-  "usage": {
-   "total_tokens": 16964,
-   "total_characters": 0,
-   "prompt_tokens": 16290,
-   "completion_tokens": 674,
-   "prompt_tokens_details": {
-    "cached_tokens": 128
-   }
-  },
-  "latency_s": 8.64,
-  "response_id": "0714bd5421b76ebc7716671713b895ea",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "sequential_1",
-  "chunk_index": 27,
-  "question_ids": [
-   "CYCLICAL_01"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 17377,
-   "total_characters": 0,
-   "prompt_tokens": 16294,
-   "completion_tokens": 1083,
-   "prompt_tokens_details": {
-    "cached_tokens": 128
-   }
-  },
-  "latency_s": 12.62,
-  "response_id": "0714bd639cd6fa24e6f94adba129d438",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "sequential_1",
-  "chunk_index": 28,
-  "question_ids": [
-   "CYCLICAL_02"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 17061,
-   "total_characters": 0,
-   "prompt_tokens": 16294,
-   "completion_tokens": 767,
-   "prompt_tokens_details": {
-    "cached_tokens": 15686
-   }
-  },
-  "latency_s": 10.56,
-  "response_id": "0714bd70f6ba4a368f19482be75643fc",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "sequential_1",
-  "chunk_index": 29,
-  "question_ids": [
-   "CROSS_BORDER_01"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 16751,
-   "total_characters": 0,
-   "prompt_tokens": 16301,
-   "completion_tokens": 450,
-   "prompt_tokens_details": {
-    "cached_tokens": 128
-   }
-  },
-  "latency_s": 7.99,
-  "response_id": "0714bd7a3876f05eece3ccfc58bd6b6b",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "group_3",
-  "chunk_index": 0,
-  "question_ids": [
-   "IQS_01",
-   "IQS_02",
-   "IQS_04"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 19047,
-   "total_characters": 0,
-   "prompt_tokens": 17565,
-   "completion_tokens": 1482,
-   "completion_tokens_details": {
-    "reasoning_tokens": 0
-   },
-   "prompt_tokens_details": {
-    "cached_tokens": 15616
-   }
-  },
-  "latency_s": 24.69,
-  "response_id": "0714bd826ecc410470751ce9f8f54458",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "group_3",
-  "chunk_index": 1,
-  "question_ids": [
-   "IQS_05",
-   "IQS_06",
-   "IQS_07"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 19158,
-   "total_characters": 0,
-   "prompt_tokens": 17618,
-   "completion_tokens": 1540,
-   "completion_tokens_details": {
-    "reasoning_tokens": 0
-   },
-   "prompt_tokens_details": {
-    "cached_tokens": 15616
-   }
-  },
-  "latency_s": 22.82,
-  "response_id": "0714bd9b9dd2f3518f7a7d10cb662860",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "group_3",
-  "chunk_index": 2,
-  "question_ids": [
-   "IQS_08",
-   "IQS_09",
-   "IQS_10"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 20086,
-   "total_characters": 0,
-   "prompt_tokens": 17621,
-   "completion_tokens": 2465,
-   "completion_tokens_details": {
-    "reasoning_tokens": 0
-   },
-   "prompt_tokens_details": {
-    "cached_tokens": 15616
-   }
-  },
-  "latency_s": 40.84,
-  "response_id": "0714bdb29b0d6e574f2184b3d00bb1c7",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "group_3",
-  "chunk_index": 3,
-  "question_ids": [
-   "IQS_12",
-   "IQS_13",
-   "IQS_14"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 19348,
-   "total_characters": 0,
-   "prompt_tokens": 17561,
-   "completion_tokens": 1787,
-   "completion_tokens_details": {
-    "reasoning_tokens": 0
-   },
-   "prompt_tokens_details": {
-    "cached_tokens": 15616
-   }
-  },
-  "latency_s": 31.19,
-  "response_id": "0714bddb0cf091c0e9cd0f72fef73a55",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "group_3",
-  "chunk_index": 4,
-  "question_ids": [
-   "IQS_15",
-   "IQS_16",
-   "IQS_17"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 18860,
-   "total_characters": 0,
-   "prompt_tokens": 17577,
-   "completion_tokens": 1283,
-   "completion_tokens_details": {
-    "reasoning_tokens": 0
-   },
-   "prompt_tokens_details": {
-    "cached_tokens": 128
-   }
-  },
-  "latency_s": 25.85,
-  "response_id": "0714bdfa91b3aad6f828aa6cf06b74e8",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "group_3",
-  "chunk_index": 5,
-  "question_ids": [
-   "IQS_18",
-   "IQS_19",
-   "IQS_20"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 19690,
-   "total_characters": 0,
-   "prompt_tokens": 17716,
-   "completion_tokens": 1974,
-   "prompt_tokens_details": {
-    "cached_tokens": 128
-   }
-  },
-  "latency_s": 20.81,
-  "response_id": "0714be14f3cb84e38c786280baa993e4",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "group_3",
-  "chunk_index": 6,
-  "question_ids": [
-   "IQS_21",
-   "IQS_22",
-   "IQS_23"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 19632,
-   "total_characters": 0,
-   "prompt_tokens": 17650,
-   "completion_tokens": 1982,
-   "completion_tokens_details": {
-    "reasoning_tokens": 0
-   },
-   "prompt_tokens_details": {
-    "cached_tokens": 15616
-   }
-  },
-  "latency_s": 33.12,
-  "response_id": "0714be2866c83eede345d6375106eb81",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "group_3",
-  "chunk_index": 7,
-  "question_ids": [
-   "IQS_24",
-   "OPERATING_01",
-   "INDUSTRIAL_01"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 19395,
-   "total_characters": 0,
-   "prompt_tokens": 17542,
-   "completion_tokens": 1853,
-   "completion_tokens_details": {
-    "reasoning_tokens": 0
-   },
-   "prompt_tokens_details": {
-    "cached_tokens": 15616
-   }
-  },
-  "latency_s": 34.97,
-  "response_id": "0714be4a2492e3cf58a4d3883bf8c77a",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "group_3",
-  "chunk_index": 8,
-  "question_ids": [
-   "INDUSTRIAL_02",
-   "MATURE_01",
-   "MATURE_02"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 18693,
-   "total_characters": 0,
-   "prompt_tokens": 17497,
-   "completion_tokens": 1196,
-   "completion_tokens_details": {
-    "reasoning_tokens": 0
-   },
-   "prompt_tokens_details": {
-    "cached_tokens": 15616
-   }
-  },
-  "latency_s": 20.61,
-  "response_id": "0714be6d76d0bf9d56f200503dbe932b",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "group_3",
-  "chunk_index": 9,
-  "question_ids": [
-   "CYCLICAL_01",
-   "CYCLICAL_02",
-   "CROSS_BORDER_01"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 18847,
-   "total_characters": 0,
-   "prompt_tokens": 17515,
-   "completion_tokens": 1332,
-   "prompt_tokens_details": {
-    "cached_tokens": 128
-   }
-  },
-  "latency_s": 56.44,
-  "response_id": "0714be8153fc7fadd7a6df70c5092dd8",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "concurrent_4",
-  "chunk_index": 0,
-  "question_ids": [
-   "IQS_01"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 16841,
-   "total_characters": 0,
-   "prompt_tokens": 16308,
-   "completion_tokens": 533,
-   "completion_tokens_details": {
-    "reasoning_tokens": 0
-   },
-   "prompt_tokens_details": {
-    "cached_tokens": 16128
-   }
-  },
-  "latency_s": 15.12,
-  "response_id": "0714beba1eb1f2f6f4e3e8ce3424f0f7",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "concurrent_4",
-  "chunk_index": 1,
-  "question_ids": [
-   "IQS_02"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 17457,
-   "total_characters": 0,
-   "prompt_tokens": 16319,
-   "completion_tokens": 1138,
-   "prompt_tokens_details": {
-    "cached_tokens": 128
-   }
-  },
-  "latency_s": 22.18,
-  "response_id": "0714beba2a55095a76d5f3882b4928e4",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "concurrent_4",
-  "chunk_index": 5,
-  "question_ids": [
-   "IQS_07"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 16621,
-   "total_characters": 0,
-   "prompt_tokens": 16303,
-   "completion_tokens": 318,
-   "prompt_tokens_details": {
-    "cached_tokens": 128
-   }
-  },
-  "latency_s": 9.22,
-  "response_id": "0714bed061efdc1341f6e29acc4dce28",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "concurrent_4",
-  "chunk_index": 2,
-  "question_ids": [
-   "IQS_04"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 17771,
-   "total_characters": 0,
-   "prompt_tokens": 16312,
-   "completion_tokens": 1459,
-   "completion_tokens_details": {
-    "reasoning_tokens": 0
-   },
-   "prompt_tokens_details": {
-    "cached_tokens": 16128
-   }
-  },
-  "latency_s": 31.84,
-  "response_id": "0714beba4fe1ddc016d85ad6f7024013",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "concurrent_4",
-  "chunk_index": 4,
-  "question_ids": [
-   "IQS_06"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 17539,
-   "total_characters": 0,
-   "prompt_tokens": 16345,
-   "completion_tokens": 1194,
-   "completion_tokens_details": {
-    "reasoning_tokens": 0
-   },
-   "prompt_tokens_details": {
-    "cached_tokens": 16256
-   }
-  },
-  "latency_s": 24.77,
-  "response_id": "0714bec9fd279c246e431d80c719150c",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "concurrent_4",
-  "chunk_index": 3,
-  "question_ids": [
-   "IQS_05"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 17794,
-   "total_characters": 0,
-   "prompt_tokens": 16344,
-   "completion_tokens": 1450,
-   "prompt_tokens_details": {
-    "cached_tokens": 128
-   }
-  },
-  "latency_s": 39.89,
-  "response_id": "0714bebab00f15ee58fa1e910da772a2",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "concurrent_4",
-  "chunk_index": 7,
-  "question_ids": [
-   "IQS_09"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 16951,
-   "total_characters": 0,
-   "prompt_tokens": 16307,
-   "completion_tokens": 644,
-   "completion_tokens_details": {
-    "reasoning_tokens": 0
-   },
-   "prompt_tokens_details": {
-    "cached_tokens": 16256
-   }
-  },
-  "latency_s": 17.78,
-  "response_id": "0714bed962fd4df451725aa813298714",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "concurrent_4",
-  "chunk_index": 6,
-  "question_ids": [
-   "IQS_08"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 17044,
-   "total_characters": 0,
-   "prompt_tokens": 16307,
-   "completion_tokens": 737,
-   "prompt_tokens_details": {
-    "cached_tokens": 128
-   }
-  },
-  "latency_s": 22.08,
-  "response_id": "0714bed9dd5684ad4d60ae1e090212fd",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "concurrent_4",
-  "chunk_index": 9,
-  "question_ids": [
-   "IQS_12"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 17094,
-   "total_characters": 0,
-   "prompt_tokens": 16314,
-   "completion_tokens": 780,
-   "prompt_tokens_details": {
-    "cached_tokens": 128
-   }
-  },
-  "latency_s": 15.35,
-  "response_id": "0714bee2330a0abfcc675bbe791bd1ec",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "concurrent_4",
-  "chunk_index": 12,
-  "question_ids": [
-   "IQS_15"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "CN-A:300750",
-  "method": "concurrent_4",
-  "chunk_index": 8,
-  "question_ids": [
-   "IQS_10"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 17243,
-   "total_characters": 0,
-   "prompt_tokens": 16381,
-   "completion_tokens": 862,
-   "completion_tokens_details": {
-    "reasoning_tokens": 0
-   },
-   "prompt_tokens_details": {
-    "cached_tokens": 15616
-   }
-  },
-  "latency_s": 28.54,
-  "response_id": "0714bee2943b088465f9e5209c7d6f45",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "concurrent_4",
-  "chunk_index": 13,
-  "question_ids": [
-   "IQS_16"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "CN-A:300750",
-  "method": "concurrent_4",
-  "chunk_index": 14,
-  "question_ids": [
-   "IQS_17"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "CN-A:300750",
-  "method": "concurrent_4",
-  "chunk_index": 10,
-  "question_ids": [
-   "IQS_13"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 16875,
-   "total_characters": 0,
-   "prompt_tokens": 16306,
-   "completion_tokens": 569,
-   "prompt_tokens_details": {
-    "cached_tokens": 128
-   }
-  },
-  "latency_s": 32.97,
-  "response_id": "0714beeb523446ad248b34e9728f905d",
-  "error": null
- },
- {
-  "company": "CN-A:300750",
-  "method": "concurrent_4",
-  "chunk_index": 11,
-  "question_ids": [
-   "IQS_14"
-  ],
-  "attempts": [],
-  "usage": {
-   "total_tokens": 17441,
-   "total_characters": 0,
-   "prompt_tokens": 16315,
-   "completion_tokens": 1126,
-   "completion_tokens_details": {
-    "reasoning_tokens": 0
-   },
-   "prompt_tokens_details": {
-    "cached_tokens": 16128
-   }
-  },
-  "latency_s": 24.1,
-  "response_id": "0714beef29989e529e015a9f6ae29662",
-  "error": "HTTP 429"
- },
- {
-  "company": "CN-A:300750",
-  "method": "concurrent_4",
-  "chunk_index": 15,
-  "question_ids": [
-   "IQS_18"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "CN-A:300750",
-  "method": "concurrent_4",
-  "chunk_index": 17,
-  "question_ids": [
-   "IQS_20"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "CN-A:300750",
-  "method": "concurrent_4",
-  "chunk_index": 16,
-  "question_ids": [
-   "IQS_19"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "CN-A:300750",
-  "method": "concurrent_4",
-  "chunk_index": 18,
-  "question_ids": [
-   "IQS_21"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "CN-A:300750",
-  "method": "concurrent_4",
-  "chunk_index": 19,
-  "question_ids": [
-   "IQS_22"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "CN-A:300750",
-  "method": "concurrent_4",
-  "chunk_index": 20,
-  "question_ids": [
-   "IQS_23"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "CN-A:300750",
-  "method": "concurrent_4",
-  "chunk_index": 21,
-  "question_ids": [
-   "IQS_24"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "CN-A:300750",
-  "method": "concurrent_4",
-  "chunk_index": 22,
-  "question_ids": [
-   "OPERATING_01"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "CN-A:300750",
-  "method": "concurrent_4",
-  "chunk_index": 23,
-  "question_ids": [
-   "INDUSTRIAL_01"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "CN-A:300750",
-  "method": "concurrent_4",
-  "chunk_index": 24,
-  "question_ids": [
-   "INDUSTRIAL_02"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "CN-A:300750",
-  "method": "concurrent_4",
-  "chunk_index": 25,
-  "question_ids": [
-   "MATURE_01"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "CN-A:300750",
-  "method": "concurrent_4",
-  "chunk_index": 26,
-  "question_ids": [
-   "MATURE_02"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "CN-A:300750",
-  "method": "concurrent_4",
-  "chunk_index": 27,
-  "question_ids": [
-   "CYCLICAL_01"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "CN-A:300750",
-  "method": "concurrent_4",
-  "chunk_index": 28,
-  "question_ids": [
-   "CYCLICAL_02"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "CN-A:300750",
-  "method": "concurrent_4",
-  "chunk_index": 29,
-  "question_ids": [
-   "CROSS_BORDER_01"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
  },
  {
   "company": "HK:06066",
@@ -1890,7 +349,21 @@
    "CROSS_BORDER_01"
   ],
   "attempts": [],
-  "error": "HTTP 429"
+  "usage": {
+   "total_tokens": 41626,
+   "total_characters": 0,
+   "prompt_tokens": 34278,
+   "completion_tokens": 7348,
+   "completion_tokens_details": {
+    "reasoning_tokens": 0
+   },
+   "prompt_tokens_details": {
+    "cached_tokens": 256
+   }
+  },
+  "latency_s": 108.65,
+  "response_id": "071515ea41eda45847b9173059964e6b",
+  "error": null
  },
  {
   "company": "HK:06066",
@@ -1909,7 +382,21 @@
    "IQS_12"
   ],
   "attempts": [],
-  "error": "HTTP 429"
+  "usage": {
+   "total_tokens": 24073,
+   "total_characters": 0,
+   "prompt_tokens": 21536,
+   "completion_tokens": 2537,
+   "completion_tokens_details": {
+    "reasoning_tokens": 0
+   },
+   "prompt_tokens_details": {
+    "cached_tokens": 21504
+   }
+  },
+  "latency_s": 47.73,
+  "response_id": "071516572db5279e977bc81bf34eed92",
+  "error": null
  },
  {
   "company": "HK:06066",
@@ -1928,7 +415,21 @@
    "IQS_22"
   ],
   "attempts": [],
-  "error": "HTTP 429"
+  "usage": {
+   "total_tokens": 24168,
+   "total_characters": 0,
+   "prompt_tokens": 21665,
+   "completion_tokens": 2503,
+   "completion_tokens_details": {
+    "reasoning_tokens": 0
+   },
+   "prompt_tokens_details": {
+    "cached_tokens": 15104
+   }
+  },
+  "latency_s": 45.1,
+  "response_id": "07151687a3bdcbaf33060970a44b8782",
+  "error": null
  },
  {
   "company": "HK:06066",
@@ -1947,7 +448,21 @@
    "CROSS_BORDER_01"
   ],
   "attempts": [],
-  "error": "HTTP 429"
+  "usage": {
+   "total_tokens": 22539,
+   "total_characters": 0,
+   "prompt_tokens": 21289,
+   "completion_tokens": 1250,
+   "completion_tokens_details": {
+    "reasoning_tokens": 0
+   },
+   "prompt_tokens_details": {
+    "cached_tokens": 128
+   }
+  },
+  "latency_s": 32.72,
+  "response_id": "071516b4a0da0f372478b1f659a27a87",
+  "error": null
  },
  {
   "company": "HK:06066",
@@ -1961,7 +476,21 @@
    "IQS_06"
   ],
   "attempts": [],
-  "error": "HTTP 429"
+  "usage": {
+   "total_tokens": 20024,
+   "total_characters": 0,
+   "prompt_tokens": 18329,
+   "completion_tokens": 1695,
+   "completion_tokens_details": {
+    "reasoning_tokens": 0
+   },
+   "prompt_tokens_details": {
+    "cached_tokens": 15104
+   }
+  },
+  "latency_s": 34.74,
+  "response_id": "071516d471ea098b74e50bb224fc4726",
+  "error": null
  },
  {
   "company": "HK:06066",
@@ -1974,8 +503,33 @@
    "IQS_10",
    "IQS_12"
   ],
-  "attempts": [],
-  "error": "HTTP 429"
+  "attempts": [
+   {
+    "kind": "format_repair",
+    "usage": {
+     "total_tokens": 20912,
+     "total_characters": 0,
+     "prompt_tokens": 19629,
+     "completion_tokens": 1283,
+     "prompt_tokens_details": {
+      "cached_tokens": 18313
+     }
+    },
+    "latency_s": 15.78
+   }
+  ],
+  "usage": {
+   "total_tokens": 19595,
+   "total_characters": 0,
+   "prompt_tokens": 18313,
+   "completion_tokens": 1282,
+   "prompt_tokens_details": {
+    "cached_tokens": 128
+   }
+  },
+  "latency_s": 33.1,
+  "response_id": "071516f7857d9e2cf39189f29c2f8f5a",
+  "error": null
  },
  {
   "company": "HK:06066",
@@ -1989,7 +543,21 @@
    "IQS_17"
   ],
   "attempts": [],
-  "error": "HTTP 429"
+  "usage": {
+   "total_tokens": 19408,
+   "total_characters": 0,
+   "prompt_tokens": 18273,
+   "completion_tokens": 1135,
+   "completion_tokens_details": {
+    "reasoning_tokens": 0
+   },
+   "prompt_tokens_details": {
+    "cached_tokens": 15104
+   }
+  },
+  "latency_s": 23.03,
+  "response_id": "07151728143a02a1457b0292e2ce55b8",
+  "error": null
  },
  {
   "company": "HK:06066",
@@ -2003,7 +571,18 @@
    "IQS_22"
   ],
   "attempts": [],
-  "error": "HTTP 429"
+  "usage": {
+   "total_tokens": 19505,
+   "total_characters": 0,
+   "prompt_tokens": 18498,
+   "completion_tokens": 1007,
+   "prompt_tokens_details": {
+    "cached_tokens": 128
+   }
+  },
+  "latency_s": 14.99,
+  "response_id": "0715173f64c73274bf9957d10f57a476",
+  "error": null
  },
  {
   "company": "HK:06066",
@@ -2017,7 +596,18 @@
    "INDUSTRIAL_02"
   ],
   "attempts": [],
-  "error": "HTTP 429"
+  "usage": {
+   "total_tokens": 19570,
+   "total_characters": 0,
+   "prompt_tokens": 18229,
+   "completion_tokens": 1341,
+   "prompt_tokens_details": {
+    "cached_tokens": 128
+   }
+  },
+  "latency_s": 29.78,
+  "response_id": "0715174ed2535189f7c2921732650486",
+  "error": null
  },
  {
   "company": "HK:06066",
@@ -2031,727 +621,18 @@
    "CROSS_BORDER_01"
   ],
   "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "sequential_1",
-  "chunk_index": 0,
-  "question_ids": [
-   "IQS_01"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "sequential_1",
-  "chunk_index": 1,
-  "question_ids": [
-   "IQS_02"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "sequential_1",
-  "chunk_index": 2,
-  "question_ids": [
-   "IQS_04"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "sequential_1",
-  "chunk_index": 3,
-  "question_ids": [
-   "IQS_05"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "sequential_1",
-  "chunk_index": 4,
-  "question_ids": [
-   "IQS_06"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "sequential_1",
-  "chunk_index": 5,
-  "question_ids": [
-   "IQS_07"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "sequential_1",
-  "chunk_index": 6,
-  "question_ids": [
-   "IQS_08"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "sequential_1",
-  "chunk_index": 7,
-  "question_ids": [
-   "IQS_09"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "sequential_1",
-  "chunk_index": 8,
-  "question_ids": [
-   "IQS_10"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "sequential_1",
-  "chunk_index": 9,
-  "question_ids": [
-   "IQS_12"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "sequential_1",
-  "chunk_index": 10,
-  "question_ids": [
-   "IQS_13"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "sequential_1",
-  "chunk_index": 11,
-  "question_ids": [
-   "IQS_14"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "sequential_1",
-  "chunk_index": 12,
-  "question_ids": [
-   "IQS_15"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "sequential_1",
-  "chunk_index": 13,
-  "question_ids": [
-   "IQS_16"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "sequential_1",
-  "chunk_index": 14,
-  "question_ids": [
-   "IQS_17"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "sequential_1",
-  "chunk_index": 15,
-  "question_ids": [
-   "IQS_18"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "sequential_1",
-  "chunk_index": 16,
-  "question_ids": [
-   "IQS_19"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "sequential_1",
-  "chunk_index": 17,
-  "question_ids": [
-   "IQS_20"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "sequential_1",
-  "chunk_index": 18,
-  "question_ids": [
-   "IQS_21"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "sequential_1",
-  "chunk_index": 19,
-  "question_ids": [
-   "IQS_22"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "sequential_1",
-  "chunk_index": 20,
-  "question_ids": [
-   "IQS_23"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "sequential_1",
-  "chunk_index": 21,
-  "question_ids": [
-   "IQS_24"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "sequential_1",
-  "chunk_index": 22,
-  "question_ids": [
-   "OPERATING_01"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "sequential_1",
-  "chunk_index": 23,
-  "question_ids": [
-   "INDUSTRIAL_01"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "sequential_1",
-  "chunk_index": 24,
-  "question_ids": [
-   "INDUSTRIAL_02"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "sequential_1",
-  "chunk_index": 25,
-  "question_ids": [
-   "MATURE_01"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "sequential_1",
-  "chunk_index": 26,
-  "question_ids": [
-   "MATURE_02"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "sequential_1",
-  "chunk_index": 27,
-  "question_ids": [
-   "CYCLICAL_01"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "sequential_1",
-  "chunk_index": 28,
-  "question_ids": [
-   "CYCLICAL_02"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "sequential_1",
-  "chunk_index": 29,
-  "question_ids": [
-   "CROSS_BORDER_01"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "concurrent_4",
-  "chunk_index": 3,
-  "question_ids": [
-   "IQS_05"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "concurrent_4",
-  "chunk_index": 2,
-  "question_ids": [
-   "IQS_04"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "concurrent_4",
-  "chunk_index": 0,
-  "question_ids": [
-   "IQS_01"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "concurrent_4",
-  "chunk_index": 1,
-  "question_ids": [
-   "IQS_02"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "concurrent_4",
-  "chunk_index": 5,
-  "question_ids": [
-   "IQS_07"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "concurrent_4",
-  "chunk_index": 4,
-  "question_ids": [
-   "IQS_06"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "concurrent_4",
-  "chunk_index": 7,
-  "question_ids": [
-   "IQS_09"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "concurrent_4",
-  "chunk_index": 6,
-  "question_ids": [
-   "IQS_08"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "concurrent_4",
-  "chunk_index": 8,
-  "question_ids": [
-   "IQS_10"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "concurrent_4",
-  "chunk_index": 9,
-  "question_ids": [
-   "IQS_12"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "concurrent_4",
-  "chunk_index": 10,
-  "question_ids": [
-   "IQS_13"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "concurrent_4",
-  "chunk_index": 11,
-  "question_ids": [
-   "IQS_14"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "concurrent_4",
-  "chunk_index": 12,
-  "question_ids": [
-   "IQS_15"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "concurrent_4",
-  "chunk_index": 14,
-  "question_ids": [
-   "IQS_17"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "concurrent_4",
-  "chunk_index": 13,
-  "question_ids": [
-   "IQS_16"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "concurrent_4",
-  "chunk_index": 15,
-  "question_ids": [
-   "IQS_18"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "concurrent_4",
-  "chunk_index": 16,
-  "question_ids": [
-   "IQS_19"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "concurrent_4",
-  "chunk_index": 17,
-  "question_ids": [
-   "IQS_20"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "concurrent_4",
-  "chunk_index": 18,
-  "question_ids": [
-   "IQS_21"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "concurrent_4",
-  "chunk_index": 19,
-  "question_ids": [
-   "IQS_22"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "concurrent_4",
-  "chunk_index": 20,
-  "question_ids": [
-   "IQS_23"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "concurrent_4",
-  "chunk_index": 21,
-  "question_ids": [
-   "IQS_24"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "concurrent_4",
-  "chunk_index": 22,
-  "question_ids": [
-   "OPERATING_01"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "concurrent_4",
-  "chunk_index": 23,
-  "question_ids": [
-   "INDUSTRIAL_01"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "concurrent_4",
-  "chunk_index": 25,
-  "question_ids": [
-   "MATURE_01"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "concurrent_4",
-  "chunk_index": 24,
-  "question_ids": [
-   "INDUSTRIAL_02"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "concurrent_4",
-  "chunk_index": 26,
-  "question_ids": [
-   "MATURE_02"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "concurrent_4",
-  "chunk_index": 27,
-  "question_ids": [
-   "CYCLICAL_01"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "concurrent_4",
-  "chunk_index": 28,
-  "question_ids": [
-   "CYCLICAL_02"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "concurrent_4",
-  "chunk_index": 29,
-  "question_ids": [
-   "CROSS_BORDER_01"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "group_3",
-  "chunk_index": 0,
-  "question_ids": [
-   "IQS_01",
-   "IQS_02",
-   "IQS_04"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "group_3",
-  "chunk_index": 1,
-  "question_ids": [
-   "IQS_05",
-   "IQS_06",
-   "IQS_07"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "group_3",
-  "chunk_index": 2,
-  "question_ids": [
-   "IQS_08",
-   "IQS_09",
-   "IQS_10"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "group_3",
-  "chunk_index": 3,
-  "question_ids": [
-   "IQS_12",
-   "IQS_13",
-   "IQS_14"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "group_3",
-  "chunk_index": 4,
-  "question_ids": [
-   "IQS_15",
-   "IQS_16",
-   "IQS_17"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "group_3",
-  "chunk_index": 5,
-  "question_ids": [
-   "IQS_18",
-   "IQS_19",
-   "IQS_20"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "group_3",
-  "chunk_index": 6,
-  "question_ids": [
-   "IQS_21",
-   "IQS_22",
-   "IQS_23"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "group_3",
-  "chunk_index": 7,
-  "question_ids": [
-   "IQS_24",
-   "OPERATING_01",
-   "INDUSTRIAL_01"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "group_3",
-  "chunk_index": 8,
-  "question_ids": [
-   "INDUSTRIAL_02",
-   "MATURE_01",
-   "MATURE_02"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "HK:06066",
-  "method": "group_3",
-  "chunk_index": 9,
-  "question_ids": [
-   "CYCLICAL_01",
-   "CYCLICAL_02",
-   "CROSS_BORDER_01"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
+  "usage": {
+   "total_tokens": 19998,
+   "total_characters": 0,
+   "prompt_tokens": 18166,
+   "completion_tokens": 1832,
+   "prompt_tokens_details": {
+    "cached_tokens": 128
+   }
+  },
+  "latency_s": 33.21,
+  "response_id": "0715176b6779fb8c8a9e610f9a40e177",
+  "error": null
  },
  {
   "company": "US:NASDAQ:GOOGL",
@@ -2770,7 +651,18 @@
    "IQS_12"
   ],
   "attempts": [],
-  "error": "HTTP 429"
+  "usage": {
+   "total_tokens": 22680,
+   "total_characters": 0,
+   "prompt_tokens": 19354,
+   "completion_tokens": 3326,
+   "prompt_tokens_details": {
+    "cached_tokens": 128
+   }
+  },
+  "latency_s": 75.47,
+  "response_id": "0715178dd3a252d62258133bd7a6a658",
+  "error": null
  },
  {
   "company": "US:NASDAQ:GOOGL",
@@ -2789,7 +681,18 @@
    "IQS_22"
   ],
   "attempts": [],
-  "error": "HTTP 429"
+  "usage": {
+   "total_tokens": 22610,
+   "total_characters": 0,
+   "prompt_tokens": 19483,
+   "completion_tokens": 3127,
+   "prompt_tokens_details": {
+    "cached_tokens": 318
+   }
+  },
+  "latency_s": 58.2,
+  "response_id": "071517d845dbcf0fd2d941d5afaeaacd",
+  "error": null
  },
  {
   "company": "US:NASDAQ:GOOGL",
@@ -2808,7 +711,18 @@
    "CROSS_BORDER_01"
   ],
   "attempts": [],
-  "error": "HTTP 429"
+  "usage": {
+   "total_tokens": 21605,
+   "total_characters": 0,
+   "prompt_tokens": 19107,
+   "completion_tokens": 2498,
+   "prompt_tokens_details": {
+    "cached_tokens": 128
+   }
+  },
+  "latency_s": 35.22,
+  "response_id": "071518126c94841cade71418dd629b83",
+  "error": null
  },
  {
   "company": "US:NASDAQ:GOOGL",
@@ -2822,7 +736,21 @@
    "IQS_06"
   ],
   "attempts": [],
-  "error": "HTTP 429"
+  "usage": {
+   "total_tokens": 17928,
+   "total_characters": 0,
+   "prompt_tokens": 16162,
+   "completion_tokens": 1766,
+   "completion_tokens_details": {
+    "reasoning_tokens": 0
+   },
+   "prompt_tokens_details": {
+    "cached_tokens": 256
+   }
+  },
+  "latency_s": 38.97,
+  "response_id": "07151836d345690133a0f8b3eaa74e92",
+  "error": null
  },
  {
   "company": "US:NASDAQ:GOOGL",
@@ -2836,7 +764,21 @@
    "IQS_12"
   ],
   "attempts": [],
-  "error": "HTTP 429"
+  "usage": {
+   "total_tokens": 18368,
+   "total_characters": 0,
+   "prompt_tokens": 16146,
+   "completion_tokens": 2222,
+   "completion_tokens_details": {
+    "reasoning_tokens": 0
+   },
+   "prompt_tokens_details": {
+    "cached_tokens": 256
+   }
+  },
+  "latency_s": 40.33,
+  "response_id": "0715185dd32c326e6211f763318d1b97",
+  "error": null
  },
  {
   "company": "US:NASDAQ:GOOGL",
@@ -2850,7 +792,21 @@
    "IQS_17"
   ],
   "attempts": [],
-  "error": "HTTP 429"
+  "usage": {
+   "total_tokens": 17849,
+   "total_characters": 0,
+   "prompt_tokens": 16106,
+   "completion_tokens": 1743,
+   "completion_tokens_details": {
+    "reasoning_tokens": 0
+   },
+   "prompt_tokens_details": {
+    "cached_tokens": 128
+   }
+  },
+  "latency_s": 31.61,
+  "response_id": "07151885f7051245279ea17b9fd6c9dc",
+  "error": null
  },
  {
   "company": "US:NASDAQ:GOOGL",
@@ -2864,7 +820,21 @@
    "IQS_22"
   ],
   "attempts": [],
-  "error": "HTTP 429"
+  "usage": {
+   "total_tokens": 18468,
+   "total_characters": 0,
+   "prompt_tokens": 16331,
+   "completion_tokens": 2137,
+   "completion_tokens_details": {
+    "reasoning_tokens": 0
+   },
+   "prompt_tokens_details": {
+    "cached_tokens": 128
+   }
+  },
+  "latency_s": 35.69,
+  "response_id": "071518a51e67832e0c2f01ef63776950",
+  "error": null
  },
  {
   "company": "US:NASDAQ:GOOGL",
@@ -2878,7 +848,21 @@
    "INDUSTRIAL_02"
   ],
   "attempts": [],
-  "error": "HTTP 429"
+  "usage": {
+   "total_tokens": 17937,
+   "total_characters": 0,
+   "prompt_tokens": 16062,
+   "completion_tokens": 1875,
+   "completion_tokens_details": {
+    "reasoning_tokens": 0
+   },
+   "prompt_tokens_details": {
+    "cached_tokens": 12928
+   }
+  },
+  "latency_s": 40.76,
+  "response_id": "071518c9dba956e5c62c5094196a54d6",
+  "error": null
  },
  {
   "company": "US:NASDAQ:GOOGL",
@@ -2892,127 +876,18 @@
    "CROSS_BORDER_01"
   ],
   "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "group_3",
-  "chunk_index": 0,
-  "question_ids": [
-   "IQS_01",
-   "IQS_02",
-   "IQS_04"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "group_3",
-  "chunk_index": 1,
-  "question_ids": [
-   "IQS_05",
-   "IQS_06",
-   "IQS_07"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "group_3",
-  "chunk_index": 2,
-  "question_ids": [
-   "IQS_08",
-   "IQS_09",
-   "IQS_10"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "group_3",
-  "chunk_index": 3,
-  "question_ids": [
-   "IQS_12",
-   "IQS_13",
-   "IQS_14"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "group_3",
-  "chunk_index": 4,
-  "question_ids": [
-   "IQS_15",
-   "IQS_16",
-   "IQS_17"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "group_3",
-  "chunk_index": 5,
-  "question_ids": [
-   "IQS_18",
-   "IQS_19",
-   "IQS_20"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "group_3",
-  "chunk_index": 6,
-  "question_ids": [
-   "IQS_21",
-   "IQS_22",
-   "IQS_23"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "group_3",
-  "chunk_index": 7,
-  "question_ids": [
-   "IQS_24",
-   "OPERATING_01",
-   "INDUSTRIAL_01"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "group_3",
-  "chunk_index": 8,
-  "question_ids": [
-   "INDUSTRIAL_02",
-   "MATURE_01",
-   "MATURE_02"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "group_3",
-  "chunk_index": 9,
-  "question_ids": [
-   "CYCLICAL_01",
-   "CYCLICAL_02",
-   "CROSS_BORDER_01"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
+  "usage": {
+   "total_tokens": 17835,
+   "total_characters": 0,
+   "prompt_tokens": 15999,
+   "completion_tokens": 1836,
+   "prompt_tokens_details": {
+    "cached_tokens": 128
+   }
+  },
+  "latency_s": 29.16,
+  "response_id": "071518f17c27a271aea56c33bcf60337",
+  "error": null
  },
  {
   "company": "US:NASDAQ:GOOGL",
@@ -3051,606 +926,20 @@
    "CROSS_BORDER_01"
   ],
   "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "concurrent_4",
-  "chunk_index": 0,
-  "question_ids": [
-   "IQS_01"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "concurrent_4",
-  "chunk_index": 2,
-  "question_ids": [
-   "IQS_04"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "concurrent_4",
-  "chunk_index": 3,
-  "question_ids": [
-   "IQS_05"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "concurrent_4",
-  "chunk_index": 1,
-  "question_ids": [
-   "IQS_02"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "concurrent_4",
-  "chunk_index": 4,
-  "question_ids": [
-   "IQS_06"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "concurrent_4",
-  "chunk_index": 5,
-  "question_ids": [
-   "IQS_07"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "concurrent_4",
-  "chunk_index": 6,
-  "question_ids": [
-   "IQS_08"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "concurrent_4",
-  "chunk_index": 7,
-  "question_ids": [
-   "IQS_09"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "concurrent_4",
-  "chunk_index": 8,
-  "question_ids": [
-   "IQS_10"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "concurrent_4",
-  "chunk_index": 9,
-  "question_ids": [
-   "IQS_12"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "concurrent_4",
-  "chunk_index": 10,
-  "question_ids": [
-   "IQS_13"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "concurrent_4",
-  "chunk_index": 11,
-  "question_ids": [
-   "IQS_14"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "concurrent_4",
-  "chunk_index": 12,
-  "question_ids": [
-   "IQS_15"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "concurrent_4",
-  "chunk_index": 13,
-  "question_ids": [
-   "IQS_16"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "concurrent_4",
-  "chunk_index": 15,
-  "question_ids": [
-   "IQS_18"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "concurrent_4",
-  "chunk_index": 14,
-  "question_ids": [
-   "IQS_17"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "concurrent_4",
-  "chunk_index": 16,
-  "question_ids": [
-   "IQS_19"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "concurrent_4",
-  "chunk_index": 17,
-  "question_ids": [
-   "IQS_20"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "concurrent_4",
-  "chunk_index": 18,
-  "question_ids": [
-   "IQS_21"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "concurrent_4",
-  "chunk_index": 19,
-  "question_ids": [
-   "IQS_22"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "concurrent_4",
-  "chunk_index": 20,
-  "question_ids": [
-   "IQS_23"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "concurrent_4",
-  "chunk_index": 22,
-  "question_ids": [
-   "OPERATING_01"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "concurrent_4",
-  "chunk_index": 21,
-  "question_ids": [
-   "IQS_24"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "concurrent_4",
-  "chunk_index": 23,
-  "question_ids": [
-   "INDUSTRIAL_01"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "concurrent_4",
-  "chunk_index": 25,
-  "question_ids": [
-   "MATURE_01"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "concurrent_4",
-  "chunk_index": 26,
-  "question_ids": [
-   "MATURE_02"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "concurrent_4",
-  "chunk_index": 24,
-  "question_ids": [
-   "INDUSTRIAL_02"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "concurrent_4",
-  "chunk_index": 27,
-  "question_ids": [
-   "CYCLICAL_01"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "concurrent_4",
-  "chunk_index": 29,
-  "question_ids": [
-   "CROSS_BORDER_01"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "concurrent_4",
-  "chunk_index": 28,
-  "question_ids": [
-   "CYCLICAL_02"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "sequential_1",
-  "chunk_index": 0,
-  "question_ids": [
-   "IQS_01"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "sequential_1",
-  "chunk_index": 1,
-  "question_ids": [
-   "IQS_02"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "sequential_1",
-  "chunk_index": 2,
-  "question_ids": [
-   "IQS_04"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "sequential_1",
-  "chunk_index": 3,
-  "question_ids": [
-   "IQS_05"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "sequential_1",
-  "chunk_index": 4,
-  "question_ids": [
-   "IQS_06"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "sequential_1",
-  "chunk_index": 5,
-  "question_ids": [
-   "IQS_07"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "sequential_1",
-  "chunk_index": 6,
-  "question_ids": [
-   "IQS_08"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "sequential_1",
-  "chunk_index": 7,
-  "question_ids": [
-   "IQS_09"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "sequential_1",
-  "chunk_index": 8,
-  "question_ids": [
-   "IQS_10"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "sequential_1",
-  "chunk_index": 9,
-  "question_ids": [
-   "IQS_12"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "sequential_1",
-  "chunk_index": 10,
-  "question_ids": [
-   "IQS_13"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "sequential_1",
-  "chunk_index": 11,
-  "question_ids": [
-   "IQS_14"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "sequential_1",
-  "chunk_index": 12,
-  "question_ids": [
-   "IQS_15"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "sequential_1",
-  "chunk_index": 13,
-  "question_ids": [
-   "IQS_16"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "sequential_1",
-  "chunk_index": 14,
-  "question_ids": [
-   "IQS_17"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "sequential_1",
-  "chunk_index": 15,
-  "question_ids": [
-   "IQS_18"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "sequential_1",
-  "chunk_index": 16,
-  "question_ids": [
-   "IQS_19"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "sequential_1",
-  "chunk_index": 17,
-  "question_ids": [
-   "IQS_20"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "sequential_1",
-  "chunk_index": 18,
-  "question_ids": [
-   "IQS_21"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "sequential_1",
-  "chunk_index": 19,
-  "question_ids": [
-   "IQS_22"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "sequential_1",
-  "chunk_index": 20,
-  "question_ids": [
-   "IQS_23"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "sequential_1",
-  "chunk_index": 21,
-  "question_ids": [
-   "IQS_24"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "sequential_1",
-  "chunk_index": 22,
-  "question_ids": [
-   "OPERATING_01"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "sequential_1",
-  "chunk_index": 23,
-  "question_ids": [
-   "INDUSTRIAL_01"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "sequential_1",
-  "chunk_index": 24,
-  "question_ids": [
-   "INDUSTRIAL_02"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "sequential_1",
-  "chunk_index": 25,
-  "question_ids": [
-   "MATURE_01"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "sequential_1",
-  "chunk_index": 26,
-  "question_ids": [
-   "MATURE_02"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "sequential_1",
-  "chunk_index": 27,
-  "question_ids": [
-   "CYCLICAL_01"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "sequential_1",
-  "chunk_index": 28,
-  "question_ids": [
-   "CYCLICAL_02"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
- },
- {
-  "company": "US:NASDAQ:GOOGL",
-  "method": "sequential_1",
-  "chunk_index": 29,
-  "question_ids": [
-   "CROSS_BORDER_01"
-  ],
-  "attempts": [],
-  "error": "HTTP 429"
+  "usage": {
+   "total_tokens": 37967,
+   "total_characters": 0,
+   "prompt_tokens": 32036,
+   "completion_tokens": 5931,
+   "completion_tokens_details": {
+    "reasoning_tokens": 0
+   },
+   "prompt_tokens_details": {
+    "cached_tokens": 8448
+   }
+  },
+  "latency_s": 107.61,
+  "response_id": "0715190fcd5718edcf0c28cc838bb71e",
+  "error": null
  }
 ]

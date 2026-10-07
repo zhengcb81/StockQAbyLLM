@@ -1,0 +1,254 @@
+{
+ "schema": "b01b_method_run/1",
+ "started_at": "2026-10-07T04:45:04+00:00",
+ "finished_at": "2026-10-07T05:56:25+00:00",
+ "plan": {
+  "seed": 20261007,
+  "request_cap": 600,
+  "generation": {
+   "temperature": 0,
+   "model": "MiniMax-M3",
+   "provider": "minimax",
+   "attempt": "1+1 format-repair"
+  },
+  "prompts_sha256": {
+   "CN-A:300750": "be161c38c9384de5d400de29e72a7466c2957902d4e8ec3137019dba4b0e01b0",
+   "HK:06066": "9bb6101b6a3a6923deb66f62a3ef8e4ccab3b7fbb2c84a688d0ed98f2d44a3e0",
+   "US:NASDAQ:GOOGL": "a3242d894a01e81cd0ab007f74c4641fe2ad594d40e71cf3133bd86bf89711c8"
+  },
+  "question_render_sha256": "fb3e6f7d0d55f05aefeb707742dcf950e8056486696b6c5e9974a9785626e701"
+ },
+ "requests_used": 283,
+ "failures": [
+  {
+   "company": "CN-A:300750",
+   "method": "sequential_1",
+   "chunk_index": 20,
+   "question_ids": [
+    "IQS_23"
+   ],
+   "attempts": [
+    {
+     "kind": "format_repair",
+     "usage": {
+      "total_tokens": 18299,
+      "total_characters": 0,
+      "prompt_tokens": 17325,
+      "completion_tokens": 974,
+      "completion_tokens_details": {
+       "reasoning_tokens": 0
+      },
+      "prompt_tokens_details": {
+       "cached_tokens": 16256
+      }
+     },
+     "latency_s": 17.75
+    }
+   ],
+   "usage": {
+    "total_tokens": 17291,
+    "total_characters": 0,
+    "prompt_tokens": 16317,
+    "completion_tokens": 974,
+    "completion_tokens_details": {
+     "reasoning_tokens": 0
+    },
+    "prompt_tokens_details": {
+     "cached_tokens": 16256
+    }
+   },
+   "latency_s": 20.73,
+   "response_id": "071504cce172ead638e44ced0d059046",
+   "error": "repair_parse:JSONDecodeError:Expecting ',' delimiter: line 1 column 908 (char 907)",
+   "stage": "parse"
+  },
+  {
+   "company": "CN-A:300750",
+   "method": "concurrent_4",
+   "chunk_index": 19,
+   "question_ids": [
+    "IQS_22"
+   ],
+   "attempts": [
+    {
+     "kind": "format_repair",
+     "usage": {
+      "total_tokens": 19506,
+      "total_characters": 0,
+      "prompt_tokens": 17925,
+      "completion_tokens": 1581,
+      "completion_tokens_details": {
+       "reasoning_tokens": 0
+      },
+      "prompt_tokens_details": {
+       "cached_tokens": 16256
+      }
+     },
+     "latency_s": 13.95
+    }
+   ],
+   "usage": {
+    "total_tokens": 17891,
+    "total_characters": 0,
+    "prompt_tokens": 16310,
+    "completion_tokens": 1581,
+    "completion_tokens_details": {
+     "reasoning_tokens": 0
+    },
+    "prompt_tokens_details": {
+     "cached_tokens": 16256
+    }
+   },
+   "latency_s": 28.67,
+   "response_id": "07150740aa1e9dc5b6e70e59e947d208",
+   "error": "repair_parse:JSONDecodeError:Expecting ',' delimiter: line 1 column 1752 (char 1751)",
+   "stage": "parse"
+  },
+  {
+   "company": "HK:06066",
+   "method": "sequential_1",
+   "chunk_index": 10,
+   "question_ids": [
+    "IQS_13"
+   ],
+   "attempts": [
+    {
+     "kind": "format_repair",
+     "usage": {
+      "total_tokens": 16372,
+      "total_characters": 0,
+      "prompt_tokens": 16091,
+      "completion_tokens": 281,
+      "prompt_tokens_details": {
+       "cached_tokens": 15731
+      }
+     },
+     "latency_s": 10.21
+    }
+   ],
+   "usage": {
+    "total_tokens": 16057,
+    "total_characters": 0,
+    "prompt_tokens": 15731,
+    "completion_tokens": 326,
+    "prompt_tokens_details": {
+     "cached_tokens": 128
+    }
+   },
+   "latency_s": 7.68,
+   "response_id": "071509b554de28c1021e3d8073a67f21",
+   "error": "repair_parse:JSONDecodeError:Expecting ',' delimiter: line 1 column 392 (char 391)",
+   "stage": "parse"
+  },
+  {
+   "company": "HK:06066",
+   "method": "group_3",
+   "chunk_index": 5,
+   "question_ids": [
+    "IQS_18",
+    "IQS_19",
+    "IQS_20"
+   ],
+   "attempts": [
+    {
+     "kind": "format_repair",
+     "usage": {
+      "total_tokens": 19785,
+      "total_characters": 0,
+      "prompt_tokens": 18488,
+      "completion_tokens": 1297,
+      "completion_tokens_details": {
+       "reasoning_tokens": 0
+      },
+      "prompt_tokens_details": {
+       "cached_tokens": 17152
+      }
+     },
+     "latency_s": 14.71
+    }
+   ],
+   "usage": {
+    "total_tokens": 18454,
+    "total_characters": 0,
+    "prompt_tokens": 17153,
+    "completion_tokens": 1301,
+    "completion_tokens_details": {
+     "reasoning_tokens": 0
+    },
+    "prompt_tokens_details": {
+     "cached_tokens": 15104
+    }
+   },
+   "latency_s": 24.55,
+   "response_id": "07150bc0f6fc04d22a471766ecfed301",
+   "error": "repair_parse:JSONDecodeError:Expecting ',' delimiter: line 1 column 472 (char 471)",
+   "stage": "parse"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "sequential_1",
+   "chunk_index": 4,
+   "question_ids": [
+    "IQS_06"
+   ],
+   "attempts": [],
+   "usage": {
+    "total_tokens": 15055,
+    "total_characters": 0,
+    "prompt_tokens": 13615,
+    "completion_tokens": 1440,
+    "completion_tokens_details": {
+     "reasoning_tokens": 0
+    },
+    "prompt_tokens_details": {
+     "cached_tokens": 13568
+    }
+   },
+   "latency_s": 35.75,
+   "response_id": "07150fdd1aed692a432227bfaaacef28",
+   "error": "HTTP 529",
+   "stage": "http"
+  },
+  {
+   "company": "US:NASDAQ:GOOGL",
+   "method": "sequential_1",
+   "chunk_index": 17,
+   "question_ids": [
+    "IQS_20"
+   ],
+   "attempts": [
+    {
+     "kind": "format_repair",
+     "usage": {
+      "total_tokens": 15002,
+      "total_characters": 0,
+      "prompt_tokens": 14415,
+      "completion_tokens": 587,
+      "prompt_tokens_details": {
+       "cached_tokens": 13676
+      }
+     },
+     "latency_s": 6.12
+    }
+   ],
+   "usage": {
+    "total_tokens": 14381,
+    "total_characters": 0,
+    "prompt_tokens": 13676,
+    "completion_tokens": 705,
+    "prompt_tokens_details": {
+     "cached_tokens": 128
+    }
+   },
+   "latency_s": 10.32,
+   "response_id": "071510e98524cdd570565a23b9bceaba",
+   "error": "repair_parse:JSONDecodeError:Expecting ',' delimiter: line 1 column 867 (char 866)",
+   "stage": "parse"
+  }
+ ],
+ "results_count": 540,
+ "usage_total": {
+  "prompt_tokens": 3843236,
+  "completion_tokens": 251458
+ }
+}
