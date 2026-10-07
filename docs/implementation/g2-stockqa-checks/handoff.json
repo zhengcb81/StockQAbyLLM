@@ -1,0 +1,347 @@
+{
+  "schema_version": "g2-lane-handoff/1",
+  "lane_id": "G2-SQA-CHECKS",
+  "card": "docs/plans/narrative-evidence-pilot-2026-09-26/harness_lanes/g2_stockqa_engineering_checks.md",
+  "information_date": "2026-10-07",
+  "repo": "https://github.com/zhengcb81/StockQAbyLLM.git",
+  "worktree": "C:/Users/郑曾波/Projects/_g2/StockQAbyLLM",
+  "branch": "codex/g2-stockqa-checks",
+  "base_commit": "6a9ff13864ebb160d5c4ab3cf2f42155d9f4aa99",
+  "delivery_commits": ["d989ea73bdcd2a3ac62f5ba80bc701bc2162082e"],
+  "handoff_document_commit": "branch HEAD after the delivery commit; self-referential, read with git log -1 -- docs/implementation/g2-stockqa-checks",
+  "changed_files": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/docs.yml",
+    ".github/workflows/release.yml",
+    ".github/workflows/security.yml",
+    ".pre-commit-config.yaml",
+    "CONTRIBUTING.md",
+    "README.md",
+    "README_EN.md",
+    "docs/development.md",
+    "pyproject.toml",
+    "requirements-lock.txt",
+    "scripts/checks.py",
+    "scripts/run_ci.bat",
+    "scripts/run_ci.sh",
+    "tests/integration/test_ci_checks_cli.py",
+    "tests/unit/test_ci_checks.py",
+    ".planning/g2-stockqa-checks/task_plan.md",
+    ".planning/g2-stockqa-checks/findings.md",
+    ".planning/g2-stockqa-checks/progress.md",
+    "docs/implementation/g2-stockqa-checks/HANDOFF.md",
+    "docs/implementation/g2-stockqa-checks/handoff.json"
+  ],
+  "check_entry": {
+    "single_python_definition": "scripts/checks.py",
+    "wrappers": ["scripts/run_ci.sh", "scripts/run_ci.bat"],
+    "modes": {
+      "default": ["black", "isort", "mypy", "bandit", "pytest", "smoke"],
+      "static-only": ["black", "isort", "mypy", "bandit"],
+      "full": ["black", "isort", "mypy", "bandit", "pytest", "smoke"],
+      "metrics": ["black", "isort", "mypy", "bandit", "pytest", "smoke", "pylint", "radon"]
+    },
+    "pytest_scope": {
+      "default": "daily",
+      "static-only": null,
+      "full": "full",
+      "metrics": "full"
+    },
+    "exit_code_semantics": {
+      "child_exit_propagated_verbatim": true,
+      "timeout": 124,
+      "executable_or_module_missing": 127,
+      "other_spawn_failure": 126,
+      "invalid_arguments": 2,
+      "stray_report_artifact_restored": 1,
+      "pylint_message_bits_2_4_8_16": "diagnostic_only_return_0",
+      "pylint_bits_1_32_or_tool_failure": "nonzero"
+    }
+  },
+  "daily_responsibility_nodes": [
+    "tests/unit/test_models.py",
+    "tests/unit/test_config_manager.py",
+    "tests/unit/test_llm_config.py",
+    "tests/unit/test_basic_runner.py",
+    "tests/unit/test_main_with_llm.py",
+    "tests/unit/test_q07_checkpoint.py",
+    "tests/unit/test_quick_scan_budget.py",
+    "tests/unit/test_q09_budget_concurrency.py",
+    "tests/unit/test_ci_checks.py",
+    "tests/integration/test_ci_checks_cli.py",
+    "tests/integration/test_quick_scan_cli.py::test_public_cli_exports_eight_score_entity_timestamp_model_and_search_receipt",
+    "tests/integration/test_quick_scan_cli.py::test_public_cli_refuses_to_infer_question_id",
+    "tests/integration/test_quick_scan_cli.py::test_public_cli_persists_every_failed_transport_retry_without_error_details",
+    "tests/integration/test_quick_scan_cli.py::test_public_cli_does_not_retry_uncertain_server_error_without_reconciliation",
+    "tests/integration/test_quick_scan_cli.py::test_public_cli_fake_health_schema_rejects_before_http",
+    "tests/integration/test_quick_scan_cli.py::test_public_cli_pauses_after_unpriced_attempt_without_sending_backup"
+  ],
+  "full_scope_nodes_added": [
+    "tests/unit (whole directory)",
+    "tests/integration (whole directory)",
+    "tests/integration/test_quick_scan_budget.py::test_two_processes_share_budget_and_real_dispatch_concurrency_slots"
+  ],
+  "red_runs": [
+    {
+      "label": "RED-1 entry point absent",
+      "command": "python -B -m pytest tests/unit/test_ci_checks.py tests/integration/test_ci_checks_cli.py -q --tb=line -p no:cacheprovider -p no:base_url -o addopts= --basetemp <exclusive-short-dir>",
+      "exit_code": 1,
+      "count": "14 failed, 5 passed, 32 errors",
+      "seconds": 60.19
+    },
+    {
+      "label": "RED-2 naive always-green stub plus new thin wrappers",
+      "command": "python -B -m pytest tests/unit/test_ci_checks.py tests/integration/test_ci_checks_cli.py -q --tb=no -p no:cacheprovider -p no:base_url -o addopts= --basetemp <exclusive-short-dir>",
+      "exit_code": 1,
+      "count": "40 failed, 11 passed",
+      "seconds": 3.73,
+      "note": "3 of the 11 passes were business-node existence guards; the other 8 were vacuous and were strengthened to json.loads / real pytest counts / step= markers / mode==default / test_broken output"
+    }
+  ],
+  "green_runs": [
+    {
+      "label": "A1 orchestration negatives",
+      "command": "python -B -m pytest tests/unit/test_ci_checks.py tests/integration/test_ci_checks_cli.py -q --tb=short -p no:cacheprovider --basetemp <exclusive-short-dir>",
+      "exit_code": 0,
+      "count": "53 passed",
+      "seconds": 37.26,
+      "wall_seconds": 41
+    },
+    {
+      "label": "A2 default",
+      "command": "python -B scripts/checks.py",
+      "exit_code": 0,
+      "count": "254 passed in 43.14s",
+      "seconds": 60.65,
+      "wall_seconds": 60
+    },
+    {
+      "label": "A3 full",
+      "command": "python -B scripts/checks.py --full",
+      "exit_code": 0,
+      "count": "935 passed in 102.36s",
+      "seconds": 113.51,
+      "wall_seconds": 113
+    },
+    {
+      "label": "A4 static-only",
+      "command": "python -B scripts/checks.py --static-only",
+      "exit_code": 0,
+      "count": "black,isort,mypy,bandit",
+      "seconds": 12.89,
+      "seconds_warm_cache": 3.41
+    },
+    {
+      "label": "A5 metrics",
+      "command": "python -B scripts/checks.py --metrics --output-dir <exclusive-short-dir>",
+      "exit_code": 0,
+      "count": "935 passed; coverage 87%; pylint 9.31/10 diagnostic; radon_cc.txt + radon_mi.txt",
+      "seconds": 157.92,
+      "wall_seconds": 158
+    },
+    {
+      "label": "A6 ruff on this lane's new files",
+      "command": "python -B -m ruff check scripts/checks.py tests/unit/test_ci_checks.py tests/integration/test_ci_checks_cli.py",
+      "exit_code": 0,
+      "count": "All checks passed",
+      "seconds": 1
+    },
+    {
+      "label": "A7 whitespace",
+      "command": "git diff --cached --check",
+      "exit_code": 0,
+      "count": "0 whitespace errors",
+      "seconds": 1
+    },
+    {
+      "label": "A8 inherited STOCKQA_RUN_LIVE_E2E=1 stays offline",
+      "command": "STOCKQA_RUN_LIVE_E2E=1 python -B scripts/checks.py --only pytest --pytest-target tests/unit/test_search_service.py",
+      "exit_code": 0,
+      "count": "3 passed",
+      "seconds": 2.78
+    },
+    {
+      "label": "pre-commit on this lane's changed files",
+      "command": "python -m pre_commit run --files <this lane's changed files>",
+      "exit_code": 0,
+      "count": "all hooks Passed (mixed-line-ending converged on the 3rd run)",
+      "seconds": 60
+    }
+  ],
+  "wrapper_negative_evidence": [
+    {"command": "bash scripts/run_ci.sh --no-such-flag", "exit_code": 2},
+    {"command": "bash scripts/run_ci.sh --only no_such_step", "exit_code": 2},
+    {"command": "bash scripts/run_ci.sh --list-steps", "exit_code": 0},
+    {"command": "cmd /c scripts/run_ci.bat --no-such-flag", "exit_code": 2},
+    {"command": "cmd /c scripts/run_ci.bat --only no_such_step", "exit_code": 2},
+    {"command": "cmd /c scripts/run_ci.bat --list-steps", "exit_code": 0},
+    {"command": "bash <repo>/scripts/run_ci.sh --list-steps (cwd outside repo)", "exit_code": 0},
+    {"command": "cmd /c <repo>/scripts/run_ci.bat --list-steps (cwd outside repo)", "exit_code": 0},
+    {
+      "command": "bash scripts/run_ci.sh --only pytest --pytest-target <collection-error file>",
+      "exit_code": 2,
+      "note": "pytest collection error propagated, not reported green"
+    },
+    {
+      "command": "python -B scripts/checks.py --only bandit --timeout 0.001",
+      "exit_code": 124,
+      "note": "CLI-level timeout"
+    }
+  ],
+  "path_edge_cases": [
+    "outside-repo cwd with Chinese+space characters for the entry and both wrappers",
+    "--pytest-target under <repo>/../_tmp/.../containing-spaces-chinese/test_ok.py",
+    "--output-dir under <tmp>/containing-spaces-chinese/metrics-output"
+  ],
+  "real_cli_proof": {
+    "step": "smoke",
+    "runs_in": ["default", "full", "metrics"],
+    "runs_inside": "TemporaryDirectory subprocess with PYTHONPATH set to the repo root",
+    "imports": [
+      "main",
+      "main_with_llm",
+      "from src.runners.basic_runner import BasicRunner",
+      "src.core.models",
+      "src.config.settings",
+      "src.config.config_manager",
+      "src.config.llm_config"
+    ],
+    "stdout_marker": "stockqa-cli-smoke-ok",
+    "repo_logs_dir_snapshot_unchanged": true,
+    "scratch_cleaned_on_success_and_failure": true
+  },
+  "budget_recovery_proof": {
+    "daily": [
+      "tests/unit/test_q07_checkpoint.py",
+      "tests/unit/test_quick_scan_budget.py",
+      "tests/unit/test_q09_budget_concurrency.py"
+    ],
+    "full_only": [
+      "tests/integration/test_quick_scan_budget.py::test_two_processes_share_budget_and_real_dispatch_concurrency_slots"
+    ],
+    "business_cases_deleted": 0,
+    "existence_guards": [
+      "test_daily_unit_files_exist",
+      "test_public_cli_nodes_exist",
+      "test_cross_process_budget_node_exists"
+    ]
+  },
+  "report_side_effects": {
+    "default_and_full_write_reports": false,
+    "metrics_writes_only_to_explicit_output_dir": true,
+    "repo_root_restored_after_every_run": true,
+    "residue_after_acceptance": [],
+    "pyproject_addopts_changed": [
+      "removed --cov=src, --cov-report=term-missing, --cov-report=xml:coverage.xml, --cov-report=html:htmlcov",
+      "added -p no:base_url"
+    ],
+    "numeric_gates_removed": [
+      "[tool.quality-gates]",
+      "--cov-fail-under",
+      "pylint --fail-under",
+      "radon mi --min B",
+      "mypy --strict (scattered copies)"
+    ]
+  },
+  "offline_guarantee": {
+    "pytest_targets_exclude": ["tests/live", "tests/benchmarks"],
+    "marker_filter": "not live and not benchmark",
+    "env_forced": {"STOCKQA_RUN_LIVE_E2E": "0"},
+    "verified_with_inherited_value": "STOCKQA_RUN_LIVE_E2E=1 still offline, exit 0"
+  },
+  "tool_versions": {
+    "python": "3.13.9",
+    "black": "26.5.1",
+    "isort": "7.0.0",
+    "mypy": "1.19.0",
+    "pylint": "4.0.4 (astroid 4.0.2)",
+    "bandit": "1.9.3",
+    "radon": "6.0.1",
+    "pytest": "9.1.1",
+    "pytest_cov": "7.0.0",
+    "pytest_asyncio": "1.3.0",
+    "pytest_benchmark": "5.2.3",
+    "pytest_html": "4.1.1",
+    "pre_commit": "4.5.1",
+    "ruff_acceptance_only_not_a_gate": "0.15.18",
+    "pip_audit": "not installed locally; pinned 2.10.0 in requirements-lock.txt, installed by security.yml",
+    "pre_commit_revs_synced": {
+      "black": "24.10.0 -> 26.5.1",
+      "isort": "6.0.1 -> 7.0.0",
+      "mirrors-mypy": "v1.14.1 -> v1.19.0"
+    }
+  },
+  "workflow_triggers_before_after": {
+    "ci.yml": {
+      "before": "push+PR, matrix python 3.10/3.11, 9 jobs / 8 installs, --cov-fail-under=87, mypy --strict, pylint --exit-zero plus `|| true`, empty `import src` build, security and complexity jobs every push",
+      "after": "push+PR single job, single supported Python 3.10, one install, `python -B scripts/checks.py`; full / python-version matrix / metrics only via workflow_dispatch inputs; codecov and artifact upload only in metrics mode"
+    },
+    "security.yml": {
+      "before": "push + pull_request + weekly cron + dispatch; bare pip-audit auditing the whole environment",
+      "after": "weekly cron + workflow_dispatch only; pip-audit -r requirements-lock.txt auditing project deps; bandit report, high-severity offline counterexample and artifact upload retained"
+    },
+    "release.yml": {
+      "before": "validate = pytest --cov-fail-under=70 + mypy --strict + pylint --fail-under=8.0 + black + bandit; test-release also ran pytest tests/ -v",
+      "after": "validate delegates to `python -B scripts/checks.py --full`; duplicate 70%/8.0 second standard removed; build / test-release / create-release / publish-pypi steps and permissions retained; test-release imports the real CLI modules after wheel install"
+    },
+    "docs.yml": {
+      "before": "every push/PR to main/master built and deployed docs",
+      "after": "docs-related paths only (docs/**, mkdocs.yml, README*, CONTRIBUTING, CHANGELOG, pyproject.toml, the workflow itself); publish permissions and gh-pages deploy logic unchanged"
+    },
+    "pre_commit": {
+      "before": "always_run full pytest on every commit, always_run networked pip-audit, bandit writing bandit-report.json, pylint --fail-under=9.0, black 24.10.0 / isort 6.0.1 / mypy v1.14.1",
+      "after": "cheap static only: file integrity hooks, black 26.5.1, isort 7.0.0, mypy v1.19.0 with pyproject config, detect-secrets; pytest / pip-audit / bandit report / pylint score gate removed"
+    }
+  },
+  "cleanup": {
+    "before": {
+      "worktree_generated": [
+        "logs/stock_qa_20261007.log",
+        "coverage.xml",
+        "htmlcov/",
+        "src/**/__pycache__",
+        ".pytest_cache"
+      ],
+      "exclusive_tmp_root": "C:/Users/郑曾波/Projects/_g2/_tmp/ containing g2base, g2red, g2green, g2_acceptance, g2_final, g2_metrics, g2_checks_scratch, probe"
+    },
+    "after": {
+      "worktree_git_status": "clean (no reports, no caches, no logs residue)",
+      "exclusive_tmp_root": "removed entirely; every entry verified to belong to this lane before deletion",
+      "deletion_safety": "absolute-prefix check + owner-root exclusion + FILE_ATTRIBUTE_REPARSE_POINT check before rmtree; no recursive owner-tree cleanup",
+      "incident": "a tracked file pilot_runs/b01b_method_2026-10-07/__pycache__/runner.cpython-313.pyc was deleted by mistake during cleanup and immediately restored with git checkout --; git status re-verified clean"
+    }
+  },
+  "owner_root_untouched": true,
+  "owner_root_write_count_by_lane": 0,
+  "owner_root_concurrent_modifications_observed": {
+    "note": "another lane modified the owner root while this lane ran (mtimes 10:49-11:10 on 2026-10-07)",
+    "modified": [".gitignore", "main_with_llm.py", "src/runners/llm_runner.py", "src/utils/quick_scan_work_store.py"],
+    "new_untracked": "multiple src/** and tests/** business files plus docs/handoff/ and examples/quick_scan_search_policy.example.json",
+    "caused_by_this_lane": false
+  },
+  "external_provider_calls": 0,
+  "paid_calls": 0,
+  "production_writes": 0,
+  "raw_deleted": 0,
+  "tags_created": 0,
+  "releases_triggered": 0,
+  "deployments_triggered": 0,
+  "master_merged": false,
+  "remaining_issues": [
+    "ruff check scripts/ has 3 pre-existing findings (scripts/insert_methods.py:5 F401; scripts/validate_and_fix_skipped.py:98 and :100 F541) outside this lane's write set; ruff is not a project gate",
+    "ruff check src/ tests/ has 73 pre-existing findings, so ruff is deliberately not wired into checks.py",
+    "undeclared ambient pytest-base-url plugin collides with the base_url test parameter; blocked via pyproject addopts and checks.py -p no:base_url, harmless if the plugin is absent",
+    "pip-audit is not installed locally, so security.yml's audit step could not be executed here; its existing continue-on-error weekly-report semantics were kept",
+    "pre-commit run --all-files NOT RUN because it would reformat files outside this lane's write set; pre-commit run --files on this lane's changed files passed with exit 0",
+    "ci.yml python-version matrix (3.11/3.12/3.13) NOT RUN: dispatch-only and this lane triggered no workflow",
+    "metrics coverage measured at 87% is recorded as a fact only, never a pass gate"
+  ],
+  "merge_notes": [
+    "Keep the contract: run_ci.sh / run_ci.bat must stay thin (locate repo root, forward argv, return the exit code). Do not copy check logic back into the wrappers and do not reintroduce tee / --exit-zero / || true.",
+    "After merging, verify real CI: a normal push must show exactly 1 job / 1 install / 1 Python; full, the python matrix and metrics may only come from workflow_dispatch.",
+    "pyproject.toml changes: [tool.quality-gates] removed, default --cov* addopts removed, -p no:base_url added, dev extras gained isort; requirements-lock.txt gained isort==7.0.0.",
+    "Release validation is now `python -B scripts/checks.py --full`; do not restore the 70% / 8.0 second standard.",
+    "This lane delivers engineering checks only. Green engineering checks do not imply the investment business is complete and do not imply the overall CWP plan is complete.",
+    "Branch was not merged to master, no tag was created, nothing was published."
+  ]
+}
