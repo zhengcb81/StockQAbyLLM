@@ -1,0 +1,43 @@
+trim trailing whitespace.................................................Failed
+- hook id: trailing-whitespace
+- exit code: 1
+
+Fixing docs/handoff/QA-NET-01/logs/RED_batchD_cli_e2e.log
+Fixing docs/handoff/QA-NET-01/logs/RED_batchC_search_policy_cli.log
+Fixing docs/handoff/QA-NET-01/logs/RED_batchA_c06_seal.log
+Fixing docs/handoff/QA-NET-01/logs/RED_batchB_question_manifest.log
+
+fix end of files.........................................................Passed
+check yaml...........................................(no files to check)Skipped
+check for added large files..............................................Passed
+check for merge conflicts................................................Passed
+check toml...........................................(no files to check)Skipped
+check json...............................................................Passed
+check for case conflicts.................................................Passed
+debug statements (python)................................................Passed
+mixed line ending........................................................Failed
+- hook id: mixed-line-ending
+- exit code: 1
+
+docs/handoff/QA-NET-01/logs/GREEN_full_suite.log: fixed mixed line endings
+docs/handoff/QA-NET-01/logs/GREEN_batchA_c06_seal.log: fixed mixed line endings
+docs/handoff/QA-NET-01/logs/RED_batchD_cli_e2e.log: fixed mixed line endings
+docs/handoff/QA-NET-01/logs/RED_batchC_search_policy_cli.log: fixed mixed line endings
+docs/handoff/QA-NET-01/logs/GREEN_static_gates.log: fixed mixed line endings
+docs/handoff/QA-NET-01/logs/RED_batchA_c06_seal.log: fixed mixed line endings
+.gitignore: fixed mixed line endings
+src/utils/quick_scan_work_store.py: fixed mixed line endings
+main_with_llm.py: fixed mixed line endings
+docs/handoff/QA-NET-01/logs/GREEN_batchC_search_boundary.log: fixed mixed line endings
+docs/handoff/QA-NET-01/logs/GREEN_batchB_question_manifest.log: fixed mixed line endings
+docs/handoff/QA-NET-01/logs/GREEN_batchD_cli_e2e.log: fixed mixed line endings
+docs/handoff/QA-NET-01/handoff.json: fixed mixed line endings
+src/runners/llm_runner.py: fixed mixed line endings
+docs/handoff/QA-NET-01/artifacts.json: fixed mixed line endings
+docs/handoff/QA-NET-01/logs/RED_batchB_question_manifest.log: fixed mixed line endings
+docs/handoff/QA-NET-01/logs/GREEN_checks_full.log: fixed mixed line endings
+
+black....................................................................Passed
+isort....................................................................Passed
+mypy.....................................................................Passed
+Detect secrets...........................................................Passed

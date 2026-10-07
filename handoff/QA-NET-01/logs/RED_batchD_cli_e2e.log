@@ -1,0 +1,153 @@
+FFF                                                                      [100%]
+================================== FAILURES ===================================
+_________ test_cli_e2e_native_path_seals_c06_and_warm_run_sends_zero __________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001CCA14AB5C0>
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/pytest-of-郑曾波/pytest-918/test_cli_e2e_native_path_seals0')
+capsys = <_pytest.capture.CaptureFixture object at 0x000001CCA1556270>
+
+    def test_cli_e2e_native_path_seals_c06_and_warm_run_sends_zero(
+        monkeypatch, tmp_path, capsys
+    ) -> None:
+        files = _setup(tmp_path)
+
+        # cold run: one HTTP per question, incremental plan says dispatch both
+>       code, session = _run(monkeypatch, tmp_path, files)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+C:\Users\郑曾波\Projects\StockQAbyLLM\tests\integration\test_qa_net01_cli_e2e.py:254:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\郑曾波\Projects\StockQAbyLLM\tests\integration\test_qa_net01_cli_e2e.py:235: in _run
+    code = main_with_llm.main()
+           ^^^^^^^^^^^^^^^^^^^^
+C:\Users\郑曾波\Projects\StockQAbyLLM\main_with_llm.py:284: in main
+    args = parser.parse_args()
+           ^^^^^^^^^^^^^^^^^^^
+C:\Miniconda\Lib\argparse.py:1902: in parse_args
+    self.error(msg)
+C:\Miniconda\Lib\argparse.py:2658: in error
+    self.exit(2, _('%(prog)s: error: %(message)s\n') % args)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = ArgumentParser(prog='main_with_llm.py', usage=None, description='使用LLM分析公司股票投资价值', formatter_class=<class 'argparse.RawDescriptionHelpFormatter'>, conflict_handler='error', add_help=True)
+status = 2
+message = 'main_with_llm.py: error: unrecognized arguments: --c06-authority C:\\Users\\郑曾波\\AppData\\Local\\Temp\\pytest-of-郑曾波\...fest C:\\Users\\郑曾波\\AppData\\Local\\Temp\\pytest-of-郑曾波\\pytest-918\\test_cli_e2e_native_path_seals0\\manifest.json\n'
+
+    def exit(self, status=0, message=None):
+        if message:
+            self._print_message(message, _sys.stderr)
+>       _sys.exit(status)
+E       SystemExit: 2
+
+C:\Miniconda\Lib\argparse.py:2645: SystemExit
+---------------------------- Captured stderr call -----------------------------
+usage: main_with_llm.py [-h] [--company COMPANY] [--provider PROVIDER]
+                        [--config CONFIG] [--output OUTPUT] [--batch FILE]
+                        [--override] [--config-format {json,txt}]
+                        [--require-search] [--entity-id ENTITY_ID]
+                        [--identity-snapshot IDENTITY_SNAPSHOT]
+                        [--spend-authorization SPEND_AUTHORIZATION]
+                        [--verbose]
+main_with_llm.py: error: unrecognized arguments: --c06-authority C:\Users\郑曾波\AppData\Local\Temp\pytest-of-郑曾波\pytest-918\test_cli_e2e_native_path_seals0\quick_scan_c06_authority.json --question-manifest C:\Users\郑曾波\AppData\Local\Temp\pytest-of-郑曾波\pytest-918\test_cli_e2e_native_path_seals0\manifest.json
+__________ test_cli_e2e_tampered_manifest_is_refused_before_any_http __________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001CCA15FC510>
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/pytest-of-郑曾波/pytest-918/test_cli_e2e_tampered_manifest0')
+capsys = <_pytest.capture.CaptureFixture object at 0x000001CCA14E2710>
+
+    def test_cli_e2e_tampered_manifest_is_refused_before_any_http(
+        monkeypatch, tmp_path, capsys
+    ) -> None:
+        tampered = _manifest()
+        tampered["questions"][0]["prompt"] = "被篡改的题面"
+        files = _setup(tmp_path, manifest=tampered)
+
+>       code, session = _run(monkeypatch, tmp_path, files)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+C:\Users\郑曾波\Projects\StockQAbyLLM\tests\integration\test_qa_net01_cli_e2e.py:328:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\郑曾波\Projects\StockQAbyLLM\tests\integration\test_qa_net01_cli_e2e.py:235: in _run
+    code = main_with_llm.main()
+           ^^^^^^^^^^^^^^^^^^^^
+C:\Users\郑曾波\Projects\StockQAbyLLM\main_with_llm.py:284: in main
+    args = parser.parse_args()
+           ^^^^^^^^^^^^^^^^^^^
+C:\Miniconda\Lib\argparse.py:1902: in parse_args
+    self.error(msg)
+C:\Miniconda\Lib\argparse.py:2658: in error
+    self.exit(2, _('%(prog)s: error: %(message)s\n') % args)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = ArgumentParser(prog='main_with_llm.py', usage=None, description='使用LLM分析公司股票投资价值', formatter_class=<class 'argparse.RawDescriptionHelpFormatter'>, conflict_handler='error', add_help=True)
+status = 2
+message = 'main_with_llm.py: error: unrecognized arguments: --c06-authority C:\\Users\\郑曾波\\AppData\\Local\\Temp\\pytest-of-郑曾波\...fest C:\\Users\\郑曾波\\AppData\\Local\\Temp\\pytest-of-郑曾波\\pytest-918\\test_cli_e2e_tampered_manifest0\\manifest.json\n'
+
+    def exit(self, status=0, message=None):
+        if message:
+            self._print_message(message, _sys.stderr)
+>       _sys.exit(status)
+E       SystemExit: 2
+
+C:\Miniconda\Lib\argparse.py:2645: SystemExit
+---------------------------- Captured stderr call -----------------------------
+usage: main_with_llm.py [-h] [--company COMPANY] [--provider PROVIDER]
+                        [--config CONFIG] [--output OUTPUT] [--batch FILE]
+                        [--override] [--config-format {json,txt}]
+                        [--require-search] [--entity-id ENTITY_ID]
+                        [--identity-snapshot IDENTITY_SNAPSHOT]
+                        [--spend-authorization SPEND_AUTHORIZATION]
+                        [--verbose]
+main_with_llm.py: error: unrecognized arguments: --c06-authority C:\Users\郑曾波\AppData\Local\Temp\pytest-of-郑曾波\pytest-918\test_cli_e2e_tampered_manifest0\quick_scan_c06_authority.json --question-manifest C:\Users\郑曾波\AppData\Local\Temp\pytest-of-郑曾波\pytest-918\test_cli_e2e_tampered_manifest0\manifest.json
+__________ test_cli_e2e_missing_authority_blocks_then_restart_seals ___________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001CCA1582690>
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/pytest-of-郑曾波/pytest-918/test_cli_e2e_missing_authority0')
+capsys = <_pytest.capture.CaptureFixture object at 0x000001CCA14E3110>
+
+    def test_cli_e2e_missing_authority_blocks_then_restart_seals(
+        monkeypatch, tmp_path, capsys
+    ) -> None:
+        files = _setup(tmp_path, with_authority=False)
+>       code, session = _run(monkeypatch, tmp_path, files, with_authority=False)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+C:\Users\郑曾波\Projects\StockQAbyLLM\tests\integration\test_qa_net01_cli_e2e.py:341:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\郑曾波\Projects\StockQAbyLLM\tests\integration\test_qa_net01_cli_e2e.py:235: in _run
+    code = main_with_llm.main()
+           ^^^^^^^^^^^^^^^^^^^^
+C:\Users\郑曾波\Projects\StockQAbyLLM\main_with_llm.py:284: in main
+    args = parser.parse_args()
+           ^^^^^^^^^^^^^^^^^^^
+C:\Miniconda\Lib\argparse.py:1902: in parse_args
+    self.error(msg)
+C:\Miniconda\Lib\argparse.py:2658: in error
+    self.exit(2, _('%(prog)s: error: %(message)s\n') % args)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = ArgumentParser(prog='main_with_llm.py', usage=None, description='使用LLM分析公司股票投资价值', formatter_class=<class 'argparse.RawDescriptionHelpFormatter'>, conflict_handler='error', add_help=True)
+status = 2
+message = 'main_with_llm.py: error: unrecognized arguments: --question-manifest C:\\Users\\郑曾波\\AppData\\Local\\Temp\\pytest-of-郑曾波\\pytest-918\\test_cli_e2e_missing_authority0\\manifest.json\n'
+
+    def exit(self, status=0, message=None):
+        if message:
+            self._print_message(message, _sys.stderr)
+>       _sys.exit(status)
+E       SystemExit: 2
+
+C:\Miniconda\Lib\argparse.py:2645: SystemExit
+---------------------------- Captured stderr call -----------------------------
+usage: main_with_llm.py [-h] [--company COMPANY] [--provider PROVIDER]
+                        [--config CONFIG] [--output OUTPUT] [--batch FILE]
+                        [--override] [--config-format {json,txt}]
+                        [--require-search] [--entity-id ENTITY_ID]
+                        [--identity-snapshot IDENTITY_SNAPSHOT]
+                        [--spend-authorization SPEND_AUTHORIZATION]
+                        [--verbose]
+main_with_llm.py: error: unrecognized arguments: --question-manifest C:\Users\郑曾波\AppData\Local\Temp\pytest-of-郑曾波\pytest-918\test_cli_e2e_missing_authority0\manifest.json
+=========================== short test summary info ===========================
+FAILED tests/integration/test_qa_net01_cli_e2e.py::test_cli_e2e_native_path_seals_c06_and_warm_run_sends_zero
+FAILED tests/integration/test_qa_net01_cli_e2e.py::test_cli_e2e_tampered_manifest_is_refused_before_any_http
+FAILED tests/integration/test_qa_net01_cli_e2e.py::test_cli_e2e_missing_authority_blocks_then_restart_seals
+3 failed in 2.36s

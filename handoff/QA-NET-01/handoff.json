@@ -1,0 +1,321 @@
+{
+  "schema_version": "1.0.0",
+  "lane_id": "stockqa",
+  "package_id": "QA-NET-01",
+  "status": "partial",
+  "snapshot": {
+    "repository": "C:/Users/郑曾波/Projects/StockQAbyLLM",
+    "base_ref": "master",
+    "base_commit": "d160d80dc2340c6fb6cef0453b289b5210cf2cb6",
+    "result_ref": "master",
+    "result_commit": "84e24ef79901ce7c817054f6354b90a15c44afd3",
+    "worktree_before": {
+      "state": "dirty",
+      "dirty_path_count": 7,
+      "manifest_sha256": "dc0b3cad08c2a1b6bc17c5667e708e3f913e707d1c165b7471d53638255cba32"
+    },
+    "worktree_after": {
+      "state": "dirty",
+      "dirty_path_count": 7,
+      "manifest_sha256": "dc0b3cad08c2a1b6bc17c5667e708e3f913e707d1c165b7471d53638255cba32"
+    }
+  },
+  "scope": {
+    "task_ids": [
+      "Q02",
+      "Q10",
+      "Q13"
+    ],
+    "authorization_scope_ref": "user_granted_full_repo_stockqa_with_per_batch_report; user_assigned_coordinator_remediation_2026_10_07",
+    "owned_paths": [
+      "C:/Users/郑曾波/Projects/StockQAbyLLM"
+    ],
+    "authorized_paths": [
+      "src/config/quick_scan_search_policy.py",
+      "src/core/models.py",
+      "src/core/qa_engine.py",
+      "src/providers/llm_client.py",
+      "src/runners/llm_runner.py",
+      "src/utils/quick_scan_question_manifest.py",
+      "src/utils/quick_scan_work_transport.py",
+      "tests/integration/test_qa_net01_cli_e2e.py",
+      "tests/integration/test_qa_net01_transport_e2e.py",
+      "tests/unit/test_qa_net01_question_manifest.py",
+      "tests/unit/test_qa_net01_search_boundary.py",
+      "tests/unit/test_q09_budget_concurrency.py",
+      "tests/unit/test_q06_work_binding.py",
+      "docs/handoff/QA-NET-01/"
+    ],
+    "changed_paths": [
+      "src/config/quick_scan_search_policy.py",
+      "src/core/models.py",
+      "src/core/qa_engine.py",
+      "src/providers/llm_client.py",
+      "src/runners/llm_runner.py",
+      "src/utils/quick_scan_question_manifest.py",
+      "src/utils/quick_scan_work_transport.py",
+      "tests/integration/test_qa_net01_cli_e2e.py",
+      "tests/integration/test_qa_net01_transport_e2e.py",
+      "tests/unit/test_qa_net01_question_manifest.py",
+      "tests/unit/test_qa_net01_search_boundary.py",
+      "tests/unit/test_q09_budget_concurrency.py",
+      "tests/unit/test_q06_work_binding.py",
+      "docs/handoff/QA-NET-01/handoff.json",
+      "docs/handoff/QA-NET-01/summary.md",
+      "docs/handoff/QA-NET-01/interfaces.md",
+      "docs/handoff/QA-NET-01/case-map.md",
+      "docs/handoff/QA-NET-01/isolation.md",
+      "docs/handoff/QA-NET-01/artifacts.json",
+      "docs/handoff/QA-NET-01/remediation-2026-10-07.md",
+      "docs/handoff/QA-NET-01/logs/remediation-full-green.log",
+      "docs/handoff/QA-NET-01/logs/remediation-guard-canary.log"
+    ],
+    "out_of_scope_writes": []
+  },
+  "interfaces": [
+    {
+      "name": "iqs.reference.search-and-llm-playbook",
+      "version": "1.0.0-2026-10-07",
+      "content_hash": "a5f4da87ea84df95e3757267ff40bc76e3fd7c0d6cdf755ea29ce1c877f44141",
+      "direction": "consumed",
+      "result": "compatible"
+    },
+    {
+      "name": "iqs.example.search-and-llm-policy.template",
+      "version": "1.0.0",
+      "content_hash": "494d389333cac50f1093dee3fb9dbcf5934647b93eb9c0befbe872c7fce404f8",
+      "direction": "consumed",
+      "result": "compatible"
+    },
+    {
+      "name": "iqs.schema.quick_scan.exchange (C06)",
+      "version": "1.0.0",
+      "content_hash": "efdf0e3427d1bbb73892e9573fbf3b1f0389218e3f5a0c8dff4ca0cd63764122",
+      "direction": "consumed",
+      "result": "compatible"
+    },
+    {
+      "name": "iqs.schema.quick_scan.query (C07)",
+      "version": "1.0.0",
+      "content_hash": "e7fc264b43d85e4cdd5c82a71b9fedb579dd0fc1196f3c5fde661f14fa1756f8",
+      "direction": "consumed",
+      "result": "compatible"
+    },
+    {
+      "name": "iqs.document.implementation-tasks",
+      "version": "observed-2026-10-07",
+      "content_hash": "a7c6167d4bf9aca56b529bd85bd70b0ae01a99125033e06dcbcdcbb06731bf60",
+      "direction": "consumed",
+      "result": "compatible"
+    },
+    {
+      "name": "stockqa.quick_scan_c06_authority",
+      "version": "1.0.0",
+      "content_hash": "16e04f844445221b370c9c3e50d84e5d28797b4b9e2a93ee94ca0ed210257de2",
+      "direction": "produced",
+      "result": "compatible"
+    },
+    {
+      "name": "stockqa.quick_scan_search_policy",
+      "version": "1.0.0",
+      "content_hash": "e525f6dcb2a0116ca64327b8e2da21cfb970ec18619e8cfcffc485b8c9f19876",
+      "direction": "produced",
+      "result": "compatible"
+    },
+    {
+      "name": "stockqa.consumes_iqs_question_manifest",
+      "version": "1.0.0",
+      "content_hash": "72d106709887eda10a506bd39012c4a2aae9eff280f9cfb97cce28374eb76734",
+      "direction": "produced",
+      "result": "compatible"
+    },
+    {
+      "name": "stockqa.evidence_package",
+      "version": "1.0.0",
+      "content_hash": "3946e8708dda5b9c8ecd90527e36ac08ae99625b46e317f7e51ffae3824f6e26",
+      "direction": "produced",
+      "result": "compatible"
+    },
+    {
+      "name": "stockqa.search_policy_admission",
+      "version": "1.0.0",
+      "content_hash": "021d1378bdd3ffcccac47198187a3f88855f553751d95cc25a543e1c52aa1763",
+      "direction": "produced",
+      "result": "compatible"
+    },
+    {
+      "name": "stockqa.seal_deliveries",
+      "version": "1.0.0",
+      "content_hash": "1ecee70715e654d4c62aec2949ed48475ac9b9db30f4ffb71333dc7260c619ca",
+      "direction": "produced",
+      "result": "compatible"
+    },
+    {
+      "name": "stockwiki.public_import_ack (W05/W10)",
+      "version": "not_exercised",
+      "content_hash": "not_exercised",
+      "direction": "consumed",
+      "result": "blocked"
+    }
+  ],
+  "verification": {
+    "checks": [
+      {
+        "name": "package-targeted-suite",
+        "command": "python -B -X utf8 -m pytest -p no:base_url tests/unit/test_qa_net01_c06_seal.py tests/unit/test_qa_net01_question_manifest.py tests/unit/test_qa_net01_search_boundary.py tests/integration/test_qa_net01_cli_e2e.py -q --no-cov",
+        "scope": "27 new assertions covering Q10 glue, Q13 manifest increment and Q02 search boundary",
+        "result": "passed",
+        "passed": 27,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "full-repo-regression",
+        "command": "python -B -X utf8 -m pytest -p no:base_url -q",
+        "scope": "whole repository suite after this package's final code state; 4 skips are opt-in live E2E requiring env vars and keys; 20 remaining are pytest-benchmark cases",
+        "result": "passed",
+        "passed": 986,
+        "failed": 0,
+        "skipped": 4
+      },
+      {
+        "name": "type-gate-mypy",
+        "command": "python -B -X utf8 -m mypy src",
+        "scope": "55 source files; 0 errors",
+        "result": "passed",
+        "passed": 55,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "format-gate-black",
+        "command": "python -B -X utf8 -m black --check src/ tests/",
+        "scope": "27 package files unchanged with black 26.5.1 (pinned in .pre-commit-config.yaml)",
+        "result": "passed",
+        "passed": 112,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "quality-gate-pylint",
+        "command": "python -B -X utf8 -m pylint src/ --fail-under=9.0",
+        "scope": "score 9.34/10 against the 9.0 gate; gate has no per-item counts",
+        "result": "passed",
+        "passed": 0,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "security-gate-bandit",
+        "command": "python -B -X utf8 -m bandit -r src/ -f screen -ll",
+        "scope": "0 issues at severity >= medium",
+        "result": "passed",
+        "passed": 0,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "tdd-red-reproduction",
+        "command": "git stash push -- src/runners/llm_runner.py main_with_llm.py [src/utils/quick_scan_work_store.py] && python -B -X utf8 -m pytest -p no:base_url <package tests> -q --no-cov; git stash pop",
+        "scope": "4 RED logs in logs/ prove the Q10 glue, Q13 manifest path and both CLI gates are absent at HEAD",
+        "result": "passed",
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "import-sort-gate-isort",
+        "command": "python -B -X utf8 -m isort --profile black --check-only <package files>",
+        "scope": "isort 7.0.0 with --profile black; clean",
+        "result": "passed",
+        "passed": 0,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "repo-full-gate-checks-py",
+        "command": "python -B -X utf8 scripts/checks.py --full",
+        "scope": "repo's unified offline gate (G2-SQA-CHECKS): black, isort, mypy, bandit, pytest, smoke; 962 passed; exit 0",
+        "result": "passed",
+        "passed": 962,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "pre-commit-hooks",
+        "command": "python -B -X utf8 -m pre_commit run --files <package files>",
+        "scope": "trailing-whitespace / end-of-file / mixed-line-ending / check-json / black / isort / mypy / detect-secrets all Passed (GREEN_precommit.log)",
+        "result": "passed",
+        "passed": 0,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "coordinator-remediation-full-offline-gate",
+        "command": "python -B scripts/checks.py --full --timeout 180 (private hash-frozen export with IQS isolated_checks.py)",
+        "scope": "black,isort,mypy,bandit,pytest,smoke; exact executed export + CRLF/LF equivalence archived; 982 tests/85.81s",
+        "result": "passed",
+        "passed": 982,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "coordinator-guard-canaries",
+        "command": "IQS isolated_checks.py scripts/checks.py --list-steps",
+        "scope": "outside write, DNS, Python -S/-I/-E/-BIS rejected; known public entry inherited guard",
+        "result": "passed",
+        "passed": 0,
+        "failed": 0,
+        "skipped": 0
+      }
+    ],
+    "external_writes": false,
+    "network_calls": false,
+    "paid_calls": false,
+    "temporary_roots": [
+      {
+        "path_or_id": "IQS/runs/qa-net01-intake-2026-10-07",
+        "created": true,
+        "cleaned": true
+      },
+      {
+        "path_or_id": "IQS/runs/qa-net01-intake-r1-2026-10-07",
+        "created": true,
+        "cleaned": true
+      },
+      {
+        "path_or_id": "IQS/runs/qa-net01-intake-r2-2026-10-07",
+        "created": true,
+        "cleaned": true
+      },
+      {
+        "path_or_id": "IQS/runs/qa-net01-intake-full-2026-10-07",
+        "created": true,
+        "cleaned": true
+      },
+      {
+        "path_or_id": "IQS/runs/qa-net01-intake-replay-2026-10-07",
+        "created": true,
+        "cleaned": true
+      }
+    ]
+  },
+  "review": {
+    "status": "approved",
+    "snapshot_commit": "84e24ef79901ce7c817054f6354b90a15c44afd3",
+    "findings": [
+      "Bounded independent static review of F1-F5 and R1-R3 only; coordinator executed 982-test full gate; independent reviewer did not rerun it.",
+      "Whole package remains partial: no external dispatcher, no real cross-repo import/ACK, no executor backup verification; historical shared TEMP deletion impact unknown."
+    ]
+  },
+  "open_items": [
+    "External retrieval/evidence context production dispatcher not implemented: all external modes fail closed before HTTP, even admitted config; parser success is not execution success.",
+    "DeepSeek Anthropic continuation not admitted; precise protocol and bounded charge not established. Unsupported Responses native route remains disabled.",
+    "Exact external route storage entitlement/executable pricing must be established before admission; API key possession is not evidence.",
+    "Security-scope questions require explicit authoritative security-scope-id; otherwise deferred_scope_unbound, HTTP0.",
+    "Real StockWiki identity/golden -> C06 import/ACK -> profile/UI and paired executor/store backup restore not run by this remediation batch.",
+    "Historical owner shared TEMP deletion by name/mtime: 25 roots, other process pytest-921 hit; partial deletion cannot be excluded. Impact unknown; original records archived.",
+    "Code result_commit binds source84e24ef; subsequent evidence-doc commit deliberately separate. Seven original untracked items retained, content not read or cleaned."
+  ],
+  "next_action": "Coordinator verify updated hashes/shape, accept bounded five-blocker remediation, then read-only review SW-READY delivery and arrange real public-interface integration; keep G3/F05/L03 and whole-package status partial."
+}

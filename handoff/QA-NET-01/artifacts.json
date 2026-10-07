@@ -1,0 +1,285 @@
+{
+  "format_version": "1.0.0",
+  "package_id": "QA-NET-01",
+  "generated_at_utc": "2026-10-07T13:24:25.676074+00:00",
+  "repository": "C:/Users/郑曾波/Projects/StockQAbyLLM",
+  "note": "Current package bytes after coordinator remediation and existing LF commit hook. Original raw delivery and executed CRLF logs are preserved separately in IQS; source84e24ef, later evidence commit separate. No self-hash.",
+  "artifacts": [
+    {
+      "path": ".gitignore",
+      "kind": "source",
+      "bytes": 1947,
+      "sha256": "93a6df078a129ddc3be1c1ad76f51af6d5e3c6e496a38b8280e906d26babac9b"
+    },
+    {
+      "path": "docs/handoff/QA-NET-01/case-map.md",
+      "kind": "document",
+      "bytes": 13205,
+      "sha256": "ea4e735af4660cd7b283935f32b349591c0066d674ea6848e68be45a023b9bd1"
+    },
+    {
+      "path": "docs/handoff/QA-NET-01/handoff.json",
+      "kind": "document",
+      "bytes": 12615,
+      "sha256": "a646509dc681d6ea747eaad38bf7a879150aafcf4626b8e566ea5217f41c145f"
+    },
+    {
+      "path": "docs/handoff/QA-NET-01/interfaces.md",
+      "kind": "document",
+      "bytes": 13389,
+      "sha256": "885923bd5df79c96199206bc836e07d6b553eb3bbf7635f1b4df1445ccd48522"
+    },
+    {
+      "path": "docs/handoff/QA-NET-01/isolation.md",
+      "kind": "document",
+      "bytes": 2473,
+      "sha256": "cf3d623c73a75ca6e515bbbb12b4f79030aed5553b38a50c01da99f64c57d95b"
+    },
+    {
+      "path": "docs/handoff/QA-NET-01/logs/GREEN_batchA_c06_seal.log",
+      "kind": "log",
+      "bytes": 98,
+      "sha256": "48daef777344d2970ccdd5b657bfbe01f3175f10d2fe12b4ae493526190eaf22"
+    },
+    {
+      "path": "docs/handoff/QA-NET-01/logs/GREEN_batchB_question_manifest.log",
+      "kind": "log",
+      "bytes": 98,
+      "sha256": "c45a89fe6c105679bcb271eafe9a9a7223f6ea6cb3e47ccac28c1f4a735ce92f"
+    },
+    {
+      "path": "docs/handoff/QA-NET-01/logs/GREEN_batchC_search_boundary.log",
+      "kind": "log",
+      "bytes": 99,
+      "sha256": "d4e2b689b12f76fdec9b5aa91790f8e28fa2e9b2b6250c43c953fc28b4275124"
+    },
+    {
+      "path": "docs/handoff/QA-NET-01/logs/GREEN_batchD_cli_e2e.log",
+      "kind": "log",
+      "bytes": 98,
+      "sha256": "567bb1040ff973fe9db9bded4724a874d5ac07f3bcef34c8e24a5d448214c128"
+    },
+    {
+      "path": "docs/handoff/QA-NET-01/logs/GREEN_checks_full.log",
+      "kind": "log",
+      "bytes": 2934,
+      "sha256": "ea58f36179e4101b8350d2b1562cd81152275b8c56f3fdd1a34d288187b28a76"
+    },
+    {
+      "path": "docs/handoff/QA-NET-01/logs/GREEN_full_suite.log",
+      "kind": "log",
+      "bytes": 15413,
+      "sha256": "819e530064a0d904e0702fff313dd21b5cb14aa5dab4752fe77394090b07f50f"
+    },
+    {
+      "path": "docs/handoff/QA-NET-01/logs/GREEN_precommit.log",
+      "kind": "log",
+      "bytes": 2678,
+      "sha256": "091e60e6f035003f644a4ed2ebd48157d38b0f49500cfcc6edc8eeeeb01ce75b"
+    },
+    {
+      "path": "docs/handoff/QA-NET-01/logs/GREEN_static_gates.log",
+      "kind": "log",
+      "bytes": 1038,
+      "sha256": "c8dbe6c9fa6c195e858c0fef095fc5b7b4550fbb95552a3ebc5f92dac400515e"
+    },
+    {
+      "path": "docs/handoff/QA-NET-01/logs/RED_batchA_c06_seal.log",
+      "kind": "log",
+      "bytes": 5176,
+      "sha256": "84a0fe293ef5a43fd2f8bfd9162c847fb07fdae0103aacdcf1d7801208214ac0"
+    },
+    {
+      "path": "docs/handoff/QA-NET-01/logs/RED_batchB_question_manifest.log",
+      "kind": "log",
+      "bytes": 8545,
+      "sha256": "7da220aef3fbc14344a1e372808eb8e5c47629bff8d48ddfa8426b42164d21bc"
+    },
+    {
+      "path": "docs/handoff/QA-NET-01/logs/RED_batchC_search_policy_cli.log",
+      "kind": "log",
+      "bytes": 6765,
+      "sha256": "62fb63055e872a4c433fe216cdc28fbc6b2aba764090ce584e0f5373ca190899"
+    },
+    {
+      "path": "docs/handoff/QA-NET-01/logs/RED_batchD_cli_e2e.log",
+      "kind": "log",
+      "bytes": 9405,
+      "sha256": "764e14b09402104a21599bab38f5ad5eb323a063dab8607fff93de5d8356bf3e"
+    },
+    {
+      "path": "docs/handoff/QA-NET-01/logs/remediation-full-green.log",
+      "kind": "log",
+      "bytes": 2933,
+      "sha256": "e65fe8357ce94bc9f9c31cd2a2fc23f6ef27797018908d0c2d6565546807557c"
+    },
+    {
+      "path": "docs/handoff/QA-NET-01/logs/remediation-guard-canary.log",
+      "kind": "log",
+      "bytes": 32,
+      "sha256": "85bc9ea8db7f550ccad095efd26322f562ef823f313f742fc00fc23c3cdd868f"
+    },
+    {
+      "path": "docs/handoff/QA-NET-01/remediation-2026-10-07.md",
+      "kind": "document",
+      "bytes": 1317,
+      "sha256": "ef636870ef77c71700b068a086dcce744509ed2ae95331f04152ad53a028adad"
+    },
+    {
+      "path": "docs/handoff/QA-NET-01/summary.md",
+      "kind": "document",
+      "bytes": 4333,
+      "sha256": "fc111a02f480809e964a2bf58054b70b4fe73daeaa0468e61fffb1512e3516ef"
+    },
+    {
+      "path": "examples/quick_scan_search_policy.example.json",
+      "kind": "source",
+      "bytes": 1463,
+      "sha256": "ea00ad2a34e2b2fe87f5ede32a7dab54327850cae7a9988d10d08158510e7e57"
+    },
+    {
+      "path": "main_with_llm.py",
+      "kind": "source",
+      "bytes": 11969,
+      "sha256": "62c5ad2c3c2d8333eaab6eb0b100cf0443f42dc6ff83f27db73e70153bb388d3"
+    },
+    {
+      "path": "src/config/quick_scan_c06_authority.schema.json",
+      "kind": "source",
+      "bytes": 1877,
+      "sha256": "16e04f844445221b370c9c3e50d84e5d28797b4b9e2a93ee94ca0ed210257de2"
+    },
+    {
+      "path": "src/config/quick_scan_search_policy.py",
+      "kind": "source",
+      "bytes": 13018,
+      "sha256": "021d1378bdd3ffcccac47198187a3f88855f553751d95cc25a543e1c52aa1763"
+    },
+    {
+      "path": "src/config/quick_scan_search_policy.schema.json",
+      "kind": "source",
+      "bytes": 4896,
+      "sha256": "e525f6dcb2a0116ca64327b8e2da21cfb970ec18619e8cfcffc485b8c9f19876"
+    },
+    {
+      "path": "src/core/models.py",
+      "kind": "source",
+      "bytes": 22457,
+      "sha256": "d98f7613fcfabc0d5d1f1fe0b403eaa734a6948b8c9fad492a993f70bdf00cf1"
+    },
+    {
+      "path": "src/core/qa_engine.py",
+      "kind": "source",
+      "bytes": 17625,
+      "sha256": "107fb5be6e5614f4aa7c38ec4140755d1f9e7ee2b448e456eb077e889204c821"
+    },
+    {
+      "path": "src/providers/continuation_protocol.py",
+      "kind": "source",
+      "bytes": 5591,
+      "sha256": "50929ae60f2933d76943aaa5bc937070e5924baa0dd7c3c135719f67b51634d5"
+    },
+    {
+      "path": "src/providers/external_search_parsers.py",
+      "kind": "source",
+      "bytes": 10472,
+      "sha256": "777f330247b7b0cf51d34ce46d03a5886ceedcc38a8304f15788f8db84bf381e"
+    },
+    {
+      "path": "src/providers/llm_client.py",
+      "kind": "source",
+      "bytes": 48054,
+      "sha256": "8ab49e3456baf31cb121d156e77c604747e3f739356ba0764ffdebee84733226"
+    },
+    {
+      "path": "src/providers/search_capability.py",
+      "kind": "source",
+      "bytes": 6786,
+      "sha256": "44e31f7ce41dc633c6dc624f4fa0fc3a10b3d15b9ac78f54f818eb5602072d08"
+    },
+    {
+      "path": "src/runners/llm_runner.py",
+      "kind": "source",
+      "bytes": 78116,
+      "sha256": "73d30b64e6ae527d26e9d03858e38a6e1e16e81a63d702d1cab7a87f01adc73f"
+    },
+    {
+      "path": "src/utils/quick_scan_c06_authority.py",
+      "kind": "source",
+      "bytes": 6289,
+      "sha256": "cf7c29b54312578ce0e5741bcdf9a2978e2f1d5d2fb02af85e32f6e4010f03e1"
+    },
+    {
+      "path": "src/utils/quick_scan_delivery_seal.py",
+      "kind": "source",
+      "bytes": 5542,
+      "sha256": "d81f73e114a669882f91f2bac1653be0017f1f0b2dc464eb1373260ca66c4e99"
+    },
+    {
+      "path": "src/utils/quick_scan_evidence.py",
+      "kind": "source",
+      "bytes": 6549,
+      "sha256": "3946e8708dda5b9c8ecd90527e36ac08ae99625b46e317f7e51ffae3824f6e26"
+    },
+    {
+      "path": "src/utils/quick_scan_question_manifest.py",
+      "kind": "source",
+      "bytes": 15674,
+      "sha256": "72d106709887eda10a506bd39012c4a2aae9eff280f9cfb97cce28374eb76734"
+    },
+    {
+      "path": "src/utils/quick_scan_work_store.py",
+      "kind": "source",
+      "bytes": 134699,
+      "sha256": "68c1b3de08af28c991916a33db76805e497c29836cde34e0a102b03a128aa99a"
+    },
+    {
+      "path": "src/utils/quick_scan_work_transport.py",
+      "kind": "source",
+      "bytes": 20340,
+      "sha256": "8c222e82b1640671493d3391a5172ee27a7d0207d49a38eac3adf3739c41c08f"
+    },
+    {
+      "path": "tests/integration/test_qa_net01_cli_e2e.py",
+      "kind": "source",
+      "bytes": 19955,
+      "sha256": "c4f2ba57375cf7a2581e27eac92fcc8e35525e0727248b47782c21b81ef1f32e"
+    },
+    {
+      "path": "tests/integration/test_qa_net01_transport_e2e.py",
+      "kind": "source",
+      "bytes": 18191,
+      "sha256": "fd5582d1566c977df10bec8c60eef7a64a8992d2cc6b7e91ef4a5cc547800f30"
+    },
+    {
+      "path": "tests/unit/test_q06_work_binding.py",
+      "kind": "source",
+      "bytes": 22226,
+      "sha256": "71244f8ff887e1a9ac9eabc11bce04905d771acd064efd5e2b2c7788d1fc0126"
+    },
+    {
+      "path": "tests/unit/test_q09_budget_concurrency.py",
+      "kind": "source",
+      "bytes": 25763,
+      "sha256": "3ec6b6d8bc57f0c0708f1f18ad4d444f162274c2961e20653001ac21457bf53b"
+    },
+    {
+      "path": "tests/unit/test_qa_net01_c06_seal.py",
+      "kind": "source",
+      "bytes": 8338,
+      "sha256": "e15cbf014f6fc5574f26d6f413c06d6eefba36d2c19e66b64ff30bbf18961642"
+    },
+    {
+      "path": "tests/unit/test_qa_net01_question_manifest.py",
+      "kind": "source",
+      "bytes": 15415,
+      "sha256": "a011155c0e828f9afb56dccc980081b135d36498fa092ca61068bc2b298d9a63"
+    },
+    {
+      "path": "tests/unit/test_qa_net01_search_boundary.py",
+      "kind": "source",
+      "bytes": 23015,
+      "sha256": "f1649fe84d5a31b4d05d3dacd91503e10e8efc582654ad365dc5a8a3938dfbe4"
+    }
+  ]
+}

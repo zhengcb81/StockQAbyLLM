@@ -1,0 +1,179 @@
+...FFFF                                                                  [100%]
+================================== FAILURES ===================================
+_____ test_mod_06_only_new_and_expired_questions_are_planned_for_dispatch _____
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/pytest-of-郑曾波/pytest-919/test_mod_06_only_new_and_expir0')
+
+    def test_mod_06_only_new_and_expired_questions_are_planned_for_dispatch(
+        tmp_path: Path,
+    ) -> None:
+        """MOD-06: four settled old questions stay reused (0 new model calls);
+        a newly added module question and an expired (re-worded) question are the
+        only ones planned for dispatch."""
+        old_ids = ["IQS_01", "IQS_02", "IQS_03", "IQS_04"]
+        new_manifest = _manifest(
+            ["IQS_01", "IQS_02", "IQS_03", "IQS_04", "NEW_01", "IQS_05"],
+            prompts={"IQS_05": "改写后的题面版本二"},
+        )
+        loaded = load_question_manifest(_write_manifest(tmp_path, new_manifest))
+
+        store = QuickScanWorkStore(tmp_path / "work.sqlite")
+>       lifecycle = _lifecycle(store)
+                    ^^^^^^^^^^^^^^^^^
+
+tests\unit\test_qa_net01_question_manifest.py:253:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+store = <src.utils.quick_scan_work_store.QuickScanWorkStore object at 0x000001C2168CF230>
+authority = None
+
+    def _lifecycle(store: QuickScanWorkStore, *, authority: dict | None = None):
+        from src.runners.llm_runner import QuickScanWorkLifecycle
+
+>       return QuickScanWorkLifecycle(
+            store,
+            entity_id=UUID_ENTITY,
+            run_id="RUN_1",
+            scan_id="SCAN_1",
+            identity=dict(IDENTITY),
+            model_requested=MODEL,
+            c06_authority=_authority() if authority is None else authority,
+        )
+E       TypeError: QuickScanWorkLifecycle.__init__() got an unexpected keyword argument 'c06_authority'
+
+tests\unit\test_qa_net01_question_manifest.py:107: TypeError
+_______ test_mod_06_uncertain_and_not_applicable_are_never_redispatched _______
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/pytest-of-郑曾波/pytest-919/test_mod_06_uncertain_and_not_0')
+
+    def test_mod_06_uncertain_and_not_applicable_are_never_redispatched(
+        tmp_path: Path,
+    ) -> None:
+        manifest = _manifest(["IQS_01", "IQS_02", "IQS_03"])
+        loaded = load_question_manifest(_write_manifest(tmp_path, manifest))
+        store = QuickScanWorkStore(tmp_path / "work.sqlite")
+>       lifecycle = _lifecycle(store)
+                    ^^^^^^^^^^^^^^^^^
+
+tests\unit\test_qa_net01_question_manifest.py:287:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+store = <src.utils.quick_scan_work_store.QuickScanWorkStore object at 0x000001C216C75810>
+authority = None
+
+    def _lifecycle(store: QuickScanWorkStore, *, authority: dict | None = None):
+        from src.runners.llm_runner import QuickScanWorkLifecycle
+
+>       return QuickScanWorkLifecycle(
+            store,
+            entity_id=UUID_ENTITY,
+            run_id="RUN_1",
+            scan_id="SCAN_1",
+            identity=dict(IDENTITY),
+            model_requested=MODEL,
+            c06_authority=_authority() if authority is None else authority,
+        )
+E       TypeError: QuickScanWorkLifecycle.__init__() got an unexpected keyword argument 'c06_authority'
+
+tests\unit\test_qa_net01_question_manifest.py:107: TypeError
+_____________ test_unbound_security_scope_questions_are_deferred ______________
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/pytest-of-郑曾波/pytest-919/test_unbound_security_scope_qu0')
+
+    def test_unbound_security_scope_questions_are_deferred(tmp_path: Path) -> None:
+        manifest = _manifest(["IQS_01", "IQS_22"], prompts={"IQS_22": "security 题面"})
+        manifest["questions"][1]["scope"] = "security"
+        manifest["questions"][1]["prompt_sha256"] = hashlib.sha256(
+            "security 题面".encode("utf-8")
+        ).hexdigest()
+        loaded = load_question_manifest(_write_manifest(tmp_path, manifest))
+        store = QuickScanWorkStore(tmp_path / "work.sqlite")
+
+>       deferred = plan_manifest_dispatch(
+            loaded,
+            store,
+            entity_id=UUID_ENTITY,
+            identity_snapshot_sha256=IDENTITY["identity_snapshot_sha256"],
+            bindings=_bindings(loaded),
+        )
+
+tests\unit\test_qa_net01_question_manifest.py:328:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+manifest = {'schema_version': '3.1.0', 'template_version': '3.2.0', 'question_count': 2, 'questions': [{'id': 'IQS_01', 'module_i...问题 IQS_01 的题面', ...}, {'id': 'IQS_22', 'module_id': 'common', 'scope': 'security', 'prompt': 'security 题面', ...}], ...}
+store = <src.utils.quick_scan_work_store.QuickScanWorkStore object at 0x000001C216C75950>
+entity_id = 'ENT_1b2a4d3e-0000-4a1b-8c2d-000000000001'
+identity_snapshot_sha256 = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+bindings = {'IQS_01': {'scope': 'entity', 'scope_id': 'ENT_1b2a4d3e-0000-4a1b-8c2d-000000000001'}, 'IQS_22': {'scope': 'unbound', 'scope_id': ''}}
+base_generation = 1
+
+    def plan_manifest_dispatch(
+        manifest: dict,
+        store: QuickScanWorkStore,
+        *,
+        entity_id: str,
+        identity_snapshot_sha256: str,
+        bindings: dict[str, dict[str, str]],
+        base_generation: int = 1,
+    ) -> dict[str, Any]:
+        """Produce the auditable per-question dispatch plan for one entity.
+
+        Actions: ``dispatch`` / ``expired_dispatch`` are the only ones that may
+        consume a model call; everything else is reuse, reconciliation, sealing or
+        an explicit bounded deferral.
+        """
+        if type(base_generation) is not int or base_generation < 1:
+            raise ValueError("base_generation must be >= 1")
+        questions = manifest["questions"]
+>       rows_by_id = store.find_work_items(
+                     ^^^^^^^^^^^^^^^^^^^^^
+            entity_id=entity_id, question_ids=[question["id"] for question in questions]
+        )
+E       AttributeError: 'QuickScanWorkStore' object has no attribute 'find_work_items'
+
+src\utils\quick_scan_question_manifest.py:323: AttributeError
+_____________ test_manifest_directory_input_and_seal_only_action ______________
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/pytest-of-郑曾波/pytest-919/test_manifest_directory_input_0')
+
+    def test_manifest_directory_input_and_seal_only_action(tmp_path: Path) -> None:
+        manifest = _manifest(["IQS_01"])
+        directory = tmp_path / "compose"
+        directory.mkdir()
+        (directory / "manifest.json").write_text(
+            json.dumps(manifest, ensure_ascii=False), encoding="utf-8"
+        )
+        loaded = load_question_manifest(directory)
+        assert loaded["question_count"] == 1
+
+        store = QuickScanWorkStore(tmp_path / "work.sqlite")
+>       lifecycle = _lifecycle(store, authority={})  # no usable authority -> block
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\unit\test_qa_net01_question_manifest.py:363:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+store = <src.utils.quick_scan_work_store.QuickScanWorkStore object at 0x000001C216DC0640>
+authority = {}
+
+    def _lifecycle(store: QuickScanWorkStore, *, authority: dict | None = None):
+        from src.runners.llm_runner import QuickScanWorkLifecycle
+
+>       return QuickScanWorkLifecycle(
+            store,
+            entity_id=UUID_ENTITY,
+            run_id="RUN_1",
+            scan_id="SCAN_1",
+            identity=dict(IDENTITY),
+            model_requested=MODEL,
+            c06_authority=_authority() if authority is None else authority,
+        )
+E       TypeError: QuickScanWorkLifecycle.__init__() got an unexpected keyword argument 'c06_authority'
+
+tests\unit\test_qa_net01_question_manifest.py:107: TypeError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_qa_net01_question_manifest.py::test_mod_06_only_new_and_expired_questions_are_planned_for_dispatch
+FAILED tests/unit/test_qa_net01_question_manifest.py::test_mod_06_uncertain_and_not_applicable_are_never_redispatched
+FAILED tests/unit/test_qa_net01_question_manifest.py::test_unbound_security_scope_questions_are_deferred
+FAILED tests/unit/test_qa_net01_question_manifest.py::test_manifest_directory_input_and_seal_only_action
+4 failed, 3 passed in 2.21s
