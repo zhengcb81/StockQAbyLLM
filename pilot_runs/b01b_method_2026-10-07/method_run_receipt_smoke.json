@@ -1,0 +1,66 @@
+{
+ "schema": "b01b_method_run/1",
+ "started_at": "2026-10-06T23:25:10+00:00",
+ "finished_at": "2026-10-06T23:35:09+00:00",
+ "plan": {
+  "seed": 20261007,
+  "request_cap": 600,
+  "generation": {
+   "temperature": 0,
+   "model": "MiniMax-M3",
+   "provider": "minimax",
+   "attempt": "1+1 format-repair"
+  },
+  "prompts_sha256": {
+   "CN-A:300750": "be161c38c9384de5d400de29e72a7466c2957902d4e8ec3137019dba4b0e01b0",
+   "HK:06066": "9bb6101b6a3a6923deb66f62a3ef8e4ccab3b7fbb2c84a688d0ed98f2d44a3e0",
+   "US:NASDAQ:GOOGL": "a3242d894a01e81cd0ab007f74c4641fe2ad594d40e71cf3133bd86bf89711c8"
+  },
+  "question_render_sha256": "fb3e6f7d0d55f05aefeb707742dcf950e8056486696b6c5e9974a9785626e701"
+ },
+ "requests_used": 41,
+ "failures": [
+  {
+   "company": "CN-A:300750",
+   "method": "sequential_1",
+   "chunk_index": 16,
+   "question_ids": [
+    "IQS_19"
+   ],
+   "attempts": [
+    {
+     "kind": "format_repair",
+     "usage": {
+      "total_tokens": 17636,
+      "total_characters": 0,
+      "prompt_tokens": 16996,
+      "completion_tokens": 640,
+      "prompt_tokens_details": {
+       "cached_tokens": 16317
+      }
+     },
+     "latency_s": 5.94
+    }
+   ],
+   "usage": {
+    "total_tokens": 16962,
+    "total_characters": 0,
+    "prompt_tokens": 16317,
+    "completion_tokens": 645,
+    "prompt_tokens_details": {
+     "cached_tokens": 128
+    }
+   },
+   "latency_s": 8.81,
+   "response_id": "0714b7d0da82a8b73315b661ec6d1b42",
+   "error": "repair_parse:JSONDecodeError:Expecting ',' delimiter: line 1 column 594 (char 593)",
+   "stage": "parse"
+  }
+ ],
+ "results_count": 60,
+ "usage_total": {
+  "prompt_tokens": 602716,
+  "completion_tokens": 36685
+ },
+ "mode": "smoke"
+}

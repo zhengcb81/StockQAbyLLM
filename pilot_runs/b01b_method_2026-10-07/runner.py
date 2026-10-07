@@ -108,7 +108,13 @@ POOL_FILES = {
     ),
 }
 
-MAX_TOKENS_FOR = {1: 2000, 3: 4000, 5: 6000, 10: 10000, 30: 16000}
+MAX_TOKENS_FOR = {
+    1: 6000,
+    3: 9000,
+    5: 12000,
+    10: 16000,
+    30: 24000,
+}  # run-2 stall root cause: finish=length (reasoning prose burned the 2000-token budget before JSON)
 
 
 def sha(obj) -> str:
@@ -198,7 +204,7 @@ def build_system_prompt() -> str:
         "status ∈ scored/insufficient_evidence/not_applicable/search_unavailable/unknown；"
         "score 为 1-10 整数（仅 status=scored 时给出，否则 null）；confidence ∈ high/medium/low；"
         "evidence_refs 为 source_id 字符串数组；证据不足给 unknown 或 insufficient_evidence，"
-        "不得猜测、不得虚构链接。仅输出一个 JSON 数组，无任何其他文字。"
+        "不得猜测、不得虚构链接。直接输出 JSON：第一个字符必须是 [ ，禁止任何分析、思考、解释或 Markdown 文字（finish=length 截断即作废）。仅输出一个 JSON 数组，无任何其他文字。"
     )
 
 
@@ -353,7 +359,19 @@ def call_minimax(messages, *, max_tokens: int):
     if not key:
         raise RuntimeError("MINIMAX_API_KEY missing (user-level env not injected)")
     body = json.dumps(
-        {"model": "MiniMax-M3", "messages": messages, "temperature": 0, "max_tokens": max_tokens}
+        {
+            "model": "MiniMax-M3",
+            "messages": messages,
+            "temperature": 0,
+            # owner request: final result only, no intermediate reasoning.
+            # Official docs (platform.minimax.io text-chat-openai): for M3,
+            # thinking.type=disabled skips thinking and answers directly;
+            # reasoning_split=true keeps any thinking out of content;
+            # max_tokens is deprecated -> max_completion_tokens.
+            "thinking": {"type": "disabled"},
+            "reasoning_split": True,
+            "max_completion_tokens": max_tokens,
+        }
     ).encode("utf-8")
     req = urllib.request.Request(
         "https://api.minimaxi.com/v1/chat/completions",
@@ -375,10 +393,16 @@ def call_minimax(messages, *, max_tokens: int):
                 "latency_s": round(time.time() - t0, 2),
                 "response_id": d.get("id"),
                 "transport_attempts": attempts,
+                "finish_reason": d["choices"][0].get("finish_reason"),
             }
         except urllib.error.HTTPError as exc:
-            if exc.code in (429, 500, 502, 503, 529) and attempt < 2:
+            if exc.code in (500, 502, 503, 529) and attempt < 2:
                 time.sleep(2 * (3**attempt))
+                continue
+            if exc.code == 429 and attempt < 2:
+                # plan-quota 429 (MiniMax error 2056 "Token Plan 用量上限") needs
+                # minute-scale backoff; short retries just re-hammer a hard window.
+                time.sleep(30 * (4**attempt))
                 continue
             raise
     raise RuntimeError("retries exhausted")
@@ -659,12 +683,64 @@ def run_live(plan, rendered):
     return 0
 
 
+def run_smoke(plan, rendered):
+    """Small-scale validation (owner guidance): first company, sequential_1 +
+    group_5 only -> ~36 requests; checks parse rate before full matrix."""
+    plan = dict(plan)
+    plan["companies"] = [dict(plan["companies"][0])]
+    methods = plan["companies"][0]["methods"]
+    keep = [m for m in methods if m["method"] in ("sequential_1", "group_5")]
+    keep.sort(key=lambda m: m["method"])  # sequential first (the stalled segment)
+    plan["companies"][0]["methods"] = keep
+    OUT.mkdir(parents=True, exist_ok=True)
+    receipt = run_live(plan, rendered)
+    if (OUT / "method_run_receipt.json").exists():
+        r = json.loads((OUT / "method_run_receipt.json").read_text(encoding="utf-8"))
+        r["mode"] = "smoke"
+        (OUT / "method_run_receipt.json").write_text(
+            json.dumps(r, ensure_ascii=False, indent=1) + "\n", encoding="utf-8"
+        )
+        print(
+            json.dumps(
+                {
+                    "smoke": True,
+                    "requests": r["requests_used"],
+                    "failures": len(r["failures"]),
+                    "results": r["results_count"],
+                },
+                ensure_ascii=False,
+            )
+        )
+    return receipt
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--plan", action="store_true")
+    ap.add_argument("--smoke", action="store_true")
+    ap.add_argument(
+        "--companies",
+        type=str,
+        default=None,
+        help="comma-separated company keys to run (resume filter)",
+    )
     args = ap.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
     plan, rendered = make_plan()
+    if args.companies:
+        wanted = {k.strip() for k in args.companies.split(",") if k.strip()}
+        keys = {c["key"] for c in plan["companies"]}
+        unknown = wanted - keys
+        if unknown:
+            raise SystemExit(f"unknown companies: {sorted(unknown)}")
+        plan["companies"] = [c for c in plan["companies"] if c["key"] in wanted]
+        plan["request_total"] = sum(c["requests"] for c in plan["companies"])
+        print(
+            json.dumps(
+                {"resume_filter": sorted(wanted), "request_total": plan["request_total"]},
+                ensure_ascii=False,
+            )
+        )
     (OUT / "method_plan.json").write_text(
         json.dumps(plan, ensure_ascii=False, indent=1) + "\n", encoding="utf-8"
     )
@@ -684,6 +760,8 @@ def main():
     )
     if args.plan:
         return 0
+    if args.smoke:
+        return run_smoke(plan, rendered)
     return run_live(plan, rendered)
 
 
