@@ -129,7 +129,7 @@
       "path": "docs/handoff/QA-NET-01/summary.md",
       "kind": "document",
       "bytes": 4333,
-      "sha256": "fc111a02f480809e964a2bf58054b70b4fe73daeaa0468e61fffb1512e3516ef"
+      "sha256": "732ebcea7b10eafb9764e8d1d620705d712d0717a1e249c089891ba669bd8cc7"
     },
     {
       "path": "examples/quick_scan_search_policy.example.json",

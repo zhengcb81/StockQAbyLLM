@@ -1,6 +1,6 @@
 # QA-NET-01：总控整改交接（2026-10-07）
 
-状态仍为 **partial**。原交付主体610de6a及证据修订d160d80已由总控接收；用户随后明确指定总控接管StockQA整改。代码提交为84e24ef79901ce7c817054f6354b90a15c44afd3，基线d160d80，分支master。原交付7文档/14日志及36工件索引完整保留在IQS `docs/implementation/intake/QA-NET-01/2026-10-07/owner-delivery/`，不能混作整改后的验证。
+状态仍为 **partial**。原交付主体610de6a及证据修订d160d80已由总控接收；用户随后明确指定总控接管StockQA整改。代码提交为84e24ef79901ce7c817054f6354b90a15c44afd3，基线d160d80，分支master。原交付6文档/12日志及36工件索引完整保留在IQS `docs/implementation/intake/QA-NET-01/2026-10-07/owner-delivery/`，不能混作整改后的验证。
 
 ## 已闭合的验收阻断
 
