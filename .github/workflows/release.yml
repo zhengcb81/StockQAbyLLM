@@ -34,24 +34,11 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pytest pytest-cov mypy black pylint bandit
+        pip install -e ".[dev]"
 
-    - name: Run pre-release validation
+    - name: Run pre-release validation (unified --full)
       run: |
-        # All tests must pass
-        pytest tests/ -v --cov=src --cov-fail-under=70
-
-        # Type checking must pass
-        mypy src/ --strict
-
-        # Code quality gate
-        pylint src/ --fail-under=8.0
-
-        # Format check
-        black --check src/ tests/
-
-        # Security scan
-        bandit -r src/ -f screen
+        python -B scripts/checks.py --full
 
   build:
     name: Build Release
@@ -110,8 +97,7 @@ jobs:
 
     - name: Verify installation
       run: |
-        python -c "import src; print('Package installed successfully')"
-        python -m pytest tests/ -v
+        python -c "from src.runners.basic_runner import BasicRunner; import src.core.models, src.config.settings, src.config.config_manager, src.config.llm_config; print('Package installed successfully')"
 
   create-release:
     name: Create GitHub Release

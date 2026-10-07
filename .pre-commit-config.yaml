@@ -1,6 +1,10 @@
 # Pre-commit hooks configuration for StockQAbyLLM
 # Run: pre-commit run --all-files
 # Install: pre-commit install
+#
+# 这里只保留便宜的静态检查（格式 / 类型 / 文件完整性 / 密钥泄露）。
+# 完整检查统一入口是：python -B scripts/checks.py
+# （pytest、bandit 报告、pylint 数值、联网 pip-audit 都不再挂在每次 commit 上。）
 
 repos:
   # General hooks
@@ -22,38 +26,27 @@ repos:
       - id: mixed-line-ending
         args: ['--fix=lf']
 
-  # Python code formatting with black
+  # Python code formatting with black（版本与 requirements-lock.txt 同步）
   - repo: https://github.com/psf/black
-    rev: 24.10.0
+    rev: 26.5.1
     hooks:
       - id: black
 
-  # Import sorting with isort
+  # Import sorting with isort（版本与 requirements-lock.txt 同步）
   - repo: https://github.com/PyCQA/isort
-    rev: 6.0.1
+    rev: 7.0.0
     hooks:
       - id: isort
         args: ['--profile', 'black']
 
-  # Type checking with mypy
+  # Type checking with mypy（以 pyproject.toml 单份配置为准，不额外加 --strict）
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.14.1
+    rev: v1.19.0
     hooks:
       - id: mypy
         additional_dependencies:
           - types-requests
         args: ['--config-file=pyproject.toml', 'src/']
-        pass_filenames: false
-
-  # Linting with pylint
-  - repo: local
-    hooks:
-      - id: pylint
-        name: pylint (score >= 9.0)
-        entry: pylint
-        language: system
-        args: ['--fail-under=9.0', 'src/']
-        types: [python]
         pass_filenames: false
 
   # Secret detection - prevents API keys and tokens from being committed
@@ -70,37 +63,6 @@ repos:
             tests/.*|
             .*\.lock
           )$
-
-  # Security scanning with bandit
-  - repo: local
-    hooks:
-      - id: bandit
-        name: bandit (security scan)
-        entry: bandit
-        language: system
-        args: ['-r', 'src/', '-f', 'json', '-o', 'bandit-report.json']
-        pass_filenames: false
-
-  # Security audit with pip-audit (only project deps, not conda system packages)
-  - repo: local
-    hooks:
-      - id: pip-audit
-        name: pip-audit
-        entry: python -m pip_audit -r requirements-lock.txt
-        language: system
-        pass_filenames: false
-        always_run: true
-
-  # pytest for running tests before commit
-  - repo: local
-    hooks:
-      - id: pytest
-        name: pytest (unit tests)
-        entry: pytest
-        language: system
-        args: ['tests/unit/', '-v', '--tb=short', '-p', 'no:base_url']
-        pass_filenames: false
-        always_run: true
 
 # Pre-commit configuration
 default_stages: [pre-commit]

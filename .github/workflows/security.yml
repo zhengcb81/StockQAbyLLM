@@ -1,11 +1,9 @@
 # GitHub Actions Security Scanning Workflow
+# 仅每周计划 + 手动触发（报告机制）；日常 push/PR 的离线安全检查由
+# scripts/checks.py 的 bandit 步骤承担，避免每 push 重复安全 runner。
 name: Security
 
 on:
-  push:
-    branches: [ main, master, develop ]
-  pull_request:
-    branches: [ main, master, develop ]
   schedule:
     # Run security scans weekly on Sundays at 2 AM UTC
     - cron: '0 2 * * 0'
@@ -32,7 +30,7 @@ jobs:
 
     - name: Run pip-audit
       run: |
-        pip-audit --format json --output pip-audit-report.json
+        pip-audit -r requirements-lock.txt --format json --output pip-audit-report.json
       continue-on-error: true
 
     - name: Upload pip-audit report

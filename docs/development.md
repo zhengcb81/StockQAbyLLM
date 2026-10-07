@@ -129,27 +129,43 @@ git checkout -b feature/your-feature-name
 ### 3. 运行测试
 
 ```bash
-# 运行所有测试
-pytest tests/ -v
+# 统一入口（推荐）：默认短离线 CI
+python -B scripts/checks.py
+
+# 仅静态检查
+python -B scripts/checks.py --static-only
+
+# 全部离线 unit/integration
+python -B scripts/checks.py --full
+
+# 运行所有离线测试
+pytest tests/unit/ tests/integration/ -v
 
 # 运行特定测试
 pytest tests/unit/test_llm_provider.py -v
 
-# 运行并显示覆盖率
+# 需要时显式生成覆盖率
 pytest --cov=src --cov-report=html
 ```
 
 ### 4. 代码质量检查
 
 ```bash
-# 格式化代码
-black src/ tests/
+# 统一入口：格式 + 类型 + 离线安全（commit 前）
+python -B scripts/checks.py --static-only
 
-# 类型检查
-mypy src/ --strict
+# 手动格式化
+black src/ tests/ scripts/
 
-# 代码质量检查
+# 类型检查（单份配置在 pyproject.toml，不额外加 --strict）
+mypy src/
+
+# 诊断工具（不设数值门槛）
 pylint src/
+radon cc src/ -a
+
+# 指标报告（coverage / pylint / radon 写入显式目录）
+python -B scripts/checks.py --metrics --output-dir ci-reports
 ```
 
 ### 5. 提交代码

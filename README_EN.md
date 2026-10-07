@@ -121,11 +121,38 @@ The program outputs JSON format results:
 
 ## Development
 
+### Unified check entry
+
+All engineering checks are defined once in `scripts/checks.py`.
+`scripts/run_ci.sh` / `scripts/run_ci.bat` are thin forwarding layers only
+(locate the repo root, forward every argument, return the exit code unchanged).
+
+```bash
+# Default: short offline CI (static + daily pytest responsibility set + CLI smoke)
+python -B scripts/checks.py
+
+# Static only (format / type / offline security) - suitable before a commit
+python -B scripts/checks.py --static-only
+
+# Large node: every offline unit/integration test in one run
+python -B scripts/checks.py --full
+
+# Large node: offline checks plus diagnostics (coverage / pylint / radon)
+python -B scripts/checks.py --metrics --output-dir ci-reports
+
+# Print the plan without running anything
+python -B scripts/checks.py --list-steps
+```
+
+Exit-code semantics: formatting, typing, tests, offline security, CLI smoke and
+tool-launch/timeout failures are **real failures** and are propagated unchanged.
+pylint / radon / coverage numbers are diagnostics only and are never a pass gate.
+
 ### Running Tests
 
 ```bash
-# Run all tests
-pytest
+# Run all offline tests (tests/live and tests/benchmarks are excluded)
+pytest tests/unit/ tests/integration/
 
 # Run unit tests
 pytest tests/unit/
@@ -133,7 +160,7 @@ pytest tests/unit/
 # Run integration tests
 pytest tests/integration/
 
-# Generate coverage report
+# Generate a coverage report (off by default; opt in explicitly)
 pytest --cov=src --cov-report=html
 ```
 
@@ -141,13 +168,14 @@ pytest --cov=src --cov-report=html
 
 ```bash
 # Format code with black
-black src/ tests/
+black src/ tests/ scripts/
 
-# Check code quality with pylint
-pylint src/
-
-# Type checking with mypy
+# Type checking with mypy (single source of truth: pyproject.toml)
 mypy src/
+
+# Diagnostic tools (no numeric gate)
+pylint src/
+radon cc src/ -a
 ```
 
 ## Architecture Design

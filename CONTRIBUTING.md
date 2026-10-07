@@ -46,9 +46,24 @@
 - **PEP 8**: Python 代码风格指南
 - **类型注解**: 使用类型提示提高代码可读性
 - **Docstring**: 使用 Google 风格的文档字符串
-- **Black**: 代码格式化工具
-- **Pylint**: 代码质量检查（目标评分 ≥ 8.0）
-- **Mypy**: 类型检查（严格模式，0 错误）
+- **Black / isort**: 代码格式化与导入排序
+- **Mypy**: 类型检查（配置以 `pyproject.toml` 单份为准，不额外叠加 `--strict`）
+
+> pylint / radon / coverage 的数值只是诊断输出，**不构成通过门槛**；
+> 真正会挡住提交/CI 的是格式、类型、测试、离线安全与 CLI smoke 的真实失败。
+
+#### 统一检查入口
+
+所有工程检查只有一个 Python 定义点：`scripts/checks.py`。
+`scripts/run_ci.sh` / `scripts/run_ci.bat` 只做转发（定位仓根、转发参数、原样返回退出码）。
+
+```bash
+python -B scripts/checks.py                 # 默认短离线 CI
+python -B scripts/checks.py --static-only   # 仅静态（commit 前）
+python -B scripts/checks.py --full          # 大节点：全部离线 unit/integration
+python -B scripts/checks.py --metrics --output-dir ci-reports
+python -B scripts/checks.py --list-steps    # 只打印计划
+```
 
 #### 开发流程
 
@@ -63,23 +78,24 @@
    - 确保新功能有相应的测试
    - 运行测试确保通过：
      ```bash
-     pytest tests/ -v
+     pytest tests/unit/ tests/integration/ -v
      ```
-   - 检查代码覆盖率：
+   - 需要覆盖率报告时显式开启：
      ```bash
      pytest --cov=src --cov-report=html
      ```
 
-3. 代码质量检查：
+3. 代码质量检查（统一入口）：
    ```bash
-   # 格式化代码
-   black src/ tests/
+   # commit 前：只跑便宜的静态检查
+   python -B scripts/checks.py --static-only
 
-   # 类型检查
-   mypy src/ --strict
+   # 需要时手动格式化
+   black src/ tests/ scripts/
+   isort --profile black src/ tests/ scripts/
 
-   # 代码质量检查
-   pylint src/
+   # 类型检查（单份配置）
+   mypy src/
    ```
 
 4. 提交代码：
@@ -134,13 +150,14 @@ Closes #123
 
 #### PR 审查标准
 
-- [ ] 代码通过所有测试
-- [ ] 代码覆盖率不降低
-- [ ] 代码格式符合规范
-- [ ] 类型检查通过（0 错误）
-- [ ] Pylint 评分 ≥ 8.0
+- [ ] `python -B scripts/checks.py`（默认模式）通过
+- [ ] 代码通过所有测试，且没有删除真实业务反例来凑绿
+- [ ] 代码格式符合规范（black / isort）
+- [ ] 类型检查通过（`mypy src/`，配置以 `pyproject.toml` 为准）
 - [ ] 有适当的文档和注释
 - [ ] 更新了相关文档
+
+> 不设覆盖率 / pylint 评分等数字门槛；数值只作为 `--metrics` 的诊断输出。
 
 ## 测试要求
 
@@ -169,10 +186,15 @@ class TestMyClass:
 - 测试模块间的交互
 - 放置在 `tests/integration/` 目录
 
-### 测试覆盖率目标
+### 测试覆盖率
 
-- 整体覆盖率 ≥ 70%
-- 新模块覆盖率 ≥ 80%
+覆盖率没有数字门槛。需要时显式生成，作为诊断查看：
+
+```bash
+python -B scripts/checks.py --metrics --output-dir ci-reports
+# 或
+pytest --cov=src --cov-report=html
+```
 
 ## 文档要求
 

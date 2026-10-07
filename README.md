@@ -156,11 +156,36 @@ python main.py --verbose
 
 ## 开发
 
+### 统一检查入口
+
+所有工程检查只有一个 Python 定义点：`scripts/checks.py`。
+`scripts/run_ci.sh` / `scripts/run_ci.bat` 只是转发层（定位仓根、转发参数、原样返回退出码）。
+
+```bash
+# 默认：短离线 CI（静态 + 日常责任包 pytest + CLI smoke）
+python -B scripts/checks.py
+
+# 仅静态（格式 / 类型 / 离线安全），适合 commit 前
+python -B scripts/checks.py --static-only
+
+# 大节点：全部离线 unit/integration
+python -B scripts/checks.py --full
+
+# 大节点：全部离线检查 + 诊断报告（coverage / pylint / radon 写入显式目录）
+python -B scripts/checks.py --metrics --output-dir ci-reports
+
+# 只看计划，不执行
+python -B scripts/checks.py --list-steps
+```
+
+退出码语义：格式、类型、测试、离线安全、CLI smoke、工具缺失/启动失败/超时都是**真实失败**并原样上抛；
+pylint / radon / coverage 数值只是诊断输出，不构成通过门槛。
+
 ### 运行测试
 
 ```bash
-# 运行所有测试
-pytest
+# 运行所有测试（不含 tests/live、tests/benchmarks）
+pytest tests/unit/ tests/integration/ -p no:base_url
 
 # 运行单元测试
 pytest tests/unit/
@@ -168,7 +193,7 @@ pytest tests/unit/
 # 运行集成测试
 pytest tests/integration/
 
-# 生成覆盖率报告
+# 生成覆盖率报告（默认不生成，需显式开启）
 pytest --cov=src --cov-report=html
 ```
 
@@ -176,13 +201,14 @@ pytest --cov=src --cov-report=html
 
 ```bash
 # 使用 black 格式化代码
-black src/ tests/
+black src/ tests/ scripts/
 
-# 使用 pylint 检查代码质量
-pylint src/
-
-# 使用 mypy 进行类型检查
+# 使用 mypy 进行类型检查（以 pyproject.toml 单份配置为准）
 mypy src/
+
+# 诊断类工具（不设数值门）
+pylint src/
+radon cc src/ -a
 ```
 
 ## 架构设计

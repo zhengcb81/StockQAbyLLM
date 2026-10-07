@@ -1,11 +1,30 @@
 # GitHub Actions Documentation Build Workflow
+# 只在文档相关路径变化时触发；发布权限与部署逻辑保持原样，本卡不主动部署。
 name: Documentation
 
 on:
   push:
     branches: [ main, master ]
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - 'README.md'
+      - 'README_EN.md'
+      - 'CONTRIBUTING.md'
+      - 'CHANGELOG.md'
+      - 'pyproject.toml'
+      - '.github/workflows/docs.yml'
   pull_request:
     branches: [ main, master ]
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - 'README.md'
+      - 'README_EN.md'
+      - 'CONTRIBUTING.md'
+      - 'CHANGELOG.md'
+      - 'pyproject.toml'
+      - '.github/workflows/docs.yml'
   workflow_dispatch:
 
 jobs:
