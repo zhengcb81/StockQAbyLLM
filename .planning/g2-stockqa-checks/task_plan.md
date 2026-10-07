@@ -75,16 +75,17 @@
 - A10 无 coverage/htmlcov/.coverage/reports/.pytest_cache 残留
 - pre-commit（改动文件）全绿 PC_EXIT=0
 
-### Phase 7 — 交付与冻结  Status: in_progress
+### Phase 7 — 交付与冻结  Status: complete
 - 普通 commit 到 `codex/g2-stockqa-checks`，push 同名分支
 - `docs/implementation/g2-stockqa-checks/HANDOFF.md` + `handoff.json`
 - 清理本轮 scratch/logs/cache，freeze 写集
 
 ## Next Step
 
-提交交付 commit，生成 `docs/implementation/g2-stockqa-checks/{HANDOFF.md,handoff.json}`，
-push `codex/g2-stockqa-checks`，清理 `_g2/_tmp` 与 worktree 内本轮 `logs/`、`__pycache__`，
-然后把 HANDOFF 路径告知用户。
+写集已冻结。交付完成，无后续步骤；MAIN 按
+`docs/implementation/g2-stockqa-checks/HANDOFF.md` + `handoff.json` 接入总 G2B。
+交付 commit：`d989ea73bdcd2a3ac62f5ba80bc701bc2162082e`（代码）+
+`d647be3`（handoff），分支 `codex/g2-stockqa-checks` 已 push。
 
 ## Decisions Made
 

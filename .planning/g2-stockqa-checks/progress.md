@@ -112,3 +112,13 @@ tests/integration/test_quick_scan_cli.py::test_public_cli_pauses_after_unpriced_
 | 无引号 `scripts\run_ci.bat` 被 bash 吃掉 `\r` | 1 | 验证命令加引号（wrapper 无问题） |
 | pre-commit `mixed line ending` ×2 | 3 | 连跑 pre-commit 直至全绿 |
 | `%TEMP%` 下 pytest 收集 12s/文件 | 1 | 本卡 scratch 改 `<repo>/../_tmp/g2_checks_scratch` |
+
+
+## Session 2026-10-07 (S1) 收尾
+
+- `git commit d989ea73bdcd2a3ac62f5ba80bc701bc2162082e` — 代码与工程入口统一（pre-commit 钩子全绿）
+- `git commit d647be3` — `docs/implementation/g2-stockqa-checks/{HANDOFF.md,handoff.json}`
+- `git push -u origin codex/g2-stockqa-checks` → 成功（新分支）
+- 推送分支不在 `ci.yml`/`docs.yml`/`release.yml`/`security.yml` 任何触发分支上 → 未触发任何 workflow
+- 清理完成：worktree `git status` 干净；`_g2/_tmp` 整目录删除（内容全部属本卡）
+- 写集冻结
