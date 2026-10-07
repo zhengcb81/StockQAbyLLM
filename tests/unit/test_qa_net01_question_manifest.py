@@ -360,3 +360,34 @@ def test_manifest_directory_input_and_seal_only_action(tmp_path: Path) -> None:
     assert plan["questions"][0]["action"] == "seal_only"
     assert plan["model_calls_planned"] == 0
     assert plan["questions"][0]["work_item_id"] == work_item_id
+
+
+def test_changed_prompt_waits_for_uncertain_prior_attempt(tmp_path):
+    from src.core.models import Question
+    from src.utils.quick_scan_question_manifest import (
+        load_question_manifest,
+        plan_manifest_dispatch,
+    )
+    from src.utils.quick_scan_work_store import QuickScanWorkStore
+
+    store = QuickScanWorkStore(tmp_path / "work.sqlite")
+    lifecycle = _lifecycle(store)
+    question = Question(text="旧版题面", question_id="IQS_01")
+    handle = lifecycle.before_question(question)
+    assert handle["claimed"] is True
+    store.record_attempt_outcome(
+        handle["work_item_id"], handle["lease"], handle["attempt_id"], outcome="unknown"
+    )
+    doc = _manifest(["IQS_01"], prompts={"IQS_01": "新版题面"})
+    loaded = load_question_manifest(_write_manifest(tmp_path, doc))
+    plan = plan_manifest_dispatch(
+        loaded,
+        store,
+        entity_id=UUID_ENTITY,
+        identity_snapshot_sha256=IDENTITY["identity_snapshot_sha256"],
+        bindings=_bindings(loaded),
+    )
+    assert (
+        plan["model_calls_planned"] == 0
+    ), "Uncertain old attempt must reconcile before new generation"
+    assert plan["questions"][0]["action"] == "reconcile"

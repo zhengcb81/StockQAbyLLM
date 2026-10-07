@@ -3,6 +3,7 @@
 该模块是系统的核心，负责协调问题处理的整个流程。
 """
 
+from contextlib import nullcontext
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -281,7 +282,14 @@ class QAEngine:
                     continue
 
             try:
-                result = self.process_question(question_text)
+                context_factory = getattr(self.work_item_lifecycle, "dispatch_context", None)
+                context = (
+                    context_factory(lifecycle_handle)
+                    if callable(context_factory) and lifecycle_handle is not None
+                    else nullcontext()
+                )
+                with context:
+                    result = self.process_question(question_text)
                 if self.work_item_lifecycle is not None and lifecycle_handle is not None:
                     self.work_item_lifecycle.after_question(lifecycle_handle, result)
                 batch_result.add_result(result)

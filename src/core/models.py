@@ -338,6 +338,16 @@ def execution_receipt_for_checkpoint(metadata: Any) -> Optional[Dict[str, Any]]:
         return None
     execution = metadata.get("execution")
     execution = execution if isinstance(execution, dict) else {}
+    transport = execution.get("work_transport")
+    private_receipt = None
+    if isinstance(transport, dict) and isinstance(transport.get("final_receipt"), dict):
+        # Immutable HTTP receipt includes usage and the exact source set;
+        # aggregate repair/fallback metadata must not change its store hash.
+        from src.utils.quick_scan_work_store import _sanitized_receipt
+
+        private_receipt = _sanitized_receipt(transport["final_receipt"])
+        metadata = private_receipt
+        execution = private_receipt
     attempts = metadata.get("attempts")
     attempts = attempts if isinstance(attempts, list) else []
     provider = final_transport_provider(execution, metadata, *reversed(attempts))
@@ -363,6 +373,8 @@ def execution_receipt_for_checkpoint(metadata: Any) -> Optional[Dict[str, Any]]:
     }
     if any(not isinstance(value, str) or not value for value in required.values()):
         return None
+    if private_receipt is not None:
+        return private_receipt
     source_urls = metadata.get("source_urls")
     source_urls = (
         [url for url in source_urls if isinstance(url, str)]

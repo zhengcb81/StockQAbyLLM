@@ -528,12 +528,12 @@ def test_loader_provisional_multi_ref_fails_fast_verified_passes(tmp_path: Path)
 
 
 def test_e2e_public_cli_identity_snapshot_glue_no_redispatch(monkeypatch, tmp_path: Path) -> None:
-    """P2-3 (owner round-54 option b: receipt linkage deferred to Q10 — the
-    card wording is revised) + P2-4: PUBLIC CLI entry end-to-end with
-    ``--identity-snapshot``. Covers the runner glue layer (payload ->
-    lifecycle -> QAEngine) that produced P0-1: RUN1 dispatches exactly once
-    and lands the work item; RUN2 re-invocation refuses with ZERO additional
-    HTTP (JOB-10: no duplicate LLM calls)."""
+    """Provisional identity/model mismatch cannot produce a checkpoint.
+
+    The actual response remains durable, the public CLI reports failure,
+    and the same unresolved work cannot trigger another paid HTTP request.
+    Verified-identity success is covered by the transport E2E suite.
+    """
     import importlib.util
     import json as _json
     import sqlite3 as _sqlite3
@@ -566,7 +566,7 @@ def test_e2e_public_cli_identity_snapshot_glue_no_redispatch(monkeypatch, tmp_pa
         '{"entity_id":"' + _REAL_UUID_ENTITY + '","company_name":"Fixture Corp",'
         '"question_id":"IQS_05","score":8,"description":"基于公开来源的判断"}'
     )
-    # RUN1: production activation — dispatch once, work item lands
+    # RUN1: response is durable, but unqualified identity cannot be checkpointed.
     exit1, out1, session1 = harness._invoke(
         monkeypatch,
         tmp_path,
@@ -574,11 +574,12 @@ def test_e2e_public_cli_identity_snapshot_glue_no_redispatch(monkeypatch, tmp_pa
         extra_argv=extra,
         responses=[harness._response(content=answer)],
     )
-    assert exit1 == 0, exit1
+    assert exit1 == 1, exit1
     assert session1.post.call_count == 1
     assert out1.exists()
     result = _json.loads(out1.read_text(encoding="utf-8"))
-    assert "scored" in out1.read_text(encoding="utf-8")
+    assert result["answers"]["IQS_05"]["status"] == "error"
+    assert result["answers"]["IQS_05"]["score"] is None
     assert result.get("entity", {}).get("entity_id") == _REAL_UUID_ENTITY
 
     stores = list(tmp_path.rglob("quick_scan_work.sqlite"))
@@ -589,7 +590,7 @@ def test_e2e_public_cli_identity_snapshot_glue_no_redispatch(monkeypatch, tmp_pa
     finally:
         con.close()
     assert len(rows) == 1, rows
-    assert rows[0][0] not in {"pending", "leased"}, rows[0][0]
+    assert rows[0][0] == "leased", rows[0][0]
 
     # RUN2: same inputs — refused, zero additional HTTP (no re-dispatch)
     exit2, _out2, session2 = harness._invoke(
@@ -604,5 +605,9 @@ def test_e2e_public_cli_identity_snapshot_glue_no_redispatch(monkeypatch, tmp_pa
     finally:
         con.close()
     assert len(rows2) == 1
-    assert rows2[0][0] not in {"pending", "leased"}
+    assert rows2[0][0] == "leased"
+    store = QuickScanWorkStore(stores[0])
+    item = store.find_work_items(entity_id=_REAL_UUID_ENTITY, question_ids=["IQS_05"])["IQS_05"][0]
+    assert store.get_answer_checkpoint(item["work_item_id"]) is None
+    assert store.list_attempts(item["work_item_id"])[0]["phase"] == "response_available"
     assert attempts >= 1

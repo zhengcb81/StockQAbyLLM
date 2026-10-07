@@ -334,5 +334,10 @@ def policy_receipt(policy: SearchPolicy) -> dict[str, Any]:
         "mode": policy.mode,
         "admitted_routes": list(policy.admitted),
         "route_rejections": list(policy.rejections),
-        "external_dispatch_enabled": bool(policy.admitted),
+        "external_dispatch_enabled": False,
+        "external_dispatch_reason": (
+            "external_context_not_implemented"
+            if policy.requires_external and policy.admitted
+            else "no_admitted_external_route" if policy.requires_external else "native_mode"
+        ),
     }

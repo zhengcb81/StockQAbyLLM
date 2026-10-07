@@ -470,7 +470,8 @@ def test_route_admission_fails_closed_on_cost_rights_and_credentials(
     admitted = load_search_policy(_write_policy(tmp_path, _policy_document()))
     assert admitted.admitted == ("brave-primary",)
     receipt = policy_receipt(admitted)
-    assert receipt["external_dispatch_enabled"] is True
+    assert receipt["external_dispatch_enabled"] is False
+    assert receipt["external_dispatch_reason"] == "external_context_not_implemented"
     assert receipt["mode"] == "external_context"
 
     monkeypatch.delenv("BRAVE_API_KEY", raising=False)

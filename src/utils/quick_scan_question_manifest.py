@@ -246,6 +246,12 @@ def _classify(
     if not compatible:
         # a different frozen scope/identity is a different logical item
         return "dispatch", 1, None
+    # A changed prompt cannot supersede an unresolved paid request.
+    unresolved = [row for row in compatible if row["status"] in {"leased", "uncertain"}]
+    if unresolved:
+        current = max(unresolved, key=lambda row: row["generation"])
+        action = "reconcile" if current["status"] == "uncertain" else "in_flight"
+        return action, current["generation"], current["work_item_id"]
     matching = [row for row in compatible if row["question_fingerprint"] == fingerprint]
     if not matching:
         # the frozen prompt changed: the stored answer is expired for this
@@ -303,6 +309,7 @@ def plan_manifest_dispatch(
     plan: list[dict[str, Any]] = []
     counts: dict[str, int] = {}
     generation_by_question: dict[str, int] = {}
+    routing_fingerprint_by_question: dict[str, str] = {}
     for question in questions:
         question_id = question["id"]
         binding = bindings.get(question_id) or {"scope": "unbound", "scope_id": ""}
@@ -327,8 +334,15 @@ def plan_manifest_dispatch(
             if action == "dispatch" and work_item_id is None:
                 generation = base_generation
         counts[action] = counts.get(action, 0) + 1
-        if action == "expired_dispatch":
+        if generation != base_generation:
             generation_by_question[question_id] = generation
+        if work_item_id is not None:
+            bound_row = next(
+                row for row in rows_by_id[question_id] if row["work_item_id"] == work_item_id
+            )
+            routing_fingerprint_by_question[question_id] = store.get_item(work_item_id)[
+                "routing_fingerprint"
+            ]
         plan.append(
             {
                 "question_id": question_id,
@@ -354,6 +368,7 @@ def plan_manifest_dispatch(
         "counts": dict(sorted(counts.items())),
         "model_calls_planned": model_calls_planned,
         "generation_by_question": dict(sorted(generation_by_question.items())),
+        "routing_fingerprint_by_question": dict(sorted(routing_fingerprint_by_question.items())),
         "questions": plan,
     }
 

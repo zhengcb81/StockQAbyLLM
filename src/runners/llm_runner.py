@@ -26,6 +26,7 @@ from src.config.config_manager import ConfigManager
 from src.config.config_provider import ConfigProvider
 from src.config.json_config_manager import JSONConfigManager
 from src.config.llm_config import LLMConfig
+from src.core.exceptions import ProcessingError
 from src.core.models import Question
 from src.core.qa_engine import QAEngine
 from src.interfaces.search_provider import SearchProvider
@@ -159,10 +160,13 @@ class QuickScanWorkLifecycle:
         c06_authority: Optional[Dict[str, Any]] = None,
         scope_by_question: Optional[Dict[str, Dict[str, str]]] = None,
         generation_by_question: Optional[Dict[str, int]] = None,
+        routing_fingerprint_by_question: Optional[Dict[str, str]] = None,
+        transport_managed: bool = False,
     ) -> None:
         if (budget_policy is None) != (budget_route is None):
             raise ValueError("budget_policy and budget_route must be supplied together")
         self._store = store
+        self._transport_managed = transport_managed
         self._entity_id = entity_id
         self._run_id = run_id
         self._scan_id = scan_id
@@ -184,6 +188,7 @@ class QuickScanWorkLifecycle:
         # never rebind an already-frozen work item.
         self._scope_by_question = dict(scope_by_question or {})
         self._generation_by_question = dict(generation_by_question or {})
+        self._routing_fingerprint_by_question = dict(routing_fingerprint_by_question or {})
 
     def _dispatch_binding(self, question_id: str) -> tuple[str, str, int]:
         """Resolve one question's frozen scope and generation (Q13).
@@ -236,7 +241,9 @@ class QuickScanWorkLifecycle:
                 source_binding_refs=list(self._identity["source_binding_refs"]),
                 identity_snapshot_sha256=self._identity["identity_snapshot_sha256"],
                 question_fingerprint=fingerprint,
-                routing_fingerprint=self._routing_fingerprint,
+                routing_fingerprint=self._routing_fingerprint_by_question.get(
+                    question_id, self._routing_fingerprint
+                ),
                 run_id=self._run_id,
                 scan_id=self._scan_id,
             )
@@ -254,6 +261,13 @@ class QuickScanWorkLifecycle:
                 "claimed": False,
                 "reason": "work_item_not_pending",
                 "work_item_id": work_item_id,
+            }
+        if self._transport_managed:
+            return {
+                "claimed": True,
+                "reason": "claimed",
+                "work_item_id": work_item_id,
+                "lease": lease,
             }
         prompt_sha = hashlib.sha256(
             (self._identity.get("identity_snapshot_sha256", "") + "|" + text).encode("utf-8")
@@ -347,7 +361,9 @@ class QuickScanWorkLifecycle:
                 source_binding_refs=list(self._identity["source_binding_refs"]),
                 identity_snapshot_sha256=self._identity["identity_snapshot_sha256"],
                 question_fingerprint=fingerprint,
-                routing_fingerprint=self._routing_fingerprint,
+                routing_fingerprint=self._routing_fingerprint_by_question.get(
+                    question_id, self._routing_fingerprint
+                ),
                 run_id=self._run_id,
                 scan_id=self._scan_id,
             )
@@ -374,7 +390,73 @@ class QuickScanWorkLifecycle:
         except Exception as exc:  # noqa: BLE001 - a seal gap must not lose the answer
             logger.error("检查点封存未完成（%s）——交由 --seal-deliveries 补封", exc)
 
+    def dispatch_context(self, handle: Dict[str, Any]):
+        """Bind the claimed logical item; each actual POST owns its own attempt."""
+        from contextlib import ExitStack, nullcontext
+
+        from src.utils.quick_scan_work_transport import (
+            bind_quick_scan_route,
+            bind_quick_scan_work,
+        )
+
+        if not self._transport_managed:
+            return nullcontext()
+        context = ExitStack()
+        context.enter_context(
+            bind_quick_scan_work(self._store, handle["work_item_id"], handle["lease"])
+        )
+        context.enter_context(
+            bind_quick_scan_route(
+                route_id=self._route_id,
+                provider=self._provider_name,
+                model_requested=self._model_requested,
+            )
+        )
+        return context
+
+    def _save_transport_checkpoint(self, handle: Dict[str, Any], result: Any) -> None:
+        """Save only the transport's final successful attempt; never record it twice."""
+        try:
+            from src.core.models import execution_receipt_for_checkpoint
+
+            answer = getattr(result, "answer", None)
+            metadata = getattr(answer, "metadata", None)
+            metadata = metadata if isinstance(metadata, dict) else {}
+            execution = metadata.get("execution")
+            execution = execution if isinstance(execution, dict) else {}
+            transport = execution.get("work_transport")
+            if not isinstance(transport, dict):
+                raise ValueError("missing authoritative transport binding")
+            attempt_id = transport.get("work_attempt_id")
+            receipt = execution_receipt_for_checkpoint(metadata)
+            if not isinstance(attempt_id, str) or receipt is None:
+                raise ValueError("missing final successful transport receipt")
+            payload = {
+                "entity_id": self._entity_id,
+                "question_id": getattr(getattr(result, "question", None), "question_id", None),
+                "status": getattr(answer, "status", None),
+                "score": getattr(answer, "score", None),
+                "description": getattr(answer, "text", ""),
+            }
+            _preflight_checkpoint(payload, receipt)
+            # Store checks same work/lease/model/request/hash and successful
+            # phase atomically. A forged final ID or receipt cannot save.
+            self._store.save_answer_checkpoint(
+                handle["work_item_id"],
+                handle["lease"],
+                attempt_id,
+                answer=payload,
+                execution_receipt=receipt,
+            )
+            self._seal_delivery(handle["work_item_id"])
+        except Exception as exc:  # noqa: BLE001 - retain authoritative transport state
+            logger.warning("transport checkpoint 拒绝（%s）——原请求状态保留", exc)
+            raise ProcessingError("快扫答案未能保存检查点；请恢复或核对本次回执") from exc
+
     def after_question(self, handle: Dict[str, Any], result: Any) -> None:
+        if self._transport_managed:
+            self._save_transport_checkpoint(handle, result)
+            return
         try:
             from src.utils.quick_scan_work_transport import _OWN_RESERVATION
 
@@ -492,6 +574,10 @@ class QuickScanWorkLifecycle:
             logger.error("record_attempt_outcome 失败（%s）", exc)
 
     def after_question_failed(self, handle: Dict[str, Any], error_message: str) -> None:
+        if self._transport_managed:
+            # HTTP already persisted failure/unknown. If no HTTP was sent,
+            # existing fenced lease recovery proves unsent and releases it.
+            return
         try:
             from src.utils.quick_scan_work_transport import _OWN_RESERVATION
 
@@ -1159,6 +1245,10 @@ class LLMRunner:
                         for item in search_document.rejections
                     )
                     raise ValueError("external_search_routes_unadmitted: " + rejections)
+                if search_document.requires_external:
+                    raise ValueError(
+                        "external_context_not_implemented: admitted routes have no production dispatcher"
+                    )
 
             # Q10/DB-07: resolve the C06 delivery authority BEFORE any HTTP.
             # An explicitly supplied but invalid document fails the run closed;
@@ -1305,6 +1395,7 @@ class LLMRunner:
                 # lifecycle uses to attach work items.
                 scope_bindings: Dict[str, Dict[str, str]] = {}
                 generation_overrides: Dict[str, int] = {}
+                routing_overrides: Dict[str, str] = {}
                 if manifest is not None:
                     from src.utils.quick_scan_question_manifest import (
                         manifest_scope_bindings,
@@ -1325,6 +1416,7 @@ class LLMRunner:
                         bindings=scope_bindings,
                     )
                     generation_overrides = dispatch_plan["generation_by_question"]
+                    routing_overrides = dispatch_plan["routing_fingerprint_by_question"]
                     print(json.dumps(dispatch_plan, ensure_ascii=False, sort_keys=True))
                 # Q09: reserve-before-dispatch rides the activated lifecycle —
                 # when a policy is configured, the pair reserves against the
@@ -1368,9 +1460,17 @@ class LLMRunner:
                     budget_policy=budget_pair_policy,
                     budget_route=budget_pair_route,
                     model_requested=lifecycle_model or "quick-scan",
+                    route_id=(
+                        primary_route or (quick_scan_policy or {}).get("routes", [{}])[0]
+                    ).get("id", "cli"),
+                    provider_name=(
+                        primary_route or (quick_scan_policy or {}).get("routes", [{}])[0]
+                    ).get("provider_config_ref", "quick-scan-cli"),
                     c06_authority=c06_authority,
                     scope_by_question=scope_bindings,
                     generation_by_question=generation_overrides,
+                    routing_fingerprint_by_question=routing_overrides,
+                    transport_managed=True,
                 )
             qa_engine = QAEngine(llm_provider, answer_generator, work_item_lifecycle=work_lifecycle)
 

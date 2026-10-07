@@ -626,7 +626,11 @@ def test_runner_glue_reserves_before_dispatch(tmp_path: Path, monkeypatch) -> No
         model_policy=policy,
         responses=[harness._response(content=answer)],
     )
-    assert exit_code == 0, exit_code
+    # This provisional identity/model-mismatch fixture must report failure;
+    # actual transport still has exactly one prior budget admission.
+    assert exit_code == 1, exit_code
+    answer = _json.loads(out.read_text(encoding="utf-8"))["answers"]["IQS_05"]
+    assert answer["status"] == "error" and answer["score"] is None
     assert session.post.call_count == 1
 
     # reserve-before-dispatch actually happened through the public path:
@@ -637,8 +641,8 @@ def test_runner_glue_reserves_before_dispatch(tmp_path: Path, monkeypatch) -> No
         rows = con.execute("SELECT COUNT(*) FROM quick_scan_budget_attempt").fetchone()[0]
     finally:
         con.close()
-    # exactly ONE reserve for this send: the lifecycle mark is the single
-    # admission (begin_quick_scan_send skips its own while pre-admitted)
+    # Exactly ONE reserve belongs to the real transport send. Lifecycle
+    # activation must not add a duplicate synthetic reservation.
     assert rows == 1, rows
     totals = store.get_quick_scan_budget_status("quick-scan-test-policy")
     assert totals["requests"] >= 1, totals

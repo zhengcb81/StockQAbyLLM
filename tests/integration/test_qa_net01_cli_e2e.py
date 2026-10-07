@@ -414,10 +414,11 @@ def test_cli_e2e_search_policy_admission_gates_before_any_http(
         extra=["--search-policy", str(policy_file)],
     )
     captured = capsys.readouterr()
-    assert code == 0, captured.out
-    assert admitted_session.post.call_count == 2
+    assert code == 1, captured.out
+    assert admitted_session.post.call_count == 0
     assert '"admitted_routes": ["brave-primary"]' in captured.out
-    assert '"external_dispatch_enabled": true' in captured.out
+    assert '"external_dispatch_enabled": false' in captured.out
+    assert "external_context_not_implemented" in captured.out
 
 
 def test_cli_e2e_search_policy_template_marker_is_refused(monkeypatch, tmp_path, capsys) -> None:
@@ -479,3 +480,76 @@ def test_cli_e2e_missing_authority_blocks_then_restart_seals(monkeypatch, tmp_pa
     assert len(seal_report["sealed"]) == 2
     assert len(store.list_result_deliveries(states=["ready"], limit=10)) == 2
     assert session.post.call_count == 2  # no new model request on the restart
+
+
+def test_new_module_keeps_old_answers_hydratable_with_fresh_output(monkeypatch, tmp_path, capsys):
+    original = [dict(q) for q in QUESTIONS]
+    files = _setup(tmp_path)
+    code, cold = _run(monkeypatch, tmp_path, files)
+    capsys.readouterr()
+    assert code == 0 and cold.post.call_count == 2
+    monkeypatch.setattr(
+        sys.modules[__name__],
+        "QUESTIONS",
+        original + [{"question_id": "IQS_03", "text": "新增模块题面"}],
+    )
+    files = _setup(tmp_path)
+    published = tmp_path / "questions-module-v2.json"
+    published.write_bytes(files["questions"].read_bytes())
+    files["questions"] = published
+    files["output"] = tmp_path / "new-module-output.json"
+    # The owner's cold-run fixture cycles the full old list. For an increment
+    # only IQS_03 is sent; supply that one synthetic answer at the HTTP boundary.
+    original_response = HARNESS._response
+
+    def new_question_response(*args, **kwargs):
+        content = json.loads(kwargs["content"])
+        content["question_id"] = "IQS_03"
+        kwargs["content"] = json.dumps(content, ensure_ascii=False)
+        return original_response(*args, **kwargs)
+
+    monkeypatch.setattr(HARNESS, "_response", new_question_response)
+    code, warm = _run(monkeypatch, tmp_path, files)
+    captured = capsys.readouterr()
+    assert _plans(captured.out)[-1]["counts"] == {"dispatch": 1, "reuse": 2}
+    assert code == 0 and warm.post.call_count == 1
+    answers = json.loads(files["output"].read_text(encoding="utf-8"))["answers"]
+    assert all(answers[q["question_id"]]["status"] == "scored" for q in original), (
+        "Adding a module must not break immutable routing binding of successful old questions",
+        answers,
+    )
+
+
+def test_completed_generation_two_restarts_without_reverting_to_one(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(
+        sys.modules[__name__], "QUESTIONS", [{"question_id": "IQS_01", "text": "第一版题面"}]
+    )
+    files = _setup(tmp_path)
+    published = tmp_path / "questions-generation-v1.json"
+    published.write_bytes(files["questions"].read_bytes())
+    files["questions"] = published
+    code, first = _run(monkeypatch, tmp_path, files)
+    capsys.readouterr()
+    assert code == 0 and first.post.call_count == 1
+    monkeypatch.setattr(
+        sys.modules[__name__], "QUESTIONS", [{"question_id": "IQS_01", "text": "第二版题面"}]
+    )
+    files = _setup(tmp_path)
+    published = tmp_path / "questions-generation-v2.json"
+    published.write_bytes(files["questions"].read_bytes())
+    files["questions"] = published
+    files["output"] = tmp_path / "generation-two.json"
+    code, refreshed = _run(monkeypatch, tmp_path, files)
+    captured = capsys.readouterr()
+    assert _plans(captured.out)[-1]["questions"][0]["generation"] == 2
+    assert code == 0 and refreshed.post.call_count == 1
+    files["output"] = tmp_path / "generation-two-resume.json"
+    code, resumed = _run(monkeypatch, tmp_path, files)
+    captured = capsys.readouterr()
+    plan = _plans(captured.out)[-1]
+    assert plan["questions"][0]["generation"] == 2 and plan["questions"][0]["action"] == "reuse"
+    assert code == 0 and resumed.post.call_count == 0
+    answer = json.loads(files["output"].read_text(encoding="utf-8"))["answers"]["IQS_01"]
+    assert (
+        answer["status"] == "scored"
+    ), "Reuse must hydrate generation2 rather than attach generation1"

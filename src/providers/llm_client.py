@@ -806,6 +806,7 @@ def _failed_attempt_receipt(
     error: Exception,
     *,
     provider: str,
+    protocol: Optional[str] = None,
 ) -> Dict[str, Any]:
     receipt: Dict[str, Any] = {
         "provider": provider,
@@ -824,6 +825,69 @@ def _failed_attempt_receipt(
         "web_search_calls": [],
         "failure_type": type(error).__name__,
     }
+    # Only explicit provider-reported model and complete usage can price
+    # a rejected request. HTTP status alone proves neither zero cost nor usage.
+    if protocol is not None:
+        try:
+            payload = response.json()
+            reported_model = payload.get("model") if isinstance(payload, dict) else None
+            raw_usage = payload.get("usage") if isinstance(payload, dict) else None
+            coherent = isinstance(raw_usage, dict)
+            if isinstance(raw_usage, dict):
+                for left, right in (
+                    ("input_tokens", "prompt_tokens"),
+                    ("output_tokens", "completion_tokens"),
+                ):
+                    if left in raw_usage and right in raw_usage:
+                        coherent = (
+                            coherent
+                            and type(raw_usage[left]) is int
+                            and type(raw_usage[right]) is int
+                            and raw_usage[left] == raw_usage[right]
+                        )
+                for detail in (
+                    "input_tokens_details",
+                    "prompt_tokens_details",
+                    "output_tokens_details",
+                    "completion_tokens_details",
+                ):
+                    if detail in raw_usage and not isinstance(raw_usage[detail], dict):
+                        coherent = False
+            usage = (
+                _normalize_provider_usage(
+                    raw_usage,
+                    protocol=protocol,
+                    observed_search_calls=None,
+                )
+                if coherent
+                else None
+            )
+            if usage is not None and isinstance(raw_usage, dict):
+                alternate = dict(raw_usage)
+                for primary, alias in (
+                    ("input_tokens", "prompt_tokens"),
+                    ("output_tokens", "completion_tokens"),
+                ):
+                    if primary in alternate and alias in alternate:
+                        del alternate[primary]
+                if (
+                    _normalize_provider_usage(
+                        alternate, protocol=protocol, observed_search_calls=None
+                    )
+                    != usage
+                ):
+                    usage = None  # Conflicting cache/reasoning details cannot underprice failure.
+            if (
+                isinstance(reported_model, str)
+                and reported_model.strip()
+                and len(reported_model) <= 160
+                and not any(ord(c) < 32 for c in reported_model)
+                and usage is not None
+            ):
+                receipt["actual_model"] = reported_model.strip()
+                receipt["usage"] = usage
+        except Exception:
+            receipt.pop("usage", None)  # Unavailable usage remains unpriced; never guess.
     provider_error_code = _response_provider_error_code(response)
     retry_after_seconds = _response_retry_after_seconds(response)
     if provider_error_code is not None:
@@ -1042,7 +1106,13 @@ class LLMClient:
             )
         except Exception as error:
             receipt = _failed_attempt_receipt(
-                response, attempt_id, started_at, prompt, error, provider=provider
+                response,
+                attempt_id,
+                started_at,
+                prompt,
+                error,
+                provider=provider,
+                protocol=protocol,
             )
             if work_attempt is not None:
                 work_attempt.record_failure(receipt)
@@ -1054,6 +1124,14 @@ class LLMClient:
                 request_id=result.request_id,
                 receipt=result.execution_metadata,
             )
+            # Private transport provenance comes from this actual HTTP,
+            # never from model-generated answer JSON or merged repair history.
+            from src.utils.quick_scan_work_store import _sanitized_receipt
+
+            result.execution_metadata["work_transport"] = {
+                "work_attempt_id": work_attempt.attempt_id,
+                "final_receipt": _sanitized_receipt(result.execution_metadata),
+            }
         return result
 
 
@@ -1155,7 +1233,13 @@ class AsyncLLMClient:
             )
         except Exception as error:
             receipt = _failed_attempt_receipt(
-                response, attempt_id, started_at, prompt, error, provider=provider
+                response,
+                attempt_id,
+                started_at,
+                prompt,
+                error,
+                provider=provider,
+                protocol=protocol,
             )
             if work_attempt is not None:
                 work_attempt.record_failure(receipt)
@@ -1167,4 +1251,12 @@ class AsyncLLMClient:
                 request_id=result.request_id,
                 receipt=result.execution_metadata,
             )
+            # Private transport provenance comes from this actual HTTP,
+            # never from model-generated answer JSON or merged repair history.
+            from src.utils.quick_scan_work_store import _sanitized_receipt
+
+            result.execution_metadata["work_transport"] = {
+                "work_attempt_id": work_attempt.attempt_id,
+                "final_receipt": _sanitized_receipt(result.execution_metadata),
+            }
         return result

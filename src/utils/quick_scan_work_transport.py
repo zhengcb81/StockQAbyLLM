@@ -403,14 +403,14 @@ def bind_quick_scan_format_repair() -> Iterator[None]:
 
 def begin_quick_scan_send(prompt: str, system_prompt: str) -> Optional[QuickScanSendAttempt]:
     """Commit prepared + send-intent state before permitting the HTTP request."""
-    if own_reservation_held():
+    work = _WORK_BINDING.get()
+    if own_reservation_held() and work is None:
         # Q09: THIS question's send was already admitted atomically at the
         # lifecycle's mark-time reserve (one send = one reserve); re-admitting
         # here would double-count the ledger and self-deadlock on our own
         # route slot. None = proceed without a second admission — the same
         # contract llm_client already uses when no binding exists.
         return None
-    work = _WORK_BINDING.get()
     route = _ROUTE_BINDING.get()
     budget = _BUDGET_BINDING.get()
     if work is None and budget is None:
