@@ -1,0 +1,47 @@
+{
+  "schema_version": "1.0.0",
+  "policy_id": "quick-scan-search-example-inert",
+  "source_reference": "../../references/search-and-llm-playbook.md",
+  "selection": {
+    "mode": "external_context",
+    "external_search_priority": [{"route_id": "brave-primary"}],
+    "answer_model_priority_source": "existing_stockqa_model_policy",
+    "hybrid_plan_reference": null
+  },
+  "external_routes": [
+    {
+      "route_id": "brave-primary",
+      "kind": "brave",
+      "endpoint": "https://api.search.example.invalid/v1/web/search",
+      "credential_env": "BRAVE_API_KEY",
+      "enabled": false,
+      "cost_bound_verified": false,
+      "pricing": {
+        "basis": "per_request",
+        "currency": "USD",
+        "unit_cost_micros": null,
+        "per_request_cap_micros": null,
+        "quota_group": null
+      },
+      "storage_rights": {
+        "confirmed": false,
+        "entitlement_ref": null
+      }
+    }
+  ],
+  "retrieval": {
+    "max_snippet_unicode_characters": 500,
+    "max_company_evidence_unicode_characters": 30000,
+    "max_json_unwrap_layers": 3,
+    "max_in_memory_response_bytes": 1000000,
+    "raw_response_persistence": false,
+    "search_ttl_seconds": null,
+    "empty_result_cooldown_seconds": null
+  },
+  "budget": {
+    "source": "existing_stockqa_shared_budget",
+    "include_search_model_repair_probe_and_discovery_requests": true,
+    "unknown_cost_action": "hold_reservation_and_reconcile",
+    "reset_on_restart": false
+  }
+}

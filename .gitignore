@@ -83,14 +83,22 @@ env/
 # 日志文件
 logs/
 *.log
+# QA-NET-01 交付日志的精确例外（不整类取消忽略）
+!docs/handoff/QA-NET-01/logs/
+!docs/handoff/QA-NET-01/logs/*.log
 
 # 输出文件
 outputs/
 *.json
 !src/config/quick_scan_model_policy.schema.json
 !src/config/quick_scan_rate_cards.schema.json
+!src/config/quick_scan_c06_authority.schema.json
+!src/config/quick_scan_search_policy.schema.json
 !examples/quick_scan_rate_cards.template.json
+!examples/quick_scan_search_policy.example.json
 !experiments/scoring_comparison/test_set.json
+!docs/handoff/QA-NET-01/handoff.json
+!docs/handoff/QA-NET-01/artifacts.json
 /quick_scan_health.sqlite*
 /quick_scan_work.sqlite*
 !llm_apis.json.example

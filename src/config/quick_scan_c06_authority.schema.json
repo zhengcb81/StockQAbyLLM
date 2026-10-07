@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "stockqa.quick_scan_c06_authority/1.0.0",
+  "title": "StockQA quick-scan C06 delivery authority",
+  "description": "Non-derivable C06 envelope facts the runner must be given before a checkpoint can be sealed into an exchange package. Absence or invalidity is a durable delivery block, never a fabricated field.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "contract_versions", "capabilities", "producer"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "contract_versions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "identity_schema",
+        "answer_schema",
+        "observation_schema",
+        "question_catalog",
+        "model_policy_schema"
+      ],
+      "properties": {
+        "identity_schema": {"type": "string", "minLength": 1, "maxLength": 80},
+        "answer_schema": {"type": "string", "minLength": 1, "maxLength": 80},
+        "observation_schema": {"type": "string", "minLength": 1, "maxLength": 80},
+        "question_catalog": {"type": "string", "minLength": 1, "maxLength": 80},
+        "model_policy_schema": {"type": "string", "minLength": 1, "maxLength": 80}
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "entity_security_identity_v1",
+          "standard_observation_v1",
+          "score_v1",
+          "fact_v1"
+        ]
+      }
+    },
+    "producer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["component_version", "build_id"],
+      "properties": {
+        "component_version": {"type": "string", "minLength": 1, "maxLength": 80},
+        "build_id": {"type": "string", "minLength": 1, "maxLength": 160}
+      }
+    }
+  }
+}

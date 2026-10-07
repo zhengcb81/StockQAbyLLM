@@ -1,0 +1,106 @@
+FF.F                                                                     [100%]
+================================== FAILURES ===================================
+_____________ test_runner_seals_checkpoint_into_valid_c06_package _____________
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/pytest-of-郑曾波/pytest-885/test_runner_seals_checkpoint_i0')
+
+    def test_runner_seals_checkpoint_into_valid_c06_package(tmp_path: Path) -> None:
+        authority = load_c06_authority(_write_authority(tmp_path))
+        store = QuickScanWorkStore(tmp_path / "work.sqlite")
+>       lifecycle = _lifecycle(store, authority=authority)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\unit\test_qa_net01_c06_seal.py:134:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+store = <src.utils.quick_scan_work_store.QuickScanWorkStore object at 0x000001377BDE5550>
+authority = {'schema_id': 'stockqa.quick_scan_c06_authority/1.0.0', 'schema_version': '1.0.0', 'authority_sha256': '288f722b47ac86..., 'answer_schema': 'quick-scan-answer-v1', 'observation_schema': '1.0.0', 'question_catalog': 'iqs-2026-10', ...}, ...}
+run_id = 'RUN_1'
+
+    def _lifecycle(store: QuickScanWorkStore, *, authority=None, run_id: str = "RUN_1"):
+        from src.runners.llm_runner import QuickScanWorkLifecycle
+
+>       return QuickScanWorkLifecycle(
+            store,
+            entity_id=UUID_ENTITY,
+            run_id=run_id,
+            scan_id="SCAN_1",
+            identity=dict(IDENTITY),
+            model_requested=MODEL,
+            c06_authority=authority,
+        )
+E       TypeError: QuickScanWorkLifecycle.__init__() got an unexpected keyword argument 'c06_authority'
+
+tests\unit\test_qa_net01_c06_seal.py:67: TypeError
+_____ test_missing_authority_records_durable_block_then_seals_on_restart ______
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/pytest-of-郑曾波/pytest-885/test_missing_authority_records0')
+
+    def test_missing_authority_records_durable_block_then_seals_on_restart(
+        tmp_path: Path,
+    ) -> None:
+        """DB-07: no authority -> durable block, work stays result_ready, nothing
+        fabricated; the restart entry seals the SAME checkpoint with model_calls=0."""
+        store = QuickScanWorkStore(tmp_path / "work.sqlite")
+>       lifecycle = _lifecycle(store, authority=None)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\unit\test_qa_net01_c06_seal.py:155:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+store = <src.utils.quick_scan_work_store.QuickScanWorkStore object at 0x000001377C1BD590>
+authority = None, run_id = 'RUN_1'
+
+    def _lifecycle(store: QuickScanWorkStore, *, authority=None, run_id: str = "RUN_1"):
+        from src.runners.llm_runner import QuickScanWorkLifecycle
+
+>       return QuickScanWorkLifecycle(
+            store,
+            entity_id=UUID_ENTITY,
+            run_id=run_id,
+            scan_id="SCAN_1",
+            identity=dict(IDENTITY),
+            model_requested=MODEL,
+            c06_authority=authority,
+        )
+E       TypeError: QuickScanWorkLifecycle.__init__() got an unexpected keyword argument 'c06_authority'
+
+tests\unit\test_qa_net01_c06_seal.py:67: TypeError
+________________ test_unknown_answer_status_cannot_be_packaged ________________
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/pytest-of-郑曾波/pytest-885/test_unknown_answer_status_can0')
+
+    def test_unknown_answer_status_cannot_be_packaged(tmp_path: Path) -> None:
+        """An answer the C06 adapter refuses to package must raise — the store
+        then keeps the durable block instead of an invented envelope."""
+        authority = load_c06_authority(_write_authority(tmp_path))
+        store = QuickScanWorkStore(tmp_path / "work.sqlite")
+>       lifecycle = _lifecycle(store, authority=None)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\unit\test_qa_net01_c06_seal.py:210:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+store = <src.utils.quick_scan_work_store.QuickScanWorkStore object at 0x000001377C1BD810>
+authority = None, run_id = 'RUN_1'
+
+    def _lifecycle(store: QuickScanWorkStore, *, authority=None, run_id: str = "RUN_1"):
+        from src.runners.llm_runner import QuickScanWorkLifecycle
+
+>       return QuickScanWorkLifecycle(
+            store,
+            entity_id=UUID_ENTITY,
+            run_id=run_id,
+            scan_id="SCAN_1",
+            identity=dict(IDENTITY),
+            model_requested=MODEL,
+            c06_authority=authority,
+        )
+E       TypeError: QuickScanWorkLifecycle.__init__() got an unexpected keyword argument 'c06_authority'
+
+tests\unit\test_qa_net01_c06_seal.py:67: TypeError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_qa_net01_c06_seal.py::test_runner_seals_checkpoint_into_valid_c06_package
+FAILED tests/unit/test_qa_net01_c06_seal.py::test_missing_authority_records_durable_block_then_seals_on_restart
+FAILED tests/unit/test_qa_net01_c06_seal.py::test_unknown_answer_status_cannot_be_packaged
+3 failed, 1 passed in 2.23s

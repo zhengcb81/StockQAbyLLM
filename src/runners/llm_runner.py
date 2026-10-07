@@ -156,6 +156,9 @@ class QuickScanWorkLifecycle:
         budget_policy: Optional[Dict[str, Any]] = None,
         budget_route: Optional[Dict[str, Any]] = None,
         deadline: Optional[float] = None,
+        c06_authority: Optional[Dict[str, Any]] = None,
+        scope_by_question: Optional[Dict[str, Dict[str, str]]] = None,
+        generation_by_question: Optional[Dict[str, int]] = None,
     ) -> None:
         if (budget_policy is None) != (budget_route is None):
             raise ValueError("budget_policy and budget_route must be supplied together")
@@ -175,6 +178,35 @@ class QuickScanWorkLifecycle:
         self._budget_policy = budget_policy
         self._budget_route = budget_route
         self._deadline = deadline
+        self._c06_authority = c06_authority
+        # Q13: the frozen manifest may bind a question to a different scope or
+        # a newer generation than the run default; both stay per-question and
+        # never rebind an already-frozen work item.
+        self._scope_by_question = dict(scope_by_question or {})
+        self._generation_by_question = dict(generation_by_question or {})
+
+    def _dispatch_binding(self, question_id: str) -> tuple[str, str, int]:
+        """Resolve one question's frozen scope and generation (Q13).
+
+        A manifest question whose scope cannot be bound (no authoritative
+        listing/segment ID) is a bounded refusal — never a silent fall-back to
+        entity scope, which would export the wrong scope in the C06 package.
+        """
+        binding = self._scope_by_question.get(question_id)
+        generation = self._generation_by_question.get(question_id, self._generation)
+        if binding is None:
+            return self._scope, self._scope_id, generation
+        scope = binding.get("scope")
+        scope_id = binding.get("scope_id")
+        if (
+            scope not in {"entity", "security", "segment"}
+            or not isinstance(scope_id, str)
+            or not scope_id
+        ):
+            raise ValueError(f"question scope binding is unresolved for {question_id}")
+        if scope == "entity" and scope_id != self._entity_id:
+            raise ValueError("entity scope_id must equal the run entity")
+        return scope, scope_id, generation
 
     def before_question(self, question: Question) -> Dict[str, Any]:
         # Q09 step3: the time cap stops NEW dispatch only — no claim, no
@@ -190,12 +222,13 @@ class QuickScanWorkLifecycle:
         )
         fingerprint = hashlib.sha256(text.encode("utf-8")).hexdigest()
         try:
+            scope, scope_id, generation = self._dispatch_binding(question_id)
             row = self._store.create_or_attach(
                 entity_id=self._entity_id,
                 question_id=question_id,
-                generation=self._generation,
-                scope=self._scope,
-                scope_id=self._scope_id,
+                generation=generation,
+                scope=scope,
+                scope_id=scope_id,
                 identity_revision=self._identity["identity_revision"],
                 source_binding_version=self._identity["source_binding_version"],
                 identity_state=self._identity["identity_state"],
@@ -300,12 +333,13 @@ class QuickScanWorkLifecycle:
         )
         fingerprint = hashlib.sha256(text.encode("utf-8")).hexdigest()
         try:
+            scope, scope_id, generation = self._dispatch_binding(question_id)
             row = self._store.create_or_attach(
                 entity_id=self._entity_id,
                 question_id=question_id,
-                generation=self._generation,
-                scope=self._scope,
-                scope_id=self._scope_id,
+                generation=generation,
+                scope=scope,
+                scope_id=scope_id,
                 identity_revision=self._identity["identity_revision"],
                 source_binding_version=self._identity["source_binding_version"],
                 identity_state=self._identity["identity_state"],
@@ -324,6 +358,21 @@ class QuickScanWorkLifecycle:
         if checkpoint:
             logger.info("Q07 水合已存检查点（%s）", question_id)
         return checkpoint
+
+    def _seal_delivery(self, work_item_id: str) -> None:
+        """Q10: settle a freshly persisted checkpoint into a sealed C06 package
+        or a durable block (authority/fields the adapter refuses to invent).
+
+        Never raises: the checkpoint stays ``result_ready`` either way and the
+        public ``--seal-deliveries`` entry re-runs this with zero model calls.
+        """
+        try:
+            from src.utils.quick_scan_delivery_seal import seal_result_delivery
+
+            outcome = seal_result_delivery(self._store, work_item_id, authority=self._c06_authority)
+            logger.info("Q10 检查点落定 → %s（%s）", outcome["action"], work_item_id)
+        except Exception as exc:  # noqa: BLE001 - a seal gap must not lose the answer
+            logger.error("检查点封存未完成（%s）——交由 --seal-deliveries 补封", exc)
 
     def after_question(self, handle: Dict[str, Any], result: Any) -> None:
         try:
@@ -357,7 +406,13 @@ class QuickScanWorkLifecycle:
                     status = getattr(answer, "status", None)
                     score = getattr(answer, "score", None)
                     shape_ok = (
-                        status in {"scored", "unknown", "insufficient_evidence", "not_applicable"}
+                        status
+                        in {
+                            "scored",
+                            "unknown",
+                            "insufficient_evidence",
+                            "not_applicable",
+                        }
                         and (
                             type(score) is int and 1 <= score <= 10
                             if status == "scored"
@@ -411,6 +466,7 @@ class QuickScanWorkLifecycle:
                         execution_receipt=receipt,
                     )
                     logger.info("Q07 检查点已存（%s）", answer_payload["question_id"])
+                    self._seal_delivery(handle["work_item_id"])
                     return
                 except Exception as exc:  # noqa: BLE001
                     if recorded:
@@ -619,6 +675,27 @@ def _spend_authorization_preflight(path: Optional[str]) -> Optional[str]:
         return "spend_authorization_missing_pricing_snapshot"
     if not isinstance(payload.get("authorized_at"), str) or not payload["authorized_at"].strip():
         return "spend_authorization_invalid_authorized_at"
+    return None
+
+
+def load_run_c06_authority(path: Optional[str]) -> Optional[Dict[str, Any]]:
+    """Resolve the C06 delivery authority for one run (Q10/DB-07).
+
+    An explicit ``--c06-authority`` path must load successfully — a malformed
+    document is a configuration error and fails before any dispatch. Without
+    the flag the conventional cwd-relative file is used when present; its
+    absence returns ``None``, which the seal step turns into a durable block.
+    """
+    from src.utils.quick_scan_c06_authority import (
+        DEFAULT_AUTHORITY_FILENAME,
+        load_c06_authority,
+    )
+
+    if path is not None:
+        return load_c06_authority(path)
+    conventional = Path(DEFAULT_AUTHORITY_FILENAME)
+    if conventional.is_file():
+        return load_c06_authority(conventional)
     return None
 
 
@@ -856,6 +933,11 @@ class LLMRunner:
         require_search: bool = False,
         identity_snapshot: Optional[str] = None,
         spend_authorization: Optional[str] = None,
+        c06_authority: Optional[str] = None,
+        seal_deliveries: bool = False,
+        question_manifest: Optional[str] = None,
+        security_scope_id: Optional[str] = None,
+        search_policy: Optional[str] = None,
     ) -> int:
         """运行LLM模式处理。
 
@@ -869,11 +951,21 @@ class LLMRunner:
             config_format: 配置文件格式
             identity_snapshot: 可选；W04 ``identity-export-g2b`` 身份包 JSON
                 路径——提供后逐题 work-item 生命周期激活（Q06），缺省关闭。
+            c06_authority: 可选；版本化 C06 权威文档路径（Q10）。显式提供
+                却无效时在任何 HTTP 之前失败关闭；缺省时按约定路径查找，
+                找不到则检查点落 durable block（DB-07），不猜补字段。
+            seal_deliveries: 重启/补封入口——只把已落定的检查点封存或记录
+                阻断，模型请求恒为 0，不需要 --company/--batch。
 
         Returns:
             退出码（0 表示成功，1 表示失败）
         """
         # 验证参数互斥性
+        if seal_deliveries:
+            if company or batch_file:
+                raise ValueError("--seal-deliveries 不能与 company/batch 同时使用")
+            return self._run_seal_deliveries(c06_authority=c06_authority)
+
         if company and batch_file:
             raise ValueError("不能同时使用 company 和 batch_file 参数")
 
@@ -887,6 +979,17 @@ class LLMRunner:
             raise ValueError("--require-search必须显式提供 --entity-id，不能从公司名称猜测")
         if identity_snapshot and not require_search:
             raise ValueError("--identity-snapshot 需要与 --require-search 同时使用")
+        if question_manifest is not None and not require_search:
+            raise ValueError("--question-manifest 需要与 --require-search 同时使用")
+        if question_manifest is not None and not identity_snapshot:
+            raise ValueError(
+                "--question-manifest 需要 --identity-snapshot：增量派发计划必须"
+                "对账已有 work item，不能只凭题面重问"
+            )
+        if security_scope_id is not None and question_manifest is None:
+            raise ValueError("--security-scope-id 只在 --question-manifest 下生效")
+        if search_policy is not None and not require_search:
+            raise ValueError("--search-policy 需要与 --require-search 同时使用")
         # B01-a/BENCH-02: the public quick-scan entry fails closed on
         # zero/unknown spend authorization BEFORE creating any dispatchable
         # attempt — an explicit bounded blocked result, a fresh auditable run
@@ -925,6 +1028,10 @@ class LLMRunner:
                 entity_id=entity_id,
                 require_search=require_search,
                 identity_payload=identity_payload,
+                c06_authority_path=c06_authority,
+                question_manifest=question_manifest,
+                security_scope_id=security_scope_id,
+                search_policy=search_policy,
             )
         else:
             self.logger.info("批量股票分析模式")
@@ -939,6 +1046,27 @@ class LLMRunner:
                 config_format=config_format,
             )
 
+    def _run_seal_deliveries(self, *, c06_authority: Optional[str]) -> int:
+        """Q10 public recovery entry: settle checkpoints into C06 packages.
+
+        Zero model requests, zero HTTP — it only reads the durable store,
+        seals what the authority now allows, and records blocks for the rest.
+        """
+        from src.utils.quick_scan_delivery_seal import seal_pending_deliveries
+
+        authority = load_run_c06_authority(c06_authority)
+        llm_config = LLMConfig("llm_apis.json")
+        store = QuickScanWorkStore(llm_config.config_file.parent / "quick_scan_work.sqlite")
+        report = seal_pending_deliveries(store, authority=authority)
+        payload = {
+            "schema": "stockqa.seal_deliveries/1.0.0",
+            "authority_sha256": None if authority is None else authority["authority_sha256"],
+            "store": str(store.path),
+            **report,
+        }
+        print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+        return 0
+
     def _run_single_company(
         self,
         company: str,
@@ -949,6 +1077,10 @@ class LLMRunner:
         entity_id: Optional[str] = None,
         require_search: bool = False,
         identity_payload: Optional[Dict[str, Any]] = None,
+        c06_authority_path: Optional[str] = None,
+        question_manifest: Optional[str] = None,
+        security_scope_id: Optional[str] = None,
+        search_policy: Optional[str] = None,
     ) -> int:
         """运行单公司处理模式。
 
@@ -963,6 +1095,9 @@ class LLMRunner:
             退出码
         """
         try:
+            # Bound on every path below before first read, so no branch can
+            # observe an unbound name (explicit over implicit control flow).
+            c06_authority: Optional[Dict[str, Any]] = None
             if require_search and config_format != "json":
                 raise ValueError("--require-search要求JSON题目文件中的显式question_id")
             config_manager: ConfigProvider
@@ -981,6 +1116,63 @@ class LLMRunner:
             ):
                 raise ValueError("--require-search要求每道题提供稳定question_id")
 
+            # Q13: the frozen questionnaire manifest is consumed and BOUND to
+            # the loaded question file before any attempt, reservation or HTTP.
+            # Duplicate IDs, truncation, re-worded prompts or a cross-module
+            # replacement conflict are refused here with a bounded reason.
+            manifest: Optional[Dict[str, Any]] = None
+            if question_manifest is not None:
+                from src.utils.quick_scan_question_manifest import (
+                    bind_manifest_to_questions,
+                    load_question_manifest,
+                )
+
+                manifest = load_question_manifest(question_manifest)
+                bind_manifest_to_questions(manifest, cast(List[Question], questions))
+                self.logger.info(
+                    "冻结问卷已校验（%s 题，manifest %s）",
+                    manifest["question_count"],
+                    manifest["manifest_sha256"][:16],
+                )
+
+            # Q02: import and admit the versioned search policy BEFORE any
+            # attempt. The IQS fillable template is refused as non-executable,
+            # and an external mode with no admitted route fails closed instead
+            # of silently falling back to native search.
+            if search_policy is not None:
+                from src.config.quick_scan_search_policy import (
+                    load_search_policy,
+                    policy_receipt,
+                )
+
+                search_document = load_search_policy(search_policy)
+                print(
+                    json.dumps(
+                        policy_receipt(search_document),
+                        ensure_ascii=False,
+                        sort_keys=True,
+                    )
+                )
+                if search_document.requires_external and not search_document.admitted:
+                    rejections = ",".join(
+                        f"{item['route_id']}:{item['reason']}"
+                        for item in search_document.rejections
+                    )
+                    raise ValueError("external_search_routes_unadmitted: " + rejections)
+
+            # Q10/DB-07: resolve the C06 delivery authority BEFORE any HTTP.
+            # An explicitly supplied but invalid document fails the run closed;
+            # an absent conventional document means every checkpoint settles as
+            # a durable block instead of an invented envelope field.
+            c06_authority = load_run_c06_authority(c06_authority_path)
+            if c06_authority is not None:
+                self.logger.info("C06 权威文档已加载（%s）", c06_authority["authority_sha256"][:16])
+            elif c06_authority_path is None:
+                self.logger.warning(
+                    "未找到 C06 权威文档：检查点将记录 durable block，稍后由 "
+                    "--seal-deliveries 补封（模型请求不增加）"
+                )
+
             self.logger.info(f"\n成功加载 {len(questions)} 个问题")
             self.logger.info(f"配置文件: {config} ({config_format}格式)")
             self.logger.info("输出文件: %s\n", output)
@@ -992,6 +1184,7 @@ class LLMRunner:
             quick_scan_policy = None
             budget_store = None
             cost_resolver = None
+            llm_config: Optional[LLMConfig] = None
             if provider is None and not require_search:
                 raise ValueError("provider 参数不能为 None")
             if require_search:
@@ -1098,9 +1291,41 @@ class LLMRunner:
             if identity_payload is not None:
                 if not entity_id:
                     raise ValueError("--identity-snapshot 需要 --entity-id")
+                if llm_config is None:
+                    # --identity-snapshot requires --require-search, which is
+                    # the only branch that binds the quick-scan config; keep the
+                    # dependency explicit instead of relying on branch order.
+                    raise RuntimeError("quick-scan lifecycle binding: llm config is not bound")
                 work_store = budget_store or QuickScanWorkStore(
                     llm_config.config_file.parent / "quick_scan_work.sqlite"
                 )
+                # Q13: the incremental plan over the frozen manifest is a
+                # read-only receipt printed BEFORE dispatch; its per-question
+                # scope/generation bindings are the only authority the
+                # lifecycle uses to attach work items.
+                scope_bindings: Dict[str, Dict[str, str]] = {}
+                generation_overrides: Dict[str, int] = {}
+                if manifest is not None:
+                    from src.utils.quick_scan_question_manifest import (
+                        manifest_scope_bindings,
+                        plan_manifest_dispatch,
+                    )
+
+                    frozen_entity = entity_id
+                    scope_bindings = manifest_scope_bindings(
+                        manifest,
+                        entity_id=frozen_entity,
+                        security_scope_id=security_scope_id,
+                    )
+                    dispatch_plan = plan_manifest_dispatch(
+                        manifest,
+                        work_store,
+                        entity_id=frozen_entity,
+                        identity_snapshot_sha256=identity_payload["identity_snapshot_sha256"],
+                        bindings=scope_bindings,
+                    )
+                    generation_overrides = dispatch_plan["generation_by_question"]
+                    print(json.dumps(dispatch_plan, ensure_ascii=False, sort_keys=True))
                 # Q09: reserve-before-dispatch rides the activated lifecycle —
                 # when a policy is configured, the pair reserves against the
                 # FIRST ELIGIBLE route (the cascade may fall back afterwards;
@@ -1108,6 +1333,7 @@ class LLMRunner:
                 # is the intended route — disclosed on the Q09 card).
                 budget_pair_policy = None
                 budget_pair_route = None
+                primary_route = None
                 if quick_scan_policy is not None and quick_scan_policy.get("configured"):
                     primary_route = next(
                         (r for r in quick_scan_policy.get("routes", []) if r.get("eligible")),
@@ -1121,6 +1347,17 @@ class LLMRunner:
                             "model_requested": primary_route["model"],
                             "quota_group": primary_route["quota_group"],
                         }
+                # Q10/Q07 glue: the attempt's ``model_requested`` must name the
+                # model that actually answers, otherwise the checkpoint contract
+                # (attempt.model_requested == receipt.actual_model) can never
+                # hold and NO checkpoint — hence no C06 package — would ever
+                # land on the production activation path.
+                if primary_route is not None:
+                    lifecycle_model = primary_route["model"]
+                elif quick_scan_policy is not None and quick_scan_policy.get("routes"):
+                    lifecycle_model = quick_scan_policy["routes"][0]["model"]
+                else:
+                    lifecycle_model = None
                 work_lifecycle = QuickScanWorkLifecycle(
                     work_store,
                     entity_id=entity_id,
@@ -1130,6 +1367,10 @@ class LLMRunner:
                     routing_fingerprint=routing_fingerprint_for(questions),
                     budget_policy=budget_pair_policy,
                     budget_route=budget_pair_route,
+                    model_requested=lifecycle_model or "quick-scan",
+                    c06_authority=c06_authority,
+                    scope_by_question=scope_bindings,
+                    generation_by_question=generation_overrides,
                 )
             qa_engine = QAEngine(llm_provider, answer_generator, work_item_lifecycle=work_lifecycle)
 
@@ -1171,7 +1412,7 @@ class LLMRunner:
                 print(f"\n{description_preview}")
 
             # 输出完整结果到JSON文件
-            if require_search:
+            if require_search and quick_scan_policy is not None:
                 qa_engine.output_results(
                     batch_result,
                     output,
@@ -1180,10 +1421,12 @@ class LLMRunner:
                         "company_name": company,
                         # Top-level fields show the configured preference; the
                         # per-question receipt names the route that answered.
-                        "provider_name": policy["routes"][0]["provider_config_ref"],
-                        "requested_model": policy["routes"][0]["model"],
+                        "provider_name": quick_scan_policy["routes"][0]["provider_config_ref"],
+                        "requested_model": quick_scan_policy["routes"][0]["model"],
                     },
                 )
+            elif require_search:
+                raise RuntimeError("quick-scan output binding: model policy is not bound")
             else:
                 qa_engine.output_results(batch_result, output)
 

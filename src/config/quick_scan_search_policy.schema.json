@@ -1,0 +1,128 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "stockqa.quick_scan_search_policy/1.0.0",
+  "title": "StockQA quick-scan search policy (execution-capable)",
+  "description": "StockQA-owned, versioned search policy imported from a filled reference document. The IQS template is NOT this document: template_only/execution_enabled markers are rejected on import, and a route without a verified cost bound or confirmed storage rights is never admitted.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "policy_id",
+    "selection",
+    "external_routes",
+    "retrieval",
+    "budget"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "policy_id": {"type": "string", "minLength": 1, "maxLength": 120},
+    "source_reference": {"type": ["string", "null"], "maxLength": 300},
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "external_search_priority"],
+      "properties": {
+        "mode": {"enum": ["native_only", "external_context", "explicit_hybrid"]},
+        "external_search_priority": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["route_id"],
+            "properties": {"route_id": {"type": "string", "minLength": 1, "maxLength": 120}}
+          }
+        },
+        "answer_model_priority_source": {"const": "existing_stockqa_model_policy"},
+        "hybrid_plan_reference": {"type": ["string", "null"], "maxLength": 300}
+      }
+    },
+    "external_routes": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "route_id",
+          "kind",
+          "endpoint",
+          "credential_env",
+          "enabled",
+          "cost_bound_verified",
+          "pricing",
+          "storage_rights"
+        ],
+        "properties": {
+          "route_id": {"type": "string", "minLength": 1, "maxLength": 120},
+          "kind": {"enum": ["brave", "tavily", "zai_rest", "zai_mcp_streamable"]},
+          "endpoint": {"type": "string", "pattern": "^https://"},
+          "credential_env": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]{1,60}$"},
+          "enabled": {"type": "boolean"},
+          "cost_bound_verified": {"type": "boolean"},
+          "pricing": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["basis", "currency"],
+            "properties": {
+              "basis": {"enum": ["per_request", "per_search", "quota_group"]},
+              "currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
+              "unit_cost_micros": {"type": ["integer", "null"], "minimum": 0},
+              "per_request_cap_micros": {"type": ["integer", "null"], "minimum": 0},
+              "quota_group": {"type": ["string", "null"], "maxLength": 120}
+            }
+          },
+          "storage_rights": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["confirmed", "entitlement_ref"],
+            "properties": {
+              "confirmed": {"type": "boolean"},
+              "entitlement_ref": {"type": ["string", "null"], "maxLength": 200}
+            }
+          }
+        }
+      }
+    },
+    "retrieval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_snippet_unicode_characters",
+        "max_company_evidence_unicode_characters",
+        "max_json_unwrap_layers",
+        "max_in_memory_response_bytes",
+        "raw_response_persistence"
+      ],
+      "properties": {
+        "max_snippet_unicode_characters": {"type": "integer", "minimum": 1, "maximum": 500},
+        "max_company_evidence_unicode_characters": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 30000
+        },
+        "max_json_unwrap_layers": {"type": "integer", "minimum": 1, "maximum": 3},
+        "max_in_memory_response_bytes": {"type": "integer", "minimum": 1024},
+        "raw_response_persistence": {"const": false},
+        "search_ttl_seconds": {"type": ["integer", "null"], "minimum": 0},
+        "empty_result_cooldown_seconds": {"type": ["integer", "null"], "minimum": 0}
+      }
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "include_search_model_repair_probe_and_discovery_requests",
+        "unknown_cost_action",
+        "reset_on_restart"
+      ],
+      "properties": {
+        "source": {"const": "existing_stockqa_shared_budget"},
+        "include_search_model_repair_probe_and_discovery_requests": {"const": true},
+        "unknown_cost_action": {"const": "hold_reservation_and_reconcile"},
+        "reset_on_restart": {"const": false}
+      }
+    }
+  }
+}

@@ -244,7 +244,9 @@ def main():
     )
 
     parser.add_argument(
-        "--override", action="store_true", help="覆盖已存在的输出文件（默认：跳过已存在的文件）"
+        "--override",
+        action="store_true",
+        help="覆盖已存在的输出文件（默认：跳过已存在的文件）",
     )
 
     parser.add_argument(
@@ -278,17 +280,48 @@ def main():
         default=None,
         help="B01-a：花费授权快照 JSON 路径（currency/hard_cap/pricing_snapshot_ref/authorized_at）；quick-scan require-search 运行必带，缺失或无效即入口 blocked（BENCH-02）",
     )
+    parser.add_argument(
+        "--c06-authority",
+        type=str,
+        default=None,
+        help="Q10：版本化 C06 交换包权威文档 JSON 路径（contract_versions/capabilities/producer）；缺失时检查点记 durable block，不猜补字段",
+    )
+    parser.add_argument(
+        "--seal-deliveries",
+        action="store_true",
+        help="Q10：重启补封入口——只把已落定的检查点封存成 C06 包或记录阻断，模型请求为 0；不与 --company/--batch 同时使用",
+    )
+    parser.add_argument(
+        "--question-manifest",
+        type=str,
+        default=None,
+        help="Q13：IQS 已发布冻结问卷 manifest.json（或其目录）；与 --config 的 questions.json 双向绑定校验，篡改在任何 HTTP 之前拒绝",
+    )
+    parser.add_argument(
+        "--security-scope-id",
+        type=str,
+        default=None,
+        help="Q13：manifest 中 scope=security 题目绑定的权威挂牌 ID（SEC_...）；缺省时这些题不派发并记入增量计划",
+    )
+    parser.add_argument(
+        "--search-policy",
+        type=str,
+        default=None,
+        help="Q02：StockQA 版本化搜索策略 JSON 路径；导入即校验并打印准入回执，external 模式无已准入路由则在任何 HTTP 前失败关闭",
+    )
 
     parser.add_argument("--verbose", "-v", action="store_true", help="启用详细日志输出")
 
     args = parser.parse_args()
 
     # 验证参数互斥性
-    if args.company and args.batch:
-        parser.error("不能同时使用 --company 和 --batch 参数")
-
-    if not args.company and not args.batch:
+    if args.seal_deliveries:
+        if args.company or args.batch:
+            parser.error("--seal-deliveries 不能与 --company/--batch 同时使用")
+    elif not args.company and not args.batch:
         parser.error("必须指定 --company 或 --batch 参数")
+    elif args.company and args.batch:
+        parser.error("不能同时使用 --company 和 --batch 参数")
 
     # 使用新的 LLMRunner
     try:
@@ -307,6 +340,11 @@ def main():
             require_search=args.require_search,
             identity_snapshot=args.identity_snapshot,
             spend_authorization=args.spend_authorization,
+            c06_authority=args.c06_authority,
+            seal_deliveries=args.seal_deliveries,
+            question_manifest=args.question_manifest,
+            security_scope_id=args.security_scope_id,
+            search_policy=args.search_policy,
         )
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error("运行失败: %s", e, exc_info=True)

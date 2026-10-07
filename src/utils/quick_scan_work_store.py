@@ -847,7 +847,10 @@ class QuickScanWorkStore:
                 {
                     ("table", "quick_scan_budget_policy"): _DDL_V3_ADDITIONS[0],
                     ("table", "quick_scan_budget_attempt"): _DDL_V3_ADDITIONS[1],
-                    ("index", "quick_scan_budget_attempt_policy_idx"): _DDL_V3_ADDITIONS[2],
+                    (
+                        "index",
+                        "quick_scan_budget_attempt_policy_idx",
+                    ): _DDL_V3_ADDITIONS[2],
                     ("index", "quick_scan_budget_attempt_slots_idx"): _DDL_V3_ADDITIONS[3],
                 }
             )
@@ -855,8 +858,14 @@ class QuickScanWorkStore:
             expected.update(
                 {
                     ("table", "quick_scan_budget_terminal"): _DDL_V4_ADDITIONS[0],
-                    ("trigger", "quick_scan_budget_terminal_no_update"): _DDL_V4_ADDITIONS[1],
-                    ("trigger", "quick_scan_budget_terminal_no_delete"): _DDL_V4_ADDITIONS[2],
+                    (
+                        "trigger",
+                        "quick_scan_budget_terminal_no_update",
+                    ): _DDL_V4_ADDITIONS[1],
+                    (
+                        "trigger",
+                        "quick_scan_budget_terminal_no_delete",
+                    ): _DDL_V4_ADDITIONS[2],
                 }
             )
         if schema_version >= 5:
@@ -865,11 +874,23 @@ class QuickScanWorkStore:
                     ("table", "quick_scan_result_delivery"): _DDL_V5_ADDITIONS[0],
                     ("index", "quick_scan_delivery_state_idx"): _DDL_V5_ADDITIONS[1],
                     ("table", "quick_scan_result_delivery_event"): _DDL_V5_ADDITIONS[2],
-                    ("trigger", "quick_scan_delivery_package_immutable"): _DDL_V5_ADDITIONS[3],
-                    ("trigger", "quick_scan_delivery_state_transition"): _DDL_V5_ADDITIONS[4],
+                    (
+                        "trigger",
+                        "quick_scan_delivery_package_immutable",
+                    ): _DDL_V5_ADDITIONS[3],
+                    (
+                        "trigger",
+                        "quick_scan_delivery_state_transition",
+                    ): _DDL_V5_ADDITIONS[4],
                     ("trigger", "quick_scan_delivery_no_delete"): _DDL_V5_ADDITIONS[5],
-                    ("trigger", "quick_scan_delivery_event_no_update"): _DDL_V5_ADDITIONS[6],
-                    ("trigger", "quick_scan_delivery_event_no_delete"): _DDL_V5_ADDITIONS[7],
+                    (
+                        "trigger",
+                        "quick_scan_delivery_event_no_update",
+                    ): _DDL_V5_ADDITIONS[6],
+                    (
+                        "trigger",
+                        "quick_scan_delivery_event_no_delete",
+                    ): _DDL_V5_ADDITIONS[7],
                     ("trigger", "quick_scan_delivery_ack_immutable"): _DDL_V5_ADDITIONS[8],
                 }
             )
@@ -1333,7 +1354,11 @@ class QuickScanWorkStore:
         cost_source_ref: str,
     ) -> dict:
         """Settle a retained reservation only after a verifiable provider cost/outcome."""
-        if resolved_outcome not in {"completed", "confirmed_failure", "confirmed_not_sent"}:
+        if resolved_outcome not in {
+            "completed",
+            "confirmed_failure",
+            "confirmed_not_sent",
+        }:
             raise ValueError("invalid reconciled outcome")
         actual_micros = _cost_to_micros(actual_cost, "actual_cost", allow_zero=True)
         if resolved_outcome == "confirmed_not_sent" and actual_micros != 0:
@@ -1449,7 +1474,10 @@ class QuickScanWorkStore:
             raise ValueError("invalid identity_revision")
         if type(source_binding_version) is not int or source_binding_version < 1:
             raise ValueError("invalid source_binding_version")
-        if not isinstance(identity_state, str) or identity_state not in {"provisional", "verified"}:
+        if not isinstance(identity_state, str) or identity_state not in {
+            "provisional",
+            "verified",
+        }:
             raise ValueError("invalid identity_state")
         if scope == "entity":
             if scope_id != entity_id:
@@ -1558,7 +1586,13 @@ class QuickScanWorkStore:
             if changed != 1:
                 raise LeaseFencedError("quick-scan work claim lost race")
             self._event(
-                connection, work_item_id, "claimed", epoch, now, old="pending", new="leased"
+                connection,
+                work_item_id,
+                "claimed",
+                epoch,
+                now,
+                old="pending",
+                new="leased",
             )
             return Lease(token, epoch)
 
@@ -2010,7 +2044,10 @@ class QuickScanWorkStore:
 
     @staticmethod
     def _checkpoint_record(
-        connection: sqlite3.Connection, row: sqlite3.Row, *, validate_status: bool = True
+        connection: sqlite3.Connection,
+        row: sqlite3.Row,
+        *,
+        validate_status: bool = True,
     ) -> dict:
         try:
             payload = json.loads(row["payload_json"])
@@ -2107,7 +2144,11 @@ class QuickScanWorkStore:
         try:
             _sha256(provenance.get("receipt_sha256"), "checkpoint receipt hash")
             _sha256(provenance.get("provider_prompt_sha256"), "provider prompt hash")
-            _safe_text(provenance.get("provider_attempt_id"), "provider attempt id", maximum=300)
+            _safe_text(
+                provenance.get("provider_attempt_id"),
+                "provider attempt id",
+                maximum=300,
+            )
             _timestamp(provenance.get("response_completed_at"), "response completion timestamp")
             _canonical_source_urls(provenance.get("source_urls"))
         except ValueError as error:
@@ -2498,7 +2539,8 @@ class QuickScanWorkStore:
                 reason_code=reason_code,
             )
             row = connection.execute(
-                "SELECT * FROM quick_scan_result_delivery WHERE delivery_id=?", (delivery_id,)
+                "SELECT * FROM quick_scan_result_delivery WHERE delivery_id=?",
+                (delivery_id,),
             ).fetchone()
             return self._result_delivery_record(row)
 
@@ -2598,7 +2640,8 @@ class QuickScanWorkStore:
                 now=now,
             )
             row = connection.execute(
-                "SELECT * FROM quick_scan_result_delivery WHERE delivery_id=?", (delivery_id,)
+                "SELECT * FROM quick_scan_result_delivery WHERE delivery_id=?",
+                (delivery_id,),
             ).fetchone()
             return self._result_delivery_record(row)
 
@@ -2612,7 +2655,14 @@ class QuickScanWorkStore:
         self, *, states: Optional[Sequence[str]] = None, limit: int = 100
     ) -> list[dict]:
         """List durable deliveries without choosing retry behavior for the caller."""
-        allowed = {"blocked", "ready", "send_uncertain", "delivered", "rejected", "conflict"}
+        allowed = {
+            "blocked",
+            "ready",
+            "send_uncertain",
+            "delivered",
+            "rejected",
+            "conflict",
+        }
         if type(limit) is not int or not 1 <= limit <= 1000:
             raise ValueError("delivery limit must be from 1 to 1000")
         if states is not None:
@@ -2893,3 +2943,41 @@ class QuickScanWorkStore:
                     (work_item_id,),
                 )
             ]
+
+    def find_work_items(
+        self,
+        *,
+        entity_id: str,
+        question_ids: Sequence[str],
+        limit: int = 1000,
+    ) -> dict[str, list[dict]]:
+        """Q13: read-only lookup of every generation of given logical questions.
+
+        The incremental manifest plan needs stored frozen fingerprints and
+        statuses WITHOUT claiming, mutating or re-binding anything; the caller
+        decides which questions still need dispatch.
+        """
+        if not isinstance(question_ids, (list, tuple)) or not question_ids:
+            raise ValueError("question_ids must be a non-empty sequence")
+        if len(question_ids) > 500:
+            raise ValueError("question_ids lookup is bounded to 500 ids")
+        if type(limit) is not int or not 1 <= limit <= 1000:
+            raise ValueError("work item lookup limit must be from 1 to 1000")
+        _safe(entity_id, "entity_id")
+        cleaned = [_safe(question_id, "question_id") for question_id in question_ids]
+        if len(set(cleaned)) != len(cleaned):
+            raise ValueError("question_ids must be unique")
+        with closing(self._connect()) as connection:
+            placeholders = ",".join("?" for _ in cleaned)
+            rows = connection.execute(
+                "SELECT work_item_id,question_id,generation,scope,scope_id,status,"
+                "question_fingerprint,identity_snapshot_sha256,identity_state,updated_at "
+                "FROM work_item WHERE entity_id=? AND question_id IN ("  # nosec B608 -- literal placeholders only
+                + placeholders
+                + ") ORDER BY question_id,generation LIMIT ?",
+                (entity_id, *cleaned, limit),
+            ).fetchall()
+        grouped: dict[str, list[dict]] = {question_id: [] for question_id in cleaned}
+        for row in rows:
+            grouped[row["question_id"]].append(dict(row))
+        return grouped

@@ -1,0 +1,124 @@
+FF                                                                       [100%]
+================================== FAILURES ===================================
+_________ test_cli_e2e_search_policy_admission_gates_before_any_http __________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000173C2F63950>
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/pytest-of-郑曾波/pytest-936/test_cli_e2e_search_policy_adm0')
+capsys = <_pytest.capture.CaptureFixture object at 0x00000173C2FE6270>
+
+    def test_cli_e2e_search_policy_admission_gates_before_any_http(
+        monkeypatch, tmp_path, capsys
+    ) -> None:
+        """An external mode whose routes are not admitted fails closed with zero
+        HTTP; an admitted route prints its admission receipt before dispatch."""
+        import os
+
+        files = _setup(tmp_path, with_authority=False)
+        policy_file = tmp_path / "search_policy.json"
+        policy_file.write_text(json.dumps(_search_policy()), encoding="utf-8")
+
+        monkeypatch.delenv("BRAVE_API_KEY", raising=False)
+>       code, session = _run(
+            monkeypatch,
+            tmp_path,
+            files,
+            manifest=False,
+            with_authority=False,
+            extra=["--search-policy", str(policy_file)],
+        )
+
+C:\Users\郑曾波\Projects\StockQAbyLLM\tests\integration\test_qa_net01_cli_e2e.py:393:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\郑曾波\Projects\StockQAbyLLM\tests\integration\test_qa_net01_cli_e2e.py:229: in _run
+    code = main_with_llm.main()
+           ^^^^^^^^^^^^^^^^^^^^
+C:\Users\郑曾波\Projects\StockQAbyLLM\main_with_llm.py:284: in main
+    args = parser.parse_args()
+           ^^^^^^^^^^^^^^^^^^^
+C:\Miniconda\Lib\argparse.py:1902: in parse_args
+    self.error(msg)
+C:\Miniconda\Lib\argparse.py:2658: in error
+    self.exit(2, _('%(prog)s: error: %(message)s\n') % args)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = ArgumentParser(prog='main_with_llm.py', usage=None, description='使用LLM分析公司股票投资价值', formatter_class=<class 'argparse.RawDescriptionHelpFormatter'>, conflict_handler='error', add_help=True)
+status = 2
+message = 'main_with_llm.py: error: unrecognized arguments: --search-policy C:\\Users\\郑曾波\\AppData\\Local\\Temp\\pytest-of-郑曾波\\pytest-936\\test_cli_e2e_search_policy_adm0\\search_policy.json\n'
+
+    def exit(self, status=0, message=None):
+        if message:
+            self._print_message(message, _sys.stderr)
+>       _sys.exit(status)
+E       SystemExit: 2
+
+C:\Miniconda\Lib\argparse.py:2645: SystemExit
+---------------------------- Captured stderr call -----------------------------
+usage: main_with_llm.py [-h] [--company COMPANY] [--provider PROVIDER]
+                        [--config CONFIG] [--output OUTPUT] [--batch FILE]
+                        [--override] [--config-format {json,txt}]
+                        [--require-search] [--entity-id ENTITY_ID]
+                        [--identity-snapshot IDENTITY_SNAPSHOT]
+                        [--spend-authorization SPEND_AUTHORIZATION]
+                        [--verbose]
+main_with_llm.py: error: unrecognized arguments: --search-policy C:\Users\郑曾波\AppData\Local\Temp\pytest-of-郑曾波\pytest-936\test_cli_e2e_search_policy_adm0\search_policy.json
+____________ test_cli_e2e_search_policy_template_marker_is_refused ____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000173C30A02B0>
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/pytest-of-郑曾波/pytest-936/test_cli_e2e_search_policy_tem0')
+capsys = <_pytest.capture.CaptureFixture object at 0x00000173C2F7A5D0>
+
+    def test_cli_e2e_search_policy_template_marker_is_refused(monkeypatch, tmp_path, capsys) -> None:
+        files = _setup(tmp_path, with_authority=False)
+        template = _search_policy()
+        template["template_only"] = True
+        template["execution_enabled"] = False
+        policy_file = tmp_path / "template_policy.json"
+        policy_file.write_text(json.dumps(template), encoding="utf-8")
+
+>       code, session = _run(
+            monkeypatch,
+            tmp_path,
+            files,
+            manifest=False,
+            with_authority=False,
+            extra=["--search-policy", str(policy_file)],
+        )
+
+C:\Users\郑曾波\Projects\StockQAbyLLM\tests\integration\test_qa_net01_cli_e2e.py:431:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\郑曾波\Projects\StockQAbyLLM\tests\integration\test_qa_net01_cli_e2e.py:229: in _run
+    code = main_with_llm.main()
+           ^^^^^^^^^^^^^^^^^^^^
+C:\Users\郑曾波\Projects\StockQAbyLLM\main_with_llm.py:284: in main
+    args = parser.parse_args()
+           ^^^^^^^^^^^^^^^^^^^
+C:\Miniconda\Lib\argparse.py:1902: in parse_args
+    self.error(msg)
+C:\Miniconda\Lib\argparse.py:2658: in error
+    self.exit(2, _('%(prog)s: error: %(message)s\n') % args)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = ArgumentParser(prog='main_with_llm.py', usage=None, description='使用LLM分析公司股票投资价值', formatter_class=<class 'argparse.RawDescriptionHelpFormatter'>, conflict_handler='error', add_help=True)
+status = 2
+message = 'main_with_llm.py: error: unrecognized arguments: --search-policy C:\\Users\\郑曾波\\AppData\\Local\\Temp\\pytest-of-郑曾波\\pytest-936\\test_cli_e2e_search_policy_tem0\\template_policy.json\n'
+
+    def exit(self, status=0, message=None):
+        if message:
+            self._print_message(message, _sys.stderr)
+>       _sys.exit(status)
+E       SystemExit: 2
+
+C:\Miniconda\Lib\argparse.py:2645: SystemExit
+---------------------------- Captured stderr call -----------------------------
+usage: main_with_llm.py [-h] [--company COMPANY] [--provider PROVIDER]
+                        [--config CONFIG] [--output OUTPUT] [--batch FILE]
+                        [--override] [--config-format {json,txt}]
+                        [--require-search] [--entity-id ENTITY_ID]
+                        [--identity-snapshot IDENTITY_SNAPSHOT]
+                        [--spend-authorization SPEND_AUTHORIZATION]
+                        [--verbose]
+main_with_llm.py: error: unrecognized arguments: --search-policy C:\Users\郑曾波\AppData\Local\Temp\pytest-of-郑曾波\pytest-936\test_cli_e2e_search_policy_tem0\template_policy.json
+=========================== short test summary info ===========================
+FAILED tests/integration/test_qa_net01_cli_e2e.py::test_cli_e2e_search_policy_admission_gates_before_any_http
+FAILED tests/integration/test_qa_net01_cli_e2e.py::test_cli_e2e_search_policy_template_marker_is_refused
+2 failed in 2.19s

@@ -1,0 +1,299 @@
+{
+  "schema_version": "1.0.0",
+  "lane_id": "stockqa",
+  "package_id": "QA-NET-01",
+  "status": "partial",
+  "snapshot": {
+    "repository": "C:/Users/郑曾波/Projects/StockQAbyLLM",
+    "base_ref": "master",
+    "base_commit": "6a9ff13864ebb160d5c4ab3cf2f42155d9f4aa99",
+    "result_ref": "",
+    "result_commit": null,
+    "worktree_before": {
+      "state": "dirty",
+      "dirty_path_count": 7,
+      "manifest_sha256": "dc0b3cad08c2a1b6bc17c5667e708e3f913e707d1c165b7471d53638255cba32"
+    },
+    "worktree_after": {
+      "state": "dirty",
+      "dirty_path_count": 27,
+      "manifest_sha256": "0cb5e3ebec7ba45e177d891ba21a35f88041aa562782b3a67b6e5c95fcb4256f"
+    }
+  },
+  "scope": {
+    "task_ids": [
+      "Q02",
+      "Q10",
+      "Q13"
+    ],
+    "authorization_scope_ref": "user_granted_full_repo_stockqa_with_per_batch_report",
+    "owned_paths": [
+      "C:/Users/郑曾波/Projects/StockQAbyLLM"
+    ],
+    "authorized_paths": [
+      "C:/Users/郑曾波/Projects/StockQAbyLLM"
+    ],
+    "changed_paths": [
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/.gitignore",
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/main_with_llm.py",
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/src/runners/llm_runner.py",
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/src/utils/quick_scan_work_store.py",
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/src/config/quick_scan_c06_authority.schema.json",
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/src/config/quick_scan_search_policy.py",
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/src/config/quick_scan_search_policy.schema.json",
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/src/providers/continuation_protocol.py",
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/src/providers/external_search_parsers.py",
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/src/providers/search_capability.py",
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/src/utils/quick_scan_c06_authority.py",
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/src/utils/quick_scan_delivery_seal.py",
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/src/utils/quick_scan_evidence.py",
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/src/utils/quick_scan_question_manifest.py",
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/examples/quick_scan_search_policy.example.json",
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/tests/unit/test_qa_net01_c06_seal.py",
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/tests/unit/test_qa_net01_question_manifest.py",
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/tests/unit/test_qa_net01_search_boundary.py",
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/tests/integration/test_qa_net01_cli_e2e.py",
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/docs/handoff/QA-NET-01/handoff.json",
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/docs/handoff/QA-NET-01/summary.md",
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/docs/handoff/QA-NET-01/interfaces.md",
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/docs/handoff/QA-NET-01/case-map.md",
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/docs/handoff/QA-NET-01/isolation.md",
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/docs/handoff/QA-NET-01/artifacts.json",
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/docs/handoff/QA-NET-01/logs/GREEN_batchA_c06_seal.log",
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/docs/handoff/QA-NET-01/logs/GREEN_batchB_question_manifest.log",
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/docs/handoff/QA-NET-01/logs/GREEN_batchC_search_boundary.log",
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/docs/handoff/QA-NET-01/logs/GREEN_batchD_cli_e2e.log",
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/docs/handoff/QA-NET-01/logs/GREEN_full_suite.log",
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/docs/handoff/QA-NET-01/logs/GREEN_static_gates.log",
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/docs/handoff/QA-NET-01/logs/RED_batchA_c06_seal.log",
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/docs/handoff/QA-NET-01/logs/RED_batchB_question_manifest.log",
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/docs/handoff/QA-NET-01/logs/RED_batchC_search_policy_cli.log",
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/docs/handoff/QA-NET-01/logs/RED_batchD_cli_e2e.log",
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/docs/handoff/QA-NET-01/logs/GREEN_checks_full.log",
+      "C:/Users/郑曾波/Projects/StockQAbyLLM/docs/handoff/QA-NET-01/logs/GREEN_precommit.log"
+    ],
+    "out_of_scope_writes": []
+  },
+  "interfaces": [
+    {
+      "name": "iqs.reference.search-and-llm-playbook",
+      "version": "1.0.0-2026-10-07",
+      "content_hash": "a5f4da87ea84df95e3757267ff40bc76e3fd7c0d6cdf755ea29ce1c877f44141",
+      "direction": "consumed",
+      "result": "compatible"
+    },
+    {
+      "name": "iqs.example.search-and-llm-policy.template",
+      "version": "1.0.0",
+      "content_hash": "494d389333cac50f1093dee3fb9dbcf5934647b93eb9c0befbe872c7fce404f8",
+      "direction": "consumed",
+      "result": "compatible"
+    },
+    {
+      "name": "iqs.schema.quick_scan.exchange (C06)",
+      "version": "1.0.0",
+      "content_hash": "efdf0e3427d1bbb73892e9573fbf3b1f0389218e3f5a0c8dff4ca0cd63764122",
+      "direction": "consumed",
+      "result": "compatible"
+    },
+    {
+      "name": "iqs.schema.quick_scan.query (C07)",
+      "version": "1.0.0",
+      "content_hash": "e7fc264b43d85e4cdd5c82a71b9fedb579dd0fc1196f3c5fde661f14fa1756f8",
+      "direction": "consumed",
+      "result": "compatible"
+    },
+    {
+      "name": "iqs.document.implementation-tasks",
+      "version": "observed-2026-10-07",
+      "content_hash": "a7c6167d4bf9aca56b529bd85bd70b0ae01a99125033e06dcbcdcbb06731bf60",
+      "direction": "consumed",
+      "result": "compatible"
+    },
+    {
+      "name": "stockqa.quick_scan_c06_authority",
+      "version": "1.0.0",
+      "content_hash": "16e04f844445221b370c9c3e50d84e5d28797b4b9e2a93ee94ca0ed210257de2",
+      "direction": "produced",
+      "result": "compatible"
+    },
+    {
+      "name": "stockqa.quick_scan_search_policy",
+      "version": "1.0.0",
+      "content_hash": "e525f6dcb2a0116ca64327b8e2da21cfb970ec18619e8cfcffc485b8c9f19876",
+      "direction": "produced",
+      "result": "compatible"
+    },
+    {
+      "name": "stockqa.consumes_iqs_question_manifest",
+      "version": "1.0.0",
+      "content_hash": "8409360c7e1d315cb865446a84d93c637a73ec985fb08d1d2688f1e111349746",
+      "direction": "produced",
+      "result": "compatible"
+    },
+    {
+      "name": "stockqa.evidence_package",
+      "version": "1.0.0",
+      "content_hash": "3946e8708dda5b9c8ecd90527e36ac08ae99625b46e317f7e51ffae3824f6e26",
+      "direction": "produced",
+      "result": "compatible"
+    },
+    {
+      "name": "stockqa.search_policy_admission",
+      "version": "1.0.0",
+      "content_hash": "8e36ff18e53ae3e4dd6dfa52d19aa3d032cd042bca61d121f80eb4cc7f1c4c4c",
+      "direction": "produced",
+      "result": "compatible"
+    },
+    {
+      "name": "stockqa.seal_deliveries",
+      "version": "1.0.0",
+      "content_hash": "1ecee70715e654d4c62aec2949ed48475ac9b9db30f4ffb71333dc7260c619ca",
+      "direction": "produced",
+      "result": "compatible"
+    },
+    {
+      "name": "stockwiki.public_import_ack (W05/W10)",
+      "version": "not_exercised",
+      "content_hash": "not_exercised",
+      "direction": "consumed",
+      "result": "blocked"
+    }
+  ],
+  "verification": {
+    "checks": [
+      {
+        "name": "package-targeted-suite",
+        "command": "python -B -X utf8 -m pytest -p no:base_url tests/unit/test_qa_net01_c06_seal.py tests/unit/test_qa_net01_question_manifest.py tests/unit/test_qa_net01_search_boundary.py tests/integration/test_qa_net01_cli_e2e.py -q --no-cov",
+        "scope": "27 new assertions covering Q10 glue, Q13 manifest increment and Q02 search boundary",
+        "result": "passed",
+        "passed": 27,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "full-repo-regression",
+        "command": "python -B -X utf8 -m pytest -p no:base_url -q",
+        "scope": "whole repository suite after this package's final code state; 4 skips are opt-in live E2E requiring env vars and keys; 20 remaining are pytest-benchmark cases",
+        "result": "passed",
+        "passed": 986,
+        "failed": 0,
+        "skipped": 4
+      },
+      {
+        "name": "type-gate-mypy",
+        "command": "python -B -X utf8 -m mypy src",
+        "scope": "55 source files; 0 errors",
+        "result": "passed",
+        "passed": 55,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "format-gate-black",
+        "command": "python -B -X utf8 -m black --check src/ tests/",
+        "scope": "27 package files unchanged with black 26.5.1 (pinned in .pre-commit-config.yaml)",
+        "result": "passed",
+        "passed": 112,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "quality-gate-pylint",
+        "command": "python -B -X utf8 -m pylint src/ --fail-under=9.0",
+        "scope": "score 9.34/10 against the 9.0 gate; gate has no per-item counts",
+        "result": "passed",
+        "passed": 0,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "security-gate-bandit",
+        "command": "python -B -X utf8 -m bandit -r src/ -f screen -ll",
+        "scope": "0 issues at severity >= medium",
+        "result": "passed",
+        "passed": 0,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "tdd-red-reproduction",
+        "command": "git stash push -- src/runners/llm_runner.py main_with_llm.py [src/utils/quick_scan_work_store.py] && python -B -X utf8 -m pytest -p no:base_url <package tests> -q --no-cov; git stash pop",
+        "scope": "4 RED logs in logs/ prove the Q10 glue, Q13 manifest path and both CLI gates are absent at HEAD",
+        "result": "passed",
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "import-sort-gate-isort",
+        "command": "python -B -X utf8 -m isort --profile black --check-only <package files>",
+        "scope": "isort 7.0.0 with --profile black; clean",
+        "result": "passed",
+        "passed": 0,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "repo-full-gate-checks-py",
+        "command": "python -B -X utf8 scripts/checks.py --full",
+        "scope": "repo's unified offline gate (G2-SQA-CHECKS): black, isort, mypy, bandit, pytest, smoke; 962 passed; exit 0",
+        "result": "passed",
+        "passed": 962,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "pre-commit-hooks",
+        "command": "python -B -X utf8 -m pre_commit run --files <package files>",
+        "scope": "trailing-whitespace / end-of-file / mixed-line-ending / check-json / black / isort / mypy / detect-secrets all Passed (GREEN_precommit.log)",
+        "result": "passed",
+        "passed": 0,
+        "failed": 0,
+        "skipped": 0
+      }
+    ],
+    "external_writes": false,
+    "network_calls": false,
+    "paid_calls": false,
+    "temporary_roots": [
+      {
+        "path_or_id": "%TEMP%/pytest-of-郑曾波/pytest-{889..947} session window",
+        "created": true,
+        "cleaned": true
+      },
+      {
+        "path_or_id": "%TEMP%/pytest-of-郑曾波/pytest-921 (other process lock)",
+        "created": false,
+        "cleaned": false
+      },
+      {
+        "path_or_id": "%TEMP%/qs_compose_probe",
+        "created": true,
+        "cleaned": true
+      },
+      {
+        "path_or_id": "%TEMP%/blackprobe",
+        "created": true,
+        "cleaned": true
+      }
+    ]
+  },
+  "review": {
+    "status": "not_run",
+    "snapshot_commit": null,
+    "findings": []
+  },
+  "open_items": [
+    "external_context/external retrieval -> evidence context -> answer prompt 生产发送接线未做：准入闸门、四路由离线 parser 与证据规整已验收，但注入回答 prompt 的路径留下一批，避免交付半接线的计费路径；当前无已准入路由的 external 模式在 HTTP 前失败关闭。",
+    "DeepSeek Anthropic 续写 route 保持未启用：分类器离线通过，但确切续写协议与可执行费用上界未确认（max_uses 实测 1->3 次搜索，不构成上界），按包指令保持 partial，不编造最终答案或搜索数。",
+    "Brave/Tavily/Z.ai 存储权与计价未确认 -> 全部未准入、发送 0；不得据已买 API 推断 storage rights。",
+    "manifest 中 scope=security 的题目需要调用方显式给出 --security-scope-id；缺省记 deferred_scope_unbound（0 发送），不自造 SEC_ 标识。",
+    "跨仓真实导入/ACK（StockWiki W05/W10）与 producer->consumer golden 本包未运行，交总控集中联调；不把 mock ACK 当真实接收端验收。",
+    "开工基线 6a9ff13；实施期间另一 lane（G2-SQA-CHECKS）在同一仓提交 5 个 commit 到 0f8fbfa（.github/workflows、.pre-commit-config.yaml、pyproject.toml、requirements-lock.txt、scripts/checks.py、CONTRIBUTING/README、.planning/、docs/implementation/g2-stockqa-checks/ 及其两个新测试），与本包 changed_paths 无交集；本包全部验证与提交均在 0f8fbfa 之上进行，未改动对方文件。",
+    "独立审查未做（review.status=not_run），不得自填 approved。",
+    "共享 TEMP 清理：按会话时间窗删除 22 个 pytest 编号根；首次删除 pytest-921（含非本包产物）因 PermissionError 被拒绝后立即停止该次删除，该根随后由 pytest 自身 basetemp 轮转移除；详见 isolation.md。",
+    "worktree_after 记录的是本包全部写入完成、提交之前的工作树状态（27 条状态行）；result_ref/result_commit 在随后的交付提交完成后回填到同目录 handoff.json/artifacts.json。"
+  ],
+  "next_action": "总控从 IQS 根运行 python -B -X utf8 scripts/parallel_handoff_cli.py --catalog docs/implementation/parallel-lanes/packages/2026-10-07/manifest.json --package-id QA-NET-01 --input <本 handoff.json> 做形状预检，再独立核验 artifacts.json 中的 hash、日志与隔离记录；本包为离线批次，live 与跨仓联调由总控另行安排。"
+}
