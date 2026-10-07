@@ -20,9 +20,10 @@
 | 类别 | 实际情况 |
 |---|---|
 | 测试临时根 | pytest 默认 basetemp `%TEMP%\pytest-of-郑曾波\pytest-NNN`（每个测试用例独立 `tmp_path`，含自己的 `quick_scan_work.sqlite`、题文件、manifest、权威文档） |
-| 本包清理 | 会话时间窗（mtime < 180 min）内的 22 个 `pytest-NNN` 根经 `shutil.rmtree` 删除（两轮：18 + 4）；另删除本包创建的 `%TEMP%\qs_compose_probe`、`%TEMP%\blackprobe`、`%TEMP%\dbg*.py` |
+| 本包清理 | 会话时间窗（mtime < 180 min）内的 22 个 `pytest-NNN` 根经 `shutil.rmtree` 删除（两轮：18 + 4，另见“收尾补充”3 个，合计 25）；另删除本包创建的 `%TEMP%\qs_compose_probe`、`%TEMP%\blackprobe`、`%TEMP%\dbg*.py` |
 | 清理中止（如实记录） | 对 `pytest-921` 的首次删除被系统拒绝（`PermissionError ... \publication-registry0\publications.jsonl`，该内容**不是本包产物**）→ 判定为其他进程共享状态，**当次立即停止删除并原样保留**；该根随后由 pytest 自身的 basetemp 轮转在其后的会话启动时移除（非本包清理脚本所为）。一次重试删除 `pytest-936` 时首次同样报锁、重试成功 |
 | 归属方法 | 仅按“名称为 pytest 编号根 + mtime 落在本包会话窗口”判定归属；共享 TEMP 下无法可靠归属的目录（如有）不主动搜索、不递归清理 |
+| 收尾补充 | 交付后最后一次定向测试又产生 3 个根（`pytest-15`/`-16`/`-17`，编号序列与先前不同），按同一时间窗规则于会话结束时删除；删除未遇锁，但**归属同样只凭时间窗判断，无法进一步核实**，如实记录于此 |
 | 仓内数据库 | 测试只使用 `tmp_path` 下的 SQLite；仓根 `quick_scan_work.sqlite` / `quick_scan_health.sqlite` **未被本包测试创建或修改**（测试均 `monkeypatch.chdir(tmp_path)`） |
 | 缓存 | `coverage.xml` / `coverage.json` / `htmlcov/` 由 pytest-cov 重写（均在 `.gitignore` 中，非交付物） |
 | 仓内日志 | `logs/stock_qa_20261007.log`（`.gitignore` 的 `logs/` 规则内）被本包测试运行**追加**写入；为避免丢失同日其他进程日志，**未删除** |

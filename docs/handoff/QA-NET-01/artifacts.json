@@ -1,7 +1,7 @@
 {
   "format_version": "1.0.0",
   "package_id": "QA-NET-01",
-  "generated_at_utc": "2026-10-07T11:13:08Z",
+  "generated_at_utc": "2026-10-07T11:14:59Z",
   "repository": "C:/Users/郑曾波/Projects/StockQAbyLLM",
   "note": "Index of this package's own changed files, test logs and delivery documents. Contains no secrets and no raw provider responses.",
   "artifacts": [
@@ -122,8 +122,8 @@
     {
       "path": "docs/handoff/QA-NET-01/handoff.json",
       "kind": "delivery",
-      "bytes": 14306,
-      "sha256": "da87bab5b15e8c7a5d6c628d02c31851b3f0f9d990d4d8d8ad1e0115b695c8ee"
+      "bytes": 14363,
+      "sha256": "d9d7b2692167b4791255ffe66ab4cbed9e23df41a00f5598ae39634d6ce74729"
     },
     {
       "path": "docs/handoff/QA-NET-01/summary.md",
@@ -146,8 +146,8 @@
     {
       "path": "docs/handoff/QA-NET-01/isolation.md",
       "kind": "delivery",
-      "bytes": 5430,
-      "sha256": "6e2c283fff4969d2928d6cd9913bde03a00ba937e603e8fd284e9f6edcd889e8"
+      "bytes": 5761,
+      "sha256": "9b001f3f70d9670bd87d1e79f1720e40d35ec81c03b59760bc84914901480d0d"
     },
     {
       "path": "docs/handoff/QA-NET-01/logs/GREEN_batchA_c06_seal.log",
