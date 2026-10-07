@@ -1,3 +1,22 @@
+# 当前整改case映射（2026-10-07）
+
+最终统一门982 tests已过；下方历史27/962/986各为原owner不同批次，不能当本次最终数或跨仓验收。初始旧F2 lifecycle-only正例不符合真实备用attempt要求，保留为原始RED，不削弱store迎合它。
+
+| 断言 | 当前可复现选择器（StockQA相对路径） |
+|---|---|
+| 真正备用HTTP/预算/checkpoint/C06/warm0 | tests/integration/test_qa_net01_transport_e2e.py::test_actual_two_route_fallback_checkpoint_seal_and_zero_http_resume |
+| 未知/未计价/异常usage不盲发备用 | tests/integration/test_qa_net01_transport_e2e.py::test_uncertain_or_unpriced_primary_never_blindly_sends_backup |
+| 明确非零拒绝usage有成本 | tests/integration/test_qa_net01_transport_e2e.py::test_rejected_primary_with_reported_nonzero_usage_is_not_free |
+| attempt/model/hash伪改拒保存，原记录不变 | tests/integration/test_qa_net01_transport_e2e.py::test_transport_checkpoint_refuses_mutated_binding_without_re_recording |
+| 2xx5001字符保存拒绝公开error | tests/integration/test_qa_net01_transport_e2e.py::test_checkpoint_refusal_is_public_error_without_losing_transport |
+| 私有receipt仍需要搜索/response/model质量 | tests/integration/test_qa_net01_transport_e2e.py::test_private_http_receipt_still_requires_checkpoint_quality |
+| 新模块保留旧题routing/只派新题 | tests/integration/test_qa_net01_cli_e2e.py::test_new_module_keeps_old_answers_hydratable_with_fresh_output |
+| gen2完成后重启HTTP0 | tests/integration/test_qa_net01_cli_e2e.py::test_completed_generation_two_restarts_without_reverting_to_one |
+| 改prompt不能跨旧uncertain收费 | tests/unit/test_qa_net01_question_manifest.py::test_changed_prompt_waits_for_uncertain_prior_attempt |
+| provisional/model mismatch error且不重发 | tests/unit/test_q06_work_binding.py::test_e2e_public_cli_identity_snapshot_glue_no_redispatch |
+
+---
+
 # QA-NET-01 case-map
 
 图例：**owner** = 该 case 的 `owner_task`；本包只对自己 owner 的 case 负责，跨 owner case 仅引用既有证据，不自行签收。
@@ -52,7 +71,7 @@
 | Q02 附加（本包场景 S-06） | IQS 可填写模板不可作为执行授权 | `load_search_policy` | `tests/unit/test_qa_net01_search_boundary.py::test_iqs_template_is_never_an_executable_policy` | 同上 | passed |
 | Q02 附加（本包场景 S-07） | 凭据缺失/费用上界未核/计价未知/存储权未确认/停用 → 未准入、发送 0 | 同上 | `tests/unit/test_qa_net01_search_boundary.py::test_route_admission_fails_closed_on_cost_rights_and_credentials` | 同上 | passed |
 | Q02 附加（本包场景 S-08） | 随包示例策略即使有凭据也 0 准入 | 同上 | `tests/unit/test_qa_net01_search_boundary.py::test_shipped_example_policy_never_admits_a_route` | 同上 | passed |
-| Q02 附加（本包场景 S-09） | CLI：未准入 external → exit 1、HTTP 0；已准入 → 打印准入回执 | `main_with_llm.py --search-policy` | `tests/integration/test_qa_net01_cli_e2e.py::test_cli_e2e_search_policy_admission_gates_before_any_http` | `RED_batchC_search_policy_cli.log` / `GREEN_batchD_cli_e2e.log` | passed |
+| Q02 附加（本包场景 S-09） | CLI：未准入 external → exit 1、HTTP 0；已准入但dispatcher未实现 → 回执禁执行且HTTP0 | `main_with_llm.py --search-policy` | `tests/integration/test_qa_net01_cli_e2e.py::test_cli_e2e_search_policy_admission_gates_before_any_http` | `RED_batchC_search_policy_cli.log` / `GREEN_batchD_cli_e2e.log` | passed |
 | Q02 附加（本包场景 S-10） | CLI：带模板标记的策略 → exit 1、HTTP 0 | 同上 | `tests/integration/test_qa_net01_cli_e2e.py::test_cli_e2e_search_policy_template_marker_is_refused` | 同上 | passed |
 | Q02 附加（本包场景 S-11） | `tool_use` 只续写不冒充最终答案；tool_result 无归属 → invalid；截断 → incomplete | `classify_anthropic_messages_response` | `tests/unit/test_qa_net01_search_boundary.py::test_deepseek_continuation_is_classified_but_not_admitted` | `GREEN_batchC_search_boundary.log` | passed |
 

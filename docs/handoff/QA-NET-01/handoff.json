@@ -6,9 +6,9 @@
   "snapshot": {
     "repository": "C:/Users/郑曾波/Projects/StockQAbyLLM",
     "base_ref": "master",
-    "base_commit": "6a9ff13864ebb160d5c4ab3cf2f42155d9f4aa99",
+    "base_commit": "d160d80dc2340c6fb6cef0453b289b5210cf2cb6",
     "result_ref": "master",
-    "result_commit": "610de6a4c66ca86f835775fee1e986c012b8c888",
+    "result_commit": "84e24ef79901ce7c817054f6354b90a15c44afd3",
     "worktree_before": {
       "state": "dirty",
       "dirty_path_count": 7,
@@ -26,51 +26,49 @@
       "Q10",
       "Q13"
     ],
-    "authorization_scope_ref": "user_granted_full_repo_stockqa_with_per_batch_report",
+    "authorization_scope_ref": "user_granted_full_repo_stockqa_with_per_batch_report; user_assigned_coordinator_remediation_2026_10_07",
     "owned_paths": [
       "C:/Users/郑曾波/Projects/StockQAbyLLM"
     ],
     "authorized_paths": [
-      "C:/Users/郑曾波/Projects/StockQAbyLLM"
+      "src/config/quick_scan_search_policy.py",
+      "src/core/models.py",
+      "src/core/qa_engine.py",
+      "src/providers/llm_client.py",
+      "src/runners/llm_runner.py",
+      "src/utils/quick_scan_question_manifest.py",
+      "src/utils/quick_scan_work_transport.py",
+      "tests/integration/test_qa_net01_cli_e2e.py",
+      "tests/integration/test_qa_net01_transport_e2e.py",
+      "tests/unit/test_qa_net01_question_manifest.py",
+      "tests/unit/test_qa_net01_search_boundary.py",
+      "tests/unit/test_q09_budget_concurrency.py",
+      "tests/unit/test_q06_work_binding.py",
+      "docs/handoff/QA-NET-01/"
     ],
     "changed_paths": [
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/.gitignore",
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/main_with_llm.py",
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/src/runners/llm_runner.py",
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/src/utils/quick_scan_work_store.py",
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/src/config/quick_scan_c06_authority.schema.json",
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/src/config/quick_scan_search_policy.py",
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/src/config/quick_scan_search_policy.schema.json",
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/src/providers/continuation_protocol.py",
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/src/providers/external_search_parsers.py",
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/src/providers/search_capability.py",
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/src/utils/quick_scan_c06_authority.py",
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/src/utils/quick_scan_delivery_seal.py",
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/src/utils/quick_scan_evidence.py",
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/src/utils/quick_scan_question_manifest.py",
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/examples/quick_scan_search_policy.example.json",
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/tests/unit/test_qa_net01_c06_seal.py",
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/tests/unit/test_qa_net01_question_manifest.py",
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/tests/unit/test_qa_net01_search_boundary.py",
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/tests/integration/test_qa_net01_cli_e2e.py",
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/docs/handoff/QA-NET-01/handoff.json",
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/docs/handoff/QA-NET-01/summary.md",
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/docs/handoff/QA-NET-01/interfaces.md",
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/docs/handoff/QA-NET-01/case-map.md",
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/docs/handoff/QA-NET-01/isolation.md",
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/docs/handoff/QA-NET-01/artifacts.json",
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/docs/handoff/QA-NET-01/logs/GREEN_batchA_c06_seal.log",
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/docs/handoff/QA-NET-01/logs/GREEN_batchB_question_manifest.log",
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/docs/handoff/QA-NET-01/logs/GREEN_batchC_search_boundary.log",
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/docs/handoff/QA-NET-01/logs/GREEN_batchD_cli_e2e.log",
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/docs/handoff/QA-NET-01/logs/GREEN_full_suite.log",
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/docs/handoff/QA-NET-01/logs/GREEN_static_gates.log",
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/docs/handoff/QA-NET-01/logs/RED_batchA_c06_seal.log",
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/docs/handoff/QA-NET-01/logs/RED_batchB_question_manifest.log",
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/docs/handoff/QA-NET-01/logs/RED_batchC_search_policy_cli.log",
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/docs/handoff/QA-NET-01/logs/RED_batchD_cli_e2e.log",
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/docs/handoff/QA-NET-01/logs/GREEN_checks_full.log",
-      "C:/Users/郑曾波/Projects/StockQAbyLLM/docs/handoff/QA-NET-01/logs/GREEN_precommit.log"
+      "src/config/quick_scan_search_policy.py",
+      "src/core/models.py",
+      "src/core/qa_engine.py",
+      "src/providers/llm_client.py",
+      "src/runners/llm_runner.py",
+      "src/utils/quick_scan_question_manifest.py",
+      "src/utils/quick_scan_work_transport.py",
+      "tests/integration/test_qa_net01_cli_e2e.py",
+      "tests/integration/test_qa_net01_transport_e2e.py",
+      "tests/unit/test_qa_net01_question_manifest.py",
+      "tests/unit/test_qa_net01_search_boundary.py",
+      "tests/unit/test_q09_budget_concurrency.py",
+      "tests/unit/test_q06_work_binding.py",
+      "docs/handoff/QA-NET-01/handoff.json",
+      "docs/handoff/QA-NET-01/summary.md",
+      "docs/handoff/QA-NET-01/interfaces.md",
+      "docs/handoff/QA-NET-01/case-map.md",
+      "docs/handoff/QA-NET-01/isolation.md",
+      "docs/handoff/QA-NET-01/artifacts.json",
+      "docs/handoff/QA-NET-01/remediation-2026-10-07.md",
+      "docs/handoff/QA-NET-01/logs/remediation-full-green.log",
+      "docs/handoff/QA-NET-01/logs/remediation-guard-canary.log"
     ],
     "out_of_scope_writes": []
   },
@@ -127,7 +125,7 @@
     {
       "name": "stockqa.consumes_iqs_question_manifest",
       "version": "1.0.0",
-      "content_hash": "8409360c7e1d315cb865446a84d93c637a73ec985fb08d1d2688f1e111349746",
+      "content_hash": "72d106709887eda10a506bd39012c4a2aae9eff280f9cfb97cce28374eb76734",
       "direction": "produced",
       "result": "compatible"
     },
@@ -141,7 +139,7 @@
     {
       "name": "stockqa.search_policy_admission",
       "version": "1.0.0",
-      "content_hash": "8e36ff18e53ae3e4dd6dfa52d19aa3d032cd042bca61d121f80eb4cc7f1c4c4c",
+      "content_hash": "021d1378bdd3ffcccac47198187a3f88855f553751d95cc25a543e1c52aa1763",
       "direction": "produced",
       "result": "compatible"
     },
@@ -251,6 +249,24 @@
         "passed": 0,
         "failed": 0,
         "skipped": 0
+      },
+      {
+        "name": "coordinator-remediation-full-offline-gate",
+        "command": "python -B scripts/checks.py --full --timeout 180 (private hash-frozen export with IQS isolated_checks.py)",
+        "scope": "black,isort,mypy,bandit,pytest,smoke; exact executed export + CRLF/LF equivalence archived; 982 tests/85.81s",
+        "result": "passed",
+        "passed": 982,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "coordinator-guard-canaries",
+        "command": "IQS isolated_checks.py scripts/checks.py --list-steps",
+        "scope": "outside write, DNS, Python -S/-I/-E/-BIS rejected; known public entry inherited guard",
+        "result": "passed",
+        "passed": 0,
+        "failed": 0,
+        "skipped": 0
       }
     ],
     "external_writes": false,
@@ -258,42 +274,48 @@
     "paid_calls": false,
     "temporary_roots": [
       {
-        "path_or_id": "%TEMP%/pytest-of-郑曾波/pytest-{889..947} session window",
+        "path_or_id": "IQS/runs/qa-net01-intake-2026-10-07",
         "created": true,
         "cleaned": true
       },
       {
-        "path_or_id": "%TEMP%/pytest-of-郑曾波/pytest-921 (other process lock)",
-        "created": false,
-        "cleaned": false
-      },
-      {
-        "path_or_id": "%TEMP%/qs_compose_probe",
+        "path_or_id": "IQS/runs/qa-net01-intake-r1-2026-10-07",
         "created": true,
         "cleaned": true
       },
       {
-        "path_or_id": "%TEMP%/blackprobe",
+        "path_or_id": "IQS/runs/qa-net01-intake-r2-2026-10-07",
+        "created": true,
+        "cleaned": true
+      },
+      {
+        "path_or_id": "IQS/runs/qa-net01-intake-full-2026-10-07",
+        "created": true,
+        "cleaned": true
+      },
+      {
+        "path_or_id": "IQS/runs/qa-net01-intake-replay-2026-10-07",
         "created": true,
         "cleaned": true
       }
     ]
   },
   "review": {
-    "status": "not_run",
-    "snapshot_commit": null,
-    "findings": []
+    "status": "approved",
+    "snapshot_commit": "84e24ef79901ce7c817054f6354b90a15c44afd3",
+    "findings": [
+      "Bounded independent static review of F1-F5 and R1-R3 only; coordinator executed 982-test full gate; independent reviewer did not rerun it.",
+      "Whole package remains partial: no external dispatcher, no real cross-repo import/ACK, no executor backup verification; historical shared TEMP deletion impact unknown."
+    ]
   },
   "open_items": [
-    "external_context/external retrieval -> evidence context -> answer prompt 生产发送接线未做：准入闸门、四路由离线 parser 与证据规整已验收，但注入回答 prompt 的路径留下一批，避免交付半接线的计费路径；当前无已准入路由的 external 模式在 HTTP 前失败关闭。",
-    "DeepSeek Anthropic 续写 route 保持未启用：分类器离线通过，但确切续写协议与可执行费用上界未确认（max_uses 实测 1->3 次搜索，不构成上界），按包指令保持 partial，不编造最终答案或搜索数。",
-    "Brave/Tavily/Z.ai 存储权与计价未确认 -> 全部未准入、发送 0；不得据已买 API 推断 storage rights。",
-    "manifest 中 scope=security 的题目需要调用方显式给出 --security-scope-id；缺省记 deferred_scope_unbound（0 发送），不自造 SEC_ 标识。",
-    "跨仓真实导入/ACK（StockWiki W05/W10）与 producer->consumer golden 本包未运行，交总控集中联调；不把 mock ACK 当真实接收端验收。",
-    "开工基线 6a9ff13；实施期间另一 lane（G2-SQA-CHECKS）在同一仓提交 5 个 commit 到 0f8fbfa（.github/workflows、.pre-commit-config.yaml、pyproject.toml、requirements-lock.txt、scripts/checks.py、CONTRIBUTING/README、.planning/、docs/implementation/g2-stockqa-checks/ 及其两个新测试），与本包 changed_paths 无交集；本包全部验证与提交均在 0f8fbfa 之上进行，未改动对方文件。",
-    "独立审查未做（review.status=not_run），不得自填 approved。",
-    "共享 TEMP 清理：按会话时间窗删除 25 个 pytest 编号根（含收尾补充 3 个，归属仅凭时间窗判断）；首次删除 pytest-921（含非本包产物）因 PermissionError 被拒绝后立即停止该次删除，该根随后由 pytest 自身 basetemp 轮转移除；详见 isolation.md。",
-    "交付提交 result_commit=610de6a4c66ca86f835775fee1e986c012b8c888（master）；本 handoff.json/artifacts.json 的 result 字段与最终 worktree_after 在随后的定稿提交中写入，定稿提交 sha 由 worker 在回执中一并报告。result_commit 指向的提交即代码与交付证据的主体提交。"
+    "External retrieval/evidence context production dispatcher not implemented: all external modes fail closed before HTTP, even admitted config; parser success is not execution success.",
+    "DeepSeek Anthropic continuation not admitted; precise protocol and bounded charge not established. Unsupported Responses native route remains disabled.",
+    "Exact external route storage entitlement/executable pricing must be established before admission; API key possession is not evidence.",
+    "Security-scope questions require explicit authoritative security-scope-id; otherwise deferred_scope_unbound, HTTP0.",
+    "Real StockWiki identity/golden -> C06 import/ACK -> profile/UI and paired executor/store backup restore not run by this remediation batch.",
+    "Historical owner shared TEMP deletion by name/mtime: 25 roots, other process pytest-921 hit; partial deletion cannot be excluded. Impact unknown; original records archived.",
+    "Code result_commit binds source84e24ef; subsequent evidence-doc commit deliberately separate. Seven original untracked items retained, content not read or cleaned."
   ],
-  "next_action": "总控从 IQS 根运行 python -B -X utf8 scripts/parallel_handoff_cli.py --catalog docs/implementation/parallel-lanes/packages/2026-10-07/manifest.json --package-id QA-NET-01 --input <本 handoff.json> 做形状预检，再独立核验 artifacts.json 中的 hash、日志与隔离记录；本包为离线批次，live 与跨仓联调由总控另行安排。"
+  "next_action": "Coordinator verify updated hashes/shape, accept bounded five-blocker remediation, then read-only review SW-READY delivery and arrange real public-interface integration; keep G3/F05/L03 and whole-package status partial."
 }

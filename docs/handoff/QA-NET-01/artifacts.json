@@ -1,9 +1,9 @@
 {
   "format_version": "1.0.0",
   "package_id": "QA-NET-01",
-  "generated_at_utc": "2026-10-07T11:14:59Z",
+  "generated_at_utc": "2026-10-07T13:24:25.676074+00:00",
   "repository": "C:/Users/郑曾波/Projects/StockQAbyLLM",
-  "note": "Index of this package's own changed files, test logs and delivery documents. Contains no secrets and no raw provider responses.",
+  "note": "Current package bytes after coordinator remediation and existing LF commit hook. Original raw delivery and executed CRLF logs are preserved separately in IQS; source84e24ef, later evidence commit separate. No self-hash.",
   "artifacts": [
     {
       "path": ".gitignore",
@@ -12,142 +12,28 @@
       "sha256": "93a6df078a129ddc3be1c1ad76f51af6d5e3c6e496a38b8280e906d26babac9b"
     },
     {
-      "path": "main_with_llm.py",
-      "kind": "source",
-      "bytes": 11969,
-      "sha256": "62c5ad2c3c2d8333eaab6eb0b100cf0443f42dc6ff83f27db73e70153bb388d3"
-    },
-    {
-      "path": "src/runners/llm_runner.py",
-      "kind": "source",
-      "bytes": 73259,
-      "sha256": "67210ea63965b8646404eefd33dd62faddca88b4c614e7dc9ac9f9d95cdb8d6b"
-    },
-    {
-      "path": "src/utils/quick_scan_work_store.py",
-      "kind": "source",
-      "bytes": 134699,
-      "sha256": "68c1b3de08af28c991916a33db76805e497c29836cde34e0a102b03a128aa99a"
-    },
-    {
-      "path": "src/config/quick_scan_search_policy.py",
-      "kind": "source",
-      "bytes": 12785,
-      "sha256": "8e36ff18e53ae3e4dd6dfa52d19aa3d032cd042bca61d121f80eb4cc7f1c4c4c"
-    },
-    {
-      "path": "src/providers/continuation_protocol.py",
-      "kind": "source",
-      "bytes": 5591,
-      "sha256": "50929ae60f2933d76943aaa5bc937070e5924baa0dd7c3c135719f67b51634d5"
-    },
-    {
-      "path": "src/providers/external_search_parsers.py",
-      "kind": "source",
-      "bytes": 10472,
-      "sha256": "777f330247b7b0cf51d34ce46d03a5886ceedcc38a8304f15788f8db84bf381e"
-    },
-    {
-      "path": "src/providers/search_capability.py",
-      "kind": "source",
-      "bytes": 6786,
-      "sha256": "44e31f7ce41dc633c6dc624f4fa0fc3a10b3d15b9ac78f54f818eb5602072d08"
-    },
-    {
-      "path": "src/utils/quick_scan_c06_authority.py",
-      "kind": "source",
-      "bytes": 6289,
-      "sha256": "cf7c29b54312578ce0e5741bcdf9a2978e2f1d5d2fb02af85e32f6e4010f03e1"
-    },
-    {
-      "path": "src/utils/quick_scan_delivery_seal.py",
-      "kind": "source",
-      "bytes": 5542,
-      "sha256": "d81f73e114a669882f91f2bac1653be0017f1f0b2dc464eb1373260ca66c4e99"
-    },
-    {
-      "path": "src/utils/quick_scan_evidence.py",
-      "kind": "source",
-      "bytes": 6549,
-      "sha256": "3946e8708dda5b9c8ecd90527e36ac08ae99625b46e317f7e51ffae3824f6e26"
-    },
-    {
-      "path": "src/utils/quick_scan_question_manifest.py",
-      "kind": "source",
-      "bytes": 14805,
-      "sha256": "8409360c7e1d315cb865446a84d93c637a73ec985fb08d1d2688f1e111349746"
-    },
-    {
-      "path": "tests/unit/test_qa_net01_c06_seal.py",
-      "kind": "test",
-      "bytes": 8338,
-      "sha256": "e15cbf014f6fc5574f26d6f413c06d6eefba36d2c19e66b64ff30bbf18961642"
-    },
-    {
-      "path": "tests/unit/test_qa_net01_question_manifest.py",
-      "kind": "test",
-      "bytes": 14210,
-      "sha256": "3873e09019a81e7bdbb8761ad475a98547db42b23cf60b2dacec6c9278102de5"
-    },
-    {
-      "path": "tests/unit/test_qa_net01_search_boundary.py",
-      "kind": "test",
-      "bytes": 22929,
-      "sha256": "803a837b1a54edcdb859712e812fee40cab2ee23dae2e051f1c64792cf618cd9"
-    },
-    {
-      "path": "tests/integration/test_qa_net01_cli_e2e.py",
-      "kind": "test",
-      "bytes": 16489,
-      "sha256": "a52aa8fd4b055a9f983750329ac75ca488b131e35bd173d26e5702711deed43b"
-    },
-    {
-      "path": "src/config/quick_scan_c06_authority.schema.json",
-      "kind": "schema",
-      "bytes": 1877,
-      "sha256": "16e04f844445221b370c9c3e50d84e5d28797b4b9e2a93ee94ca0ed210257de2"
-    },
-    {
-      "path": "src/config/quick_scan_search_policy.schema.json",
-      "kind": "schema",
-      "bytes": 4896,
-      "sha256": "e525f6dcb2a0116ca64327b8e2da21cfb970ec18619e8cfcffc485b8c9f19876"
-    },
-    {
-      "path": "examples/quick_scan_search_policy.example.json",
-      "kind": "example",
-      "bytes": 1463,
-      "sha256": "ea00ad2a34e2b2fe87f5ede32a7dab54327850cae7a9988d10d08158510e7e57"
+      "path": "docs/handoff/QA-NET-01/case-map.md",
+      "kind": "document",
+      "bytes": 13205,
+      "sha256": "ea4e735af4660cd7b283935f32b349591c0066d674ea6848e68be45a023b9bd1"
     },
     {
       "path": "docs/handoff/QA-NET-01/handoff.json",
-      "kind": "delivery",
-      "bytes": 14363,
-      "sha256": "d9d7b2692167b4791255ffe66ab4cbed9e23df41a00f5598ae39634d6ce74729"
-    },
-    {
-      "path": "docs/handoff/QA-NET-01/summary.md",
-      "kind": "delivery",
-      "bytes": 8055,
-      "sha256": "caccc570352d7bb8a919d324b57e59e892bf46fd4039f88cbe0945e6ec945654"
+      "kind": "document",
+      "bytes": 12615,
+      "sha256": "a646509dc681d6ea747eaad38bf7a879150aafcf4626b8e566ea5217f41c145f"
     },
     {
       "path": "docs/handoff/QA-NET-01/interfaces.md",
-      "kind": "delivery",
-      "bytes": 12471,
-      "sha256": "1f0c97e750ddb9662ebb388338ee7cbc6eb23d0ea1a05bb0d80018d748a40e4b"
-    },
-    {
-      "path": "docs/handoff/QA-NET-01/case-map.md",
-      "kind": "delivery",
-      "bytes": 11245,
-      "sha256": "e78546599382091400805cfb7e4243fadf54d730c1b9ece479645e8909b4fd6a"
+      "kind": "document",
+      "bytes": 13389,
+      "sha256": "885923bd5df79c96199206bc836e07d6b553eb3bbf7635f1b4df1445ccd48522"
     },
     {
       "path": "docs/handoff/QA-NET-01/isolation.md",
-      "kind": "delivery",
-      "bytes": 5761,
-      "sha256": "9b001f3f70d9670bd87d1e79f1720e40d35ec81c03b59760bc84914901480d0d"
+      "kind": "document",
+      "bytes": 2473,
+      "sha256": "cf3d623c73a75ca6e515bbbb12b4f79030aed5553b38a50c01da99f64c57d95b"
     },
     {
       "path": "docs/handoff/QA-NET-01/logs/GREEN_batchA_c06_seal.log",
@@ -220,6 +106,180 @@
       "kind": "log",
       "bytes": 9405,
       "sha256": "764e14b09402104a21599bab38f5ad5eb323a063dab8607fff93de5d8356bf3e"
+    },
+    {
+      "path": "docs/handoff/QA-NET-01/logs/remediation-full-green.log",
+      "kind": "log",
+      "bytes": 2933,
+      "sha256": "e65fe8357ce94bc9f9c31cd2a2fc23f6ef27797018908d0c2d6565546807557c"
+    },
+    {
+      "path": "docs/handoff/QA-NET-01/logs/remediation-guard-canary.log",
+      "kind": "log",
+      "bytes": 32,
+      "sha256": "85bc9ea8db7f550ccad095efd26322f562ef823f313f742fc00fc23c3cdd868f"
+    },
+    {
+      "path": "docs/handoff/QA-NET-01/remediation-2026-10-07.md",
+      "kind": "document",
+      "bytes": 1317,
+      "sha256": "ef636870ef77c71700b068a086dcce744509ed2ae95331f04152ad53a028adad"
+    },
+    {
+      "path": "docs/handoff/QA-NET-01/summary.md",
+      "kind": "document",
+      "bytes": 4333,
+      "sha256": "fc111a02f480809e964a2bf58054b70b4fe73daeaa0468e61fffb1512e3516ef"
+    },
+    {
+      "path": "examples/quick_scan_search_policy.example.json",
+      "kind": "source",
+      "bytes": 1463,
+      "sha256": "ea00ad2a34e2b2fe87f5ede32a7dab54327850cae7a9988d10d08158510e7e57"
+    },
+    {
+      "path": "main_with_llm.py",
+      "kind": "source",
+      "bytes": 11969,
+      "sha256": "62c5ad2c3c2d8333eaab6eb0b100cf0443f42dc6ff83f27db73e70153bb388d3"
+    },
+    {
+      "path": "src/config/quick_scan_c06_authority.schema.json",
+      "kind": "source",
+      "bytes": 1877,
+      "sha256": "16e04f844445221b370c9c3e50d84e5d28797b4b9e2a93ee94ca0ed210257de2"
+    },
+    {
+      "path": "src/config/quick_scan_search_policy.py",
+      "kind": "source",
+      "bytes": 13018,
+      "sha256": "021d1378bdd3ffcccac47198187a3f88855f553751d95cc25a543e1c52aa1763"
+    },
+    {
+      "path": "src/config/quick_scan_search_policy.schema.json",
+      "kind": "source",
+      "bytes": 4896,
+      "sha256": "e525f6dcb2a0116ca64327b8e2da21cfb970ec18619e8cfcffc485b8c9f19876"
+    },
+    {
+      "path": "src/core/models.py",
+      "kind": "source",
+      "bytes": 22457,
+      "sha256": "d98f7613fcfabc0d5d1f1fe0b403eaa734a6948b8c9fad492a993f70bdf00cf1"
+    },
+    {
+      "path": "src/core/qa_engine.py",
+      "kind": "source",
+      "bytes": 17625,
+      "sha256": "107fb5be6e5614f4aa7c38ec4140755d1f9e7ee2b448e456eb077e889204c821"
+    },
+    {
+      "path": "src/providers/continuation_protocol.py",
+      "kind": "source",
+      "bytes": 5591,
+      "sha256": "50929ae60f2933d76943aaa5bc937070e5924baa0dd7c3c135719f67b51634d5"
+    },
+    {
+      "path": "src/providers/external_search_parsers.py",
+      "kind": "source",
+      "bytes": 10472,
+      "sha256": "777f330247b7b0cf51d34ce46d03a5886ceedcc38a8304f15788f8db84bf381e"
+    },
+    {
+      "path": "src/providers/llm_client.py",
+      "kind": "source",
+      "bytes": 48054,
+      "sha256": "8ab49e3456baf31cb121d156e77c604747e3f739356ba0764ffdebee84733226"
+    },
+    {
+      "path": "src/providers/search_capability.py",
+      "kind": "source",
+      "bytes": 6786,
+      "sha256": "44e31f7ce41dc633c6dc624f4fa0fc3a10b3d15b9ac78f54f818eb5602072d08"
+    },
+    {
+      "path": "src/runners/llm_runner.py",
+      "kind": "source",
+      "bytes": 78116,
+      "sha256": "73d30b64e6ae527d26e9d03858e38a6e1e16e81a63d702d1cab7a87f01adc73f"
+    },
+    {
+      "path": "src/utils/quick_scan_c06_authority.py",
+      "kind": "source",
+      "bytes": 6289,
+      "sha256": "cf7c29b54312578ce0e5741bcdf9a2978e2f1d5d2fb02af85e32f6e4010f03e1"
+    },
+    {
+      "path": "src/utils/quick_scan_delivery_seal.py",
+      "kind": "source",
+      "bytes": 5542,
+      "sha256": "d81f73e114a669882f91f2bac1653be0017f1f0b2dc464eb1373260ca66c4e99"
+    },
+    {
+      "path": "src/utils/quick_scan_evidence.py",
+      "kind": "source",
+      "bytes": 6549,
+      "sha256": "3946e8708dda5b9c8ecd90527e36ac08ae99625b46e317f7e51ffae3824f6e26"
+    },
+    {
+      "path": "src/utils/quick_scan_question_manifest.py",
+      "kind": "source",
+      "bytes": 15674,
+      "sha256": "72d106709887eda10a506bd39012c4a2aae9eff280f9cfb97cce28374eb76734"
+    },
+    {
+      "path": "src/utils/quick_scan_work_store.py",
+      "kind": "source",
+      "bytes": 134699,
+      "sha256": "68c1b3de08af28c991916a33db76805e497c29836cde34e0a102b03a128aa99a"
+    },
+    {
+      "path": "src/utils/quick_scan_work_transport.py",
+      "kind": "source",
+      "bytes": 20340,
+      "sha256": "8c222e82b1640671493d3391a5172ee27a7d0207d49a38eac3adf3739c41c08f"
+    },
+    {
+      "path": "tests/integration/test_qa_net01_cli_e2e.py",
+      "kind": "source",
+      "bytes": 19955,
+      "sha256": "c4f2ba57375cf7a2581e27eac92fcc8e35525e0727248b47782c21b81ef1f32e"
+    },
+    {
+      "path": "tests/integration/test_qa_net01_transport_e2e.py",
+      "kind": "source",
+      "bytes": 18191,
+      "sha256": "fd5582d1566c977df10bec8c60eef7a64a8992d2cc6b7e91ef4a5cc547800f30"
+    },
+    {
+      "path": "tests/unit/test_q06_work_binding.py",
+      "kind": "source",
+      "bytes": 22226,
+      "sha256": "71244f8ff887e1a9ac9eabc11bce04905d771acd064efd5e2b2c7788d1fc0126"
+    },
+    {
+      "path": "tests/unit/test_q09_budget_concurrency.py",
+      "kind": "source",
+      "bytes": 25763,
+      "sha256": "3ec6b6d8bc57f0c0708f1f18ad4d444f162274c2961e20653001ac21457bf53b"
+    },
+    {
+      "path": "tests/unit/test_qa_net01_c06_seal.py",
+      "kind": "source",
+      "bytes": 8338,
+      "sha256": "e15cbf014f6fc5574f26d6f413c06d6eefba36d2c19e66b64ff30bbf18961642"
+    },
+    {
+      "path": "tests/unit/test_qa_net01_question_manifest.py",
+      "kind": "source",
+      "bytes": 15415,
+      "sha256": "a011155c0e828f9afb56dccc980081b135d36498fa092ca61068bc2b298d9a63"
+    },
+    {
+      "path": "tests/unit/test_qa_net01_search_boundary.py",
+      "kind": "source",
+      "bytes": 23015,
+      "sha256": "f1649fe84d5a31b4d05d3dacd91503e10e8efc582654ad365dc5a8a3938dfbe4"
     }
   ]
 }

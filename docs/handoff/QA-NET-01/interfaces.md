@@ -1,3 +1,11 @@
+# 当前接口补充（2026-10-07，优先于下方历史规格）
+
+公共C06/manifest/search-policy schema版本不变，未增加公共extensions。源码提交84e24ef；下表source content_hash已刷新至本次Git规范源码。manifest计划新增可选routing_fingerprint_by_question并为非base generation保留每题覆盖；旧题routing不可变。admission回执新增external_dispatch_reason，当前任何external模式都external_dispatch_enabled=false且HTTP0（未实现生产dispatcher）。
+
+真实HTTP内部私有work_transport只由client生成，不取模型回答字段；含最终work_attempt_id/final_receipt。private receipt仍检查质量，store仍核work/lease/model/request/hash/phase。未知/未计价请求不得重派，checkpoint拒绝公开error。legacy单route修复不扩大到configured v2。更多最终行为与未完成项见summary.md和remediation-2026-10-07.md。
+
+---
+
 # QA-NET-01 interfaces
 
 源仓：`C:/Users/郑曾波/Projects/StockQAbyLLM`（`master`，base `6a9ff13864ebb160d5c4ab3cf2f42155d9f4aa99`）。
@@ -61,11 +69,11 @@ python -B -X utf8 scripts/question_sets.py compose --profile examples/profile.js
 | `stockqa.quick_scan_c06_authority/1.0.0` | 1.0.0 | `src/config/quick_scan_c06_authority.schema.json` | `16e04f844445221b370c9c3e50d84e5d28797b4b9e2a93ee94ca0ed210257de2` |
 | `stockqa.quick_scan_search_policy/1.0.0` | 1.0.0 | `src/config/quick_scan_search_policy.schema.json` | `e525f6dcb2a0116ca64327b8e2da21cfb970ec18619e8cfcffc485b8c9f19876` |
 | 示例搜索策略（惰性） | 1.0.0 | `examples/quick_scan_search_policy.example.json` | `ea00ad2a34e2b2fe87f5ede32a7dab54327850cae7a9988d10d08158510e7e57` |
-| `stockqa.consumes_iqs_question_manifest/1.0.0` | 1.0.0 | `src/utils/quick_scan_question_manifest.py` | `8409360c7e1d315cb865446a84d93c637a73ec985fb08d1d2688f1e111349746` |
+| `stockqa.consumes_iqs_question_manifest/1.0.0` | 1.0.0 | `src/utils/quick_scan_question_manifest.py` | `72d106709887eda10a506bd39012c4a2aae9eff280f9cfb97cce28374eb76734` |
 | `stockqa.question_manifest_plan/1.0.0` | 1.0.0 | 同上（计划回执 schema） | 同上 |
 | `stockqa.evidence_package/1.0.0` | 1.0.0 | `src/utils/quick_scan_evidence.py` | `3946e8708dda5b9c8ecd90527e36ac08ae99625b46e317f7e51ffae3824f6e26` |
-| `stockqa.search_policy_admission/1.0.0` | 1.0.0 | `src/config/quick_scan_search_policy.py` | `8e36ff18e53ae3e4dd6dfa52d19aa3d032cd042bca61d121f80eb4cc7f1c4c4c` |
-| `stockqa.seal_deliveries/1.0.0` | 1.0.0 | `src/utils/quick_scan_delivery_seal.py` | `1ecee70715e654d4c62aec2949ed48475ac9b9db30f4ffb71333dc7260c619ca` |
+| `stockqa.search_policy_admission/1.0.0` | 1.0.0 | `src/config/quick_scan_search_policy.py` | `021d1378bdd3ffcccac47198187a3f88855f553751d95cc25a543e1c52aa1763` |
+| `stockqa.seal_deliveries/1.0.0` | 1.0.0 | `src/utils/quick_scan_delivery_seal.py` | `d81f73e114a669882f91f2bac1653be0017f1f0b2dc464eb1373260ca66c4e99` |
 | 分层搜索判定 `STAGES` | 1（代码常量） | `src/providers/search_capability.py` | `44e31f7ce41dc633c6dc624f4fa0fc3a10b3d15b9ac78f54f818eb5602072d08` |
 | Anthropic 续写分类 | 1（代码常量） | `src/providers/continuation_protocol.py` | `50929ae60f2933d76943aaa5bc937070e5924baa0dd7c3c135719f67b51634d5` |
 | 四路由离线 parser | 1（代码常量） | `src/providers/external_search_parsers.py` | `777f330247b7b0cf51d34ce46d03a5886ceedcc38a8304f15788f8db84bf381e` |
