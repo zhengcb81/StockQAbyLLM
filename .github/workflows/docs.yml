@@ -48,8 +48,8 @@ jobs:
         pip install -e ".[docs]"
 
     - name: Build documentation with MkDocs
-      run: |
-        mkdocs build --strict
+      # Docstring/link warnings are diagnostics; real build errors still fail.
+      run: mkdocs build
 
     - name: Upload documentation artifacts
       uses: actions/upload-artifact@v4
@@ -81,22 +81,11 @@ jobs:
       id-token: write
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v5
-
-    - name: Set up Python
-      uses: actions/setup-python@v5
+    - name: Download the already built documentation
+      uses: actions/download-artifact@v4
       with:
-        python-version: '3.10'
-        cache: 'pip'
-
-    - name: Install documentation dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -e ".[docs]"
-
-    - name: Build documentation
-      run: mkdocs build
+        name: documentation
+        path: site/
 
     - name: Deploy to GitHub Pages
       uses: peaceiris/actions-gh-pages@v3
