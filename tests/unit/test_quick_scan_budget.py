@@ -10,6 +10,7 @@ import pytest
 
 from src.providers.llm_client import AsyncLLMClient, LLMClient
 from src.utils.quick_scan_work_store import (
+    SCHEMA_VERSION,
     BudgetAdmissionError,
     BudgetPolicyConflict,
     QuickScanWorkStore,
@@ -220,7 +221,9 @@ def test_unknown_timeout_retains_cost_and_slot_until_reconciliation(tmp_path):
     _reserve(store, policy, "DISPATCH_after_reconciliation")
 
 
-def test_success_with_unknown_actual_cost_releases_slot_but_pauses_new_dispatch(tmp_path):
+def test_success_with_unknown_actual_cost_releases_slot_but_pauses_new_dispatch(
+    tmp_path,
+):
     store = QuickScanWorkStore(tmp_path / "budget.sqlite")
     policy = _policy(max_cost=10, max_cost_per_attempt=2)
     _reserve(store, policy, "DISPATCH_unpriced")
@@ -365,7 +368,9 @@ def test_settled_transport_replay_rejects_changed_terminal_outcome(tmp_path):
         )
 
 
-def test_v3_migration_preserves_settlement_and_marks_legacy_outcome_unverifiable(tmp_path):
+def test_v3_migration_preserves_settlement_and_marks_legacy_outcome_unverifiable(
+    tmp_path,
+):
     path = tmp_path / "budget-v3-migration.sqlite"
     store = QuickScanWorkStore(path)
     policy = _policy(max_cost=10, max_cost_per_attempt=2)
@@ -395,12 +400,20 @@ def test_v3_migration_preserves_settlement_and_marks_legacy_outcome_unverifiable
             connection.execute(f"DROP TRIGGER {trigger}")
         connection.execute("DROP TABLE quick_scan_result_delivery_event")
         connection.execute("DROP TABLE quick_scan_result_delivery")
+        # strip the v5/v6 objects too: this fixture must be a real v3 database
+        for table in (
+            "quick_scan_work_context",
+            "quick_scan_standard_answer",
+            "quick_scan_delivery_revision",
+            "quick_scan_observation_context",
+        ):
+            connection.execute(f"DROP TABLE {table}")
         connection.execute("PRAGMA user_version=3")
 
     migrated = QuickScanWorkStore(path)
 
     with closing(migrated._connect()) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 5
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         assert (
             connection.execute("SELECT COUNT(*) FROM quick_scan_result_delivery").fetchone()[0] == 0
         )
@@ -423,7 +436,9 @@ def test_v3_migration_preserves_settlement_and_marks_legacy_outcome_unverifiable
         )
 
 
-def test_policy_version_upgrade_keeps_spend_request_count_and_cannot_change_in_flight(tmp_path):
+def test_policy_version_upgrade_keeps_spend_request_count_and_cannot_change_in_flight(
+    tmp_path,
+):
     store = QuickScanWorkStore(tmp_path / "budget.sqlite")
     first = _policy(max_cost=10, max_cost_per_attempt=2)
     _reserve(store, first, "DISPATCH_v1")

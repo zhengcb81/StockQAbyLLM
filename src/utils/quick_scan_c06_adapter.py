@@ -21,7 +21,7 @@ from src.utils.quick_scan_result_outbox import (
     canonical_sha256,
 )
 
-__all__ = ["MissingC06Fields", "build_c06_package"]
+__all__ = ["MissingC06Fields", "build_c06_package", "build_complete_c06_package"]
 
 _STATUS_MAP = {
     "scored": "scored",
@@ -89,31 +89,9 @@ def build_c06_package(
         raise MissingC06Fields("work scope_id is missing")
 
     # authority validation — every non-derivable envelope fact must be supplied
-    if not isinstance(authority, dict):
-        raise MissingC06Fields("authority must be a dict")
-    contract_versions = authority.get("contract_versions")
-    if not isinstance(contract_versions, dict) or set(contract_versions) != set(
-        _CONTRACT_VERSION_KEYS
-    ):
-        raise MissingC06Fields("authority contract_versions must carry the exact five-key set")
-    if any(not isinstance(value, str) or not value.strip() for value in contract_versions.values()):
-        raise MissingC06Fields("authority contract_versions values must be non-empty")
-    capabilities = authority.get("capabilities")
-    if (
-        not isinstance(capabilities, list)
-        or not capabilities
-        or any(cap not in _CAPABILITIES for cap in capabilities)
-        or "standard_observation_v1" not in capabilities
-    ):
-        raise MissingC06Fields(
-            "authority capabilities must be known and include standard_observation_v1"
-        )
-    producer_component_version = authority.get("producer_component_version")
-    producer_build_id = authority.get("producer_build_id")
-    if not isinstance(producer_component_version, str) or not producer_component_version.strip():
-        raise MissingC06Fields("authority producer_component_version is missing")
-    if not isinstance(producer_build_id, str) or not producer_build_id.strip():
-        raise MissingC06Fields("authority producer_build_id is missing")
+    contract_versions, capabilities, producer_component_version, producer_build_id = (
+        _envelope_facts(authority)
+    )
 
     # execution facts — all nine must exist as non-empty provenance strings
     execution = {
@@ -162,6 +140,61 @@ def build_c06_package(
         },
         "execution": execution,
     }
+    return _package_from_observation(
+        contract_versions,
+        capabilities,
+        producer_component_version,
+        producer_build_id,
+        observation,
+    )
+
+
+def _envelope_facts(
+    authority: dict[str, Any] | None,
+) -> tuple[dict[str, str], list[str], str, str]:
+    """Validate the non-derivable envelope facts every package must carry."""
+    if not isinstance(authority, dict):
+        raise MissingC06Fields("authority must be a dict")
+    contract_versions = authority.get("contract_versions")
+    if not isinstance(contract_versions, dict) or set(contract_versions) != set(
+        _CONTRACT_VERSION_KEYS
+    ):
+        raise MissingC06Fields("authority contract_versions must carry the exact five-key set")
+    if any(not isinstance(value, str) or not value.strip() for value in contract_versions.values()):
+        raise MissingC06Fields("authority contract_versions values must be non-empty")
+    capabilities = authority.get("capabilities")
+    if (
+        not isinstance(capabilities, list)
+        or not capabilities
+        or any(cap not in _CAPABILITIES for cap in capabilities)
+        or "standard_observation_v1" not in capabilities
+    ):
+        raise MissingC06Fields(
+            "authority capabilities must be known and include standard_observation_v1"
+        )
+    producer_component_version = authority.get("producer_component_version")
+    producer_build_id = authority.get("producer_build_id")
+    if not isinstance(producer_component_version, str) or not producer_component_version.strip():
+        raise MissingC06Fields("authority producer_component_version is missing")
+    if not isinstance(producer_build_id, str) or not producer_build_id.strip():
+        raise MissingC06Fields("authority producer_build_id is missing")
+    return (
+        dict(contract_versions),
+        list(capabilities),
+        producer_component_version,
+        producer_build_id,
+    )
+
+
+def _package_from_observation(
+    contract_versions: dict[str, str],
+    capabilities: list[str],
+    producer_component_version: str,
+    producer_build_id: str,
+    observation: dict[str, Any],
+) -> dict[str, Any]:
+    """Wrap ONE already-validated observation in the fixed C06 1.0.0 envelope."""
+    observation_id = observation["observation_id"]
     payload_sha256 = canonical_sha256(observation)
     item_id = "itm_" + canonical_sha256(
         {"observation_id": observation_id, "payload_sha256": payload_sha256}
@@ -178,7 +211,7 @@ def build_c06_package(
             "namespace": "quick_scan",
             "minimum_schema_version": "1.0.0",
         },
-        "created_at": execution["answered_at"],
+        "created_at": observation["execution"]["answered_at"],
         "data_class": "lightweight_screening",
         "required_capabilities": list(capabilities),
         "contract_versions": dict(contract_versions),
@@ -199,3 +232,55 @@ def build_c06_package(
         "package_sha256": package_sha256,
         "package_id": "pkg_" + package_sha256,
     }
+
+
+def build_complete_c06_package(
+    checkpoint_payload: dict[str, Any],
+    *,
+    authority: dict[str, Any],
+    context: dict[str, Any],
+    standard_answer: dict[str, Any],
+    started_at: str,
+) -> dict[str, Any]:
+    """Build the complete-observation C06 package (authority 2.0.0).
+
+    NOTHING is derived from the compact checkpoint: the frozen bound context
+    supplies identity/scope/metadata, the stored standard answer supplies the
+    body, and the durable attempt supplies the execution instants
+    (``started_at`` is the original send-intent instant, ``answered_at`` the
+    original response completion). The observation ID is the IQS canonical
+    digest of the full content, never a re-derived qid or a random id.
+    """
+    if not isinstance(checkpoint_payload, dict):
+        raise MissingC06Fields("checkpoint payload must be a dict")
+    if checkpoint_payload.get("checkpoint_schema") != "quick-scan-answer" or (
+        checkpoint_payload.get("checkpoint_schema_version") != 1
+    ):
+        raise MissingC06Fields("unsupported checkpoint schema")
+    if (
+        not isinstance(context, dict)
+        or context.get("schema") != "stockqa.quick_scan_question_context/1.0.0"
+    ):
+        raise MissingC06Fields("complete sealing needs a bound frozen context")
+    if not isinstance(standard_answer, dict):
+        raise MissingC06Fields("complete sealing needs the full standard answer")
+    if standard_answer.get("status") not in _STATUS_MAP:
+        raise MissingC06Fields(
+            f"answer status is not packageable: {standard_answer.get('status')!r}"
+        )
+    contract_versions, capabilities, component_version, build_id = _envelope_facts(authority)
+
+    from src.utils.quick_scan_observation_context import build_observation
+
+    try:
+        observation = build_observation(
+            checkpoint_payload,
+            context=context,
+            standard_answer=standard_answer,
+            started_at=started_at,
+        )
+    except ValueError as error:
+        raise MissingC06Fields(f"complete observation refused: {error}") from error
+    return _package_from_observation(
+        contract_versions, capabilities, component_version, build_id, observation
+    )

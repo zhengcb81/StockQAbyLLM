@@ -13,6 +13,7 @@ import pytest
 
 from src.utils.quick_scan_result_outbox import canonical_bytes, canonical_sha256
 from src.utils.quick_scan_work_store import (
+    SCHEMA_VERSION,
     LeaseFencedError,
     QuickScanWorkStore,
     WorkConflictError,
@@ -133,12 +134,17 @@ def test_frozen_identity_and_question_metadata_cannot_be_silently_rebound(tmp_pa
     assert store.get_item(first["work_item_id"])["identity_revision"] == 2
 
 
-def test_verified_dual_listing_freezes_complete_binding_set_not_just_prompt_anchor(tmp_path):
+def test_verified_dual_listing_freezes_complete_binding_set_not_just_prompt_anchor(
+    tmp_path,
+):
     store = _store(tmp_path, [1_800_000_000.0])
     refs = ("BND_CN_002594", "BND_HK_01211")
     first = _created(store, source_binding_refs=refs)
     reversed_refs = _created(
-        store, run_id="RUN_2", scan_id="SCAN_2", source_binding_refs=tuple(reversed(refs))
+        store,
+        run_id="RUN_2",
+        scan_id="SCAN_2",
+        source_binding_refs=tuple(reversed(refs)),
     )
     assert reversed_refs["work_item_id"] == first["work_item_id"]
     assert first["source_binding_refs_json"] == '["BND_CN_002594","BND_HK_01211"]'
@@ -209,7 +215,7 @@ def test_schema_is_versioned_full_and_rejects_fake_or_extra_tables(tmp_path):
     with closing(store._connect()) as connection, connection:
         assert connection.execute("PRAGMA synchronous").fetchone()[0] == 2  # FULL
         assert connection.execute("PRAGMA foreign_keys").fetchone()[0] == 1
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 5
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
     with closing(sqlite3.connect(store.path)) as connection, connection:
         connection.execute("CREATE TABLE unrecognized(data TEXT)")
     with pytest.raises(ValueError, match="schema"):
@@ -240,7 +246,11 @@ def _claim_process(db_path, work_id, ready_path, start_path, result_path):
             result_path,
         ],
         cwd=REPO_ROOT,
-        env={**os.environ, "PYTHONPATH": str(REPO_ROOT), "PYTHONDONTWRITEBYTECODE": "1"},
+        env={
+            **os.environ,
+            "PYTHONPATH": str(REPO_ROOT),
+            "PYTHONDONTWRITEBYTECODE": "1",
+        },
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -352,7 +362,11 @@ def test_send_intent_survives_immediate_process_exit_before_any_http(tmp_path):
             attempt["attempt_id"],
         ],
         cwd=REPO_ROOT,
-        env={**os.environ, "PYTHONPATH": str(REPO_ROOT), "PYTHONDONTWRITEBYTECODE": "1"},
+        env={
+            **os.environ,
+            "PYTHONPATH": str(REPO_ROOT),
+            "PYTHONDONTWRITEBYTECODE": "1",
+        },
         capture_output=True,
         text=True,
         timeout=15,
@@ -749,7 +763,7 @@ def test_v1_migration_preserves_work_rows_and_adds_empty_checkpoint_table(tmp_pa
 
     migrated = QuickScanWorkStore(path, clock=lambda: clock[0])
     with closing(migrated._connect()) as connection, connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 5
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         assert connection.execute("SELECT COUNT(*) FROM answer_checkpoint").fetchone()[0] == 0
         after = {
             table: [
@@ -788,13 +802,19 @@ def test_fixed_v2_migration_preserves_existing_rows_and_adds_budget_ledger(tmp_p
         connection.executescript(fixture.read_text(encoding="utf-8"))
     before = {}
     with closing(sqlite3.connect(path)) as connection:
-        for table in ("work_item", "work_run_ref", "attempt", "work_event", "answer_checkpoint"):
+        for table in (
+            "work_item",
+            "work_run_ref",
+            "attempt",
+            "work_event",
+            "answer_checkpoint",
+        ):
             before[table] = connection.execute(f"SELECT * FROM {table} ORDER BY rowid").fetchall()
 
     migrated = QuickScanWorkStore(path, clock=lambda: 1_800_000_000.0)
 
     with closing(migrated._connect()) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 5
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         assert (
             connection.execute("SELECT COUNT(*) FROM quick_scan_budget_policy").fetchone()[0] == 0
         )
@@ -1163,7 +1183,13 @@ def test_no_prompt_credentials_urls_or_company_name_are_stored(tmp_path):
     attempt = _prepared(store, item["work_item_id"], lease)
     store.mark_send_intent(item["work_item_id"], lease, attempt["attempt_id"])
     raw = store.path.read_bytes()
-    for forbidden in (b"Bearer", b"api_key", b"https://", b"BYD Company", b"question body"):
+    for forbidden in (
+        b"Bearer",
+        b"api_key",
+        b"https://",
+        b"BYD Company",
+        b"question body",
+    ):
         assert forbidden not in raw
     with pytest.raises(ValueError):
         store.prepare_attempt(
@@ -1434,7 +1460,9 @@ def test_result_delivery_confirmed_not_sent_retries_identical_bytes_only(tmp_pat
     assert len(store.list_attempts(work_id)) == 1
 
 
-def test_result_delivery_rejects_wrong_ack_without_mutating_uncertain_delivery(tmp_path):
+def test_result_delivery_rejects_wrong_ack_without_mutating_uncertain_delivery(
+    tmp_path,
+):
     store, item, checkpoint, _ = _checkpointed_work_item(tmp_path)
     work_id = item["work_item_id"]
     package = _c06_package_for_checkpoint(checkpoint)
@@ -1564,6 +1592,14 @@ def test_schema_v4_upgrade_preserves_checkpoint_and_creates_delivery_ledger(tmp_
     with closing(store._connect()) as connection, connection:
         connection.execute("DROP TABLE quick_scan_result_delivery_event")
         connection.execute("DROP TABLE quick_scan_result_delivery")
+        # strip the v5/v6 objects too: this fixture must be a real v4 database
+        for table in (
+            "quick_scan_work_context",
+            "quick_scan_standard_answer",
+            "quick_scan_delivery_revision",
+            "quick_scan_observation_context",
+        ):
+            connection.execute(f"DROP TABLE {table}")
         connection.execute("PRAGMA user_version=4")
     migrated = _store(tmp_path, clock)
     assert migrated.get_item(item["work_item_id"])["status"] == "result_ready"
@@ -1572,7 +1608,7 @@ def test_schema_v4_upgrade_preserves_checkpoint_and_creates_delivery_ledger(tmp_
         == checkpoint["payload_sha256"]
     )
     with closing(migrated._connect()) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 5
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         assert (
             connection.execute("SELECT COUNT(*) FROM quick_scan_result_delivery").fetchone()[0] == 0
         )

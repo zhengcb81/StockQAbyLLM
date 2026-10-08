@@ -1,0 +1,608 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "question_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "response_kind": {
+      "enum": [
+        "score",
+        "fact"
+      ]
+    },
+    "status": {
+      "enum": [
+        "scored",
+        "answered",
+        "insufficient_evidence",
+        "not_applicable",
+        "search_unavailable"
+      ]
+    },
+    "score": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 800
+    },
+    "information_as_of": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "period_start": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "period_end": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "basis": {
+      "enum": [
+        "current",
+        "trailing",
+        "normalized",
+        "stress",
+        "forward",
+        "not_applicable"
+      ]
+    },
+    "trend": {
+      "enum": [
+        "improving",
+        "stable",
+        "deteriorating",
+        "uncertain",
+        "not_applicable"
+      ]
+    },
+    "confidence": {
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ]
+    },
+    "metrics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "metric_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unit": {
+            "enum": [
+              "percent",
+              "ratio",
+              "currency",
+              "currency_per_share",
+              "count",
+              "days",
+              "months",
+              "years",
+              "units",
+              "other"
+            ]
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Z]{3}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unit_detail": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "period_start": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "period_end": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "basis": {
+            "enum": [
+              "current",
+              "trailing",
+              "normalized",
+              "stress",
+              "forward",
+              "not_applicable"
+            ]
+          },
+          "definition": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 350
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60
+            },
+            "maxItems": 10
+          }
+        },
+        "required": [
+          "metric_id",
+          "value",
+          "unit",
+          "currency",
+          "unit_detail",
+          "period_start",
+          "period_end",
+          "basis",
+          "definition",
+          "evidence_ids"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 24
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 180
+          },
+          "canonical_entity_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "maxItems": 8
+          },
+          "relation": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "segment": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 150
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "role": {
+            "enum": [
+              "producer",
+              "user",
+              "supplier",
+              "customer",
+              "channel",
+              "manager",
+              "owner",
+              "peer",
+              "industry",
+              "other"
+            ]
+          },
+          "commercial_stage": {
+            "enum": [
+              "research",
+              "pilot",
+              "qualified",
+              "commercial",
+              "discontinued",
+              "unknown",
+              "not_applicable"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "valid_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "valid_to": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "taxonomy_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "metrics": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "metric_id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "unit": {
+                  "enum": [
+                    "percent",
+                    "ratio",
+                    "currency",
+                    "currency_per_share",
+                    "count",
+                    "days",
+                    "months",
+                    "years",
+                    "units",
+                    "other"
+                  ]
+                },
+                "currency": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[A-Z]{3}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "unit_detail": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 80
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "period_start": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "period_end": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "basis": {
+                  "enum": [
+                    "current",
+                    "trailing",
+                    "normalized",
+                    "stress",
+                    "forward",
+                    "not_applicable"
+                  ]
+                },
+                "definition": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 350
+                },
+                "evidence_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  },
+                  "maxItems": 10
+                }
+              },
+              "required": [
+                "metric_id",
+                "value",
+                "unit",
+                "currency",
+                "unit_detail",
+                "period_start",
+                "period_end",
+                "basis",
+                "definition",
+                "evidence_ids"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 12
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60
+            },
+            "maxItems": 10
+          },
+          "confidence": {
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "canonical_entity_id",
+          "aliases",
+          "relation",
+          "segment",
+          "role",
+          "commercial_stage",
+          "description",
+          "valid_from",
+          "valid_to",
+          "taxonomy_id",
+          "metrics",
+          "evidence_ids",
+          "confidence"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 20
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https?://",
+            "maxLength": 1800
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "claim": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "url",
+          "published_at",
+          "claim"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 20
+    },
+    "counterevidence": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 600
+    },
+    "watch_triggers": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "maxItems": 8
+    },
+    "missing_fields": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 160
+      },
+      "maxItems": 20
+    },
+    "coverage": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "enum": [
+            "partial",
+            "complete_for_scope",
+            "unknown",
+            "not_applicable"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 350
+        }
+      },
+      "required": [
+        "status",
+        "reason"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "question_id",
+    "response_kind",
+    "status",
+    "score",
+    "summary",
+    "information_as_of",
+    "period_start",
+    "period_end",
+    "basis",
+    "trend",
+    "confidence",
+    "metrics",
+    "items",
+    "evidence",
+    "counterevidence",
+    "watch_triggers",
+    "missing_fields",
+    "coverage"
+  ],
+  "additionalProperties": false,
+  "$id": "urn:iqs:answer-content:1"
+}

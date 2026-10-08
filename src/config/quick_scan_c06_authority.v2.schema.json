@@ -1,0 +1,98 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "stockqa.quick_scan_c06_authority/2.0.0",
+  "title": "StockQA quick-scan C06 delivery authority v2",
+  "description": "Authority 2.0.0 adds the frozen IQS observation context: the exact per-question metadata, prompt hashes, and the two manifest hashes plus the identity byte hash the complete Observation is built from. The v1 document stays valid and unchanged; an unknown schema_version is refused, never downgraded.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "contract_versions",
+    "capabilities",
+    "producer",
+    "observation_context",
+    "observation_context_sha256"
+  ],
+  "properties": {
+    "schema_version": {"const": "2.0.0"},
+    "contract_versions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "identity_schema",
+        "answer_schema",
+        "observation_schema",
+        "question_catalog",
+        "model_policy_schema"
+      ],
+      "properties": {
+        "identity_schema": {"type": "string", "minLength": 1, "maxLength": 80},
+        "answer_schema": {"type": "string", "minLength": 1, "maxLength": 80},
+        "observation_schema": {"type": "string", "minLength": 1, "maxLength": 80},
+        "question_catalog": {"type": "string", "minLength": 1, "maxLength": 80},
+        "model_policy_schema": {"type": "string", "minLength": 1, "maxLength": 80}
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "entity_security_identity_v1",
+          "standard_observation_v1",
+          "score_v1",
+          "fact_v1"
+        ]
+      }
+    },
+    "producer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["component_version", "build_id"],
+      "properties": {
+        "component_version": {"type": "string", "minLength": 1, "maxLength": 80},
+        "build_id": {"type": "string", "minLength": 1, "maxLength": 160}
+      }
+    },
+    "observation_context_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "observation_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "manifest_content_sha256",
+        "manifest_file_sha256",
+        "identity_snapshot_sha256",
+        "observation_schema_sha256",
+        "answer_schema_sha256",
+        "metric_registry_sha256",
+        "questions"
+      ],
+      "properties": {
+        "schema": {"const": "stockqa.quick_scan_observation_context/1.0.0"},
+        "manifest_content_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "manifest_file_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "identity_snapshot_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "observation_schema_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "answer_schema_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "metric_registry_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "questions": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 1000,
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["metadata", "frozen_prompt_sha256", "work_prompt_sha256"],
+            "properties": {
+              "frozen_prompt_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+              "work_prompt_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+              "metadata": {"type": "object"}
+            }
+          }
+        }
+      }
+    }
+  }
+}

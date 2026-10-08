@@ -8,6 +8,7 @@ dependencies = [
     "httpx>=0.25.0",
     "requests>=2.31.0",
     "aiohttp>=3.14.3",
+    "jsonschema[format-nongpl]>=4.23.0",
 ]
 license = {text = "MIT"}
 authors = [
@@ -120,6 +121,10 @@ disallow_untyped_defs = false
 
 [[tool.mypy.overrides]]
 module = "httpx.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["jsonschema", "jsonschema.*", "referencing", "referencing.*"]
 ignore_missing_imports = true
 
 [tool.pylint.messages_control]

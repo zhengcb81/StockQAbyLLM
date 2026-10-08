@@ -1,0 +1,48 @@
+==> checks [full] step=black
+All done! ✨ 🍰 ✨
+125 files would be left unchanged.
+checks: step=black exit=0 seconds=0.57
+==> checks [full] step=isort
+checks: step=isort exit=0 seconds=0.95
+==> checks [full] step=mypy
+Success: no issues found in 56 source files
+checks: step=mypy exit=0 seconds=8.43
+==> checks [full] step=bandit
+[manager]	WARNING	Test in comment: only is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: literal is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: placeholders is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: are is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: joined is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: all is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: values is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: bound is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: as is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: parameters is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: literal is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: placeholders is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: only is not a test name or id, ignoring
+[tester]	WARNING	nosec encountered (B608), but no failed test on line 3406
+[tester]	WARNING	nosec encountered (B608), but no failed test on line 3694
+checks: step=bandit exit=0 seconds=1.80
+==> checks [full] step=pytest
+........................................................................ [  6%]
+........................................................................ [ 13%]
+........................................................................ [ 20%]
+........................................................................ [ 27%]
+........................................................................ [ 34%]
+........................................................................ [ 41%]
+........................................................................ [ 48%]
+........................................................................ [ 55%]
+........................................................................ [ 62%]
+........................................................................ [ 69%]
+........................................................................ [ 76%]
+........................................................................ [ 83%]
+........................................................................ [ 90%]
+........................................................................ [ 97%]
+.............................                                            [100%]
+1037 passed in 96.69s (0:01:36)
+checks: step=pytest exit=0 seconds=99.23
+==> checks [full] step=smoke
+stockqa-cli-smoke-ok
+checks: step=smoke exit=0 seconds=0.67
+checks: mode=full result=pass exit=0 steps=black,isort,mypy,bandit,pytest,smoke seconds=111.67

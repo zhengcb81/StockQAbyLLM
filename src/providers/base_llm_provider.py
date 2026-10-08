@@ -8,7 +8,9 @@
 import json
 import os
 from abc import abstractmethod
-from typing import Any, Dict, List, Optional
+from contextlib import contextmanager
+from contextvars import ContextVar
+from typing import Any, Dict, Iterator, List, Optional
 
 from src.config.llm_config import LLMConfig
 from src.config.settings import (
@@ -24,6 +26,29 @@ from .llm_response_parser import LLMResponseParser
 from .llm_retry_strategy import LLMRetryStrategy
 
 logger = get_logger(__name__)
+
+_STANDARD_ANSWER_TRANSPORT: ContextVar[bool] = ContextVar(
+    "quick_scan_standard_answer_transport", default=False
+)
+
+
+@contextmanager
+def standard_answer_transport(enabled: bool) -> Iterator[None]:
+    """Explicitly turn the complete standard-answer transport on for one run.
+
+    The runner sets this only when the run carries the frozen IQS observation
+    context; nothing switches it on implicitly, and the scope dies with the
+    ``with`` block so a later run can never inherit it.
+    """
+    token = _STANDARD_ANSWER_TRANSPORT.set(bool(enabled))
+    try:
+        yield
+    finally:
+        _STANDARD_ANSWER_TRANSPORT.reset(token)
+
+
+def standard_answer_transport_enabled() -> bool:
+    return _STANDARD_ANSWER_TRANSPORT.get()
 
 
 def mask_api_key(api_key: str) -> str:
@@ -158,6 +183,21 @@ class BaseLLMProvider(SearchProvider):
             if question_id
             else ""
         )
+        standard_answer_rule = (
+            '\n7. COMPLETE STANDARD ANSWER TRANSPORT IS ON: the "description" '
+            "value MUST itself be ONE single-line JSON object string holding the "
+            "FULL standard answer for this question — question_id, "
+            'response_kind ("score"), status, score, summary, '
+            "information_as_of, period_start, period_end, basis, trend, "
+            "confidence, metrics, items, evidence (id/title/url/published_at/"
+            "claim), counterevidence, watch_triggers, missing_fields and "
+            "coverage. Keep every required field, never truncate or summarise "
+            "the body, and never invent a value you do not have: an unknown "
+            "field stays null or an empty list, and the outer status/score/"
+            "question_id must equal the ones inside the description."
+            if standard_answer_transport_enabled()
+            else ""
+        )
 
         return f"""You are a professional investment analyst. Use current public information.
 Before answering, you MUST invoke the provided web_search tool at least once for the stated company and question, then base the answer on the retrieved results. Do not skip the search even if you think you already know the answer.
@@ -177,7 +217,7 @@ Requirements:
   "score": <integer 1-10 only when status is scored, otherwise null>,
   "information_as_of": "<YYYY-MM-DD the cited facts refer to (not today's date); null when unknown>",
   "description": "<reasoning and evidence>"
-}}"""
+}}{standard_answer_rule}"""
 
     def _build_format_repair_prompt(
         self,

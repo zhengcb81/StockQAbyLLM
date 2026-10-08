@@ -20,10 +20,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Callable, Iterator, Optional, Sequence
+from typing import Callable, Iterator, Optional, Sequence, cast
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 _SAFE_ID = re.compile(r"^[A-Za-z0-9_.-]{1,160}$")
 # Hyphens accepted per owner sign-off (2026-10-05 round-51): the W04
 # identity-export package issues ENT_<uuid> entity ids (e.g. the frozen
@@ -361,7 +361,114 @@ _DDL_V5_ADDITIONS = (
         BEGIN SELECT RAISE(ABORT,'quick-scan delivery ACK is immutable'); END""",
 )
 
-_DDL = _DDL_V1 + _DDL_V2_ADDITIONS + _DDL_V3_ADDITIONS + _DDL_V4_ADDITIONS + _DDL_V5_ADDITIONS
+_DDL_V6_ADDITIONS = (
+    # The v5 guard allowed NO package change. v6 keeps the same abort for
+    # every rewrite except a deliberate supersede whose new package is already
+    # recorded as the head of the append-only revision chain.
+    "DROP TRIGGER IF EXISTS quick_scan_delivery_package_immutable",
+    """CREATE TRIGGER quick_scan_delivery_package_immutable
+        BEFORE UPDATE ON quick_scan_result_delivery
+        WHEN OLD.package_json IS NOT NULL AND (
+            NEW.package_json IS NOT OLD.package_json
+            OR NEW.package_sha256 IS NOT OLD.package_sha256
+            OR NEW.package_bytes_sha256 IS NOT OLD.package_bytes_sha256
+            OR NEW.package_id IS NOT OLD.package_id
+            OR NEW.item_id IS NOT OLD.item_id
+            OR NEW.observation_id IS NOT OLD.observation_id
+            OR NEW.payload_sha256 IS NOT OLD.payload_sha256
+            OR NEW.delivery_key IS NOT OLD.delivery_key)
+        BEGIN
+            SELECT RAISE(ABORT,'quick-scan delivery package is immutable')
+            WHERE NOT EXISTS (
+                SELECT 1 FROM quick_scan_delivery_revision r
+                WHERE r.work_item_id = OLD.work_item_id
+                  AND r.revision = (
+                      SELECT MAX(revision) FROM quick_scan_delivery_revision
+                      WHERE work_item_id = OLD.work_item_id)
+                  AND r.package_sha256 IS NOT OLD.package_sha256
+                  AND r.package_json = NEW.package_json
+                  AND r.package_sha256 = NEW.package_sha256
+                  AND r.package_bytes_sha256 = NEW.package_bytes_sha256
+                  AND r.package_id = NEW.package_id
+                  AND r.item_id = NEW.item_id
+                  AND r.observation_id = NEW.observation_id
+                  AND r.payload_sha256 = NEW.payload_sha256
+                  AND r.delivery_key = NEW.delivery_key
+            );
+        END""",
+    """CREATE TABLE quick_scan_observation_context (
+        context_sha256 TEXT PRIMARY KEY CHECK (length(context_sha256) = 64),
+        context_json TEXT NOT NULL,
+        created_at REAL NOT NULL
+    )""",
+    """CREATE TABLE quick_scan_work_context (
+        work_item_id TEXT PRIMARY KEY REFERENCES work_item(work_item_id),
+        context_sha256 TEXT NOT NULL
+            REFERENCES quick_scan_observation_context(context_sha256),
+        created_at REAL NOT NULL
+    )""",
+    """CREATE TABLE quick_scan_standard_answer (
+        work_item_id TEXT PRIMARY KEY REFERENCES work_item(work_item_id),
+        answer_sha256 TEXT NOT NULL CHECK (length(answer_sha256) = 64),
+        answer_json TEXT NOT NULL,
+        created_at REAL NOT NULL
+    )""",
+    """CREATE TABLE quick_scan_delivery_revision (
+        revision_id TEXT PRIMARY KEY,
+        work_item_id TEXT NOT NULL REFERENCES work_item(work_item_id),
+        revision INTEGER NOT NULL CHECK (revision >= 1),
+        package_json TEXT NOT NULL,
+        package_sha256 TEXT NOT NULL CHECK (length(package_sha256) = 64),
+        package_bytes_sha256 TEXT NOT NULL CHECK (length(package_bytes_sha256) = 64),
+        package_id TEXT NOT NULL,
+        item_id TEXT NOT NULL,
+        observation_id TEXT NOT NULL,
+        payload_sha256 TEXT NOT NULL,
+        delivery_key TEXT NOT NULL,
+        supersedes_revision INTEGER,
+        supersedes_package_id TEXT,
+        created_at REAL NOT NULL,
+        UNIQUE (work_item_id, revision),
+        UNIQUE (work_item_id, package_id),
+        CHECK ((supersedes_revision IS NULL AND supersedes_package_id IS NULL)
+            OR (supersedes_revision >= 1 AND supersedes_package_id IS NOT NULL))
+    )""",
+    "CREATE INDEX quick_scan_delivery_revision_head_idx "
+    "ON quick_scan_delivery_revision(work_item_id,revision)",
+    """CREATE TRIGGER quick_scan_observation_context_no_update
+        BEFORE UPDATE ON quick_scan_observation_context
+        BEGIN SELECT RAISE(ABORT,'observation contexts are immutable'); END""",
+    """CREATE TRIGGER quick_scan_observation_context_no_delete
+        BEFORE DELETE ON quick_scan_observation_context
+        BEGIN SELECT RAISE(ABORT,'observation contexts are immutable'); END""",
+    """CREATE TRIGGER quick_scan_work_context_no_update
+        BEFORE UPDATE ON quick_scan_work_context
+        BEGIN SELECT RAISE(ABORT,'work observation context binding is immutable'); END""",
+    """CREATE TRIGGER quick_scan_work_context_no_delete
+        BEFORE DELETE ON quick_scan_work_context
+        BEGIN SELECT RAISE(ABORT,'work observation context binding is immutable'); END""",
+    """CREATE TRIGGER quick_scan_standard_answer_no_update
+        BEFORE UPDATE ON quick_scan_standard_answer
+        BEGIN SELECT RAISE(ABORT,'standard answers are immutable'); END""",
+    """CREATE TRIGGER quick_scan_standard_answer_no_delete
+        BEFORE DELETE ON quick_scan_standard_answer
+        BEGIN SELECT RAISE(ABORT,'standard answers are immutable'); END""",
+    """CREATE TRIGGER quick_scan_delivery_revision_no_update
+        BEFORE UPDATE ON quick_scan_delivery_revision
+        BEGIN SELECT RAISE(ABORT,'delivery revisions are immutable'); END""",
+    """CREATE TRIGGER quick_scan_delivery_revision_no_delete
+        BEFORE DELETE ON quick_scan_delivery_revision
+        BEGIN SELECT RAISE(ABORT,'delivery revisions are immutable'); END""",
+)
+
+_DDL = (
+    _DDL_V1
+    + _DDL_V2_ADDITIONS
+    + _DDL_V3_ADDITIONS
+    + _DDL_V4_ADDITIONS
+    + _DDL_V5_ADDITIONS
+    + _DDL_V6_ADDITIONS
+)
 
 _RECEIPT_FIELDS = (
     "provider",
@@ -769,6 +876,7 @@ class QuickScanWorkStore:
                     connection.execute(statement)
                 cls._apply_v4_migration(connection)
                 cls._apply_v5_migration(connection)
+                cls._apply_v6_migration(connection)
                 connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             elif version == 2:
                 cls._validate_schema(connection, schema_version=2)
@@ -776,15 +884,22 @@ class QuickScanWorkStore:
                     connection.execute(statement)
                 cls._apply_v4_migration(connection)
                 cls._apply_v5_migration(connection)
+                cls._apply_v6_migration(connection)
                 connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             elif version == 3:
                 cls._validate_schema(connection, schema_version=3)
                 cls._apply_v4_migration(connection)
                 cls._apply_v5_migration(connection)
+                cls._apply_v6_migration(connection)
                 connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             elif version == 4:
                 cls._validate_schema(connection, schema_version=4)
                 cls._apply_v5_migration(connection)
+                cls._apply_v6_migration(connection)
+                connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+            elif version == 5:
+                cls._validate_schema(connection, schema_version=5)
+                cls._apply_v6_migration(connection)
                 connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             elif version != SCHEMA_VERSION:
                 raise ValueError("unsupported quick-scan work database schema version")
@@ -811,6 +926,23 @@ class QuickScanWorkStore:
     def _apply_v5_migration(connection: sqlite3.Connection) -> None:
         for statement in _DDL_V5_ADDITIONS:
             connection.execute(statement)
+
+    @staticmethod
+    def _apply_v6_migration(connection: sqlite3.Connection) -> None:
+        for statement in _DDL_V6_ADDITIONS:
+            connection.execute(statement)
+        # Historical sealed packages become revision 1 of their own chain —
+        # their bytes, hashes and ACKs are untouched, only catalogued.
+        connection.execute(
+            "INSERT INTO quick_scan_delivery_revision "
+            "(revision_id,work_item_id,revision,package_json,package_sha256,"
+            "package_bytes_sha256,package_id,item_id,observation_id,payload_sha256,"
+            "delivery_key,supersedes_revision,supersedes_package_id,created_at) "
+            "SELECT 'REVISION_' || work_item_id || '_1',work_item_id,1,package_json,"
+            "package_sha256,package_bytes_sha256,package_id,item_id,observation_id,"
+            "payload_sha256,delivery_key,NULL,NULL,created_at "
+            "FROM quick_scan_result_delivery WHERE package_json IS NOT NULL"
+        )
 
     @staticmethod
     def _schema_objects(connection: sqlite3.Connection) -> dict[tuple[str, str], str]:
@@ -877,7 +1009,7 @@ class QuickScanWorkStore:
                     (
                         "trigger",
                         "quick_scan_delivery_package_immutable",
-                    ): _DDL_V5_ADDITIONS[3],
+                    ): (_DDL_V6_ADDITIONS[1] if schema_version >= 6 else _DDL_V5_ADDITIONS[3]),
                     (
                         "trigger",
                         "quick_scan_delivery_state_transition",
@@ -896,6 +1028,45 @@ class QuickScanWorkStore:
             )
         elif schema_version not in {1, 2, 3, 4}:
             raise ValueError("unsupported quick-scan work database schema version")
+        if schema_version >= 6:
+            expected.update(
+                {
+                    ("table", "quick_scan_observation_context"): _DDL_V6_ADDITIONS[2],
+                    ("table", "quick_scan_work_context"): _DDL_V6_ADDITIONS[3],
+                    ("table", "quick_scan_standard_answer"): _DDL_V6_ADDITIONS[4],
+                    ("table", "quick_scan_delivery_revision"): _DDL_V6_ADDITIONS[5],
+                    (
+                        "index",
+                        "quick_scan_delivery_revision_head_idx",
+                    ): _DDL_V6_ADDITIONS[6],
+                    (
+                        "trigger",
+                        "quick_scan_observation_context_no_update",
+                    ): _DDL_V6_ADDITIONS[7],
+                    (
+                        "trigger",
+                        "quick_scan_observation_context_no_delete",
+                    ): _DDL_V6_ADDITIONS[8],
+                    ("trigger", "quick_scan_work_context_no_update"): _DDL_V6_ADDITIONS[9],
+                    ("trigger", "quick_scan_work_context_no_delete"): _DDL_V6_ADDITIONS[10],
+                    (
+                        "trigger",
+                        "quick_scan_standard_answer_no_update",
+                    ): _DDL_V6_ADDITIONS[11],
+                    (
+                        "trigger",
+                        "quick_scan_standard_answer_no_delete",
+                    ): _DDL_V6_ADDITIONS[12],
+                    (
+                        "trigger",
+                        "quick_scan_delivery_revision_no_update",
+                    ): _DDL_V6_ADDITIONS[13],
+                    (
+                        "trigger",
+                        "quick_scan_delivery_revision_no_delete",
+                    ): _DDL_V6_ADDITIONS[14],
+                }
+            )
         if actual.keys() != expected.keys() or any(
             _normalized_sql(actual[key]) != _normalized_sql(statement)
             for key, statement in expected.items()
@@ -930,6 +1101,8 @@ class QuickScanWorkStore:
                 raise ValueError("quick-scan result delivery/work status mismatch")
             for row in connection.execute("SELECT * FROM quick_scan_result_delivery"):
                 cls._result_delivery_record(row)
+        if schema_version >= 6:
+            cls._validate_v6_side_tables(connection)
         if schema_version >= 2:
             inconsistent = connection.execute(
                 "SELECT COUNT(*) FROM work_item w LEFT JOIN answer_checkpoint c "
@@ -945,6 +1118,80 @@ class QuickScanWorkStore:
                 "JOIN attempt a ON a.attempt_id=c.attempt_id"
             ):
                 cls._checkpoint_record(connection, row, validate_status=True)
+
+    @classmethod
+    def _validate_v6_side_tables(cls, connection: sqlite3.Connection) -> None:
+        """Re-check the immutable side tables and the delivery revision head."""
+        from .quick_scan_result_outbox import (
+            canonical_sha256,
+            delivery_key,
+            validate_exchange_package,
+        )
+
+        orphan_revision = connection.execute(
+            "SELECT COUNT(*) FROM quick_scan_delivery_revision r "
+            "LEFT JOIN quick_scan_result_delivery d USING (work_item_id) "
+            "WHERE d.work_item_id IS NULL OR d.package_json IS NULL"
+        ).fetchone()[0]
+        if orphan_revision:
+            raise ValueError("quick-scan delivery revision has no sealed head row")
+        unsealed = connection.execute(
+            "SELECT COUNT(*) FROM quick_scan_result_delivery d "
+            "WHERE d.package_json IS NOT NULL AND NOT EXISTS ("
+            " SELECT 1 FROM quick_scan_delivery_revision r"
+            " WHERE r.work_item_id=d.work_item_id"
+            " AND r.package_sha256=d.package_sha256"
+            " AND r.revision=(SELECT MAX(revision) FROM quick_scan_delivery_revision"
+            " WHERE work_item_id=d.work_item_id))"
+        ).fetchone()[0]
+        if unsealed:
+            raise ValueError("quick-scan delivery head is not its newest revision")
+        supersede_gap = connection.execute(
+            "SELECT COUNT(*) FROM quick_scan_delivery_revision "
+            "WHERE revision>1 AND (supersedes_revision IS NULL "
+            "OR supersedes_revision!=revision-1)"
+        ).fetchone()[0]
+        if supersede_gap:
+            raise ValueError("quick-scan delivery revision chain is broken")
+        for row in connection.execute("SELECT * FROM quick_scan_delivery_revision"):
+            try:
+                package = json.loads(row["package_json"])
+                item = validate_exchange_package(package)["items"][0]
+            except (TypeError, ValueError, json.JSONDecodeError) as error:
+                raise ValueError("quick-scan delivery revision package is invalid") from error
+            if (
+                canonical_sha256(
+                    {
+                        key: value
+                        for key, value in package.items()
+                        if key not in {"package_id", "package_sha256"}
+                    }
+                )
+                != row["package_sha256"]
+                or item["observation_id"] != row["observation_id"]
+                or item["item_id"] != row["item_id"]
+                or item["payload_sha256"] != row["payload_sha256"]
+                or delivery_key(row["package_id"], row["item_id"], row["payload_sha256"])
+                != row["delivery_key"]
+                or row["package_id"] != package["package_id"]
+            ):
+                raise ValueError("quick-scan delivery revision binding is corrupt")
+        for row in connection.execute("SELECT * FROM quick_scan_observation_context"):
+            cls._canonical_side_record(row["context_json"], row["context_sha256"], "context")
+        for row in connection.execute("SELECT * FROM quick_scan_standard_answer"):
+            cls._canonical_side_record(row["answer_json"], row["answer_sha256"], "standard answer")
+
+    @staticmethod
+    def _canonical_side_record(encoded: str, expected: str, label: str) -> None:
+        from .quick_scan_result_outbox import canonical_bytes
+
+        try:
+            value = json.loads(encoded)
+            canonical = canonical_bytes(value).decode("utf-8")
+        except (TypeError, ValueError, json.JSONDecodeError) as error:
+            raise ValueError(f"stored {label} is not valid JSON") from error
+        if canonical != encoded or hashlib.sha256(encoded.encode("utf-8")).hexdigest() != expected:
+            raise ValueError(f"stored {label} hash mismatch")
 
     @contextmanager
     def _transaction(self) -> Iterator[sqlite3.Connection]:
@@ -2173,8 +2420,17 @@ class QuickScanWorkStore:
         *,
         answer: dict,
         execution_receipt: dict,
+        observation_context: Optional[dict] = None,
+        standard_answer: Optional[dict] = None,
     ) -> dict:
-        """Atomically persist one validated answer and mark its question complete."""
+        """Atomically persist one validated answer and mark its question complete.
+
+        ``observation_context`` + ``standard_answer`` are the Q10 complete
+        path: the frozen owner context and the model's full standard body are
+        validated FIRST and then written to immutable side tables in the same
+        transaction as the compact checkpoint, so a sealed package can never
+        be built from a body that was not checked.
+        """
         _safe(work_item_id, "work_item_id")
         _safe(attempt_id, "attempt_id")
         if not isinstance(answer, dict) or set(answer) != {
@@ -2246,9 +2502,26 @@ class QuickScanWorkStore:
         if request_id is not None:
             request_id = _safe_text(request_id, "request_id", maximum=300)
         receipt_sha256 = quick_scan_receipt_sha256(execution_receipt)
+        side_tables: Optional[dict] = None
+        if observation_context is not None or standard_answer is not None:
+            side_tables = self._prepare_standard_inputs(
+                question_id=question_id,
+                normalized_answer=normalized_answer,
+                source_urls=source_urls,
+                observation_context=observation_context,
+                standard_answer=standard_answer,
+            )
         now = self._now()
         with self._transaction() as connection:
             item = self._item(connection, work_item_id)
+            if side_tables is not None:
+                self._store_side_tables(
+                    connection,
+                    work_item_id=work_item_id,
+                    item=dict(item),
+                    now=now,
+                    **side_tables,
+                )
             existing = connection.execute(
                 "SELECT * FROM answer_checkpoint WHERE work_item_id=?", (work_item_id,)
             ).fetchone()
@@ -2376,6 +2649,229 @@ class QuickScanWorkStore:
                 (work_item_id,),
             ).fetchone()
             return None if row is None else self._checkpoint_record(connection, row)
+
+    @staticmethod
+    def _store_side_tables(
+        connection: sqlite3.Connection,
+        *,
+        work_item_id: str,
+        item: dict,
+        now: float,
+        context_encoded: str,
+        context_sha256: str,
+        standard_encoded: Optional[str],
+        standard_sha256: Optional[str],
+    ) -> None:
+        """Persist the frozen context and the complete standard answer.
+
+        Both tables are append-only. Binding a DIFFERENT frozen context to a
+        task that already has one is a conflict — the second writer never
+        silently wins, and neither row can be rewritten or deleted.
+        """
+        from .quick_scan_observation_context import bind_context_to_work_item
+
+        context_document = json.loads(context_encoded)
+        bind_context_to_work_item(context_document, work_item=item, question_id=item["question_id"])
+        connection.execute(
+            "INSERT OR IGNORE INTO quick_scan_observation_context "
+            "(context_sha256,context_json,created_at) VALUES (?,?,?)",
+            (context_sha256, context_encoded, now),
+        )
+        stored = connection.execute(
+            "SELECT context_sha256 FROM quick_scan_observation_context WHERE context_sha256=?",
+            (context_sha256,),
+        ).fetchone()
+        if stored is None or stored["context_sha256"] != context_sha256:
+            raise WorkConflictError("observation context could not be persisted")
+        bound = connection.execute(
+            "SELECT context_sha256 FROM quick_scan_work_context WHERE work_item_id=?",
+            (work_item_id,),
+        ).fetchone()
+        if bound is None:
+            connection.execute(
+                "INSERT INTO quick_scan_work_context "
+                "(work_item_id,context_sha256,created_at) VALUES (?,?,?)",
+                (work_item_id, context_sha256, now),
+            )
+        elif bound["context_sha256"] != context_sha256:
+            raise WorkConflictError("task already bound to a different observation context")
+        if standard_encoded is None or standard_sha256 is None:
+            return
+        answer_row = connection.execute(
+            "SELECT answer_sha256 FROM quick_scan_standard_answer WHERE work_item_id=?",
+            (work_item_id,),
+        ).fetchone()
+        if answer_row is None:
+            connection.execute(
+                "INSERT INTO quick_scan_standard_answer "
+                "(work_item_id,answer_sha256,answer_json,created_at) VALUES (?,?,?,?)",
+                (work_item_id, standard_sha256, standard_encoded, now),
+            )
+        elif answer_row["answer_sha256"] != standard_sha256:
+            raise WorkConflictError("task already has a different complete standard answer")
+
+    @staticmethod
+    def _prepare_standard_inputs(
+        *,
+        question_id: str,
+        normalized_answer: dict,
+        source_urls: list,
+        observation_context: Optional[dict],
+        standard_answer: Optional[dict],
+    ) -> dict:
+        """Validate the frozen context and (when present) the body BEFORE any write."""
+        if observation_context is None:
+            raise ValueError("a complete standard answer requires the frozen observation context")
+        from .quick_scan_observation_context import (
+            validate_context_document,
+            validate_standard_answer,
+        )
+        from .quick_scan_result_outbox import canonical_bytes, canonical_sha256
+
+        context_document = validate_context_document(
+            observation_context,
+            expected_sha256=canonical_sha256(observation_context),
+        )
+        if question_id not in context_document["questions"]:
+            raise ValueError("standard answer question is absent from the frozen context")
+        standard_encoded: Optional[str] = None
+        if standard_answer is not None:
+            validate_standard_answer(
+                standard_answer,
+                metadata=context_document["questions"][question_id]["metadata"],
+                normalized_answer=normalized_answer,
+                source_urls=source_urls,
+            )
+            standard_encoded = canonical_bytes(standard_answer).decode("utf-8")
+        context_encoded = canonical_bytes(context_document).decode("utf-8")
+        return {
+            "context_encoded": context_encoded,
+            "context_sha256": hashlib.sha256(context_encoded.encode("utf-8")).hexdigest(),
+            "standard_encoded": standard_encoded,
+            "standard_sha256": (
+                hashlib.sha256(standard_encoded.encode("utf-8")).hexdigest()
+                if standard_encoded is not None
+                else None
+            ),
+        }
+
+    def attach_standard_inputs(
+        self,
+        work_item_id: str,
+        *,
+        observation_context: dict,
+        standard_answer: dict,
+    ) -> dict:
+        """Supplement an EXISTING checkpoint with its frozen context and body.
+
+        The supplement path: a checkpoint that was saved before the complete inputs
+        were available can gain them later WITHOUT any model call. Binding a
+        different context (or a different body) to the same task is a conflict,
+        and a checkpoint that does not match the supplied body is refused.
+        """
+        _safe(work_item_id, "work_item_id")
+        if not isinstance(observation_context, dict) or not isinstance(standard_answer, dict):
+            raise ValueError("standard inputs must be documents")
+        with self._transaction() as connection:
+            item = self._item(connection, work_item_id)
+            row = connection.execute(
+                "SELECT c.*,w.*,a.attempt_id AS bound_attempt_id "
+                "FROM answer_checkpoint c JOIN work_item w ON w.work_item_id=c.work_item_id "
+                "JOIN attempt a ON a.attempt_id=c.attempt_id WHERE c.work_item_id=?",
+                (work_item_id,),
+            ).fetchone()
+            if row is None:
+                raise WorkConflictError("standard inputs require an existing answer checkpoint")
+            checkpoint = self._checkpoint_record(connection, row, validate_status=True)
+            payload = checkpoint["payload"]
+            side_tables = self._prepare_standard_inputs(
+                question_id=item["question_id"],
+                normalized_answer=payload["answer"],
+                source_urls=list(payload["provenance"].get("source_urls") or []),
+                observation_context=observation_context,
+                standard_answer=standard_answer,
+            )
+            self._store_side_tables(
+                connection,
+                work_item_id=work_item_id,
+                item=dict(item),
+                now=self._now(),
+                **side_tables,
+            )
+            return {
+                "context_sha256": side_tables["context_sha256"],
+                "answer_sha256": side_tables["standard_sha256"],
+            }
+
+    def get_observation_context(self, work_item_id: str) -> Optional[dict]:
+        """The frozen context this task was bound to, or None if it predates v6."""
+        _safe(work_item_id, "work_item_id")
+        with closing(self._connect()) as connection:
+            row = connection.execute(
+                "SELECT c.context_json,c.context_sha256 FROM quick_scan_work_context w "
+                "JOIN quick_scan_observation_context c USING (context_sha256) "
+                "WHERE w.work_item_id=?",
+                (work_item_id,),
+            ).fetchone()
+            if row is None:
+                return None
+            return {
+                "context": json.loads(row["context_json"]),
+                "context_sha256": row["context_sha256"],
+            }
+
+    def get_standard_answer(self, work_item_id: str) -> Optional[dict]:
+        """The complete standard answer body stored with this task, if any."""
+        _safe(work_item_id, "work_item_id")
+        with closing(self._connect()) as connection:
+            row = connection.execute(
+                "SELECT answer_json,answer_sha256 FROM quick_scan_standard_answer "
+                "WHERE work_item_id=?",
+                (work_item_id,),
+            ).fetchone()
+            if row is None:
+                return None
+            return {
+                "answer": json.loads(row["answer_json"]),
+                "answer_sha256": row["answer_sha256"],
+            }
+
+    def get_attempt_transmission(self, attempt_id: str) -> dict:
+        """Original dispatch instant of one durable attempt — never a clock read.
+
+        The complete Observation's ``execution.started_at`` must be the moment
+        this attempt's send intent was committed, not the moment a package
+        happened to be sealed.
+        """
+        _safe(attempt_id, "attempt_id")
+        with closing(self._connect()) as connection:
+            row = connection.execute(
+                "SELECT attempt_id,send_intent_at,completed_at FROM attempt WHERE attempt_id=?",
+                (attempt_id,),
+            ).fetchone()
+            if row is None:
+                raise KeyError("unknown attempt")
+            return dict(row)
+
+    @staticmethod
+    def _revision_record(row: sqlite3.Row) -> dict:
+        return dict(row)
+
+    def list_delivery_revisions(self, work_item_id: str) -> list[dict]:
+        """The append-only package chain for one work item, oldest first."""
+        _safe(work_item_id, "work_item_id")
+        with closing(self._connect()) as connection:
+            self._item(connection, work_item_id)
+            return [
+                self._revision_record(row)
+                for row in connection.execute(
+                    "SELECT revision,package_id,item_id,observation_id,payload_sha256,"
+                    "delivery_key,supersedes_revision,supersedes_package_id,created_at "
+                    "FROM quick_scan_delivery_revision WHERE work_item_id=? "
+                    "ORDER BY revision",
+                    (work_item_id,),
+                )
+            ]
 
     @staticmethod
     def _result_delivery_record(row: sqlite3.Row) -> dict:
@@ -2544,6 +3040,68 @@ class QuickScanWorkStore:
             ).fetchone()
             return self._result_delivery_record(row)
 
+    @staticmethod
+    def _insert_revision(
+        connection: sqlite3.Connection,
+        *,
+        work_item_id: str,
+        package: dict,
+        package_json: str,
+        package_bytes_sha256: str,
+        item_id: str,
+        observation_id: str,
+        payload_sha256: str,
+        delivery_key_value: str,
+        now: float,
+        supersedes_revision: Optional[int] = None,
+        supersedes_package_id: Optional[str] = None,
+    ) -> int:
+        """Append one immutable revision; sealing the same bytes is idempotent."""
+        existing = connection.execute(
+            "SELECT revision FROM quick_scan_delivery_revision "
+            "WHERE work_item_id=? AND package_id=?",
+            (work_item_id, package["package_id"]),
+        ).fetchone()
+        if existing is not None:
+            return int(existing["revision"])
+        head = int(
+            connection.execute(
+                "SELECT COALESCE(MAX(revision),0) AS head FROM quick_scan_delivery_revision "
+                "WHERE work_item_id=?",
+                (work_item_id,),
+            ).fetchone()["head"]
+        )
+        revision = head + 1
+        if revision == 1:
+            if supersedes_revision is not None or supersedes_package_id is not None:
+                raise WorkConflictError("the first revision cannot supersede anything")
+        elif supersedes_revision != head or not supersedes_package_id:
+            raise WorkConflictError("a new revision must supersede the current head")
+        connection.execute(
+            "INSERT INTO quick_scan_delivery_revision "
+            "(revision_id,work_item_id,revision,package_json,package_sha256,"
+            "package_bytes_sha256,package_id,item_id,observation_id,payload_sha256,"
+            "delivery_key,supersedes_revision,supersedes_package_id,created_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                f"REVISION_{work_item_id}_{revision}",
+                work_item_id,
+                revision,
+                package_json,
+                package["package_sha256"],
+                package_bytes_sha256,
+                package["package_id"],
+                item_id,
+                observation_id,
+                payload_sha256,
+                delivery_key_value,
+                supersedes_revision,
+                supersedes_package_id,
+                now,
+            ),
+        )
+        return revision
+
     def prepare_result_delivery(self, work_item_id: str, package: dict) -> dict:
         """Seal a complete one-item package supplied by a verified C06 adapter."""
         from .quick_scan_result_outbox import (
@@ -2583,9 +3141,33 @@ class QuickScanWorkStore:
                 existing = self._result_delivery_record(current)
                 if existing["package_bytes"] != package_bytes:
                     raise WorkConflictError("quick-scan delivery package is immutable")
+                self._insert_revision(
+                    connection,
+                    work_item_id=work_item_id,
+                    package=validated,
+                    package_json=package_json,
+                    package_bytes_sha256=package_bytes_sha256,
+                    item_id=item_id,
+                    observation_id=observation_id,
+                    payload_sha256=payload_sha256,
+                    delivery_key_value=idempotency_key,
+                    now=now,
+                )
                 return existing
             if current is None:
                 delivery_id = "DELIVERY_" + uuid.uuid4().hex
+                self._insert_revision(
+                    connection,
+                    work_item_id=work_item_id,
+                    package=validated,
+                    package_json=package_json,
+                    package_bytes_sha256=package_bytes_sha256,
+                    item_id=item_id,
+                    observation_id=observation_id,
+                    payload_sha256=payload_sha256,
+                    delivery_key_value=idempotency_key,
+                    now=now,
+                )
                 connection.execute(
                     "INSERT INTO quick_scan_result_delivery "
                     "(delivery_id,work_item_id,state,package_json,package_sha256,"
@@ -2611,6 +3193,18 @@ class QuickScanWorkStore:
             elif current["state"] == "blocked":
                 delivery_id = current["delivery_id"]
                 old_state = "blocked"
+                self._insert_revision(
+                    connection,
+                    work_item_id=work_item_id,
+                    package=validated,
+                    package_json=package_json,
+                    package_bytes_sha256=package_bytes_sha256,
+                    item_id=item_id,
+                    observation_id=observation_id,
+                    payload_sha256=payload_sha256,
+                    delivery_key_value=idempotency_key,
+                    now=now,
+                )
                 connection.execute(
                     "UPDATE quick_scan_result_delivery SET state='ready',block_code=NULL,"
                     "package_json=?,package_sha256=?,package_bytes_sha256=?,package_id=?,"
@@ -2644,6 +3238,129 @@ class QuickScanWorkStore:
                 (delivery_id,),
             ).fetchone()
             return self._result_delivery_record(row)
+
+    def supersede_result_delivery(self, work_item_id: str, package: dict) -> dict:
+        """Append a new head revision over a sealed-but-not-yet-dispatched package.
+
+        The previous package bytes stay readable in the revision chain and its
+        ACK (if any) can never settle the new head. Only a ``ready`` delivery
+        may be superseded: ``send_uncertain`` must be reconciled first and a
+        terminal delivery is never re-opened or re-sent.
+        """
+        from .quick_scan_result_outbox import (
+            canonical_bytes,
+            delivery_key,
+            validate_checkpoint_binding,
+            validate_exchange_package,
+        )
+
+        _safe(work_item_id, "work_item_id")
+        validated = validate_exchange_package(package)
+        item_data = validated["items"][0]
+        package_bytes = canonical_bytes(validated)
+        package_json = package_bytes.decode("utf-8")
+        package_bytes_sha256 = hashlib.sha256(package_bytes).hexdigest()
+        item_id = item_data["item_id"]
+        observation_id = item_data["observation_id"]
+        payload_sha256 = item_data["payload_sha256"]
+        idempotency_key = delivery_key(validated["package_id"], item_id, payload_sha256)
+        now = self._now()
+        with self._transaction() as connection:
+            item = self._item(connection, work_item_id)
+            if item["status"] != "result_ready":
+                raise WorkConflictError("only result-ready work can be superseded")
+            checkpoint_row = connection.execute(
+                "SELECT c.*,w.*,a.attempt_id AS bound_attempt_id "
+                "FROM answer_checkpoint c JOIN work_item w USING (work_item_id) "
+                "JOIN attempt a ON a.attempt_id=c.attempt_id WHERE c.work_item_id=?",
+                (work_item_id,),
+            ).fetchone()
+            if checkpoint_row is None:
+                raise WorkConflictError("result-ready work has no answer checkpoint")
+            checkpoint = self._checkpoint_record(connection, checkpoint_row, validate_status=True)
+            validate_checkpoint_binding(validated, checkpoint)
+            current = self._delivery_row(connection, work_item_id)
+            if current is None or current["package_json"] is None:
+                raise WorkConflictError("only a sealed delivery can be superseded")
+            existing = self._result_delivery_record(current)
+            if existing["package_bytes"] == package_bytes:
+                return {
+                    **existing,
+                    "revision": self._head_revision(connection, work_item_id),
+                }
+            if current["state"] != "ready":
+                raise WorkConflictError(
+                    "only a ready delivery can be superseded; reconcile or keep history"
+                )
+            head = self._head_revision(connection, work_item_id)
+            head_row = connection.execute(
+                "SELECT package_id FROM quick_scan_delivery_revision "
+                "WHERE work_item_id=? AND revision=?",
+                (work_item_id, head),
+            ).fetchone()
+            if head_row is None:
+                raise WorkConflictError("delivery revision chain is missing its head")
+            self._insert_revision(
+                connection,
+                work_item_id=work_item_id,
+                package=validated,
+                package_json=package_json,
+                package_bytes_sha256=package_bytes_sha256,
+                item_id=item_id,
+                observation_id=observation_id,
+                payload_sha256=payload_sha256,
+                delivery_key_value=idempotency_key,
+                now=now,
+                supersedes_revision=head,
+                supersedes_package_id=head_row["package_id"],
+            )
+            connection.execute(
+                "UPDATE quick_scan_result_delivery SET package_json=?,package_sha256=?,"
+                "package_bytes_sha256=?,package_id=?,item_id=?,observation_id=?,"
+                "payload_sha256=?,delivery_key=?,updated_at=? "
+                "WHERE delivery_id=? AND state='ready'",
+                (
+                    package_json,
+                    validated["package_sha256"],
+                    package_bytes_sha256,
+                    validated["package_id"],
+                    item_id,
+                    observation_id,
+                    payload_sha256,
+                    idempotency_key,
+                    now,
+                    current["delivery_id"],
+                ),
+            )
+            self._delivery_event(
+                connection,
+                current["delivery_id"],
+                "package_prepared",
+                old="ready",
+                new="ready",
+                now=now,
+                reason_code="revision_superseded",
+            )
+            row = connection.execute(
+                "SELECT * FROM quick_scan_result_delivery WHERE delivery_id=?",
+                (current["delivery_id"],),
+            ).fetchone()
+            return {
+                **self._result_delivery_record(row),
+                "revision": head + 1,
+                "superseded": True,
+                "supersedes_revision": head,
+                "supersedes_package_id": head_row["package_id"],
+            }
+
+    @staticmethod
+    def _head_revision(connection: sqlite3.Connection, work_item_id: str) -> int:
+        row = connection.execute(
+            "SELECT COALESCE(MAX(revision),0) AS head FROM quick_scan_delivery_revision "
+            "WHERE work_item_id=?",
+            (work_item_id,),
+        ).fetchone()
+        return int(row["head"])
 
     def get_result_delivery(self, work_item_id: str) -> Optional[dict]:
         _safe(work_item_id, "work_item_id")

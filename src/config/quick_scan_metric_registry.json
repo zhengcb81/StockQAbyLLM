@@ -1,0 +1,98 @@
+{
+  "version": "1.0.0",
+  "metrics": {
+    "financial.revenue": {
+      "unit": "currency",
+      "definition": "对外营业收入，须注明总额/净额和合并范围"
+    },
+    "financial.operating_margin": {
+      "unit": "percent",
+      "definition": "营业利润/营业收入，说明调整项目"
+    },
+    "financial.net_margin": {
+      "unit": "percent",
+      "definition": "净利润/营业收入，说明归属口径"
+    },
+    "financial.roic": {
+      "unit": "percent",
+      "definition": "税后经营利润/平均投入资本，说明商誉和资本调整"
+    },
+    "financial.roe": {
+      "unit": "percent",
+      "definition": "归属普通股净利润/平均普通股权益，说明负/近零权益"
+    },
+    "financial.fcf": {
+      "unit": "currency",
+      "definition": "经营现金流减必要资本投入，列维护/增长/租赁口径"
+    },
+    "financial.net_debt": {
+      "unit": "currency",
+      "definition": "有息债务减可用现金，不套客户存款"
+    },
+    "financial.diluted_eps": {
+      "unit": "currency_per_share",
+      "definition": "归属普通股的摊薄每股收益"
+    },
+    "financial.capex": {
+      "unit": "currency",
+      "definition": "资本支出，区分维护与增长"
+    },
+    "financial.cash_runway": {
+      "unit": "months",
+      "definition": "可用资金相对可核实消耗的期限，注明假设"
+    },
+    "operating.repeat_purchase_share": {
+      "unit": "percent",
+      "definition": "期间重复采购客户数/期间采购客户数，不等同收入留存"
+    },
+    "operating.net_revenue_retention": {
+      "unit": "percent",
+      "definition": "同一客户批次期末收入/期初收入，说明扩张/流失范围"
+    },
+    "operating.capacity_utilization": {
+      "unit": "percent",
+      "definition": "实际产出/可用产能，同口径产品与期间"
+    },
+    "operating.inventory_days": {
+      "unit": "days",
+      "definition": "平均库存/匹配期间销货成本折算天数"
+    },
+    "operating.receivable_days": {
+      "unit": "days",
+      "definition": "平均应收/匹配收入折算天数"
+    },
+    "operating.occupancy": {
+      "unit": "percent",
+      "definition": "已出租面积或可用单元占比，注明分母"
+    },
+    "bank.cet1_ratio": {
+      "unit": "percent",
+      "definition": "核心一级资本/风险加权资产，注明当地监管口径"
+    },
+    "insurance.combined_ratio": {
+      "unit": "percent",
+      "definition": "赔付与费用占已赚保费比例，财险适用"
+    },
+    "property.affo": {
+      "unit": "currency",
+      "definition": "调整后可分配运营现金，披露调整及归属范围"
+    },
+    "relationship.revenue_share": {
+      "unit": "percent",
+      "definition": "指定客户/产品/地区收入占明确总收入分母的比例"
+    },
+    "relationship.ownership_share": {
+      "unit": "percent",
+      "definition": "持股占指定类别或总股本比例，注明日期"
+    },
+    "business.segment_revenue": {
+      "unit": "currency",
+      "definition": "指定业务分部收入，说明对外与内部抵销"
+    },
+    "business.employees": {
+      "unit": "count",
+      "definition": "人员数量，注明期末/平均及员工/外包范围"
+    }
+  },
+  "unmapped_policy": "Only custom.* IDs allowed outside registry; show raw values, do not compute automatic differences."
+}

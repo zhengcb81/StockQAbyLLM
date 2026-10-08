@@ -1,0 +1,35 @@
+{
+  "basis": "current",
+  "confidence": "medium",
+  "counterevidence": "Synthetic counterpoint kept for balance.",
+  "coverage": {
+    "reason": "Synthetic fixture covers only part of the company.",
+    "status": "partial"
+  },
+  "evidence": [
+    {
+      "claim": "Synthetic claim used only for offline validation.",
+      "id": "e1",
+      "published_at": "2026-09-01",
+      "title": "Synthetic primary source",
+      "url": "https://example.com/issuer"
+    }
+  ],
+  "information_as_of": "2026-09-01",
+  "items": [],
+  "metrics": [],
+  "missing_fields": [
+    "customer concentration"
+  ],
+  "period_end": "2026-06-30",
+  "period_start": "2026-01-01",
+  "question_id": "MATURE_02",
+  "response_kind": "score",
+  "score": 8,
+  "status": "scored",
+  "summary": "Synthetic standard answer; not a real company conclusion.",
+  "trend": "stable",
+  "watch_triggers": [
+    "Synthetic watch trigger"
+  ]
+}

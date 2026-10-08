@@ -1,0 +1,21 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+________ test_embedded_answer_is_refused_at_the_real_consumption_entry ________
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/pytest-of-郑曾波/pytest-67/test_embedded_answer_is_refuse0')
+
+    def test_embedded_answer_is_refused_at_the_real_consumption_entry(tmp_path):
+        """The frozen context carries METADATA only — re-signing the digest never
+        legitimises a smuggled answer, execution or any other detached field."""
+        for field in ("answer", "execution", "observed_at", "observation_id"):
+            injected = _detached(field)
+            metadata_bound = copy.deepcopy(CONTEXT)
+            metadata_bound["questions"][QID]["metadata"][field] = injected
+>           with pytest.raises(ValueError, match="frozen standard schema|detached"):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE ValueError
+
+tests\unit\test_quick_scan_observation_context.py:454: Failed
+=========================== short test summary info ===========================
+FAILED tests/unit/test_quick_scan_observation_context.py::test_embedded_answer_is_refused_at_the_real_consumption_entry
+1 failed, 44 deselected in 1.37s

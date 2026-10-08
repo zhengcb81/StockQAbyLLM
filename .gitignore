@@ -86,6 +86,9 @@ logs/
 # QA-NET-01 交付日志的精确例外（不整类取消忽略）
 !docs/handoff/QA-NET-01/logs/
 !docs/handoff/QA-NET-01/logs/*.log
+# QA-C06-02 交付日志的精确例外（不整类取消忽略）
+!docs/handoff/QA-C06-02/logs/
+!docs/handoff/QA-C06-02/logs/*.log
 
 # 输出文件
 outputs/
@@ -99,6 +102,10 @@ outputs/
 !experiments/scoring_comparison/test_set.json
 !docs/handoff/QA-NET-01/handoff.json
 !docs/handoff/QA-NET-01/artifacts.json
+!docs/handoff/QA-C06-02/handoff.json
+!docs/handoff/QA-C06-02/artifacts.json
+!docs/handoff/QA-C06-02/golden/
+!docs/handoff/QA-C06-02/golden/*.json
 /quick_scan_health.sqlite*
 /quick_scan_work.sqlite*
 !llm_apis.json.example
@@ -130,3 +137,11 @@ desktop.ini
 *.tmp
 *.temp
 *~
+
+# Q10 complete context protocol snapshots and synthetic fixtures
+!src/config/quick_scan_observation.schema.json
+!src/config/quick_scan_answer_content.schema.json
+!src/config/quick_scan_metric_registry.json
+!src/config/quick_scan_c06_authority.v2.schema.json
+!tests/fixtures/quick_scan_c06_authority_v2_fixture.json
+!tests/fixtures/quick_scan_c06_manifest_v2_fixture.json

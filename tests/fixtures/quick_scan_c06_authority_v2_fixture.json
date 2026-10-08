@@ -1,0 +1,1178 @@
+{
+  "capabilities": [
+    "entity_security_identity_v1",
+    "standard_observation_v1",
+    "score_v1"
+  ],
+  "contract_versions": {
+    "answer_schema": "1.0.0",
+    "identity_schema": "2.2.0",
+    "model_policy_schema": "2.0.0",
+    "observation_schema": "1.1.0",
+    "question_catalog": "3.2.0"
+  },
+  "observation_context": {
+    "answer_schema_sha256": "cefa301b35235c15f188bfede2706837ea695e10b656a28684eecd0159434fcd",
+    "identity_snapshot_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "manifest_content_sha256": "b525e300b20d74f7443e4fecbef8bddec83c144a2576fbad7eda012201245182",
+    "manifest_file_sha256": "a7e80a5bcaf2cb2499fa24f091b129d7e1a2ebbf6e91a5666359c5e91c90270c",
+    "metric_registry_sha256": "1513f03214ebb41ae5f079997ff9d7358afb0195c1191a39a92806b26042b01b",
+    "observation_schema_sha256": "ab547ecdd81ee1b302aaef30941fb20ac1563b9122267f8858bcb91f8f2d34e0",
+    "questions": {
+      "CROSS_BORDER_01": {
+        "frozen_prompt_sha256": "90ecd7d088f2dd51cbc87ad8a282201a5f9d23ef5cf340081cfe3de419d02a89",
+        "metadata": {
+          "cohort": {
+            "company_type": "operating",
+            "industries": [
+              "industrial"
+            ],
+            "stage": "mature",
+            "subtype": null
+          },
+          "comparison_group_id": "fixture-group",
+          "construct_id": null,
+          "cycle_sensitive": true,
+          "entity_id": "ENT_CONTEXT_FIXTURE",
+          "evidence_review_status": "unreviewed",
+          "field_id": "score.cross_border_01",
+          "information_cutoff": "2026-09-22",
+          "inputset_id": "fixture-input",
+          "method_id": "module-locked-v1/core-constructs-v1/bf16a908fdc40d6f/ad002842c9ce0630",
+          "module_package_id": "pkg_24f07923f23cf0a2be5d7fb4b36a11925c779a8f4a68bdc9c81457084ded080f",
+          "module_release_id": "modrel_18c097b26b82746d3b48d9f2da4858a15ce216bce39c2572d10c2dcef23d32b9",
+          "question_definition_sha256": "a4f42065aa6b5dae3880aad128eb3ec8776509398ca8baeb345228ebede93389",
+          "question_id": "CROSS_BORDER_01",
+          "question_semantic_sha256": "ad002842c9ce063020a5110e434f8d3e90be02800df8ff8fe0df55acb43fafa5",
+          "question_version": "1.0.0",
+          "run_id": "fixture-run",
+          "scan_id": "fixture-scan",
+          "schema_version": "1.1.0",
+          "scope": "entity",
+          "security_id": null,
+          "segment_id": null,
+          "task_mode": "comparison",
+          "template_version": "3.2.0"
+        },
+        "work_prompt_sha256": "90ecd7d088f2dd51cbc87ad8a282201a5f9d23ef5cf340081cfe3de419d02a89"
+      },
+      "CYCLICAL_01": {
+        "frozen_prompt_sha256": "1052b862f2232d21313163e65a82f5edb65f7de8480aa652c779148b696aa05d",
+        "metadata": {
+          "cohort": {
+            "company_type": "operating",
+            "industries": [
+              "industrial"
+            ],
+            "stage": "mature",
+            "subtype": null
+          },
+          "comparison_group_id": "fixture-group",
+          "construct_id": null,
+          "cycle_sensitive": true,
+          "entity_id": "ENT_CONTEXT_FIXTURE",
+          "evidence_review_status": "unreviewed",
+          "field_id": "score.cyclical_01",
+          "information_cutoff": "2026-09-22",
+          "inputset_id": "fixture-input",
+          "method_id": "module-locked-v1/core-constructs-v1/bf16a908fdc40d6f/c90d6e66174d8854",
+          "module_package_id": "pkg_24f07923f23cf0a2be5d7fb4b36a11925c779a8f4a68bdc9c81457084ded080f",
+          "module_release_id": "modrel_18c097b26b82746d3b48d9f2da4858a15ce216bce39c2572d10c2dcef23d32b9",
+          "question_definition_sha256": "39eaff48729b13e42d16166cddbeff138ba076bd3a24f17e9475248873136726",
+          "question_id": "CYCLICAL_01",
+          "question_semantic_sha256": "c90d6e66174d8854e2beaa7dd3667abef005ec904021062a5209168ea4a2eaca",
+          "question_version": "1.0.0",
+          "run_id": "fixture-run",
+          "scan_id": "fixture-scan",
+          "schema_version": "1.1.0",
+          "scope": "entity",
+          "security_id": null,
+          "segment_id": null,
+          "task_mode": "comparison",
+          "template_version": "3.2.0"
+        },
+        "work_prompt_sha256": "1052b862f2232d21313163e65a82f5edb65f7de8480aa652c779148b696aa05d"
+      },
+      "CYCLICAL_02": {
+        "frozen_prompt_sha256": "4773cb5d6183926928c82565fa2d1e59bc6ab7c56733cdc49e4a060db837602c",
+        "metadata": {
+          "cohort": {
+            "company_type": "operating",
+            "industries": [
+              "industrial"
+            ],
+            "stage": "mature",
+            "subtype": null
+          },
+          "comparison_group_id": "fixture-group",
+          "construct_id": null,
+          "cycle_sensitive": true,
+          "entity_id": "ENT_CONTEXT_FIXTURE",
+          "evidence_review_status": "unreviewed",
+          "field_id": "score.cyclical_02",
+          "information_cutoff": "2026-09-22",
+          "inputset_id": "fixture-input",
+          "method_id": "module-locked-v1/core-constructs-v1/bf16a908fdc40d6f/7713d5d347911d02",
+          "module_package_id": "pkg_24f07923f23cf0a2be5d7fb4b36a11925c779a8f4a68bdc9c81457084ded080f",
+          "module_release_id": "modrel_18c097b26b82746d3b48d9f2da4858a15ce216bce39c2572d10c2dcef23d32b9",
+          "question_definition_sha256": "f86dbc9bab6dbb196b1d43d6cdb07e81d6749ead382b2dcb5eb81d245e701b17",
+          "question_id": "CYCLICAL_02",
+          "question_semantic_sha256": "7713d5d347911d023259360035b8311b920c49dbdbad4fb375b94dc3515dea87",
+          "question_version": "1.0.0",
+          "run_id": "fixture-run",
+          "scan_id": "fixture-scan",
+          "schema_version": "1.1.0",
+          "scope": "entity",
+          "security_id": null,
+          "segment_id": null,
+          "task_mode": "comparison",
+          "template_version": "3.2.0"
+        },
+        "work_prompt_sha256": "4773cb5d6183926928c82565fa2d1e59bc6ab7c56733cdc49e4a060db837602c"
+      },
+      "INDUSTRIAL_01": {
+        "frozen_prompt_sha256": "039c52559cf79f009a0fdf9459cc14ad485c66f774f750efcedaf940b210d6ce",
+        "metadata": {
+          "cohort": {
+            "company_type": "operating",
+            "industries": [
+              "industrial"
+            ],
+            "stage": "mature",
+            "subtype": null
+          },
+          "comparison_group_id": "fixture-group",
+          "construct_id": null,
+          "cycle_sensitive": true,
+          "entity_id": "ENT_CONTEXT_FIXTURE",
+          "evidence_review_status": "unreviewed",
+          "field_id": "score.industrial_01",
+          "information_cutoff": "2026-09-22",
+          "inputset_id": "fixture-input",
+          "method_id": "module-locked-v1/core-constructs-v1/bf16a908fdc40d6f/fa56bc5d614e7ed9",
+          "module_package_id": "pkg_24f07923f23cf0a2be5d7fb4b36a11925c779a8f4a68bdc9c81457084ded080f",
+          "module_release_id": "modrel_18c097b26b82746d3b48d9f2da4858a15ce216bce39c2572d10c2dcef23d32b9",
+          "question_definition_sha256": "c2427e2f5f56c7ae7407d0edac4b47f43bb157d358b1eff46553c35b21a2aceb",
+          "question_id": "INDUSTRIAL_01",
+          "question_semantic_sha256": "fa56bc5d614e7ed95025a5e3d0bc7136ef9aa176054f78178bab1ce66c1323c8",
+          "question_version": "1.0.0",
+          "run_id": "fixture-run",
+          "scan_id": "fixture-scan",
+          "schema_version": "1.1.0",
+          "scope": "entity",
+          "security_id": null,
+          "segment_id": null,
+          "task_mode": "comparison",
+          "template_version": "3.2.0"
+        },
+        "work_prompt_sha256": "039c52559cf79f009a0fdf9459cc14ad485c66f774f750efcedaf940b210d6ce"
+      },
+      "INDUSTRIAL_02": {
+        "frozen_prompt_sha256": "c19c40816bd10056bf9b989d9e36168a6301aefa028331b34cc356c3f20018d0",
+        "metadata": {
+          "cohort": {
+            "company_type": "operating",
+            "industries": [
+              "industrial"
+            ],
+            "stage": "mature",
+            "subtype": null
+          },
+          "comparison_group_id": "fixture-group",
+          "construct_id": null,
+          "cycle_sensitive": true,
+          "entity_id": "ENT_CONTEXT_FIXTURE",
+          "evidence_review_status": "unreviewed",
+          "field_id": "score.industrial_02",
+          "information_cutoff": "2026-09-22",
+          "inputset_id": "fixture-input",
+          "method_id": "module-locked-v1/core-constructs-v1/bf16a908fdc40d6f/b5e179a2d54a6721",
+          "module_package_id": "pkg_24f07923f23cf0a2be5d7fb4b36a11925c779a8f4a68bdc9c81457084ded080f",
+          "module_release_id": "modrel_18c097b26b82746d3b48d9f2da4858a15ce216bce39c2572d10c2dcef23d32b9",
+          "question_definition_sha256": "e571b55e6ebe1eccbcfa9a0c22a2cc3498a91cf0e64a64d88c0cb252f13e1d51",
+          "question_id": "INDUSTRIAL_02",
+          "question_semantic_sha256": "b5e179a2d54a6721cdba16e70966aa2758073ce621d72941bb0c5f2ea0c5efa2",
+          "question_version": "1.0.0",
+          "run_id": "fixture-run",
+          "scan_id": "fixture-scan",
+          "schema_version": "1.1.0",
+          "scope": "entity",
+          "security_id": null,
+          "segment_id": null,
+          "task_mode": "comparison",
+          "template_version": "3.2.0"
+        },
+        "work_prompt_sha256": "c19c40816bd10056bf9b989d9e36168a6301aefa028331b34cc356c3f20018d0"
+      },
+      "IQS_01": {
+        "frozen_prompt_sha256": "e283816b9c55f6417c464f84d9cc0a9585a7483d64ead488a30ac73cba61fb31",
+        "metadata": {
+          "cohort": {
+            "company_type": "operating",
+            "industries": [
+              "industrial"
+            ],
+            "stage": "mature",
+            "subtype": null
+          },
+          "comparison_group_id": "fixture-group",
+          "construct_id": "IQS_01",
+          "cycle_sensitive": true,
+          "entity_id": "ENT_CONTEXT_FIXTURE",
+          "evidence_review_status": "unreviewed",
+          "field_id": "score.iqs_01",
+          "information_cutoff": "2026-09-22",
+          "inputset_id": "fixture-input",
+          "method_id": "module-locked-v1/core-constructs-v1/bf16a908fdc40d6f/bbb1caccddb1fc42",
+          "module_package_id": "pkg_24f07923f23cf0a2be5d7fb4b36a11925c779a8f4a68bdc9c81457084ded080f",
+          "module_release_id": "modrel_18c097b26b82746d3b48d9f2da4858a15ce216bce39c2572d10c2dcef23d32b9",
+          "question_definition_sha256": "e49b91646870da125d3e4a03e7cadd2ffb93e24638e7c0cb801dfb5909e3bebc",
+          "question_id": "IQS_01",
+          "question_semantic_sha256": "bbb1caccddb1fc4275158032f87bcfa7c71a90ea9e33ac2c109e44fda82cec81",
+          "question_version": "1.0.0",
+          "run_id": "fixture-run",
+          "scan_id": "fixture-scan",
+          "schema_version": "1.1.0",
+          "scope": "entity",
+          "security_id": null,
+          "segment_id": null,
+          "task_mode": "comparison",
+          "template_version": "3.2.0"
+        },
+        "work_prompt_sha256": "e283816b9c55f6417c464f84d9cc0a9585a7483d64ead488a30ac73cba61fb31"
+      },
+      "IQS_02": {
+        "frozen_prompt_sha256": "8f858cac2449fa4a1b30d1bf9f72c77b5b1d6a6a7455d2ee9254d6c803def673",
+        "metadata": {
+          "cohort": {
+            "company_type": "operating",
+            "industries": [
+              "industrial"
+            ],
+            "stage": "mature",
+            "subtype": null
+          },
+          "comparison_group_id": "fixture-group",
+          "construct_id": "IQS_02",
+          "cycle_sensitive": true,
+          "entity_id": "ENT_CONTEXT_FIXTURE",
+          "evidence_review_status": "unreviewed",
+          "field_id": "score.iqs_02",
+          "information_cutoff": "2026-09-22",
+          "inputset_id": "fixture-input",
+          "method_id": "module-locked-v1/core-constructs-v1/bf16a908fdc40d6f/2a3163850d452bf2",
+          "module_package_id": "pkg_24f07923f23cf0a2be5d7fb4b36a11925c779a8f4a68bdc9c81457084ded080f",
+          "module_release_id": "modrel_18c097b26b82746d3b48d9f2da4858a15ce216bce39c2572d10c2dcef23d32b9",
+          "question_definition_sha256": "e466bfe76d2c2933a967d4714b4c203840026b60b8515455125f8a04da400042",
+          "question_id": "IQS_02",
+          "question_semantic_sha256": "2a3163850d452bf2a75d358d258269a3d49661c47fbbe94218c1ad96f8b721c7",
+          "question_version": "1.0.0",
+          "run_id": "fixture-run",
+          "scan_id": "fixture-scan",
+          "schema_version": "1.1.0",
+          "scope": "entity",
+          "security_id": null,
+          "segment_id": null,
+          "task_mode": "comparison",
+          "template_version": "3.2.0"
+        },
+        "work_prompt_sha256": "8f858cac2449fa4a1b30d1bf9f72c77b5b1d6a6a7455d2ee9254d6c803def673"
+      },
+      "IQS_04": {
+        "frozen_prompt_sha256": "59219c8cb1ed5d0afaf369ffb83d878d120ac38a9568c48b977daf61bce62b17",
+        "metadata": {
+          "cohort": {
+            "company_type": "operating",
+            "industries": [
+              "industrial"
+            ],
+            "stage": "mature",
+            "subtype": null
+          },
+          "comparison_group_id": "fixture-group",
+          "construct_id": "IQS_04",
+          "cycle_sensitive": true,
+          "entity_id": "ENT_CONTEXT_FIXTURE",
+          "evidence_review_status": "unreviewed",
+          "field_id": "score.iqs_04",
+          "information_cutoff": "2026-09-22",
+          "inputset_id": "fixture-input",
+          "method_id": "module-locked-v1/core-constructs-v1/bf16a908fdc40d6f/cc59820b1b193329",
+          "module_package_id": "pkg_24f07923f23cf0a2be5d7fb4b36a11925c779a8f4a68bdc9c81457084ded080f",
+          "module_release_id": "modrel_18c097b26b82746d3b48d9f2da4858a15ce216bce39c2572d10c2dcef23d32b9",
+          "question_definition_sha256": "cbf5f4c64e3221f82a37864bf20f00ef8a4e627baa2b6a6015d38757facbdb6f",
+          "question_id": "IQS_04",
+          "question_semantic_sha256": "cc59820b1b19332911617abfb0f5f0cd525758f1c7da5bc35bb30a697beb83c2",
+          "question_version": "1.0.0",
+          "run_id": "fixture-run",
+          "scan_id": "fixture-scan",
+          "schema_version": "1.1.0",
+          "scope": "entity",
+          "security_id": null,
+          "segment_id": null,
+          "task_mode": "comparison",
+          "template_version": "3.2.0"
+        },
+        "work_prompt_sha256": "59219c8cb1ed5d0afaf369ffb83d878d120ac38a9568c48b977daf61bce62b17"
+      },
+      "IQS_05": {
+        "frozen_prompt_sha256": "0a51a0064309d2dbbf19f81d6993c574090d76d1a62bea57ba94ffc914efb3cf",
+        "metadata": {
+          "cohort": {
+            "company_type": "operating",
+            "industries": [
+              "industrial"
+            ],
+            "stage": "mature",
+            "subtype": null
+          },
+          "comparison_group_id": "fixture-group",
+          "construct_id": "IQS_05",
+          "cycle_sensitive": true,
+          "entity_id": "ENT_CONTEXT_FIXTURE",
+          "evidence_review_status": "unreviewed",
+          "field_id": "score.iqs_05",
+          "information_cutoff": "2026-09-22",
+          "inputset_id": "fixture-input",
+          "method_id": "module-locked-v1/core-constructs-v1/bf16a908fdc40d6f/2d8eccbbf65836de",
+          "module_package_id": "pkg_24f07923f23cf0a2be5d7fb4b36a11925c779a8f4a68bdc9c81457084ded080f",
+          "module_release_id": "modrel_18c097b26b82746d3b48d9f2da4858a15ce216bce39c2572d10c2dcef23d32b9",
+          "question_definition_sha256": "1a69a9ad5639348badc9bac39e5826046ab52ff8b9c2d04387da9705c248e435",
+          "question_id": "IQS_05",
+          "question_semantic_sha256": "2d8eccbbf65836de525b422224a0f9128b869e15864e243bfee1d468a9d6b144",
+          "question_version": "2.0.0",
+          "run_id": "fixture-run",
+          "scan_id": "fixture-scan",
+          "schema_version": "1.1.0",
+          "scope": "entity",
+          "security_id": null,
+          "segment_id": null,
+          "task_mode": "comparison",
+          "template_version": "3.2.0"
+        },
+        "work_prompt_sha256": "0a51a0064309d2dbbf19f81d6993c574090d76d1a62bea57ba94ffc914efb3cf"
+      },
+      "IQS_06": {
+        "frozen_prompt_sha256": "49666dff46f6b08b17f0e1f13b20151f4b6b8e18d25200af527637a55c60e6a7",
+        "metadata": {
+          "cohort": {
+            "company_type": "operating",
+            "industries": [
+              "industrial"
+            ],
+            "stage": "mature",
+            "subtype": null
+          },
+          "comparison_group_id": "fixture-group",
+          "construct_id": "IQS_06",
+          "cycle_sensitive": true,
+          "entity_id": "ENT_CONTEXT_FIXTURE",
+          "evidence_review_status": "unreviewed",
+          "field_id": "score.iqs_06",
+          "information_cutoff": "2026-09-22",
+          "inputset_id": "fixture-input",
+          "method_id": "module-locked-v1/core-constructs-v1/bf16a908fdc40d6f/b339c3e2fb49b429",
+          "module_package_id": "pkg_24f07923f23cf0a2be5d7fb4b36a11925c779a8f4a68bdc9c81457084ded080f",
+          "module_release_id": "modrel_18c097b26b82746d3b48d9f2da4858a15ce216bce39c2572d10c2dcef23d32b9",
+          "question_definition_sha256": "0ae309b36dc08ef082a89c16007888a01f65cb758016690e22959037d349769b",
+          "question_id": "IQS_06",
+          "question_semantic_sha256": "b339c3e2fb49b429626d3e78130afe738c70c688041359d150bb135eac0be337",
+          "question_version": "2.0.0",
+          "run_id": "fixture-run",
+          "scan_id": "fixture-scan",
+          "schema_version": "1.1.0",
+          "scope": "entity",
+          "security_id": null,
+          "segment_id": null,
+          "task_mode": "comparison",
+          "template_version": "3.2.0"
+        },
+        "work_prompt_sha256": "49666dff46f6b08b17f0e1f13b20151f4b6b8e18d25200af527637a55c60e6a7"
+      },
+      "IQS_07": {
+        "frozen_prompt_sha256": "cf8c70b9c3960b1b773b1f34b9c6dfb11006fae3510cc6e0474d7f56f3b6f7f8",
+        "metadata": {
+          "cohort": {
+            "company_type": "operating",
+            "industries": [
+              "industrial"
+            ],
+            "stage": "mature",
+            "subtype": null
+          },
+          "comparison_group_id": "fixture-group",
+          "construct_id": "IQS_07",
+          "cycle_sensitive": true,
+          "entity_id": "ENT_CONTEXT_FIXTURE",
+          "evidence_review_status": "unreviewed",
+          "field_id": "score.iqs_07",
+          "information_cutoff": "2026-09-22",
+          "inputset_id": "fixture-input",
+          "method_id": "module-locked-v1/core-constructs-v1/bf16a908fdc40d6f/6d18e44f95f45dc8",
+          "module_package_id": "pkg_24f07923f23cf0a2be5d7fb4b36a11925c779a8f4a68bdc9c81457084ded080f",
+          "module_release_id": "modrel_18c097b26b82746d3b48d9f2da4858a15ce216bce39c2572d10c2dcef23d32b9",
+          "question_definition_sha256": "8327ef0d01e524f841b4391ffbf4c1f7be8a2bc77204c0ee8ae95bddac34604b",
+          "question_id": "IQS_07",
+          "question_semantic_sha256": "6d18e44f95f45dc817191abf11019d1e6b8d4bdd16295b30abb0c4a638970f9d",
+          "question_version": "1.0.0",
+          "run_id": "fixture-run",
+          "scan_id": "fixture-scan",
+          "schema_version": "1.1.0",
+          "scope": "entity",
+          "security_id": null,
+          "segment_id": null,
+          "task_mode": "comparison",
+          "template_version": "3.2.0"
+        },
+        "work_prompt_sha256": "cf8c70b9c3960b1b773b1f34b9c6dfb11006fae3510cc6e0474d7f56f3b6f7f8"
+      },
+      "IQS_08": {
+        "frozen_prompt_sha256": "05251261c9c783e960c321d304956de42a5c342cbe056aa079b193162eb8d03a",
+        "metadata": {
+          "cohort": {
+            "company_type": "operating",
+            "industries": [
+              "industrial"
+            ],
+            "stage": "mature",
+            "subtype": null
+          },
+          "comparison_group_id": "fixture-group",
+          "construct_id": "IQS_08",
+          "cycle_sensitive": true,
+          "entity_id": "ENT_CONTEXT_FIXTURE",
+          "evidence_review_status": "unreviewed",
+          "field_id": "score.iqs_08",
+          "information_cutoff": "2026-09-22",
+          "inputset_id": "fixture-input",
+          "method_id": "module-locked-v1/core-constructs-v1/bf16a908fdc40d6f/47386081a1a59787",
+          "module_package_id": "pkg_24f07923f23cf0a2be5d7fb4b36a11925c779a8f4a68bdc9c81457084ded080f",
+          "module_release_id": "modrel_18c097b26b82746d3b48d9f2da4858a15ce216bce39c2572d10c2dcef23d32b9",
+          "question_definition_sha256": "012248c99571e9ae4ac1d621f34a06211edaca8415dfa04bb71bd999729c5340",
+          "question_id": "IQS_08",
+          "question_semantic_sha256": "47386081a1a59787b990cb2538d7529fec14d1e5433a053044b6438e0a33d826",
+          "question_version": "1.0.0",
+          "run_id": "fixture-run",
+          "scan_id": "fixture-scan",
+          "schema_version": "1.1.0",
+          "scope": "entity",
+          "security_id": null,
+          "segment_id": null,
+          "task_mode": "comparison",
+          "template_version": "3.2.0"
+        },
+        "work_prompt_sha256": "05251261c9c783e960c321d304956de42a5c342cbe056aa079b193162eb8d03a"
+      },
+      "IQS_09": {
+        "frozen_prompt_sha256": "9cb78889cd0a56bb8ace6ec6ec340517267a9516e8bba31fb06fc19fb2ca4dbb",
+        "metadata": {
+          "cohort": {
+            "company_type": "operating",
+            "industries": [
+              "industrial"
+            ],
+            "stage": "mature",
+            "subtype": null
+          },
+          "comparison_group_id": "fixture-group",
+          "construct_id": "IQS_09",
+          "cycle_sensitive": true,
+          "entity_id": "ENT_CONTEXT_FIXTURE",
+          "evidence_review_status": "unreviewed",
+          "field_id": "score.iqs_09",
+          "information_cutoff": "2026-09-22",
+          "inputset_id": "fixture-input",
+          "method_id": "module-locked-v1/core-constructs-v1/bf16a908fdc40d6f/58690a761f10a9ed",
+          "module_package_id": "pkg_24f07923f23cf0a2be5d7fb4b36a11925c779a8f4a68bdc9c81457084ded080f",
+          "module_release_id": "modrel_18c097b26b82746d3b48d9f2da4858a15ce216bce39c2572d10c2dcef23d32b9",
+          "question_definition_sha256": "a27556dbb12c4bd848cd5cd55c77e083e4c866c6b16e2f55a6a7d8247bc9967c",
+          "question_id": "IQS_09",
+          "question_semantic_sha256": "58690a761f10a9edf14ff61a546b70815d932a0b4ee5de4dab91daa3a093d29b",
+          "question_version": "1.0.0",
+          "run_id": "fixture-run",
+          "scan_id": "fixture-scan",
+          "schema_version": "1.1.0",
+          "scope": "entity",
+          "security_id": null,
+          "segment_id": null,
+          "task_mode": "comparison",
+          "template_version": "3.2.0"
+        },
+        "work_prompt_sha256": "9cb78889cd0a56bb8ace6ec6ec340517267a9516e8bba31fb06fc19fb2ca4dbb"
+      },
+      "IQS_10": {
+        "frozen_prompt_sha256": "820b5d44fd3acded8f7a30b4858a8ea700a4ac486258331f021c50fb9bb6237e",
+        "metadata": {
+          "cohort": {
+            "company_type": "operating",
+            "industries": [
+              "industrial"
+            ],
+            "stage": "mature",
+            "subtype": null
+          },
+          "comparison_group_id": "fixture-group",
+          "construct_id": "IQS_10",
+          "cycle_sensitive": true,
+          "entity_id": "ENT_CONTEXT_FIXTURE",
+          "evidence_review_status": "unreviewed",
+          "field_id": "score.iqs_10",
+          "information_cutoff": "2026-09-22",
+          "inputset_id": "fixture-input",
+          "method_id": "module-locked-v1/core-constructs-v1/bf16a908fdc40d6f/4e50d4ce88fb9123",
+          "module_package_id": "pkg_24f07923f23cf0a2be5d7fb4b36a11925c779a8f4a68bdc9c81457084ded080f",
+          "module_release_id": "modrel_18c097b26b82746d3b48d9f2da4858a15ce216bce39c2572d10c2dcef23d32b9",
+          "question_definition_sha256": "4800eb076987025b72335eba8c40ad5cea87bbb10b370c333bbb1fe0b16b5170",
+          "question_id": "IQS_10",
+          "question_semantic_sha256": "4e50d4ce88fb91239e9034bbcbb702c172d48e65bb1451eaa30f3cd8974d222b",
+          "question_version": "1.0.0",
+          "run_id": "fixture-run",
+          "scan_id": "fixture-scan",
+          "schema_version": "1.1.0",
+          "scope": "entity",
+          "security_id": null,
+          "segment_id": null,
+          "task_mode": "comparison",
+          "template_version": "3.2.0"
+        },
+        "work_prompt_sha256": "820b5d44fd3acded8f7a30b4858a8ea700a4ac486258331f021c50fb9bb6237e"
+      },
+      "IQS_12": {
+        "frozen_prompt_sha256": "9e7627f29c37faecbb59f1deb1ef33e29bd20ff592bef43b8b26d91ed62f73be",
+        "metadata": {
+          "cohort": {
+            "company_type": "operating",
+            "industries": [
+              "industrial"
+            ],
+            "stage": "mature",
+            "subtype": null
+          },
+          "comparison_group_id": "fixture-group",
+          "construct_id": "IQS_12",
+          "cycle_sensitive": true,
+          "entity_id": "ENT_CONTEXT_FIXTURE",
+          "evidence_review_status": "unreviewed",
+          "field_id": "score.iqs_12",
+          "information_cutoff": "2026-09-22",
+          "inputset_id": "fixture-input",
+          "method_id": "module-locked-v1/core-constructs-v1/bf16a908fdc40d6f/c5a7741172095f84",
+          "module_package_id": "pkg_24f07923f23cf0a2be5d7fb4b36a11925c779a8f4a68bdc9c81457084ded080f",
+          "module_release_id": "modrel_18c097b26b82746d3b48d9f2da4858a15ce216bce39c2572d10c2dcef23d32b9",
+          "question_definition_sha256": "0656fea768b457f922529f4efcd08dfca46f8cad622bff7a791df98cd8cff0d4",
+          "question_id": "IQS_12",
+          "question_semantic_sha256": "c5a7741172095f84fe805f3af1e11941b786e3cb7ad51db26947ff3f41969a29",
+          "question_version": "1.0.0",
+          "run_id": "fixture-run",
+          "scan_id": "fixture-scan",
+          "schema_version": "1.1.0",
+          "scope": "entity",
+          "security_id": null,
+          "segment_id": null,
+          "task_mode": "comparison",
+          "template_version": "3.2.0"
+        },
+        "work_prompt_sha256": "9e7627f29c37faecbb59f1deb1ef33e29bd20ff592bef43b8b26d91ed62f73be"
+      },
+      "IQS_13": {
+        "frozen_prompt_sha256": "ae48b8ae5d746f439c99e4c7dd23c09c2bf4eb310f6581933c026dcfe7ac9351",
+        "metadata": {
+          "cohort": {
+            "company_type": "operating",
+            "industries": [
+              "industrial"
+            ],
+            "stage": "mature",
+            "subtype": null
+          },
+          "comparison_group_id": "fixture-group",
+          "construct_id": "IQS_13",
+          "cycle_sensitive": true,
+          "entity_id": "ENT_CONTEXT_FIXTURE",
+          "evidence_review_status": "unreviewed",
+          "field_id": "score.iqs_13",
+          "information_cutoff": "2026-09-22",
+          "inputset_id": "fixture-input",
+          "method_id": "module-locked-v1/core-constructs-v1/bf16a908fdc40d6f/e8820550a49f351d",
+          "module_package_id": "pkg_24f07923f23cf0a2be5d7fb4b36a11925c779a8f4a68bdc9c81457084ded080f",
+          "module_release_id": "modrel_18c097b26b82746d3b48d9f2da4858a15ce216bce39c2572d10c2dcef23d32b9",
+          "question_definition_sha256": "5734a8370a3c0f13bd51b8e6cbd6f115992007b378f47736f0991ec295047c88",
+          "question_id": "IQS_13",
+          "question_semantic_sha256": "e8820550a49f351ddfa49ce265c3c003dc1e77a419d41f0bab0a9f27069a8210",
+          "question_version": "1.0.0",
+          "run_id": "fixture-run",
+          "scan_id": "fixture-scan",
+          "schema_version": "1.1.0",
+          "scope": "entity",
+          "security_id": null,
+          "segment_id": null,
+          "task_mode": "comparison",
+          "template_version": "3.2.0"
+        },
+        "work_prompt_sha256": "ae48b8ae5d746f439c99e4c7dd23c09c2bf4eb310f6581933c026dcfe7ac9351"
+      },
+      "IQS_14": {
+        "frozen_prompt_sha256": "61739b11a5dcd3a2357e6ab770c2fa991b38e19551eefd60cf52ca5c9353f9ca",
+        "metadata": {
+          "cohort": {
+            "company_type": "operating",
+            "industries": [
+              "industrial"
+            ],
+            "stage": "mature",
+            "subtype": null
+          },
+          "comparison_group_id": "fixture-group",
+          "construct_id": "IQS_14",
+          "cycle_sensitive": true,
+          "entity_id": "ENT_CONTEXT_FIXTURE",
+          "evidence_review_status": "unreviewed",
+          "field_id": "score.iqs_14",
+          "information_cutoff": "2026-09-22",
+          "inputset_id": "fixture-input",
+          "method_id": "module-locked-v1/core-constructs-v1/bf16a908fdc40d6f/bb1fd78c048d76dd",
+          "module_package_id": "pkg_24f07923f23cf0a2be5d7fb4b36a11925c779a8f4a68bdc9c81457084ded080f",
+          "module_release_id": "modrel_18c097b26b82746d3b48d9f2da4858a15ce216bce39c2572d10c2dcef23d32b9",
+          "question_definition_sha256": "4144be6d00b921e5435781eb09d71add607131899b6fadd83693002c1438fd7d",
+          "question_id": "IQS_14",
+          "question_semantic_sha256": "bb1fd78c048d76ddd9355a0e967787e2f9ffdf6b30103a93756f41e34e687ec3",
+          "question_version": "1.0.0",
+          "run_id": "fixture-run",
+          "scan_id": "fixture-scan",
+          "schema_version": "1.1.0",
+          "scope": "entity",
+          "security_id": null,
+          "segment_id": null,
+          "task_mode": "comparison",
+          "template_version": "3.2.0"
+        },
+        "work_prompt_sha256": "61739b11a5dcd3a2357e6ab770c2fa991b38e19551eefd60cf52ca5c9353f9ca"
+      },
+      "IQS_15": {
+        "frozen_prompt_sha256": "0b92c9f052b7e4ca9132b4b9439caf184a06c3a49c463e7d8769baead306c3c8",
+        "metadata": {
+          "cohort": {
+            "company_type": "operating",
+            "industries": [
+              "industrial"
+            ],
+            "stage": "mature",
+            "subtype": null
+          },
+          "comparison_group_id": "fixture-group",
+          "construct_id": "IQS_15",
+          "cycle_sensitive": true,
+          "entity_id": "ENT_CONTEXT_FIXTURE",
+          "evidence_review_status": "unreviewed",
+          "field_id": "score.iqs_15",
+          "information_cutoff": "2026-09-22",
+          "inputset_id": "fixture-input",
+          "method_id": "module-locked-v1/core-constructs-v1/bf16a908fdc40d6f/d4d3e08dcdea57ba",
+          "module_package_id": "pkg_24f07923f23cf0a2be5d7fb4b36a11925c779a8f4a68bdc9c81457084ded080f",
+          "module_release_id": "modrel_18c097b26b82746d3b48d9f2da4858a15ce216bce39c2572d10c2dcef23d32b9",
+          "question_definition_sha256": "048ff192b19ed0c777cca82798447375ef12e76e4d6d7e6f61a6b37adc090e39",
+          "question_id": "IQS_15",
+          "question_semantic_sha256": "d4d3e08dcdea57bae07586d9857d3090f0753cbb55222b08043d25c7a9def3df",
+          "question_version": "1.0.0",
+          "run_id": "fixture-run",
+          "scan_id": "fixture-scan",
+          "schema_version": "1.1.0",
+          "scope": "entity",
+          "security_id": null,
+          "segment_id": null,
+          "task_mode": "comparison",
+          "template_version": "3.2.0"
+        },
+        "work_prompt_sha256": "0b92c9f052b7e4ca9132b4b9439caf184a06c3a49c463e7d8769baead306c3c8"
+      },
+      "IQS_16": {
+        "frozen_prompt_sha256": "9e3d023a6731a6865bc3c668e22d610934f34018304dc893e9280798b7e41c40",
+        "metadata": {
+          "cohort": {
+            "company_type": "operating",
+            "industries": [
+              "industrial"
+            ],
+            "stage": "mature",
+            "subtype": null
+          },
+          "comparison_group_id": "fixture-group",
+          "construct_id": "IQS_16",
+          "cycle_sensitive": true,
+          "entity_id": "ENT_CONTEXT_FIXTURE",
+          "evidence_review_status": "unreviewed",
+          "field_id": "score.iqs_16",
+          "information_cutoff": "2026-09-22",
+          "inputset_id": "fixture-input",
+          "method_id": "module-locked-v1/core-constructs-v1/bf16a908fdc40d6f/8c9299fa2e4dca60",
+          "module_package_id": "pkg_24f07923f23cf0a2be5d7fb4b36a11925c779a8f4a68bdc9c81457084ded080f",
+          "module_release_id": "modrel_18c097b26b82746d3b48d9f2da4858a15ce216bce39c2572d10c2dcef23d32b9",
+          "question_definition_sha256": "e7bdfca8d2db0fa6c0a4b863c4607514614c324206ca0cffe0de43bbf0ee1d32",
+          "question_id": "IQS_16",
+          "question_semantic_sha256": "8c9299fa2e4dca603a29227f94121cd46f9afa1341175164ba765bc77c2a3da7",
+          "question_version": "1.0.0",
+          "run_id": "fixture-run",
+          "scan_id": "fixture-scan",
+          "schema_version": "1.1.0",
+          "scope": "entity",
+          "security_id": null,
+          "segment_id": null,
+          "task_mode": "comparison",
+          "template_version": "3.2.0"
+        },
+        "work_prompt_sha256": "9e3d023a6731a6865bc3c668e22d610934f34018304dc893e9280798b7e41c40"
+      },
+      "IQS_17": {
+        "frozen_prompt_sha256": "f40bab3139cdb4f8080c5edaddb8cd7438fdab455f1a1cc8ec798da2c8f3c921",
+        "metadata": {
+          "cohort": {
+            "company_type": "operating",
+            "industries": [
+              "industrial"
+            ],
+            "stage": "mature",
+            "subtype": null
+          },
+          "comparison_group_id": "fixture-group",
+          "construct_id": "IQS_17",
+          "cycle_sensitive": true,
+          "entity_id": "ENT_CONTEXT_FIXTURE",
+          "evidence_review_status": "unreviewed",
+          "field_id": "score.iqs_17",
+          "information_cutoff": "2026-09-22",
+          "inputset_id": "fixture-input",
+          "method_id": "module-locked-v1/core-constructs-v1/bf16a908fdc40d6f/09391f84cbf4c319",
+          "module_package_id": "pkg_24f07923f23cf0a2be5d7fb4b36a11925c779a8f4a68bdc9c81457084ded080f",
+          "module_release_id": "modrel_18c097b26b82746d3b48d9f2da4858a15ce216bce39c2572d10c2dcef23d32b9",
+          "question_definition_sha256": "e00046ebe61d44cf13e8e4a6345cf22e2c68d0bcc887de1cbe3a0e7e5764cb51",
+          "question_id": "IQS_17",
+          "question_semantic_sha256": "09391f84cbf4c31980b487a7ff0dd73bb1165ae1746b3e20bc5e4d9933778128",
+          "question_version": "1.0.0",
+          "run_id": "fixture-run",
+          "scan_id": "fixture-scan",
+          "schema_version": "1.1.0",
+          "scope": "entity",
+          "security_id": null,
+          "segment_id": null,
+          "task_mode": "comparison",
+          "template_version": "3.2.0"
+        },
+        "work_prompt_sha256": "f40bab3139cdb4f8080c5edaddb8cd7438fdab455f1a1cc8ec798da2c8f3c921"
+      },
+      "IQS_18": {
+        "frozen_prompt_sha256": "0b8643251344863e51f2e3f991f8af1d6a383f4b18e963d0b85eb53f40dcd414",
+        "metadata": {
+          "cohort": {
+            "company_type": "operating",
+            "industries": [
+              "industrial"
+            ],
+            "stage": "mature",
+            "subtype": null
+          },
+          "comparison_group_id": "fixture-group",
+          "construct_id": "IQS_18",
+          "cycle_sensitive": true,
+          "entity_id": "ENT_CONTEXT_FIXTURE",
+          "evidence_review_status": "unreviewed",
+          "field_id": "score.iqs_18",
+          "information_cutoff": "2026-09-22",
+          "inputset_id": "fixture-input",
+          "method_id": "module-locked-v1/core-constructs-v1/bf16a908fdc40d6f/919265b791ee8633",
+          "module_package_id": "pkg_24f07923f23cf0a2be5d7fb4b36a11925c779a8f4a68bdc9c81457084ded080f",
+          "module_release_id": "modrel_18c097b26b82746d3b48d9f2da4858a15ce216bce39c2572d10c2dcef23d32b9",
+          "question_definition_sha256": "6f03dbaaf8f4dd9514fa043d7a9844f3f86c7ae904b0a6f2a8c28ef39985f271",
+          "question_id": "IQS_18",
+          "question_semantic_sha256": "919265b791ee86331dde97cc109de0be5ee82e99228d937b062f68ede54503de",
+          "question_version": "2.0.0",
+          "run_id": "fixture-run",
+          "scan_id": "fixture-scan",
+          "schema_version": "1.1.0",
+          "scope": "entity",
+          "security_id": null,
+          "segment_id": null,
+          "task_mode": "comparison",
+          "template_version": "3.2.0"
+        },
+        "work_prompt_sha256": "0b8643251344863e51f2e3f991f8af1d6a383f4b18e963d0b85eb53f40dcd414"
+      },
+      "IQS_19": {
+        "frozen_prompt_sha256": "60fd00523237c835637f4ffc6456e07a2af7fceea1ca4c0644fa0f2eafd4e7a0",
+        "metadata": {
+          "cohort": {
+            "company_type": "operating",
+            "industries": [
+              "industrial"
+            ],
+            "stage": "mature",
+            "subtype": null
+          },
+          "comparison_group_id": "fixture-group",
+          "construct_id": "IQS_19",
+          "cycle_sensitive": true,
+          "entity_id": "ENT_CONTEXT_FIXTURE",
+          "evidence_review_status": "unreviewed",
+          "field_id": "score.iqs_19",
+          "information_cutoff": "2026-09-22",
+          "inputset_id": "fixture-input",
+          "method_id": "module-locked-v1/core-constructs-v1/bf16a908fdc40d6f/f7828f58fda15e6b",
+          "module_package_id": "pkg_24f07923f23cf0a2be5d7fb4b36a11925c779a8f4a68bdc9c81457084ded080f",
+          "module_release_id": "modrel_18c097b26b82746d3b48d9f2da4858a15ce216bce39c2572d10c2dcef23d32b9",
+          "question_definition_sha256": "c63424dc2b6ffc1524de56af107ca9e4064d7119b3fd7b368a0657fb1dc2aa63",
+          "question_id": "IQS_19",
+          "question_semantic_sha256": "f7828f58fda15e6bfb5bf222d2c02b0d5e72a3025eaae70f3af514abe78c0375",
+          "question_version": "1.0.0",
+          "run_id": "fixture-run",
+          "scan_id": "fixture-scan",
+          "schema_version": "1.1.0",
+          "scope": "entity",
+          "security_id": null,
+          "segment_id": null,
+          "task_mode": "comparison",
+          "template_version": "3.2.0"
+        },
+        "work_prompt_sha256": "60fd00523237c835637f4ffc6456e07a2af7fceea1ca4c0644fa0f2eafd4e7a0"
+      },
+      "IQS_20": {
+        "frozen_prompt_sha256": "4364686ca9045dcd3cb858e124b98fcf3e558115098a109107228ed9af0e1466",
+        "metadata": {
+          "cohort": {
+            "company_type": "operating",
+            "industries": [
+              "industrial"
+            ],
+            "stage": "mature",
+            "subtype": null
+          },
+          "comparison_group_id": "fixture-group",
+          "construct_id": "IQS_20",
+          "cycle_sensitive": true,
+          "entity_id": "ENT_CONTEXT_FIXTURE",
+          "evidence_review_status": "unreviewed",
+          "field_id": "score.iqs_20",
+          "information_cutoff": "2026-09-22",
+          "inputset_id": "fixture-input",
+          "method_id": "module-locked-v1/core-constructs-v1/bf16a908fdc40d6f/954ed57283a9e018",
+          "module_package_id": "pkg_24f07923f23cf0a2be5d7fb4b36a11925c779a8f4a68bdc9c81457084ded080f",
+          "module_release_id": "modrel_18c097b26b82746d3b48d9f2da4858a15ce216bce39c2572d10c2dcef23d32b9",
+          "question_definition_sha256": "f0b94ca96c7e82be38547bc0306752c630360ebdb9c5fdf4a35fda5c5831e860",
+          "question_id": "IQS_20",
+          "question_semantic_sha256": "954ed57283a9e018165402415971359d54865044a6665bbb0af612c5465c6b0c",
+          "question_version": "2.0.0",
+          "run_id": "fixture-run",
+          "scan_id": "fixture-scan",
+          "schema_version": "1.1.0",
+          "scope": "entity",
+          "security_id": null,
+          "segment_id": null,
+          "task_mode": "comparison",
+          "template_version": "3.2.0"
+        },
+        "work_prompt_sha256": "4364686ca9045dcd3cb858e124b98fcf3e558115098a109107228ed9af0e1466"
+      },
+      "IQS_21": {
+        "frozen_prompt_sha256": "cfbd1efac3fd687729622dc664cc5c6b8b7e503d4f7f007a184896acc5f58360",
+        "metadata": {
+          "cohort": {
+            "company_type": "operating",
+            "industries": [
+              "industrial"
+            ],
+            "stage": "mature",
+            "subtype": null
+          },
+          "comparison_group_id": "fixture-group",
+          "construct_id": "IQS_21",
+          "cycle_sensitive": true,
+          "entity_id": "ENT_CONTEXT_FIXTURE",
+          "evidence_review_status": "unreviewed",
+          "field_id": "score.iqs_21",
+          "information_cutoff": "2026-09-22",
+          "inputset_id": "fixture-input",
+          "method_id": "module-locked-v1/core-constructs-v1/bf16a908fdc40d6f/730353a7f44eefbb",
+          "module_package_id": "pkg_24f07923f23cf0a2be5d7fb4b36a11925c779a8f4a68bdc9c81457084ded080f",
+          "module_release_id": "modrel_18c097b26b82746d3b48d9f2da4858a15ce216bce39c2572d10c2dcef23d32b9",
+          "question_definition_sha256": "8b02a0479dbc822ee1f8457d0bb85eb52e6526a42bfc4b43e9e7eeca52644f7a",
+          "question_id": "IQS_21",
+          "question_semantic_sha256": "730353a7f44eefbbd47f6d28f5f5d89f1c00dff23dccb8c444f5e6de68d77a00",
+          "question_version": "2.0.0",
+          "run_id": "fixture-run",
+          "scan_id": "fixture-scan",
+          "schema_version": "1.1.0",
+          "scope": "entity",
+          "security_id": null,
+          "segment_id": null,
+          "task_mode": "comparison",
+          "template_version": "3.2.0"
+        },
+        "work_prompt_sha256": "cfbd1efac3fd687729622dc664cc5c6b8b7e503d4f7f007a184896acc5f58360"
+      },
+      "IQS_22": {
+        "frozen_prompt_sha256": "4b221e371263aceb7411e4c67bbca8eb9326f6547cc17e9cee3a5494e94bf87d",
+        "metadata": {
+          "cohort": {
+            "company_type": "operating",
+            "industries": [
+              "industrial"
+            ],
+            "stage": "mature",
+            "subtype": null
+          },
+          "comparison_group_id": "fixture-group",
+          "construct_id": "IQS_22",
+          "cycle_sensitive": true,
+          "entity_id": "ENT_CONTEXT_FIXTURE",
+          "evidence_review_status": "unreviewed",
+          "field_id": "score.iqs_22",
+          "information_cutoff": "2026-09-22",
+          "inputset_id": "fixture-input",
+          "method_id": "module-locked-v1/core-constructs-v1/bf16a908fdc40d6f/b26bf732dde08255",
+          "module_package_id": "pkg_24f07923f23cf0a2be5d7fb4b36a11925c779a8f4a68bdc9c81457084ded080f",
+          "module_release_id": "modrel_18c097b26b82746d3b48d9f2da4858a15ce216bce39c2572d10c2dcef23d32b9",
+          "question_definition_sha256": "a9b61b2ca78ded226bf48b1cc6796222905455573eaf467c8a19c556baf4a389",
+          "question_id": "IQS_22",
+          "question_semantic_sha256": "b26bf732dde0825517c90dd8f1f5e95911cf931913b7ac5bf84117716863b1fb",
+          "question_version": "1.0.0",
+          "run_id": "fixture-run",
+          "scan_id": "fixture-scan",
+          "schema_version": "1.1.0",
+          "scope": "security",
+          "security_id": "SEC_CONTEXT_FIXTURE",
+          "segment_id": null,
+          "task_mode": "comparison",
+          "template_version": "3.2.0"
+        },
+        "work_prompt_sha256": "4b221e371263aceb7411e4c67bbca8eb9326f6547cc17e9cee3a5494e94bf87d"
+      },
+      "IQS_23": {
+        "frozen_prompt_sha256": "ecabd96c67d98c5088bc8cd01bc71448c3d2f1ad8c4e341a939f770dddfb02fc",
+        "metadata": {
+          "cohort": {
+            "company_type": "operating",
+            "industries": [
+              "industrial"
+            ],
+            "stage": "mature",
+            "subtype": null
+          },
+          "comparison_group_id": "fixture-group",
+          "construct_id": "IQS_23",
+          "cycle_sensitive": true,
+          "entity_id": "ENT_CONTEXT_FIXTURE",
+          "evidence_review_status": "unreviewed",
+          "field_id": "score.iqs_23",
+          "information_cutoff": "2026-09-22",
+          "inputset_id": "fixture-input",
+          "method_id": "module-locked-v1/core-constructs-v1/bf16a908fdc40d6f/0ad2706903749602",
+          "module_package_id": "pkg_24f07923f23cf0a2be5d7fb4b36a11925c779a8f4a68bdc9c81457084ded080f",
+          "module_release_id": "modrel_18c097b26b82746d3b48d9f2da4858a15ce216bce39c2572d10c2dcef23d32b9",
+          "question_definition_sha256": "fe767d3e8bcf281a3fe007b382775a17e02d9799ef8dc4486b5efc88ab669bbe",
+          "question_id": "IQS_23",
+          "question_semantic_sha256": "0ad2706903749602cbd6ba39909bf5d2e006f135be2050d23751f10533dff209",
+          "question_version": "1.0.0",
+          "run_id": "fixture-run",
+          "scan_id": "fixture-scan",
+          "schema_version": "1.1.0",
+          "scope": "security",
+          "security_id": "SEC_CONTEXT_FIXTURE",
+          "segment_id": null,
+          "task_mode": "comparison",
+          "template_version": "3.2.0"
+        },
+        "work_prompt_sha256": "ecabd96c67d98c5088bc8cd01bc71448c3d2f1ad8c4e341a939f770dddfb02fc"
+      },
+      "IQS_24": {
+        "frozen_prompt_sha256": "c72cb5a956f1eb90eee7e78ae0b0ed734765285021227c7970195e885e2165e4",
+        "metadata": {
+          "cohort": {
+            "company_type": "operating",
+            "industries": [
+              "industrial"
+            ],
+            "stage": "mature",
+            "subtype": null
+          },
+          "comparison_group_id": "fixture-group",
+          "construct_id": "IQS_24",
+          "cycle_sensitive": true,
+          "entity_id": "ENT_CONTEXT_FIXTURE",
+          "evidence_review_status": "unreviewed",
+          "field_id": "score.iqs_24",
+          "information_cutoff": "2026-09-22",
+          "inputset_id": "fixture-input",
+          "method_id": "module-locked-v1/core-constructs-v1/bf16a908fdc40d6f/0f1008814c1ce4b3",
+          "module_package_id": "pkg_24f07923f23cf0a2be5d7fb4b36a11925c779a8f4a68bdc9c81457084ded080f",
+          "module_release_id": "modrel_18c097b26b82746d3b48d9f2da4858a15ce216bce39c2572d10c2dcef23d32b9",
+          "question_definition_sha256": "d82114b9fd3821125b3f49103d864956d0554f5ad683d70ecdb30b3b43d350d3",
+          "question_id": "IQS_24",
+          "question_semantic_sha256": "0f1008814c1ce4b37a20886109f9b4afae936bf95c6ab843c2d8ea0f8aa84ad5",
+          "question_version": "1.0.0",
+          "run_id": "fixture-run",
+          "scan_id": "fixture-scan",
+          "schema_version": "1.1.0",
+          "scope": "security",
+          "security_id": "SEC_CONTEXT_FIXTURE",
+          "segment_id": null,
+          "task_mode": "comparison",
+          "template_version": "3.2.0"
+        },
+        "work_prompt_sha256": "c72cb5a956f1eb90eee7e78ae0b0ed734765285021227c7970195e885e2165e4"
+      },
+      "MATURE_01": {
+        "frozen_prompt_sha256": "1ca93db624152c7fbaf78eac68c6d620e4811979de1d4f3183f197e503a84f27",
+        "metadata": {
+          "cohort": {
+            "company_type": "operating",
+            "industries": [
+              "industrial"
+            ],
+            "stage": "mature",
+            "subtype": null
+          },
+          "comparison_group_id": "fixture-group",
+          "construct_id": null,
+          "cycle_sensitive": true,
+          "entity_id": "ENT_CONTEXT_FIXTURE",
+          "evidence_review_status": "unreviewed",
+          "field_id": "score.mature_01",
+          "information_cutoff": "2026-09-22",
+          "inputset_id": "fixture-input",
+          "method_id": "module-locked-v1/core-constructs-v1/bf16a908fdc40d6f/1f9e5e26bd179295",
+          "module_package_id": "pkg_24f07923f23cf0a2be5d7fb4b36a11925c779a8f4a68bdc9c81457084ded080f",
+          "module_release_id": "modrel_18c097b26b82746d3b48d9f2da4858a15ce216bce39c2572d10c2dcef23d32b9",
+          "question_definition_sha256": "c46693587a7b05b23936d854d05d54d7f9fdcfe3fc7fcd2c7c33b370424d70e2",
+          "question_id": "MATURE_01",
+          "question_semantic_sha256": "1f9e5e26bd179295b834dec9caf39d85d57feb61868cfe7c691bebf1fd234cab",
+          "question_version": "1.0.0",
+          "run_id": "fixture-run",
+          "scan_id": "fixture-scan",
+          "schema_version": "1.1.0",
+          "scope": "entity",
+          "security_id": null,
+          "segment_id": null,
+          "task_mode": "comparison",
+          "template_version": "3.2.0"
+        },
+        "work_prompt_sha256": "1ca93db624152c7fbaf78eac68c6d620e4811979de1d4f3183f197e503a84f27"
+      },
+      "MATURE_02": {
+        "frozen_prompt_sha256": "a5f9141ba39d9f1b47e6c00333b286b677a34a5f682fefc1b6018bf3c9e106d2",
+        "metadata": {
+          "cohort": {
+            "company_type": "operating",
+            "industries": [
+              "industrial"
+            ],
+            "stage": "mature",
+            "subtype": null
+          },
+          "comparison_group_id": "fixture-group",
+          "construct_id": null,
+          "cycle_sensitive": true,
+          "entity_id": "ENT_CONTEXT_FIXTURE",
+          "evidence_review_status": "unreviewed",
+          "field_id": "score.mature_02",
+          "information_cutoff": "2026-09-22",
+          "inputset_id": "fixture-input",
+          "method_id": "module-locked-v1/core-constructs-v1/bf16a908fdc40d6f/68a9583cf9811d3a",
+          "module_package_id": "pkg_24f07923f23cf0a2be5d7fb4b36a11925c779a8f4a68bdc9c81457084ded080f",
+          "module_release_id": "modrel_18c097b26b82746d3b48d9f2da4858a15ce216bce39c2572d10c2dcef23d32b9",
+          "question_definition_sha256": "809be93d38a73a0df7e6534e73b2377331bdfc95b644c22cc8a93185020ea978",
+          "question_id": "MATURE_02",
+          "question_semantic_sha256": "68a9583cf9811d3a4a8d15e02e8583a2b3f7666071cf7c6daf2e19d189a3cc59",
+          "question_version": "1.0.0",
+          "run_id": "fixture-run",
+          "scan_id": "fixture-scan",
+          "schema_version": "1.1.0",
+          "scope": "entity",
+          "security_id": null,
+          "segment_id": null,
+          "task_mode": "comparison",
+          "template_version": "3.2.0"
+        },
+        "work_prompt_sha256": "a5f9141ba39d9f1b47e6c00333b286b677a34a5f682fefc1b6018bf3c9e106d2"
+      },
+      "OPERATING_01": {
+        "frozen_prompt_sha256": "232c36dc3238be2213523e43f546156c6c7a8677db7b394831d6df8893059ab4",
+        "metadata": {
+          "cohort": {
+            "company_type": "operating",
+            "industries": [
+              "industrial"
+            ],
+            "stage": "mature",
+            "subtype": null
+          },
+          "comparison_group_id": "fixture-group",
+          "construct_id": "IQS_11",
+          "cycle_sensitive": true,
+          "entity_id": "ENT_CONTEXT_FIXTURE",
+          "evidence_review_status": "unreviewed",
+          "field_id": "score.operating_01",
+          "information_cutoff": "2026-09-22",
+          "inputset_id": "fixture-input",
+          "method_id": "module-locked-v1/core-constructs-v1/bf16a908fdc40d6f/a34e39d580bc2bbc",
+          "module_package_id": "pkg_24f07923f23cf0a2be5d7fb4b36a11925c779a8f4a68bdc9c81457084ded080f",
+          "module_release_id": "modrel_18c097b26b82746d3b48d9f2da4858a15ce216bce39c2572d10c2dcef23d32b9",
+          "question_definition_sha256": "7f3e1d6935f2457d5648e55f82b502dadcc71e9c011ef9952126fe76cb64e3c1",
+          "question_id": "OPERATING_01",
+          "question_semantic_sha256": "a34e39d580bc2bbce210b07b5961dfb62d97b3a783550eb8a63e1de50f09353d",
+          "question_version": "1.0.0",
+          "run_id": "fixture-run",
+          "scan_id": "fixture-scan",
+          "schema_version": "1.1.0",
+          "scope": "entity",
+          "security_id": null,
+          "segment_id": null,
+          "task_mode": "comparison",
+          "template_version": "3.2.0"
+        },
+        "work_prompt_sha256": "232c36dc3238be2213523e43f546156c6c7a8677db7b394831d6df8893059ab4"
+      },
+      "OPERATING_02": {
+        "frozen_prompt_sha256": "4d68bc0b00e40131a70974582975eb5ba5cabe567822f10da1dd2a6a4d572dc2",
+        "metadata": {
+          "cohort": {
+            "company_type": "operating",
+            "industries": [
+              "industrial"
+            ],
+            "stage": "mature",
+            "subtype": null
+          },
+          "comparison_group_id": "fixture-group",
+          "construct_id": "IQS_03",
+          "cycle_sensitive": true,
+          "entity_id": "ENT_CONTEXT_FIXTURE",
+          "evidence_review_status": "unreviewed",
+          "field_id": "score.operating_02",
+          "information_cutoff": "2026-09-22",
+          "inputset_id": "fixture-input",
+          "method_id": "module-locked-v1/core-constructs-v1/bf16a908fdc40d6f/712e889eee2e8db2",
+          "module_package_id": "pkg_24f07923f23cf0a2be5d7fb4b36a11925c779a8f4a68bdc9c81457084ded080f",
+          "module_release_id": "modrel_18c097b26b82746d3b48d9f2da4858a15ce216bce39c2572d10c2dcef23d32b9",
+          "question_definition_sha256": "191ae5eff6f6094e22254d8d8e626a97ecbbf34562a66b3382ecd80fcf1898f8",
+          "question_id": "OPERATING_02",
+          "question_semantic_sha256": "712e889eee2e8db29554314b0049275917c09dd85045c85f5cfed2eefeb1eb38",
+          "question_version": "1.0.0",
+          "run_id": "fixture-run",
+          "scan_id": "fixture-scan",
+          "schema_version": "1.1.0",
+          "scope": "entity",
+          "security_id": null,
+          "segment_id": null,
+          "task_mode": "comparison",
+          "template_version": "3.2.0"
+        },
+        "work_prompt_sha256": "4d68bc0b00e40131a70974582975eb5ba5cabe567822f10da1dd2a6a4d572dc2"
+      }
+    },
+    "schema": "stockqa.quick_scan_observation_context/1.0.0"
+  },
+  "observation_context_sha256": "a184c48272929dea6f11e595009c483844ae90c1e0c82007bac5fb44ca66c496",
+  "producer": {
+    "build_id": "offline-synthetic-not-owner-golden",
+    "component_version": "fixture-v2"
+  },
+  "schema_version": "2.0.0"
+}

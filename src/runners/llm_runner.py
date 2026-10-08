@@ -162,6 +162,7 @@ class QuickScanWorkLifecycle:
         generation_by_question: Optional[Dict[str, int]] = None,
         routing_fingerprint_by_question: Optional[Dict[str, str]] = None,
         transport_managed: bool = False,
+        observation_context: Optional[Dict[str, Any]] = None,
     ) -> None:
         if (budget_policy is None) != (budget_route is None):
             raise ValueError("budget_policy and budget_route must be supplied together")
@@ -183,6 +184,9 @@ class QuickScanWorkLifecycle:
         self._budget_route = budget_route
         self._deadline = deadline
         self._c06_authority = c06_authority
+        # Q10 complete path: the frozen owner context travels with the run so a
+        # durable standard answer can be bound to it before anything is saved.
+        self._observation_context = observation_context
         # Q13: the frozen manifest may bind a question to a different scope or
         # a newer generation than the run default; both stay per-question and
         # never rebind an already-frozen work item.
@@ -414,6 +418,61 @@ class QuickScanWorkLifecycle:
         )
         return context
 
+    def _standard_transport(self, description: str) -> tuple[str, Optional[Dict[str, Any]]]:
+        """Split one model description into (compact description, standard body).
+
+        Explicit standard-answer transport: while the run carries the frozen
+        observation context, a description shaped like a standard answer MUST
+        be a complete body — the caller persists it verbatim (never truncated)
+        and the compact checkpoint keeps only its summary. Prose that is not a
+        standard body keeps the historical compact handling, which authority
+        2.0.0 then refuses to seal as a complete observation.
+        """
+        from src.utils.quick_scan_observation_context import parse_standard_answer
+
+        if self._observation_context is None:
+            return description, None
+        body = parse_standard_answer(description)
+        if body is None:
+            return description, None
+        summary = body.get("summary")
+        if not isinstance(summary, str) or not summary.strip():
+            raise ValueError("standard answer does not carry a usable summary")
+        if len(summary) > 5000:
+            raise ValueError("standard answer summary exceeds the compact checkpoint bound")
+        return summary, body
+
+    def _preflight_standard_answer(
+        self,
+        payload: Dict[str, Any],
+        receipt: Dict[str, Any],
+        standard_body: Optional[Dict[str, Any]],
+    ) -> None:
+        """Run the complete standard-answer contract BEFORE any state is written."""
+        if self._observation_context is None:
+            return
+        from src.utils.quick_scan_observation_context import (
+            validate_context_document,
+            validate_standard_answer,
+        )
+        from src.utils.quick_scan_result_outbox import canonical_sha256
+
+        context = validate_context_document(
+            self._observation_context,
+            expected_sha256=canonical_sha256(self._observation_context),
+        )
+        question_id = payload.get("question_id")
+        if question_id not in context["questions"]:
+            raise ValueError("standard answer question is absent from the frozen context")
+        if standard_body is None:
+            return
+        validate_standard_answer(
+            standard_body,
+            metadata=context["questions"][question_id]["metadata"],
+            normalized_answer=payload,
+            source_urls=list(receipt.get("source_urls") or []),
+        )
+
     def _save_transport_checkpoint(self, handle: Dict[str, Any], result: Any) -> None:
         """Save only the transport's final successful attempt; never record it twice."""
         try:
@@ -431,14 +490,16 @@ class QuickScanWorkLifecycle:
             receipt = execution_receipt_for_checkpoint(metadata)
             if not isinstance(attempt_id, str) or receipt is None:
                 raise ValueError("missing final successful transport receipt")
+            description, standard_body = self._standard_transport(getattr(answer, "text", ""))
             payload = {
                 "entity_id": self._entity_id,
                 "question_id": getattr(getattr(result, "question", None), "question_id", None),
                 "status": getattr(answer, "status", None),
                 "score": getattr(answer, "score", None),
-                "description": getattr(answer, "text", ""),
+                "description": description,
             }
             _preflight_checkpoint(payload, receipt)
+            self._preflight_standard_answer(payload, receipt, standard_body)
             # Store checks same work/lease/model/request/hash and successful
             # phase atomically. A forged final ID or receipt cannot save.
             self._store.save_answer_checkpoint(
@@ -447,6 +508,8 @@ class QuickScanWorkLifecycle:
                 attempt_id,
                 answer=payload,
                 execution_receipt=receipt,
+                observation_context=self._observation_context,
+                standard_answer=standard_body,
             )
             self._seal_delivery(handle["work_item_id"])
         except Exception as exc:  # noqa: BLE001 - retain authoritative transport state
@@ -476,6 +539,7 @@ class QuickScanWorkLifecycle:
         if result is not None and self._identity.get("identity_state") == "verified":
             receipt = None
             answer_payload = None
+            standard_body: Optional[Dict[str, Any]] = None
             try:
                 from src.core.models import execution_receipt_for_checkpoint
 
@@ -503,12 +567,15 @@ class QuickScanWorkLifecycle:
                         and receipt.get("actual_model") == self._model_requested
                     )
                     if shape_ok:
+                        description, standard_body = self._standard_transport(
+                            getattr(answer, "text", "")
+                        )
                         answer_payload = {
                             "entity_id": self._entity_id,
                             "question_id": question_id,
                             "status": status,
                             "score": score,
-                            "description": getattr(answer, "text", ""),
+                            "description": description,
                         }
             except Exception as exc:  # noqa: BLE001
                 logger.debug("checkpoint receipt build skipped (%s)", exc)
@@ -519,6 +586,7 @@ class QuickScanWorkLifecycle:
                 # response_available and a missing checkpoint.
                 try:
                     _preflight_checkpoint(answer_payload, receipt)
+                    self._preflight_standard_answer(answer_payload, receipt, standard_body)
                 except ValueError as exc:
                     logger.warning("检查点预检拒绝（%s）——零状态降级为诚实 unknown", exc)
                     receipt = None
@@ -546,6 +614,8 @@ class QuickScanWorkLifecycle:
                         handle["attempt_id"],
                         answer=answer_payload,
                         execution_receipt=receipt,
+                        observation_context=self._observation_context,
+                        standard_answer=standard_body,
                     )
                     logger.info("Q07 检查点已存（%s）", answer_payload["question_id"])
                     self._seal_delivery(handle["work_item_id"])
@@ -764,13 +834,22 @@ def _spend_authorization_preflight(path: Optional[str]) -> Optional[str]:
     return None
 
 
-def load_run_c06_authority(path: Optional[str]) -> Optional[Dict[str, Any]]:
+def load_run_c06_authority(
+    path: Optional[str],
+    *,
+    manifest: Optional[Dict[str, Any]] = None,
+    identity_snapshot_sha256: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
     """Resolve the C06 delivery authority for one run (Q10/DB-07).
 
     An explicit ``--c06-authority`` path must load successfully — a malformed
     document is a configuration error and fails before any dispatch. Without
     the flag the conventional cwd-relative file is used when present; its
     absence returns ``None``, which the seal step turns into a durable block.
+
+    A 2.0.0 authority additionally binds its frozen observation context to the
+    manifest file and identity bytes the run actually loaded; supply both
+    whenever the caller has them.
     """
     from src.utils.quick_scan_c06_authority import (
         DEFAULT_AUTHORITY_FILENAME,
@@ -778,10 +857,18 @@ def load_run_c06_authority(path: Optional[str]) -> Optional[Dict[str, Any]]:
     )
 
     if path is not None:
-        return load_c06_authority(path)
+        return load_c06_authority(
+            path,
+            manifest=manifest,
+            identity_snapshot_sha256=identity_snapshot_sha256,
+        )
     conventional = Path(DEFAULT_AUTHORITY_FILENAME)
     if conventional.is_file():
-        return load_c06_authority(conventional)
+        return load_c06_authority(
+            conventional,
+            manifest=manifest,
+            identity_snapshot_sha256=identity_snapshot_sha256,
+        )
     return None
 
 
@@ -1254,7 +1341,24 @@ class LLMRunner:
             # An explicitly supplied but invalid document fails the run closed;
             # an absent conventional document means every checkpoint settles as
             # a durable block instead of an invented envelope field.
-            c06_authority = load_run_c06_authority(c06_authority_path)
+            identity_snapshot_sha256 = (
+                identity_payload["identity_snapshot_sha256"] if identity_payload else None
+            )
+            c06_authority = load_run_c06_authority(
+                c06_authority_path,
+                manifest=manifest,
+                identity_snapshot_sha256=identity_snapshot_sha256,
+            )
+            if (
+                c06_authority is not None
+                and c06_authority.get("schema_version") == "2.0.0"
+                and (manifest is None or identity_snapshot_sha256 is None)
+            ):
+                raise ValueError(
+                    "authority 2.0.0 requires --question-manifest and "
+                    "--identity-snapshot before any HTTP: the frozen context "
+                    "must be bound to the exact files this run loaded"
+                )
             if c06_authority is not None:
                 self.logger.info("C06 权威文档已加载（%s）", c06_authority["authority_sha256"][:16])
             elif c06_authority_path is None:
@@ -1467,6 +1571,11 @@ class LLMRunner:
                         primary_route or (quick_scan_policy or {}).get("routes", [{}])[0]
                     ).get("provider_config_ref", "quick-scan-cli"),
                     c06_authority=c06_authority,
+                    observation_context=(
+                        c06_authority.get("observation_context")
+                        if isinstance(c06_authority, dict)
+                        else None
+                    ),
                     scope_by_question=scope_bindings,
                     generation_by_question=generation_overrides,
                     routing_fingerprint_by_question=routing_overrides,
@@ -1474,16 +1583,25 @@ class LLMRunner:
                 )
             qa_engine = QAEngine(llm_provider, answer_generator, work_item_lifecycle=work_lifecycle)
 
-            # 处理问题
-            if quick_scan_policy is not None and quick_scan_policy["configured"]:
-                if budget_store is None:
-                    raise RuntimeError("quick-scan budget binding: budget store is not bound")
-                with bind_quick_scan_budget(
-                    budget_store, quick_scan_policy, cost_resolver=cost_resolver
-                ):
+            # Q10 complete path: EXPLICITLY turn the standard-answer transport
+            # on for this run only when the loaded authority carries the frozen
+            # observation context; every other run keeps the compact prompt.
+            from src.providers.base_llm_provider import standard_answer_transport
+
+            complete_transport = (
+                isinstance(c06_authority, dict) and c06_authority.get("schema_version") == "2.0.0"
+            )
+            with standard_answer_transport(complete_transport):
+                # 处理问题
+                if quick_scan_policy is not None and quick_scan_policy["configured"]:
+                    if budget_store is None:
+                        raise RuntimeError("quick-scan budget binding: budget store is not bound")
+                    with bind_quick_scan_budget(
+                        budget_store, quick_scan_policy, cost_resolver=cost_resolver
+                    ):
+                        batch_result = qa_engine.process_questions(questions)
+                else:
                     batch_result = qa_engine.process_questions(questions)
-            else:
-                batch_result = qa_engine.process_questions(questions)
 
             # 显示结果摘要
             print("\n" + "=" * 70)
