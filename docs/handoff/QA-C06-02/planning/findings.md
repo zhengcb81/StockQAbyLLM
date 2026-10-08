@@ -45,3 +45,29 @@
 10. **门**：`python -B scripts/checks.py --full --timeout 300` →
     `mode=full result=pass exit=0 steps=black,isort,mypy,bandit,pytest,smoke`，1037 passed。
     `pre-commit run --files …` 全部 hook 通过（mixed-line-ending 首轮修复后复跑通过）。
+
+11. **组2 的正确形态是“映射”而不是“等值”**：冻结 context（owner 命名空间 `fixture-run/
+    fixture-scan`）与实际 `work_run_ref`（`run-<ts>/scan-l02`）永远不相等——验收已实证。
+    解法：带 context 的 `save_answer_checkpoint` 在与 attempt 同事务内把 context 的
+    run/scan 对 `INSERT OR IGNORE` 进 `work_run_ref`（attach 只核不写），seal 前逐题核存在。
+    foreign 例因此在 seal 被 `c06_run_scan_unbound` 持久阻断；正常例获得可核映射。
+    未改任何 fixture 标签（`git status` 证明 fixtures 零改动）。
+12. **`_checkpointed(with_context=False)` 原来传 body 会先炸**：`_prepare_standard_inputs`
+    规定“完整正文必须带冻结 context”，所以原 helper 在 with_context=False+with_answer=True
+    时于 setup 即 ValueError（总控 RED 日志即此）。helper 修正为 context/answer 成对
+    （无 context 则不落侧表、留给 attach），产品规则不动——这不是改标签掩盖缺校验，缺的
+    seal 校验照样新增并通过。
+13. **Windows 本机 asyncio socketpair 是 `('::1', 0)` 不是 `('127.0.0.1', 0)`**：总控修正版
+    guard 的放行条件在本机不命中，导致首轮子进程 RED 里网络账本误报。放行集合改为两个精确
+    ephemeral 回环地址后正常；其余地址仍记账+拒绝。
+14. **损坏正文的端到端落点是“honest-unknown + 持久 block”而不是“无 checkpoint”**：
+    `llm_provider` 对无法解析的结构化回答落 `ParsedLLMAnswer(None, "无法验证…", "unknown")`
+    （Q06 既有契约），checkpoint 记 score=null/unknown、无侧表，v2 封存
+    `c06_standard_answer_unavailable` 持久阻断；每题恰 1 发（不重问）。loader 层的显式
+    `ValueError` 由单测直接证明（`parse_standard_answer` 重复键/嵌套/NaN 三例）。
+15. **组4 检查的边界=“自称完整 且 有侧表”**：无侧表旧库/fixture 的完整形状包（ACK/不可变
+    等 6 个原用例）必须保持原能力 → 无侧表时沿历史 checkpoint 绑定；有侧表时重建比对。
+    精确字段集 `_COMPACT_OBSERVATION_FIELDS` 区分 compact 与完整主张。
+16. **日志按仓 hook 归一化是提交的必经步骤**：原始 pytest 输出含行尾空格/混合行尾，
+    `trailing-whitespace` + `mixed-line-ending --fix=lf` 会就地改（无内容行增删）；IQS intake
+    原始字节不碰。

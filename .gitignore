@@ -106,6 +106,7 @@ outputs/
 !docs/handoff/QA-C06-02/artifacts.json
 !docs/handoff/QA-C06-02/golden/
 !docs/handoff/QA-C06-02/golden/*.json
+!docs/handoff/QA-C06-02/logs/cleanup-remediation-receipt.json
 /quick_scan_health.sqlite*
 /quick_scan_work.sqlite*
 !llm_apis.json.example

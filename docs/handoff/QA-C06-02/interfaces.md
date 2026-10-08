@@ -25,7 +25,7 @@
 | **Authority v2** | **2.0.0（新增）** | `src/config/quick_scan_c06_authority.v2.schema.json`，`$id=stockqa.quick_scan_c06_authority/2.0.0` |
 | Observation context | `stockqa.quick_scan_observation_context/1.0.0` | authority 2.0.0 的 `observation_context` |
 | Work store | `SCHEMA_VERSION = 6`（v5→v6 向前迁移） | `src/utils/quick_scan_work_store.py` |
-| 阻断码 | `c06_authority_unavailable` / `c06_adapter_missing_fields` / `c06_observation_context_unavailable` / `c06_observation_context_conflict` / `c06_standard_answer_unavailable` / `c06_attempt_send_intent_unavailable` | `src/utils/quick_scan_delivery_seal.py` |
+| 阻断码 | `c06_authority_unavailable` / `c06_adapter_missing_fields` / `c06_observation_context_unavailable` / `c06_observation_context_conflict` / `c06_run_scan_unbound`（整改新增） / `c06_standard_answer_unavailable` / `c06_attempt_send_intent_unavailable` | `src/utils/quick_scan_delivery_seal.py` |
 | 修订链 | `quick_scan_delivery_revision`（revision / supersedes_revision / supersedes_package_id） | 同上 + work store |
 | Golden | `stockqa.qa_c06_02_golden/1.0.0`（**synthetic_only**） | `golden/golden.json`、`golden/complete_c06_package.json`、`golden/standard_answer.json` |
 
@@ -44,10 +44,16 @@ python -B -X utf8 main_with_llm.py --company "Fixture Corp" --entity-id ENT_CONT
 python -B -X utf8 main_with_llm.py --seal-deliveries --c06-authority <tmp>/quick_scan_c06_authority.json
 ```
 
-RED→GREEN selector：
+RED→GREEN selector（批次 1）：
 
 ```powershell
 python -B -X utf8 -m pytest -p no:base_url tests/unit/test_quick_scan_observation_context.py -k embedded_answer -q
+```
+
+RED→GREEN selector（整改批次 2，四组反例 + 真实子进程）：
+
+```powershell
+python -B -X utf8 -m pytest -p no:base_url tests/unit/test_quick_scan_c06_authority_binding.py tests/unit/test_quick_scan_c06_complete_seal.py tests/unit/test_quick_scan_observation_context.py tests/integration/test_qa_c06_02_subprocess_cli.py -q
 ```
 
 输入来源：`tests/fixtures/quick_scan_c06_manifest_v2_fixture.json`（原字节）、
@@ -67,6 +73,14 @@ identity 字节）、`questions.json`（由 manifest 逐题 prompt 生成）。�
   `test_send_uncertain_is_reconciled_before_a_new_head_is_written`、
   `test_legacy_checkpoint_without_inputs_keeps_its_historical_package_read_only`、
   `test_a_second_frozen_context_for_the_same_task_is_refused`。
+* 反例（整改批次 2）：`test_quick_scan_c06_authority_binding.py::test_per_question_metadata_is_bound_to_the_frozen_manifest`（14 参数例）、
+  `::test_authority_with_a_duplicate_schema_version_is_refused`、`::test_authority_with_a_nested_duplicate_key_is_refused`、
+  `test_quick_scan_observation_context.py::test_duplicate_score_in_standard_body_is_refused` 等正文严格三例；
+  `test_quick_scan_c06_complete_seal.py::test_foreign_run_and_scan_context_cannot_seal_this_checkpoint`
+  （block `c06_run_scan_unbound`）、`::test_supersede_rejects_each_forged_complete_observation_field`（5 参数例）、
+  `::test_prepare_refuses_a_forged_complete_observation_before_any_head_exists`；
+  `test_qa_c06_02_subprocess_cli.py` 的错 metadata / 重复 authority（key 读取 0、HTTP 0、费用预约 0）
+  与损坏正文（不补分、不重问、每题恰 1 发）四例。
 
 ## 退出码
 

@@ -65,7 +65,7 @@
     }
   ],
   "lane_id": "stockqa",
-  "next_action": "Verify docs/handoff/QA-C06-02/artifacts.json against the commit, then run the coordinator-owned joint offline E2E (real StockQA CLI -> real StockWiki observation-import -> ACK -> restart/recovery) in an isolated temp root.",
+  "next_action": "Coordinator verifies docs/handoff/QA-C06-02/artifacts.json against code commit acb7dbf, re-runs the affected scope plus the batch-2 counter-cases (original-byte controller cases, test_quick_scan_c06_authority_binding, the forged-observation supersede/prepare cases and test_qa_c06_02_subprocess_cli) once, and signs this package; QA<->StockWiki joint offline E2E, G3 and F05 remain separate coordinator-owned nodes.",
   "open_items": [
     "not_run: real StockQA -> StockWiki observation-import -> ACK -> query/UI joint acceptance (coordinator owns StockWiki).",
     "not_run: G3 and F05 gates; this package does not close them.",
@@ -73,7 +73,9 @@
     "not_run: online live E2E (STOCKQA_RUN_LIVE_E2E=0; no online authorization requested).",
     "--seal-deliveries does not accept --question-manifest/--identity-snapshot: restart sealing relies on the durable context side table written during the run.",
     "Under authority 2.0.0 an answer status outside {scored, insufficient_evidence, not_applicable} has no complete standard body and stays durably blocked (answer schema has no 'unknown').",
-    "Harness-reported HEAD f937b2d is not present in this repository; this delivery is commit 7e71b2cd8bbb042a72b282e83cb361a1ddcbb8b7 on top of 09f68a69bbdbf76e3a4fff63043cdd4815572e5b."
+    "Harness-reported HEAD f937b2d is not present in this repository; this delivery is commit 7e71b2cd8bbb042a72b282e83cb361a1ddcbb8b7 on top of 09f68a69bbdbf76e3a4fff63043cdd4815572e5b.",
+    "Coordinator re-verification of batch 2 (the four counter-case groups, the real-subprocess CLI E2E and this handoff) is pending; the worker's own review is not the signing step.",
+    "Work stores that stored a frozen context BEFORE this remediation have no run/scan mapping row yet: sealing them under authority 2.0.0 blocks with c06_run_scan_unbound until one idempotent save_answer_checkpoint re-invocation records the mapping; no production database was read or written by this batch."
   ],
   "package_id": "QA-C06-02",
   "review": {
@@ -81,17 +83,25 @@
       "Worker's own consolidated batch review at delivery: full-diff re-read of all 11 changed source/test files plus one offline `checks.py --full` run (1037 passed) and one `pre-commit run --files` run over the exact delivery path list; no second independent reviewer re-ran the gate.",
       "Overlay input bytes were restored to the inputs/qa-phase92-overlay originals after the mixed-line-ending hook rewrote them (documented in isolation.md); working-tree SHA256 re-verified against inputs.lock.",
       ".secrets.baseline gained exactly two entries (the golden JSON files) on user approval; the four pre-existing pilot_runs entries were preserved.",
-      "Whole package is local only: real StockWiki import/ACK/UI joint acceptance, G3 and F05 remain with the coordinator (case-map: not_run)."
+      "Whole package is local only: real StockWiki import/ACK/UI joint acceptance, G3 and F05 remain with the coordinator (case-map: not_run).",
+      "Batch-2 consolidated worker review (self-review, disclosed): full re-read of the 552-line src diff for the five changed source files plus every handoff document, one full offline gate run (1083 passed) and one pre-commit run over the exact delivery path list on code commit acb7dbf; no second independent reviewer re-ran the gate - coordinator re-verification is the signing step.",
+      "RED->GREEN evidence mapping: original-byte concentrated cases 7 failed/2 passed -> 9 passed; new unit cases 31 failed/63 passed -> green in the gate; subprocess cases 4 failed -> 4 passed. Original coordinator RED evidence stays untouched in the IQS intake; raw logs in logs/ were normalized only by the repository's standard whitespace/EOL hooks (no content lines added or removed).",
+      "scope.changed_paths is the real base->result list: git diff --name-only 09f68a6..acb7dbf plus the one path first added by this handoff commit (logs/cleanup-remediation-receipt.json); explanations live here and in authorization_scope_ref, never inside authorized_paths.",
+      "snapshot.worktree_after counts the seven original untracked entries at the result commit (default porcelain); its manifest_sha256 = SHA256 of that exact porcelain output text (method disclosed here; worktree_before keeps batch-1's original values verbatim).",
+      "Frozen inputs untouched: none of the five CRLF IQS inputs or any fixture/schema changed (working-tree SHAs equal the input-lock SHAs; the dual working-tree/blob SHA table and the reproducible 'git -c core.autocrlf=true checkout -- <path>' restore command are in isolation.md).",
+      "Test-fixture honesty: _checkpointed(with_context=False) now pairs context and body (no side tables without a context) so the foreign run/scan case reaches the real seal check; no run/scan fixture label was altered - git status shows both fixtures unmodified.",
+      "Cleanup receipt logs/cleanup-remediation-receipt.json: per-file SHA manifests for the two exclusive copies and the provably-owned pytest-149, CIM python* process matches = 0, directories verified gone; unprovable shared-TEMP residuals pytest-147/148 are listed with reasons and were not deleted.",
+      "Gate arithmetic: 1083 passed = 1037 batch-1 baseline + 46 new collected cases; the single async case the coordinator could not confirm under its guard (test_quick_scan_budget.py::test_async_search_settles_the_same_durable_budget_ledger) is GREEN inside this batch's full gate."
     ],
-    "snapshot_commit": "7e71b2cd8bbb042a72b282e83cb361a1ddcbb8b7",
+    "snapshot_commit": "acb7dbfae0e6a45221924e2d1d5742a4999f4c9d",
     "status": "approved"
   },
   "schema_version": "1.0.0",
   "scope": {
-    "authorization_scope_ref": "user dispatch message 2026-10-08 'do the task <C:/Users/郑曾波/Projects/invest-quick-scan/docs/implementation/parallel-lanes/packages/2026-10-07-wave2/QA-C06-02.md>'; card defines the allowed paths and this directory is the sole writer root; .secrets.baseline additionally approved by the user in-session for the golden false-positive registration",
+    "authorization_scope_ref": "user dispatch message 2026-10-08 'do the task <C:/Users/郑曾波/Projects/invest-quick-scan/docs/implementation/parallel-lanes/packages/2026-10-07-wave2/QA-C06-02.md>'; card defines the allowed paths and this directory is the sole writer root; .secrets.baseline additionally approved by the user in-session for the golden false-positive registration (kept verifiable by opaque hash only, never re-read, re-copied or extended); remediation batch 2 under the 2026-10-08 review card <C:/Users/郑曾波/Projects/invest-quick-scan/docs/implementation/reviews/QA-C06-02/remediation-2026-10-08.md> reuses the same card authorization: the tests/ entries cover this package's existing quick-scan unit/integration tests plus the two batch-2 test files reported in planning/task_plan.md, and docs/handoff/QA-C06-02/ covers all handoff evidence",
     "authorized_paths": [
       ".gitignore",
-      ".secrets.baseline (user-approved, card-external)",
+      ".secrets.baseline",
       "docs/handoff/QA-C06-02/",
       "main_with_llm.py",
       "pyproject.toml",
@@ -110,13 +120,64 @@
       "src/utils/quick_scan_work_store.py",
       "tests/fixtures/quick_scan_c06_authority_v2_fixture.json",
       "tests/fixtures/quick_scan_c06_manifest_v2_fixture.json",
-      "tests/integration/ (existing quick-scan CLI tests)",
+      "tests/integration/",
       "tests/integration/test_qa_c06_02_e2e.py",
-      "tests/unit/ (existing quick-scan component tests)",
+      "tests/integration/test_qa_c06_02_subprocess_cli.py",
+      "tests/unit/",
+      "tests/unit/test_quick_scan_c06_authority_binding.py",
       "tests/unit/test_quick_scan_c06_complete_seal.py",
       "tests/unit/test_quick_scan_observation_context.py"
     ],
-    "changed_paths": [],
+    "changed_paths": [
+      ".gitignore",
+      ".secrets.baseline",
+      "docs/handoff/QA-C06-02/artifacts.json",
+      "docs/handoff/QA-C06-02/case-map.md",
+      "docs/handoff/QA-C06-02/compatibility-matrix.md",
+      "docs/handoff/QA-C06-02/golden/complete_c06_package.json",
+      "docs/handoff/QA-C06-02/golden/golden.json",
+      "docs/handoff/QA-C06-02/golden/standard_answer.json",
+      "docs/handoff/QA-C06-02/handoff.json",
+      "docs/handoff/QA-C06-02/interfaces.md",
+      "docs/handoff/QA-C06-02/isolation.md",
+      "docs/handoff/QA-C06-02/logs/cleanup-remediation-receipt.json",
+      "docs/handoff/QA-C06-02/logs/full-gate-GREEN.log",
+      "docs/handoff/QA-C06-02/logs/full-gate-remediation-2026-10-08.log",
+      "docs/handoff/QA-C06-02/logs/green-boundary-remediation.log",
+      "docs/handoff/QA-C06-02/logs/green-embedded-answer.log",
+      "docs/handoff/QA-C06-02/logs/green-subprocess-remediation.log",
+      "docs/handoff/QA-C06-02/logs/pre-commit-remediation-2026-10-08.log",
+      "docs/handoff/QA-C06-02/logs/red-boundary-remediation.log",
+      "docs/handoff/QA-C06-02/logs/red-embedded-answer.log",
+      "docs/handoff/QA-C06-02/logs/red-subprocess-remediation.log",
+      "docs/handoff/QA-C06-02/logs/red-unit-remediation.log",
+      "docs/handoff/QA-C06-02/planning/findings.md",
+      "docs/handoff/QA-C06-02/planning/progress.md",
+      "docs/handoff/QA-C06-02/planning/task_plan.md",
+      "docs/handoff/QA-C06-02/summary.md",
+      "pyproject.toml",
+      "src/config/quick_scan_answer_content.schema.json",
+      "src/config/quick_scan_c06_authority.v2.schema.json",
+      "src/config/quick_scan_metric_registry.json",
+      "src/config/quick_scan_observation.schema.json",
+      "src/providers/base_llm_provider.py",
+      "src/runners/llm_runner.py",
+      "src/utils/quick_scan_c06_adapter.py",
+      "src/utils/quick_scan_c06_authority.py",
+      "src/utils/quick_scan_delivery_seal.py",
+      "src/utils/quick_scan_observation_context.py",
+      "src/utils/quick_scan_result_outbox.py",
+      "src/utils/quick_scan_work_store.py",
+      "tests/fixtures/quick_scan_c06_authority_v2_fixture.json",
+      "tests/fixtures/quick_scan_c06_manifest_v2_fixture.json",
+      "tests/integration/test_qa_c06_02_e2e.py",
+      "tests/integration/test_qa_c06_02_subprocess_cli.py",
+      "tests/unit/test_quick_scan_budget.py",
+      "tests/unit/test_quick_scan_c06_authority_binding.py",
+      "tests/unit/test_quick_scan_c06_complete_seal.py",
+      "tests/unit/test_quick_scan_observation_context.py",
+      "tests/unit/test_quick_scan_work_store.py"
+    ],
     "out_of_scope_writes": [],
     "owned_paths": [
       "C:/Users/郑曾波/Projects/StockQAbyLLM"
@@ -129,12 +190,12 @@
     "base_commit": "09f68a69bbdbf76e3a4fff63043cdd4815572e5b",
     "base_ref": "master",
     "repository": "C:/Users/郑曾波/Projects/StockQAbyLLM",
-    "result_commit": "7e71b2cd8bbb042a72b282e83cb361a1ddcbb8b7",
+    "result_commit": "acb7dbfae0e6a45221924e2d1d5742a4999f4c9d",
     "result_ref": "master",
     "worktree_after": {
-      "dirty_path_count": 14,
-      "manifest_sha256": "931c5a5506f2901ba193079773d79ff3d591f5b904e82a5fd417d83d9745d721",
-      "state": "dirty"
+      "state": "dirty",
+      "dirty_path_count": 7,
+      "manifest_sha256": "dc0b3cad08c2a1b6bc17c5667e708e3f913e707d1c165b7471d53638255cba32"
     },
     "worktree_before": {
       "dirty_path_count": 16,
@@ -198,6 +259,69 @@
         "result": "not_run",
         "scope": "StockQA -> StockWiki observation-import -> ACK -> UI",
         "skipped": 1
+      },
+      {
+        "name": "remediation-red-boundary",
+        "command": "python -B -X utf8 -m pytest <exclusive-root>/controller_cases.py -q -o addopts= -p no:cacheprovider --basetemp <exclusive-root>/tmp/boundaries (cwd=<exclusive copy of HEAD bytes>, QA100_QA_ROOT=<copy>, E97_OWNED_ROOT=<exclusive-root>, PYTHONPATH=<exclusive-root>/guard)",
+        "scope": "expected RED reproduction before the fix: original bytes of the 9 concentrated counter-cases from the IQS intake",
+        "result": "failed",
+        "passed": 2,
+        "failed": 7,
+        "skipped": 0
+      },
+      {
+        "name": "remediation-red-unit",
+        "command": "python -B -X utf8 -m pytest tests/unit/test_quick_scan_c06_authority_binding.py tests/unit/test_quick_scan_observation_context.py tests/unit/test_quick_scan_c06_complete_seal.py -q -o addopts= -p no:cacheprovider --basetemp <exclusive-root>/tmp/unit-red",
+        "scope": "expected RED for the four remediation groups before the fix (31 failures across manifest binding, strict JSON, run/scan mapping, complete-observation rebuild)",
+        "result": "failed",
+        "passed": 63,
+        "failed": 31,
+        "skipped": 0
+      },
+      {
+        "name": "remediation-red-subprocess",
+        "command": "python -B -X utf8 -m pytest tests/integration/test_qa_c06_02_subprocess_cli.py -q -o addopts= -p no:cacheprovider --basetemp <exclusive-root>/tmp/sub-red",
+        "scope": "expected RED before the fix; product-level RED (wrong metadata and duplicate authority exited 0 and sent 31) is independent of the same log's guard socketpair environment correction",
+        "result": "failed",
+        "passed": 0,
+        "failed": 4,
+        "skipped": 0
+      },
+      {
+        "name": "remediation-green-boundary",
+        "command": "python -B -X utf8 -m pytest <exclusive-root>/controller_cases.py -q -o addopts= -p no:cacheprovider --basetemp <exclusive-root>/tmp/boundaries (cwd=<exclusive copy of the fixed working tree>)",
+        "scope": "same original 9 cases after the fix - includes the two real v5 migration regression cases",
+        "result": "passed",
+        "passed": 9,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "remediation-subprocess-e2e",
+        "command": "python -B -X utf8 -m pytest tests/integration/test_qa_c06_02_subprocess_cli.py -q -o addopts= -p no:cacheprovider --basetemp <exclusive-root>/tmp/sub-green3",
+        "scope": "real subprocess cold (HTTP-boundary stub only) -> warm and seal in further processes with the stub withdrawn -> wrong metadata / duplicate authority rejected before key+HTTP+budget -> corrupt body rejected without re-asking",
+        "result": "passed",
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "remediation-full-offline-gate",
+        "command": "python -B scripts/checks.py --full --timeout 300",
+        "scope": "black,isort,mypy,bandit,pytest,smoke over batch-2 code commit acb7dbf - one batch run; 1037 baseline + 46 new cases",
+        "result": "passed",
+        "passed": 1083,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "remediation-pre-commit",
+        "command": "python -m pre_commit run --files <exact batch-2 delivery path list>",
+        "scope": "trailing-whitespace,end-of-file,yaml,toml,json,merge-conflict,case-conflict,debug-statements,mixed-line-ending,black,isort,mypy,detect-secrets - raw evidence logs normalized by the standard hooks with no content-line changes",
+        "result": "passed",
+        "passed": 11,
+        "failed": 0,
+        "skipped": 3
       }
     ],
     "external_writes": false,
@@ -218,6 +342,26 @@
         "cleaned": false,
         "created": true,
         "path_or_id": "%TEMP%/pytest-of-郑曾波/pytest-* (shared TEMP, never cleaned by number)"
+      },
+      {
+        "path_or_id": "%TEMP%/qa-c0602r-58cdae (remediation RED exclusive copy + basetemps)",
+        "created": true,
+        "cleaned": true
+      },
+      {
+        "path_or_id": "%TEMP%/qa-c0602g-19576b (remediation GREEN exclusive copy + basetemp)",
+        "created": true,
+        "cleaned": true
+      },
+      {
+        "path_or_id": "%TEMP%/pytest-of-郑曾波/pytest-149 (provable ownership: final full-gate run)",
+        "created": true,
+        "cleaned": true
+      },
+      {
+        "path_or_id": "%TEMP%/pytest-of-郑曾波/pytest-147,pytest-148 (residuals; ownership unprovable - listed in isolation.md, never deleted by number/mtime/glob)",
+        "created": false,
+        "cleaned": false
       }
     ]
   }

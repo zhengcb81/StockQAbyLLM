@@ -75,3 +75,16 @@ mypy 对 `jsonschema`/`referencing` 的 `ignore_missing_imports` 覆写。未安
 2. 新运行即回到 v1 紧凑路径；已有 `quick_scan_*` 侧表与 `quick_scan_delivery_revision` 保持可读；
 3. **禁止** `PRAGMA user_version=<5` 降库、**禁止**删除侧表/修订链/旧包/旧 ACK。
    降库会让 `_validate_schema` 与新触发器不匹配，且会破坏“历史 hash 不改”的承诺。
+
+## 8. 整改批次 2（2026-10-08）对兼容性的影响
+
+| 项 | 影响 |
+|---|---|
+| ExchangePackage 1.0.0 / Observation 1.1.0 / Answer 1.0.0 / authority 1.0 & 2.0 schema | **零改动**（未改任何公共 schema 与 `const`） |
+| 正常 authority/正文输入 | 行为不变：合法 v1/v2 文档、合法标准正文、散文描述全部照旧通过（门 1083 全绿含原全部用例） |
+| 仅拒绝面收窄 | 逐题 metadata 与 manifest 不一致、重复键/非有限 JSON、foreign run/scan、伪造完整观察——四类歧义输入从“被接受”变为“前置拒绝/持久阻断”，无任何原本合法的输入被误伤 |
+| 新增阻断码 | `c06_run_scan_unbound`（只增枚举值；接收方按既有“阻断码为不透明 token”处理，无 schema 变更） |
+| `work_run_ref` | 带 context 的 checkpoint 会**多写** owner run/scan 映射行（`INSERT OR IGNORE`，只增行不改行；已有行与派发 run 行不变） |
+| prepare/supersede | 有侧表的完整包多一次“重建比对”；无侧表旧库与 compact 包路径逐字节保持旧行为 |
+| 严格 JSON | 只影响含重复键/NaN/Infinity 的文档；RFC 合法输入不受影响 |
+| 回退 | 仍只需禁用 v2 写能力（回指 authority 1.0.0）；新增映射行与阻断码对 v1 读写无影响；**禁止**降库/删数据 |
