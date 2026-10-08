@@ -37,6 +37,12 @@ FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 ENTITY_ID = "ENT_CONTEXT_FIXTURE"
 COMPANY = "Fixture Corp"
 MODEL = "actual-fixture-model"
+CONSUMER = {
+    "component": "StockWiki",
+    "namespace": "quick_scan",
+    "store_id": "store-qa-c06-02",
+}
+CONSUMER_SOURCE = "operator-config:synthetic-qa-c06-02"
 SOURCE_URL = "https://example.com/issuer"
 SECURITY_SCOPE_ID = "SEC_CONTEXT_FIXTURE"
 MANIFEST_BYTES = (FIXTURES / "quick_scan_c06_manifest_v2_fixture.json").read_bytes()
@@ -405,6 +411,8 @@ def test_cli_e2e_complete_standard_c06_seals_warms_and_settles(
     first = work_ids[0]
     delivery = store.get_result_delivery(first)
     assert delivery is not None
+    # Trusted test configuration fixed before receipt, not first-ACK learning.
+    store.bind_result_delivery_consumer(first, CONSUMER, source_ref=CONSUMER_SOURCE)
     ack = _ack_for(delivery)
     settled = store.apply_result_delivery_ack(first, ack)
     assert settled["state"] == "delivered"
@@ -427,6 +435,7 @@ def test_cli_e2e_complete_standard_c06_seals_warms_and_settles(
         store.apply_result_delivery_ack(first, foreign)
     second_delivery = store.get_result_delivery(work_ids[1])
     assert second_delivery is not None
+    store.bind_result_delivery_consumer(work_ids[1], CONSUMER, source_ref=CONSUMER_SOURCE)
     mismatched = _ack_for(delivery)
     with pytest.raises(ValueError):
         store.apply_result_delivery_ack(work_ids[1], mismatched)

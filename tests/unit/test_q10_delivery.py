@@ -297,6 +297,7 @@ def test_job_07_delivery_recovery_zero_llm_and_idempotent_ack(tmp_path: Path) ->
     record = store.prepare_result_delivery(wid, package)
 
     # proven-unsent failure -> same bytes / same key re-arm
+    store.bind_result_delivery_consumer(wid, JR2_CONSUMER, source_ref=JR2_SOURCE)
     begun = store.begin_result_delivery(wid)
     assert begun["request_bytes"] == record["package_bytes"]
     assert begun["idempotency_key"] == record["delivery_key"]
@@ -331,6 +332,7 @@ def test_job_08_wrong_ack_and_illegal_transition_are_refused(tmp_path: Path) -> 
     wid_a = seeded_a["handle"]["work_item_id"]
     package_a = _build_package(_checkpoint_payload(store, wid_a), _c06_authority())
     store.prepare_result_delivery(wid_a, package_a)
+    store.bind_result_delivery_consumer(wid_a, JR2_CONSUMER, source_ref=JR2_SOURCE)
     store.begin_result_delivery(wid_a)
 
     # foreign package for a different question -> its own delivery row
@@ -373,6 +375,7 @@ def test_par_10_fake_ack_never_resolves_uncertainty(tmp_path: Path) -> None:
     wid = seeded["handle"]["work_item_id"]
     package = _build_package(_checkpoint_payload(store, wid), _c06_authority())
     record = store.prepare_result_delivery(wid, package)
+    store.bind_result_delivery_consumer(wid, JR2_CONSUMER, source_ref=JR2_SOURCE)
     store.begin_result_delivery(wid)
 
     fake = _ack_for(record)
@@ -455,3 +458,135 @@ def test_low_1_cross_byte_seal_is_refused(tmp_path: Path) -> None:
         con.close()
     assert row[0] == package["package_id"]  # original seal untouched
     assert row[1] in {"ready", "send_uncertain"}
+
+
+# The target is an operator-configured synthetic fixture, not StockWiki owner golden.
+JR2_CONSUMER = {"component": "StockWiki", "namespace": "quick_scan", "store_id": "wiki-store-1"}
+JR2_SOURCE = "operator-config:offline-jr2/wiki-store-1"
+
+
+def _jr2_ready(tmp_path):
+    store = _store(tmp_path)
+    seeded = _seed_checkpoint(store, _lifecycle(store), "IQS_05")
+    wid = seeded["handle"]["work_item_id"]
+    package = _build_package(_checkpoint_payload(store, wid), _c06_authority())
+    return store, wid, store.prepare_result_delivery(wid, package)
+
+
+def _jr2_snapshot(store):
+    with sqlite3.connect(store.path) as connection:
+        return tuple(connection.iterdump())
+
+
+@pytest.mark.parametrize("action", ["begin", "ack"])
+def test_jr2_missing_target_refuses_before_any_state_change(tmp_path, action):
+    store, wid, ready = _jr2_ready(tmp_path)
+    before = _jr2_snapshot(store)
+    with pytest.raises(ValueError, match="consumer.*binding|target.*binding"):
+        if action == "begin":
+            store.begin_result_delivery(wid)
+        else:
+            store.apply_result_delivery_ack(wid, _ack_for(ready))
+    assert _jr2_snapshot(store) == before
+
+
+@pytest.mark.parametrize("sent", [False, True])
+def test_jr2_wrong_store_after_prebind_is_atomic_in_ready_and_send_intent(tmp_path, sent):
+    store, wid, ready = _jr2_ready(tmp_path)
+    store.bind_result_delivery_consumer(wid, JR2_CONSUMER, source_ref=JR2_SOURCE)
+    if sent:
+        store.begin_result_delivery(wid)
+    before = _jr2_snapshot(store)
+    ack = _ack_for(ready)
+    ack["consumer"]["store_id"] = "qsobs_unrelated_target"
+    with pytest.raises(ValueError, match="consumer.*does not match"):
+        store.apply_result_delivery_ack(wid, ack)
+    assert _jr2_snapshot(store) == before
+
+
+@pytest.mark.parametrize(
+    "status,error,state",
+    [
+        ("accepted", None, "delivered"),
+        ("already_present", None, "delivered"),
+        ("rejected", "missing_entity", "rejected"),
+        ("conflict", "immutable_key_hash_conflict", "conflict"),
+    ],
+)
+def test_jr2_correct_prebound_target_keeps_package_hashes_and_exact_ack(
+    tmp_path, status, error, state
+):
+    store, wid, ready = _jr2_ready(tmp_path)
+    original = ready["package_bytes"], ready["delivery_key"], ready["package_sha256"]
+    binding = store.bind_result_delivery_consumer(wid, JR2_CONSUMER, source_ref=JR2_SOURCE)
+    assert binding["consumer"] == JR2_CONSUMER
+    assert binding["source_ref"] == JR2_SOURCE
+    assert binding["delivery_id"] == ready["delivery_id"]
+    assert binding["package_id"] == ready["package_id"]
+    assert binding["revision"] == 1
+    assert binding["binding_sha256"] == outbox.canonical_sha256(
+        {key: value for key, value in binding.items() if key != "binding_sha256"}
+    )
+    begun = store.begin_result_delivery(wid)
+    assert (begun["request_bytes"], begun["idempotency_key"], begun["package_sha256"]) == original
+    ack = _ack_for(ready, status=status)
+    ack["error_code"] = error
+    result = store.apply_result_delivery_ack(wid, ack)
+    assert result["state"] == state
+    assert result["ack_json"] == outbox.canonical_bytes(ack).decode("utf-8")
+    assert result["ack_sha256"] == outbox.canonical_sha256(ack)
+    assert result["consumer_binding"] == binding
+    before = _jr2_snapshot(store)
+    assert _store(tmp_path).apply_result_delivery_ack(wid, ack)["ack"] == ack
+    assert store.bind_result_delivery_consumer(wid, JR2_CONSUMER, source_ref=JR2_SOURCE) == binding
+    assert _jr2_snapshot(store) == before
+
+
+@pytest.mark.parametrize("phase", ["ready", "send_uncertain", "terminal"])
+def test_jr2_binding_is_idempotent_and_never_retargets_existing_head(tmp_path, phase):
+    store, wid, ready = _jr2_ready(tmp_path)
+    binding = store.bind_result_delivery_consumer(wid, JR2_CONSUMER, source_ref=JR2_SOURCE)
+    if phase != "ready":
+        store.begin_result_delivery(wid)
+    if phase == "terminal":
+        store.apply_result_delivery_ack(wid, _ack_for(ready))
+    # Advance the trusted clock so equality proves neither time nor hash is refreshed.
+    store.clock = lambda: binding["bound_at"] + 600.0
+    restarted = QuickScanWorkStore(store.path, clock=lambda: binding["bound_at"] + 1200.0)
+    before = _jr2_snapshot(store)
+    assert (
+        restarted.bind_result_delivery_consumer(wid, JR2_CONSUMER, source_ref=JR2_SOURCE) == binding
+    )
+    for target, source in [
+        (dict(JR2_CONSUMER, store_id="qsobs_unrelated_target"), JR2_SOURCE),
+        (JR2_CONSUMER, "operator-config:changed-source"),
+    ]:
+        with pytest.raises(ValueError, match="immutable|retarget"):
+            store.bind_result_delivery_consumer(wid, target, source_ref=source)
+    assert _jr2_snapshot(store) == before
+
+
+def test_jr2_superseded_head_needs_its_own_binding_and_rejects_old_ack(tmp_path):
+    store, wid, ready = _jr2_ready(tmp_path)
+    old_binding = store.bind_result_delivery_consumer(wid, JR2_CONSUMER, source_ref=JR2_SOURCE)
+    package = copy.deepcopy(ready["package"])
+    package["producer"]["build_id"] = "synthetic-jr2-new-head"
+    package.pop("package_id")
+    package.pop("package_sha256")
+    package["package_sha256"] = outbox.canonical_sha256(package)
+    package["package_id"] = "pkg_" + package["package_sha256"]
+    head = store.supersede_result_delivery(wid, package)
+    assert head["revision"] == 2
+    assert store.get_result_delivery(wid)["consumer_binding"] is None
+    before = _jr2_snapshot(store)
+    with pytest.raises(ValueError, match="binding"):
+        store.begin_result_delivery(wid)
+    assert _jr2_snapshot(store) == before
+    binding = store.bind_result_delivery_consumer(wid, JR2_CONSUMER, source_ref=JR2_SOURCE)
+    assert binding["revision"] == 2 and binding["binding_sha256"] != old_binding["binding_sha256"]
+    store.begin_result_delivery(wid)
+    before = _jr2_snapshot(store)
+    with pytest.raises(ValueError, match="package_id does not match"):
+        store.apply_result_delivery_ack(wid, _ack_for(ready))
+    assert _jr2_snapshot(store) == before
+    assert store.apply_result_delivery_ack(wid, _ack_for(head))["state"] == "delivered"

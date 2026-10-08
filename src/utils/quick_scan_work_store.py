@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Callable, Iterator, Optional, Sequence, cast
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 _SAFE_ID = re.compile(r"^[A-Za-z0-9_.-]{1,160}$")
 # Hyphens accepted per owner sign-off (2026-10-05 round-51): the W04
 # identity-export package issues ENT_<uuid> entity ids (e.g. the frozen
@@ -461,6 +461,95 @@ _DDL_V6_ADDITIONS = (
         BEGIN SELECT RAISE(ABORT,'delivery revisions are immutable'); END""",
 )
 
+_DDL_V7_ADDITIONS = (
+    # Expected targets are independent of the historical ACK.consumer_store_id.
+    # Each immutable revision needs its own explicit, trusted pre-send binding.
+    """CREATE TABLE quick_scan_delivery_consumer_binding (
+        delivery_id TEXT NOT NULL REFERENCES quick_scan_result_delivery(delivery_id),
+        work_item_id TEXT NOT NULL REFERENCES work_item(work_item_id),
+        revision_id TEXT NOT NULL UNIQUE REFERENCES quick_scan_delivery_revision(revision_id),
+        revision INTEGER NOT NULL CHECK (revision >= 1),
+        package_id TEXT NOT NULL,
+        component TEXT NOT NULL CHECK (component='StockWiki'),
+        namespace TEXT NOT NULL CHECK (namespace='quick_scan'),
+        store_id TEXT NOT NULL CHECK (length(store_id) BETWEEN 1 AND 160),
+        source_ref TEXT NOT NULL CHECK (length(source_ref) BETWEEN 1 AND 1000),
+        binding_json TEXT NOT NULL CHECK (json_valid(binding_json)),
+        binding_sha256 TEXT NOT NULL CHECK (length(binding_sha256)=64),
+        bound_at REAL NOT NULL,
+        PRIMARY KEY (delivery_id,revision)
+    )""",
+    """CREATE TRIGGER quick_scan_consumer_binding_insert_guard
+        BEFORE INSERT ON quick_scan_delivery_consumer_binding
+        BEGIN
+            SELECT RAISE(ABORT,'invalid quick-scan consumer binding')
+            WHERE NOT EXISTS (
+                SELECT 1 FROM quick_scan_result_delivery d
+                JOIN quick_scan_delivery_revision r USING (work_item_id)
+                WHERE d.delivery_id=NEW.delivery_id
+                  AND d.work_item_id=NEW.work_item_id AND d.state='ready'
+                  AND r.revision_id=NEW.revision_id AND r.revision=NEW.revision
+                  AND r.revision=(SELECT MAX(revision) FROM quick_scan_delivery_revision
+                      WHERE work_item_id=d.work_item_id)
+                  AND r.package_id=d.package_id AND r.package_id=NEW.package_id
+                  AND json_extract(NEW.binding_json,'$.schema')='quick-scan-delivery-consumer-binding'
+                  AND json_extract(NEW.binding_json,'$.schema_version')=1
+                  AND (SELECT COUNT(*) FROM json_each(NEW.binding_json))=16
+                  AND (SELECT COUNT(*) FROM json_each(NEW.binding_json,'$.consumer'))=3
+                  AND json_extract(NEW.binding_json,'$.delivery_id')=NEW.delivery_id
+                  AND json_extract(NEW.binding_json,'$.work_item_id')=NEW.work_item_id
+                  AND json_extract(NEW.binding_json,'$.revision_id')=NEW.revision_id
+                  AND json_extract(NEW.binding_json,'$.revision')=NEW.revision
+                  AND json_extract(NEW.binding_json,'$.package_id')=r.package_id
+                  AND json_extract(NEW.binding_json,'$.package_sha256')=r.package_sha256
+                  AND json_extract(NEW.binding_json,'$.package_bytes_sha256')=r.package_bytes_sha256
+                  AND json_extract(NEW.binding_json,'$.item_id')=r.item_id
+                  AND json_extract(NEW.binding_json,'$.observation_id')=r.observation_id
+                  AND json_extract(NEW.binding_json,'$.payload_sha256')=r.payload_sha256
+                  AND json_extract(NEW.binding_json,'$.delivery_key')=r.delivery_key
+                  AND json_extract(NEW.binding_json,'$.consumer.component')=NEW.component
+                  AND json_extract(NEW.binding_json,'$.consumer.namespace')=NEW.namespace
+                  AND json_extract(NEW.binding_json,'$.consumer.store_id')=NEW.store_id
+                  AND json_extract(NEW.binding_json,'$.source_ref')=NEW.source_ref
+                  AND json_extract(NEW.binding_json,'$.bound_at')=NEW.bound_at
+                  AND NOT EXISTS (
+                      SELECT 1 FROM quick_scan_result_delivery_event e
+                      WHERE e.delivery_id=d.delivery_id AND e.event_type='send_intent'
+                        AND e.event_id>COALESCE((
+                            SELECT MAX(event_id) FROM quick_scan_result_delivery_event
+                            WHERE delivery_id=d.delivery_id AND event_type='package_prepared'),0))
+            );
+        END""",
+    """CREATE TRIGGER quick_scan_consumer_binding_no_update
+        BEFORE UPDATE ON quick_scan_delivery_consumer_binding
+        BEGIN SELECT RAISE(ABORT,'quick-scan consumer bindings are immutable'); END""",
+    """CREATE TRIGGER quick_scan_consumer_binding_no_delete
+        BEFORE DELETE ON quick_scan_delivery_consumer_binding
+        BEGIN SELECT RAISE(ABORT,'quick-scan consumer bindings are immutable'); END""",
+    """CREATE TRIGGER quick_scan_delivery_consumer_guard
+        BEFORE UPDATE OF state,ack_json,consumer_store_id ON quick_scan_result_delivery
+        WHEN OLD.state NOT IN ('delivered','rejected','conflict')
+          AND NEW.state IN ('send_uncertain','delivered','rejected','conflict')
+        BEGIN
+            SELECT RAISE(ABORT,'invalid quick-scan consumer binding: missing or mismatched')
+            WHERE NOT EXISTS (
+                SELECT 1 FROM quick_scan_delivery_consumer_binding b
+                JOIN quick_scan_delivery_revision r ON r.revision_id=b.revision_id
+                WHERE b.delivery_id=NEW.delivery_id AND b.work_item_id=NEW.work_item_id
+                  AND b.revision=r.revision AND b.package_id=NEW.package_id
+                  AND r.package_id=NEW.package_id AND r.package_sha256=NEW.package_sha256
+                  AND r.package_bytes_sha256=NEW.package_bytes_sha256
+                  AND r.revision=(SELECT MAX(revision) FROM quick_scan_delivery_revision
+                      WHERE work_item_id=NEW.work_item_id)
+                  AND (NEW.state='send_uncertain' OR (
+                      json_extract(NEW.ack_json,'$.consumer.component')=b.component
+                      AND json_extract(NEW.ack_json,'$.consumer.namespace')=b.namespace
+                      AND json_extract(NEW.ack_json,'$.consumer.store_id')=b.store_id
+                      AND NEW.consumer_store_id=b.store_id))
+            );
+        END""",
+)
+
 _DDL = (
     _DDL_V1
     + _DDL_V2_ADDITIONS
@@ -468,6 +557,7 @@ _DDL = (
     + _DDL_V4_ADDITIONS
     + _DDL_V5_ADDITIONS
     + _DDL_V6_ADDITIONS
+    + _DDL_V7_ADDITIONS
 )
 
 _RECEIPT_FIELDS = (
@@ -909,6 +999,7 @@ class QuickScanWorkStore:
                 cls._apply_v4_migration(connection)
                 cls._apply_v5_migration(connection)
                 cls._apply_v6_migration(connection)
+                cls._apply_v7_migration(connection)
                 connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             elif version == 2:
                 cls._validate_schema(connection, schema_version=2)
@@ -917,21 +1008,29 @@ class QuickScanWorkStore:
                 cls._apply_v4_migration(connection)
                 cls._apply_v5_migration(connection)
                 cls._apply_v6_migration(connection)
+                cls._apply_v7_migration(connection)
                 connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             elif version == 3:
                 cls._validate_schema(connection, schema_version=3)
                 cls._apply_v4_migration(connection)
                 cls._apply_v5_migration(connection)
                 cls._apply_v6_migration(connection)
+                cls._apply_v7_migration(connection)
                 connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             elif version == 4:
                 cls._validate_schema(connection, schema_version=4)
                 cls._apply_v5_migration(connection)
                 cls._apply_v6_migration(connection)
+                cls._apply_v7_migration(connection)
                 connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             elif version == 5:
                 cls._validate_schema(connection, schema_version=5)
                 cls._apply_v6_migration(connection)
+                cls._apply_v7_migration(connection)
+                connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+            elif version == 6:
+                cls._validate_schema(connection, schema_version=6)
+                cls._apply_v7_migration(connection)
                 connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             elif version != SCHEMA_VERSION:
                 raise ValueError("unsupported quick-scan work database schema version")
@@ -983,6 +1082,16 @@ class QuickScanWorkStore:
             "WHERE name NOT LIKE 'sqlite_%' AND type IN ('table','index','view','trigger')"
         ).fetchall()
         return {(row["type"], row["name"]): row["sql"] for row in rows}
+
+    @staticmethod
+    def _apply_v7_migration(connection: sqlite3.Connection) -> None:
+        """Add an empty target ledger; historical ACKs provide no target evidence."""
+        try:
+            for statement in _DDL_V7_ADDITIONS:
+                connection.execute(statement)
+        except sqlite3.Error as error:
+            # _initialize rolls back this entire upgrade, including user_version.
+            raise ValueError("quick-scan consumer binding migration failed") from error
 
     @classmethod
     def _validate_schema(
@@ -1099,6 +1208,16 @@ class QuickScanWorkStore:
                     ): _DDL_V6_ADDITIONS[14],
                 }
             )
+        if schema_version >= 7:
+            expected.update(
+                {
+                    ("table", "quick_scan_delivery_consumer_binding"): _DDL_V7_ADDITIONS[0],
+                    ("trigger", "quick_scan_consumer_binding_insert_guard"): _DDL_V7_ADDITIONS[1],
+                    ("trigger", "quick_scan_consumer_binding_no_update"): _DDL_V7_ADDITIONS[2],
+                    ("trigger", "quick_scan_consumer_binding_no_delete"): _DDL_V7_ADDITIONS[3],
+                    ("trigger", "quick_scan_delivery_consumer_guard"): _DDL_V7_ADDITIONS[4],
+                }
+            )
         if actual.keys() != expected.keys() or any(
             _normalized_sql(actual[key]) != _normalized_sql(statement)
             for key, statement in expected.items()
@@ -1135,6 +1254,13 @@ class QuickScanWorkStore:
                 cls._result_delivery_record(row)
         if schema_version >= 6:
             cls._validate_v6_side_tables(connection)
+        if schema_version >= 7:
+            for binding in connection.execute("SELECT * FROM quick_scan_delivery_consumer_binding"):
+                cls._consumer_binding_record(connection, binding)
+            # Legacy terminal/send-uncertain rows legitimately have no target.
+            # New bindings, when present, must agree with the immutable terminal ACK.
+            for row in connection.execute("SELECT * FROM quick_scan_result_delivery"):
+                cls._result_delivery_record(row, connection=connection)
         if schema_version >= 2:
             inconsistent = connection.execute(
                 "SELECT COUNT(*) FROM work_item w LEFT JOIN answer_checkpoint c "
@@ -2939,8 +3065,136 @@ class QuickScanWorkStore:
                 )
             ]
 
-    @staticmethod
-    def _result_delivery_record(row: sqlite3.Row) -> dict:
+    @classmethod
+    def _consumer_binding_body(
+        cls,
+        delivery: sqlite3.Row,
+        revision: sqlite3.Row,
+        consumer: dict,
+        source_ref: str,
+        bound_at: float,
+    ) -> dict:
+        return {
+            "schema": "quick-scan-delivery-consumer-binding",
+            "schema_version": 1,
+            "delivery_id": delivery["delivery_id"],
+            "work_item_id": delivery["work_item_id"],
+            "revision_id": revision["revision_id"],
+            "revision": revision["revision"],
+            **{
+                key: revision[key]
+                for key in (
+                    "package_id",
+                    "package_sha256",
+                    "package_bytes_sha256",
+                    "item_id",
+                    "observation_id",
+                    "payload_sha256",
+                    "delivery_key",
+                )
+            },
+            "consumer": consumer,
+            "source_ref": source_ref,
+            "bound_at": bound_at,
+        }
+
+    @classmethod
+    def _consumer_binding_record(cls, connection: sqlite3.Connection, row: sqlite3.Row) -> dict:
+        from .quick_scan_result_outbox import (
+            canonical_bytes,
+            canonical_sha256,
+            strict_json_loads,
+            validate_delivery_consumer,
+        )
+
+        try:
+            delivery = connection.execute(
+                "SELECT * FROM quick_scan_result_delivery WHERE delivery_id=?",
+                (row["delivery_id"],),
+            ).fetchone()
+            revision = connection.execute(
+                "SELECT * FROM quick_scan_delivery_revision WHERE revision_id=?",
+                (row["revision_id"],),
+            ).fetchone()
+            if (
+                delivery is None
+                or revision is None
+                or delivery["work_item_id"] != row["work_item_id"]
+                or revision["work_item_id"] != row["work_item_id"]
+                or revision["revision"] != row["revision"]
+                or revision["package_id"] != row["package_id"]
+            ):
+                raise ValueError("consumer binding revision mismatch")
+            consumer = validate_delivery_consumer(
+                {
+                    "component": row["component"],
+                    "namespace": row["namespace"],
+                    "store_id": row["store_id"],
+                }
+            )
+            source_ref = _safe_text(row["source_ref"], "consumer binding source_ref", maximum=1000)
+            if (
+                source_ref != row["source_ref"]
+                or type(row["bound_at"]) not in (int, float)
+                or not math.isfinite(row["bound_at"])
+            ):
+                raise ValueError("consumer binding provenance mismatch")
+            binding = strict_json_loads(row["binding_json"])
+            expected = cls._consumer_binding_body(
+                delivery, revision, consumer, source_ref, row["bound_at"]
+            )
+            if (
+                binding != expected
+                or canonical_bytes(binding).decode("utf-8") != row["binding_json"]
+                or canonical_sha256(binding) != row["binding_sha256"]
+            ):
+                raise ValueError("consumer binding content/hash mismatch")
+            return {**binding, "binding_sha256": row["binding_sha256"]}
+        except (TypeError, ValueError, KeyError) as error:
+            raise ValueError("quick-scan consumer binding is corrupt") from error
+
+    @classmethod
+    def _consumer_binding_for_delivery(
+        cls,
+        connection: sqlite3.Connection,
+        delivery: sqlite3.Row,
+        *,
+        required: bool = False,
+    ) -> Optional[dict]:
+        binding = connection.execute(
+            "SELECT b.* FROM quick_scan_delivery_consumer_binding b "
+            "JOIN quick_scan_delivery_revision r ON r.revision_id=b.revision_id "
+            "WHERE b.delivery_id=? AND r.package_id=? "
+            "AND r.revision=(SELECT MAX(revision) FROM quick_scan_delivery_revision WHERE work_item_id=?)",
+            (delivery["delivery_id"], delivery["package_id"], delivery["work_item_id"]),
+        ).fetchone()
+        if binding is None:
+            if required:
+                raise WorkConflictError("result delivery consumer target binding is missing")
+            return None
+        result = cls._consumer_binding_record(connection, binding)
+        if any(
+            result[key] != delivery[key]
+            for key in (
+                "package_id",
+                "package_sha256",
+                "package_bytes_sha256",
+                "item_id",
+                "observation_id",
+                "payload_sha256",
+                "delivery_key",
+            )
+        ):
+            raise WorkConflictError("result delivery consumer binding head mismatch")
+        return result
+
+    @classmethod
+    def _result_delivery_record(
+        cls,
+        row: sqlite3.Row,
+        *,
+        connection: Optional[sqlite3.Connection] = None,
+    ) -> dict:
         from .quick_scan_result_outbox import (
             canonical_bytes,
             canonical_sha256,
@@ -2950,6 +3204,10 @@ class QuickScanWorkStore:
         )
 
         result = dict(row)
+        binding = (
+            None if connection is None else cls._consumer_binding_for_delivery(connection, row)
+        )
+        result["consumer_binding"] = binding
         if result["package_json"] is not None:
             try:
                 package = json.loads(result["package_json"])
@@ -2989,7 +3247,9 @@ class QuickScanWorkStore:
                     raise ValueError("ACK serialization is not canonical")
                 if canonical_sha256(ack) != result["ack_sha256"]:
                     raise ValueError("ACK hash mismatch")
-                validate_import_ack(ack, result)
+                validate_import_ack(
+                    ack, result, expected_consumer=None if binding is None else binding["consumer"]
+                )
                 expected_state = (
                     "delivered"
                     if ack["status"] in {"accepted", "already_present"}
@@ -3080,7 +3340,7 @@ class QuickScanWorkStore:
                 event_type = "blocked"
             elif current["state"] == "blocked":
                 if current["block_code"] == reason_code:
-                    return self._result_delivery_record(current)
+                    return self._result_delivery_record(current, connection=connection)
                 connection.execute(
                     "UPDATE quick_scan_result_delivery SET block_code=?,updated_at=? "
                     "WHERE delivery_id=? AND state='blocked'",
@@ -3104,7 +3364,7 @@ class QuickScanWorkStore:
                 "SELECT * FROM quick_scan_result_delivery WHERE delivery_id=?",
                 (delivery_id,),
             ).fetchone()
-            return self._result_delivery_record(row)
+            return self._result_delivery_record(row, connection=connection)
 
     @staticmethod
     def _insert_revision(
@@ -3297,7 +3557,7 @@ class QuickScanWorkStore:
             )
             current = self._delivery_row(connection, work_item_id)
             if current is not None and current["package_json"] is not None:
-                existing = self._result_delivery_record(current)
+                existing = self._result_delivery_record(current, connection=connection)
                 if existing["package_bytes"] != package_bytes:
                     raise WorkConflictError("quick-scan delivery package is immutable")
                 self._insert_revision(
@@ -3396,7 +3656,7 @@ class QuickScanWorkStore:
                 "SELECT * FROM quick_scan_result_delivery WHERE delivery_id=?",
                 (delivery_id,),
             ).fetchone()
-            return self._result_delivery_record(row)
+            return self._result_delivery_record(row, connection=connection)
 
     def supersede_result_delivery(self, work_item_id: str, package: dict) -> dict:
         """Append a new head revision over a sealed-but-not-yet-dispatched package.
@@ -3448,7 +3708,7 @@ class QuickScanWorkStore:
             current = self._delivery_row(connection, work_item_id)
             if current is None or current["package_json"] is None:
                 raise WorkConflictError("only a sealed delivery can be superseded")
-            existing = self._result_delivery_record(current)
+            existing = self._result_delivery_record(current, connection=connection)
             if existing["package_bytes"] == package_bytes:
                 return {
                     **existing,
@@ -3512,7 +3772,7 @@ class QuickScanWorkStore:
                 (current["delivery_id"],),
             ).fetchone()
             return {
-                **self._result_delivery_record(row),
+                **self._result_delivery_record(row, connection=connection),
                 "revision": head + 1,
                 "superseded": True,
                 "supersedes_revision": head,
@@ -3532,7 +3792,7 @@ class QuickScanWorkStore:
         _safe(work_item_id, "work_item_id")
         with closing(self._connect()) as connection:
             row = self._delivery_row(connection, work_item_id)
-            return None if row is None else self._result_delivery_record(row)
+            return None if row is None else self._result_delivery_record(row, connection=connection)
 
     def list_result_deliveries(
         self, *, states: Optional[Sequence[str]] = None, limit: int = 100
@@ -3572,7 +3832,90 @@ class QuickScanWorkStore:
                     + ") ORDER BY updated_at,delivery_id LIMIT ?",
                     (*states, limit),
                 ).fetchall()
-            return [self._result_delivery_record(row) for row in rows]
+            return [self._result_delivery_record(row, connection=connection) for row in rows]
+
+    def bind_result_delivery_consumer(
+        self,
+        work_item_id: str,
+        consumer: dict,
+        *,
+        source_ref: str,
+    ) -> dict:
+        """Freeze a trusted consumer for this ready delivery head before sending.
+
+        The caller supplies operator configuration or a receiver's public owner
+        DTO and its source pointer. Incoming ACKs and generated answers are not
+        authority for this API. Rebinding a revision is forbidden; repeating the
+        same consumer and source returns the original record, including its time
+        and hash. Superseding a package requires a fresh explicit head binding.
+        """
+        from .quick_scan_result_outbox import (
+            canonical_bytes,
+            canonical_sha256,
+            validate_delivery_consumer,
+        )
+
+        _safe(work_item_id, "work_item_id")
+        target = validate_delivery_consumer(consumer)
+        source_ref = _safe_text(source_ref, "consumer binding source_ref", maximum=1000)
+        now = self._now()
+        with self._transaction() as connection:
+            row = self._delivery_row(connection, work_item_id)
+            if row is None or row["package_json"] is None:
+                raise WorkConflictError("consumer binding requires a prepared ready delivery")
+            self._result_delivery_record(row, connection=connection)
+            current = self._consumer_binding_for_delivery(connection, row)
+            if current is not None:
+                if current["consumer"] == target and current["source_ref"] == source_ref:
+                    return current
+                raise WorkConflictError(
+                    "result delivery consumer binding is immutable; cannot retarget"
+                )
+            if (
+                row["state"] != "ready"
+                or self._item(connection, work_item_id)["status"] != "result_ready"
+            ):
+                raise WorkConflictError("new consumer binding requires a ready unsent delivery")
+            sent = connection.execute(
+                "SELECT 1 FROM quick_scan_result_delivery_event WHERE delivery_id=? "
+                "AND event_type='send_intent' AND event_id>COALESCE(("
+                "SELECT MAX(event_id) FROM quick_scan_result_delivery_event "
+                "WHERE delivery_id=? AND event_type='package_prepared'),0) LIMIT 1",
+                (row["delivery_id"], row["delivery_id"]),
+            ).fetchone()
+            if sent is not None:
+                raise WorkConflictError("consumer binding cannot be learned after send intent")
+            revision = connection.execute(
+                "SELECT * FROM quick_scan_delivery_revision WHERE work_item_id=? "
+                "ORDER BY revision DESC LIMIT 1",
+                (work_item_id,),
+            ).fetchone()
+            if revision is None or revision["package_id"] != row["package_id"]:
+                raise WorkConflictError(
+                    "consumer binding requires the current delivery revision head"
+                )
+            binding = self._consumer_binding_body(row, revision, target, source_ref, now)
+            binding_sha256 = canonical_sha256(binding)
+            connection.execute(
+                "INSERT INTO quick_scan_delivery_consumer_binding "
+                "(delivery_id,work_item_id,revision_id,revision,package_id,component,namespace,"
+                "store_id,source_ref,binding_json,binding_sha256,bound_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                (
+                    row["delivery_id"],
+                    work_item_id,
+                    revision["revision_id"],
+                    revision["revision"],
+                    row["package_id"],
+                    target["component"],
+                    target["namespace"],
+                    target["store_id"],
+                    source_ref,
+                    canonical_bytes(binding).decode("utf-8"),
+                    binding_sha256,
+                    now,
+                ),
+            )
+            return {**binding, "binding_sha256": binding_sha256}
 
     def begin_result_delivery(self, work_item_id: str) -> dict:
         """Commit send intent before returning the exact immutable bytes once."""
@@ -3582,6 +3925,8 @@ class QuickScanWorkStore:
             row = self._delivery_row(connection, work_item_id)
             if row is None or row["state"] != "ready":
                 raise WorkConflictError("delivery is not safely dispatchable")
+            self._result_delivery_record(row, connection=connection)
+            self._consumer_binding_for_delivery(connection, row, required=True)
             item = self._item(connection, work_item_id)
             if item["status"] != "result_ready":
                 raise WorkConflictError("delivery work item is not result-ready")
@@ -3604,7 +3949,8 @@ class QuickScanWorkStore:
                 connection.execute(
                     "SELECT * FROM quick_scan_result_delivery WHERE delivery_id=?",
                     (row["delivery_id"],),
-                ).fetchone()
+                ).fetchone(),
+                connection=connection,
             )
             result["request_bytes"] = result["package_bytes"]
             result["idempotency_key"] = result["delivery_key"]
@@ -3639,7 +3985,8 @@ class QuickScanWorkStore:
                 connection.execute(
                     "SELECT * FROM quick_scan_result_delivery WHERE delivery_id=?",
                     (row["delivery_id"],),
-                ).fetchone()
+                ).fetchone(),
+                connection=connection,
             )
 
     def apply_result_delivery_ack(self, work_item_id: str, ack: dict) -> dict:
@@ -3660,11 +4007,14 @@ class QuickScanWorkStore:
             if row is None or row["package_json"] is None:
                 raise WorkConflictError("result delivery package is not prepared")
             if row["state"] in {"delivered", "rejected", "conflict"}:
-                current = self._result_delivery_record(row)
+                current = self._result_delivery_record(row, connection=connection)
                 if current["ack_json"] == ack_json:
                     return current
                 raise WorkConflictError("terminal result delivery ACK is immutable")
-            validate_import_ack(ack, dict(row))
+            binding = self._consumer_binding_for_delivery(connection, row, required=True)
+            assert binding is not None
+            self._result_delivery_record(row, connection=connection)
+            validate_import_ack(ack, dict(row), expected_consumer=binding["consumer"])
             if row["state"] not in {"ready", "send_uncertain"}:
                 raise WorkConflictError("result delivery cannot accept an ACK in this state")
             final_state = {
@@ -3721,7 +4071,8 @@ class QuickScanWorkStore:
                 connection.execute(
                     "SELECT * FROM quick_scan_result_delivery WHERE delivery_id=?",
                     (row["delivery_id"],),
-                ).fetchone()
+                ).fetchone(),
+                connection=connection,
             )
 
     def list_result_delivery_events(self, work_item_id: str) -> list[dict]:

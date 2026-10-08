@@ -135,7 +135,12 @@ def test_llm16_package_rejects_forged_authority_fields(forged_key):
 def test_exact_ack_status_and_error_semantics_are_accepted(status, error_code):
     package = _package()
     ack = _ack(package, status=status, error_code=error_code)
-    assert validate_import_ack(ack, _outbox(package)) == ack
+    synthetic_target = {
+        "component": "StockWiki",
+        "namespace": "quick_scan",
+        "store_id": "test-store",
+    }
+    assert validate_import_ack(ack, _outbox(package), expected_consumer=synthetic_target) == ack
 
 
 @pytest.mark.parametrize(
@@ -163,7 +168,15 @@ def test_ack_rejects_identity_drift_and_invalid_error_semantics(changes):
     ack = _ack(package)
     ack.update(changes)
     with pytest.raises(ValueError):
-        validate_import_ack(ack, _outbox(package))
+        validate_import_ack(
+            ack,
+            _outbox(package),
+            expected_consumer={
+                "component": "StockWiki",
+                "namespace": "quick_scan",
+                "store_id": "test-store",
+            },
+        )
 
 
 def test_package_payload_hash_detects_mutation():
@@ -171,3 +184,34 @@ def test_package_payload_hash_detects_mutation():
     package["items"][0]["observation"]["answer"]["summary"] = "changed"
     with pytest.raises(ValueError, match="payload hash"):
         validate_exchange_package(package)
+
+
+def test_jr2_ack_compares_operator_configured_target_without_changing_wire():
+    package = _package()
+    ack = _ack(package)
+    # Explicit synthetic operator configuration, never derived from incoming ACK.
+    target = {"component": "StockWiki", "namespace": "quick_scan", "store_id": "test-store"}
+    assert validate_import_ack(ack, _outbox(package), expected_consumer=target) == ack
+    ack["consumer"]["store_id"] = "qsobs_unrelated_target"
+    with pytest.raises(ValueError, match="consumer.*does not match"):
+        validate_import_ack(ack, _outbox(package), expected_consumer=target)
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        {"component": "Other", "namespace": "quick_scan", "store_id": "test-store"},
+        {"component": "StockWiki", "namespace": "other", "store_id": "test-store"},
+        {"component": "StockWiki", "namespace": "quick_scan", "store_id": ""},
+        {
+            "component": "StockWiki",
+            "namespace": "quick_scan",
+            "store_id": "test-store",
+            "extra": True,
+        },
+    ],
+)
+def test_jr2_ack_rejects_invalid_expected_consumer(target):
+    package = _package()
+    with pytest.raises(ValueError):
+        validate_import_ack(_ack(package), _outbox(package), expected_consumer=target)

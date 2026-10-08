@@ -58,6 +58,12 @@ SOURCE_URL = "https://example.invalid/company"
 # 2026-09-27T11:00:00Z — before the receipt's completed_at, after nothing else
 CLOCK = [1_790_506_800.0]
 MODEL = "mimo-v2.6-flash"
+CONSUMER = {
+    "component": "StockWiki",
+    "namespace": "quick_scan",
+    "store_id": "stockwiki-complete-seal-store",
+}
+CONSUMER_SOURCE = "operator-config:synthetic-complete-seal"
 
 V1_AUTHORITY = {
     "schema_version": "1.0.0",
@@ -307,6 +313,8 @@ def test_compact_package_is_superseded_and_the_old_head_ack_cannot_settle_it(tmp
     assert revisions[0]["supersedes_revision"] is None
     assert revisions[1]["supersedes_revision"] == 1
 
+    # Explicit operator-configured synthetic target; never learned from an ACK.
+    store.bind_result_delivery_consumer(work_id, CONSUMER, source_ref=CONSUMER_SOURCE)
     # the OLD head's ACK must not settle the NEW head
     with pytest.raises(ValueError):
         store.apply_result_delivery_ack(work_id, original_ack)
@@ -332,6 +340,7 @@ def test_send_uncertain_is_reconciled_before_a_new_head_is_written(tmp_path):
     work_id = item["work_item_id"]
     v2 = _v2_authority(tmp_path)
     assert seal_result_delivery(store, work_id, authority=dict(V1_AUTHORITY))["action"] == "sealed"
+    store.bind_result_delivery_consumer(work_id, CONSUMER, source_ref=CONSUMER_SOURCE)
     store.begin_result_delivery(work_id)
 
     in_flight = seal_result_delivery(store, work_id, authority=v2)
@@ -362,8 +371,8 @@ def test_legacy_checkpoint_without_inputs_keeps_its_historical_package_read_only
     assert len(store.list_delivery_revisions(work_id)) == 1
 
 
-def test_schema_and_side_tables_are_the_v6_shapes(tmp_path):
-    assert SCHEMA_VERSION == 6
+def test_schema_v7_keeps_v6_side_tables_and_adds_consumer_binding(tmp_path):
+    assert SCHEMA_VERSION == 7
     store, item, _, _ = _checkpointed(tmp_path)
     with closing(store._connect()) as connection:
         version = connection.execute("PRAGMA user_version").fetchone()[0]
@@ -379,6 +388,7 @@ def test_schema_and_side_tables_are_the_v6_shapes(tmp_path):
         "quick_scan_work_context",
         "quick_scan_standard_answer",
         "quick_scan_delivery_revision",
+        "quick_scan_delivery_consumer_binding",
     } <= tables
 
 

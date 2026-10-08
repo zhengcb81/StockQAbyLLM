@@ -1366,6 +1366,19 @@ def _ack_for_package(package, *, status="accepted", error_code=None, **changes):
     return ack
 
 
+def _bind_synthetic_delivery_target(store, work_id):
+    # Independent operator-configured synthetic input, never learned from an ACK.
+    return store.bind_result_delivery_consumer(
+        work_id,
+        {
+            "component": "StockWiki",
+            "namespace": "quick_scan",
+            "store_id": "stockwiki-test-store",
+        },
+        source_ref="operator-config:offline-work-store/stockwiki-test-store",
+    )
+
+
 def _checkpointed_work_item(tmp_path):
     clock = [1_800_000_000.0]
     store = _store(tmp_path, clock)
@@ -1394,6 +1407,7 @@ def test_result_delivery_outbox_restarts_replays_exact_ack_and_never_reasks(tmp_
 
     package = _c06_package_for_checkpoint(checkpoint)
     ready = store.prepare_result_delivery(work_id, package)
+    _bind_synthetic_delivery_target(store, work_id)
     restarted = _store(tmp_path, clock)
     repeated = restarted.prepare_result_delivery(work_id, package)
     assert repeated["delivery_id"] == ready["delivery_id"]
@@ -1431,6 +1445,7 @@ def test_result_delivery_confirmed_not_sent_retries_identical_bytes_only(tmp_pat
     work_id = item["work_item_id"]
     package = _c06_package_for_checkpoint(checkpoint)
     prepared = store.prepare_result_delivery(work_id, package)
+    _bind_synthetic_delivery_target(store, work_id)
     first = store.begin_result_delivery(work_id)
     rearmed = store.confirm_result_delivery_not_sent(work_id, "connection_refused_before_write")
     assert rearmed["state"] == "ready"
@@ -1453,6 +1468,7 @@ def test_result_delivery_rejects_wrong_ack_without_mutating_uncertain_delivery(
     work_id = item["work_item_id"]
     package = _c06_package_for_checkpoint(checkpoint)
     store.prepare_result_delivery(work_id, package)
+    _bind_synthetic_delivery_target(store, work_id)
     store.begin_result_delivery(work_id)
     with pytest.raises(ValueError, match="does not match"):
         store.apply_result_delivery_ack(work_id, _ack_for_package(package, payload_sha256="0" * 64))
@@ -1475,6 +1491,7 @@ def test_result_delivery_rejection_is_terminal_and_does_not_mark_work_delivered(
     work_id = item["work_item_id"]
     package = _c06_package_for_checkpoint(checkpoint)
     store.prepare_result_delivery(work_id, package)
+    _bind_synthetic_delivery_target(store, work_id)
     store.begin_result_delivery(work_id)
     result = store.apply_result_delivery_ack(
         work_id, _ack_for_package(package, status=status, error_code=error_code)
@@ -1541,6 +1558,7 @@ def test_result_delivery_package_and_event_ledger_are_database_immutable(tmp_pat
     work_id = item["work_item_id"]
     package = _c06_package_for_checkpoint(checkpoint)
     delivery = store.prepare_result_delivery(work_id, package)
+    _bind_synthetic_delivery_target(store, work_id)
     with closing(store._connect()) as connection, connection:
         with pytest.raises(sqlite3.DatabaseError, match="immutable"):
             connection.execute(
@@ -1576,6 +1594,7 @@ def test_result_delivery_package_and_event_ledger_are_database_immutable(tmp_pat
 def test_schema_v4_upgrade_preserves_checkpoint_and_creates_delivery_ledger(tmp_path):
     store, item, checkpoint, clock = _checkpointed_work_item(tmp_path)
     with closing(store._connect()) as connection, connection:
+        connection.execute("DROP TABLE quick_scan_delivery_consumer_binding")
         connection.execute("DROP TABLE quick_scan_result_delivery_event")
         connection.execute("DROP TABLE quick_scan_result_delivery")
         # strip the v5/v6 objects too: this fixture must be a real v4 database
@@ -1598,3 +1617,203 @@ def test_schema_v4_upgrade_preserves_checkpoint_and_creates_delivery_ledger(tmp_
         assert (
             connection.execute("SELECT COUNT(*) FROM quick_scan_result_delivery").fetchone()[0] == 0
         )
+
+
+def _jr2_legacy_v6_delivery(tmp_path, state):
+    """An explicit old-schema fixture; no historical ACK is target evidence."""
+    store, item, checkpoint, clock = _checkpointed_work_item(tmp_path)
+    wid = item["work_item_id"]
+    package = _c06_package_for_checkpoint(checkpoint)
+    ready = store.prepare_result_delivery(wid, package)
+    ack = _ack_for_package(package)
+    if state in {"rejected", "conflict"}:
+        ack["status"] = state
+        ack["error_code"] = (
+            "missing_entity" if state == "rejected" else "immutable_key_hash_conflict"
+        )
+    with closing(store._connect()) as connection, connection:
+        # Remove only JR2 additions to reconstruct the unchanged v6 schema.
+        for name in (
+            "quick_scan_consumer_binding_insert_guard",
+            "quick_scan_consumer_binding_no_update",
+            "quick_scan_consumer_binding_no_delete",
+            "quick_scan_delivery_consumer_guard",
+        ):
+            connection.execute(f"DROP TRIGGER IF EXISTS {name}")
+        connection.execute("DROP TABLE IF EXISTS quick_scan_delivery_consumer_binding")
+        connection.execute("PRAGMA user_version=6")
+        if state == "send_uncertain":
+            connection.execute(
+                "UPDATE quick_scan_result_delivery SET state='send_uncertain' WHERE work_item_id=?",
+                (wid,),
+            )
+            store._delivery_event(
+                connection,
+                ready["delivery_id"],
+                "send_intent",
+                old="ready",
+                new="send_uncertain",
+                now=clock[0],
+            )
+        elif state in {"delivered", "rejected", "conflict"}:
+            connection.execute(
+                "UPDATE quick_scan_result_delivery SET state=?,ack_json=?,ack_sha256=?,consumer_store_id=? WHERE work_item_id=?",
+                (
+                    state,
+                    canonical_bytes(ack).decode("utf-8"),
+                    canonical_sha256(ack),
+                    ack["consumer"]["store_id"],
+                    wid,
+                ),
+            )
+            if state == "delivered":
+                connection.execute(
+                    "UPDATE work_item SET status='delivered' WHERE work_item_id=?", (wid,)
+                )
+    return store, wid, ack, clock
+
+
+@pytest.mark.parametrize("state", ["ready", "send_uncertain", "delivered", "rejected", "conflict"])
+def test_jr2_v6_migration_never_learns_target_from_old_ack(tmp_path, state):
+    store, wid, ack, clock = _jr2_legacy_v6_delivery(tmp_path, state)
+    with closing(store._connect()) as connection:
+        before = dict(
+            connection.execute(
+                "SELECT * FROM quick_scan_result_delivery WHERE work_item_id=?", (wid,)
+            ).fetchone()
+        )
+    migrated = _store(tmp_path, clock)
+    result = migrated.get_result_delivery(wid)
+    assert result["consumer_binding"] is None
+    for key in (
+        "package_json",
+        "package_sha256",
+        "package_bytes_sha256",
+        "delivery_key",
+        "ack_json",
+        "ack_sha256",
+        "consumer_store_id",
+        "state",
+    ):
+        assert result[key] == before[key]
+    if state in {"delivered", "rejected", "conflict"}:
+        assert migrated.apply_result_delivery_ack(wid, ack)["ack_json"] == before["ack_json"]
+        with pytest.raises(ValueError, match="ready|terminal|binding"):
+            migrated.bind_result_delivery_consumer(
+                wid, ack["consumer"], source_ref="operator-config:synthetic-legacy"
+            )
+    else:
+        with pytest.raises(ValueError, match="binding"):
+            migrated.apply_result_delivery_ack(wid, ack)
+        with pytest.raises(ValueError):
+            migrated.begin_result_delivery(wid)
+        assert migrated.get_result_delivery(wid)["state"] == state
+        if state == "send_uncertain":
+            with pytest.raises(ValueError, match="ready|send|binding"):
+                migrated.bind_result_delivery_consumer(
+                    wid, ack["consumer"], source_ref="operator-config:synthetic-legacy"
+                )
+
+
+@pytest.mark.parametrize("field", ["delivery_id", "revision_id", "revision", "package_id"])
+def test_jr2_target_direct_insert_must_match_current_head_atomically(tmp_path, field):
+    store, item, checkpoint, _ = _checkpointed_work_item(tmp_path)
+    wid = item["work_item_id"]
+    package = _c06_package_for_checkpoint(checkpoint)
+    ready = store.prepare_result_delivery(wid, package)
+    target = {
+        "component": "StockWiki",
+        "namespace": "quick_scan",
+        "store_id": "stockwiki-test-store",
+    }
+    binding = store.bind_result_delivery_consumer(
+        wid, target, source_ref="operator-config:synthetic-insert-guard"
+    )
+    with closing(store._connect()) as connection:
+        original = dict(
+            connection.execute("SELECT * FROM quick_scan_delivery_consumer_binding").fetchone()
+        )
+    package["producer"]["build_id"] = "synthetic-new-head-insert-guard"
+    _readdress_c06_package(package)
+    new_head = store.supersede_result_delivery(wid, package)
+    with closing(store._connect()) as connection, connection:
+        before = tuple(connection.iterdump())
+        candidate = dict(original)
+        if field == "delivery_id":
+            candidate[field] = "DELIVERY_unrelated"
+        elif field == "revision_id":
+            candidate[field] = "REVISION_unrelated"
+        elif field == "revision":
+            candidate[field] = 2
+        else:
+            candidate[field] = new_head["package_id"]
+        body = {key: value for key, value in binding.items() if key != "binding_sha256"}
+        body[field] = candidate[field]
+        candidate["binding_json"] = canonical_bytes(body).decode("utf-8")
+        candidate["binding_sha256"] = canonical_sha256(body)
+        columns = ",".join(candidate)
+        placeholders = ",".join("?" for _ in candidate)
+        with pytest.raises(sqlite3.DatabaseError, match="consumer binding"):
+            connection.execute(
+                f"INSERT INTO quick_scan_delivery_consumer_binding ({columns}) VALUES ({placeholders})",
+                tuple(candidate.values()),
+            )
+        assert tuple(connection.iterdump()) == before
+        assert (
+            dict(
+                connection.execute("SELECT * FROM quick_scan_delivery_consumer_binding").fetchone()
+            )
+            == original
+        )
+    assert store.get_result_delivery(wid)["consumer_binding"] is None
+
+
+def test_jr2_target_binding_has_durable_database_tamper_guards(tmp_path):
+    store, item, checkpoint, _ = _checkpointed_work_item(tmp_path)
+    wid = item["work_item_id"]
+    package = _c06_package_for_checkpoint(checkpoint)
+    store.prepare_result_delivery(wid, package)
+    target = {
+        "component": "StockWiki",
+        "namespace": "quick_scan",
+        "store_id": "stockwiki-test-store",
+    }
+    binding = store.bind_result_delivery_consumer(
+        wid, target, source_ref="operator-config:synthetic-test"
+    )
+    with closing(store._connect()) as connection, connection:
+        with pytest.raises(sqlite3.DatabaseError, match="immutable"):
+            connection.execute("UPDATE quick_scan_delivery_consumer_binding SET binding_json='{}'")
+        with pytest.raises(sqlite3.DatabaseError, match="immutable"):
+            connection.execute("DELETE FROM quick_scan_delivery_consumer_binding")
+        forged = _ack_for_package(package, consumer=dict(target, store_id="qsobs_unrelated_target"))
+        with pytest.raises(sqlite3.DatabaseError, match="consumer.*binding"):
+            connection.execute(
+                "UPDATE quick_scan_result_delivery SET state='delivered',ack_json=?,ack_sha256=?,consumer_store_id=? WHERE work_item_id=?",
+                (
+                    canonical_bytes(forged).decode("utf-8"),
+                    canonical_sha256(forged),
+                    forged["consumer"]["store_id"],
+                    wid,
+                ),
+            )
+    assert store.get_result_delivery(wid)["state"] == "ready"
+    assert (
+        _store(tmp_path, [1_800_000_000.0]).get_result_delivery(wid)["consumer_binding"] == binding
+    )
+
+
+def test_jr2_failed_v7_migration_rolls_back_original_v6_schema(tmp_path, monkeypatch):
+    from src.utils import quick_scan_work_store as module
+
+    store, wid, _, clock = _jr2_legacy_v6_delivery(tmp_path, "ready")
+    with closing(store._connect()) as connection:
+        before = tuple(connection.iterdump())
+    monkeypatch.setattr(
+        module, "_DDL_V7_ADDITIONS", (*module._DDL_V7_ADDITIONS, "CREATE TABLE broken(")
+    )
+    with pytest.raises(ValueError, match="consumer binding migration"):
+        _store(tmp_path, clock)
+    with closing(store._connect()) as connection:
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 6
+        assert tuple(connection.iterdump()) == before

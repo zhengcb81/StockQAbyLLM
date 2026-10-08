@@ -334,8 +334,26 @@ def validate_checkpoint_binding(package: dict, checkpoint: dict) -> None:
         raise ValueError("exchange package execution does not match checkpoint")
 
 
-def validate_import_ack(ack: object, outbox: dict) -> dict:
-    """Validate the exact C06 per-item ACK against one durable outbox item."""
+def validate_delivery_consumer(consumer: object) -> dict:
+    """Validate a trusted target or the exact consumer in public ACK 1.0."""
+    if (
+        not isinstance(consumer, dict)
+        or set(consumer) != {"component", "namespace", "store_id"}
+        or consumer.get("component") != "StockWiki"
+        or consumer.get("namespace") != "quick_scan"
+    ):
+        raise ValueError("import ACK consumer mismatch")
+    _text(consumer.get("store_id"), "consumer store_id", maximum=160)
+    return copy.deepcopy(consumer)
+
+
+def validate_import_ack(ack: object, outbox: dict, *, expected_consumer: object = None) -> dict:
+    """Validate C06 ACK 1.0 and, when supplied, its independently trusted target.
+
+    The shape-only mode permits validation of historical terminal ACKs whose
+    schema predates target binding. It never authorizes a new state transition;
+    the work store requires its durable pre-send binding for that operation.
+    """
     if not isinstance(outbox, dict):
         raise ValueError("outbox item must be an object")
     if not isinstance(ack, dict) or set(ack) != {
@@ -379,15 +397,11 @@ def validate_import_ack(ack: object, outbox: dict) -> dict:
             "lineage_violation",
         }:
             raise ValueError("rejected ACK has an invalid error code")
-    consumer = ack["consumer"]
-    if (
-        not isinstance(consumer, dict)
-        or set(consumer) != {"component", "namespace", "store_id"}
-        or consumer.get("component") != "StockWiki"
-        or consumer.get("namespace") != "quick_scan"
-    ):
-        raise ValueError("import ACK consumer mismatch")
-    _text(consumer.get("store_id"), "consumer store_id", maximum=160)
+    consumer = validate_delivery_consumer(ack["consumer"])
+    if expected_consumer is not None:
+        target = validate_delivery_consumer(expected_consumer)
+        if consumer != target:
+            raise ValueError("import ACK consumer does not match pre-send binding")
     return copy.deepcopy(ack)
 
 
