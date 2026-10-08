@@ -1,0 +1,1031 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A stock question-answering system powered by Large Language Models">
+      
+      
+        <meta name="author" content="Zheng Zengbo">
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>QA-C06-02 隔离与清理 - StockQAbyLLM Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#qa-c06-02" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="StockQAbyLLM Documentation" class="md-header__button md-logo" aria-label="StockQAbyLLM Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            StockQAbyLLM Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              QA-C06-02 隔离与清理
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/yourusername/StockQAbyLLM" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    StockQAbyLLM
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../QUICKSTART/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Quick Start
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../api/core/" class="md-tabs__link">
+          
+  
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="StockQAbyLLM Documentation" class="md-nav__button md-logo" aria-label="StockQAbyLLM Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    StockQAbyLLM Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/yourusername/StockQAbyLLM" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    StockQAbyLLM
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../QUICKSTART/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/core/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Config
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/utils/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Utils
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/interfaces/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interfaces
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/providers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Providers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        临时根
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        网络 / 收费 / 下载
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        逐文件清理
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        过程异常（如实记录）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        未清理/未触碰
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="qa-c06-02">QA-C06-02 隔离与清理<a class="headerlink" href="#qa-c06-02" title="Permanent link">&para;</a></h1>
+<h2 id="_1">临时根<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>用途</th>
+<th>路径</th>
+<th>归属</th>
+<th>终态</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>golden 导出</td>
+<td><code>%TEMP%\qa-c06-02-golden-5k1050lz\</code></td>
+<td>本包一次性创建</td>
+<td><strong>已删除</strong>（<code>shutil.rmtree</code> 后复核目录不存在）</td>
+</tr>
+<tr>
+<td>golden 导出脚本</td>
+<td><code>%TEMP%\qa_c06_02_golden_export.py</code></td>
+<td>本包一次性创建（不入仓）</td>
+<td><strong>已删除</strong></td>
+</tr>
+<tr>
+<td>pytest 用例临时根</td>
+<td><code>%TEMP%\pytest-of-郑曾波\pytest-*\</code></td>
+<td>pytest 自管共享 TEMP</td>
+<td><strong>未按编号清理</strong>——共同规范明令“不按 mtime/pytest 编号/目录名清共享 TEMP”；pytest 自身按代数回收，本包只在用例内使用自己的 <code>tmp_path</code></td>
+</tr>
+<tr>
+<td>整改 RED 独占副本（含 <code>--basetemp &lt;root&gt;/tmp/*</code>）</td>
+<td><code>%TEMP%\qa-c0602r-58cdae\</code></td>
+<td>本批一次性创建（源码副本 + guard + 原字节 controller 9 例）</td>
+<td><strong>已删除</strong>（清单/SHA/CIM 回执见 <code>logs/cleanup-remediation-receipt.json</code>）</td>
+</tr>
+<tr>
+<td>整改 GREEN 独占副本</td>
+<td><code>%TEMP%\qa-c0602g-19576b\</code></td>
+<td>同上（工作树字节副本）</td>
+<td><strong>已删除</strong>（同回执）</td>
+</tr>
+<tr>
+<td>本批最后一次全量门的 pytest 共享 TEMP</td>
+<td><code>%TEMP%\pytest-of-郑曾波\pytest-149\</code></td>
+<td>可证归属（971 文件均为门内用例 <code>tmp_path</code>，mtime 与 <code>logs/full-gate-remediation-2026-10-08.log</code> 完成时刻一致）</td>
+<td><strong>已删除</strong>（同回执；仅删除这一可证明归属的编号目录）</td>
+</tr>
+<tr>
+<td>共享 TEMP 无法证归属的残余</td>
+<td><code>%TEMP%\pytest-of-郑曾波\pytest-147\</code>、<code>pytest-148\</code></td>
+<td>早于本批任何执行、仅剩编号可循</td>
+<td><strong>列出不删</strong>——不按编号/mtime/宽 glob 删除；归属判断交总控</td>
+</tr>
+<tr>
+<td>本批 scratch</td>
+<td><code>%TEMP%\qa-c0602r-58cdae.path</code>、<code>%TEMP%\src.diff</code>、<code>%TEMP%\qa_c0602_update_handoff.py</code>、<code>%TEMP%\qa_c0602_update_artifacts.py</code>、<code>%TEMP%\qa-c0602-cim-check.ps1</code></td>
+<td>本批创建</td>
+<td><strong>已删除</strong></td>
+</tr>
+<tr>
+<td>第二轮 RED 独占副本（新编号，含 <code>--basetemp &lt;root&gt;/tmp/*</code>）</td>
+<td><code>%TEMP%\qa-c0602r2-c2f788\</code></td>
+<td>本轮一次性创建（341 追踪文件字节副本 + 原字节 remaining/controller 用例 + guard）</td>
+<td><strong>已删除</strong>（回执 <code>logs/cleanup-remediation-r2-receipt.json</code>：<strong>含逐文件</strong> <code>[relpath,bytes,sha256]</code> 清单与清单 SHA、CIM <code>python*</code> 匹配 0、删后目录不存在）</td>
+</tr>
+<tr>
+<td>第二轮 GREEN 独占副本</td>
+<td><code>%TEMP%\qa-c0602g2-225e50\</code></td>
+<td>同上（修复后工作树字节）</td>
+<td><strong>已删除</strong>（同回执）</td>
+</tr>
+<tr>
+<td>第二轮 scratch</td>
+<td><code>%TEMP%\qa_c0602_r2_store_edits.py</code>、<code>%TEMP%\qa-c0602-r2-cim.ps1</code></td>
+<td>本轮创建</td>
+<td><strong>已删除</strong></td>
+</tr>
+<tr>
+<td>第一轮逐文件清单</td>
+<td>不适用</td>
+<td>回执只落了计数/字节/清单聚合 SHA，逐文件清单当时未持久化、根已删</td>
+<td><strong>not_reconstructable</strong>——不回填、不伪称可重构（见回执 <code>round1_receipt_backfill</code>）</td>
+</tr>
+<tr>
+<td>共享 TEMP 现状（第二轮收尾时）</td>
+<td><code>%TEMP%\pytest-of-郑曾波\pytest-177…181\</code>（编号随并行 lane 持续滚动）</td>
+<td>归属为并行 SW/Lab/总控活动，非本包</td>
+<td><strong>不碰</strong>——本轮全部测试使用独占 <code>--basetemp</code>（两根之下），本包零新增共享 TEMP 残余；第一轮列出的 <code>pytest-147/148</code> 已被 pytest 自身代数保留策略在后续非本包活动中回收（非按编号/mtime 删除）</td>
+</tr>
+</tbody>
+</table>
+<p>用例内所有 DB / cache / logs / 子进程都在 pytest <code>tmp_path</code> 之下：
+<code>quick_scan_work.sqlite</code>、<code>quick_scan_health.sqlite</code>、<code>llm_apis.json</code>、<code>manifest.json</code>、
+<code>identity.json</code>、<code>quick_scan_c06_authority.json</code>、<code>questions.json</code>、<code>spend_authorization.json</code>、
+<code>result.json</code>、<code>logs/</code>。测试根由 pytest 隔离，未落到仓内。</p>
+<p>仓内既有 <code>quick_scan_work.sqlite</code>（<code>.gitignore</code> 精确例外 <code>/quick_scan_work.sqlite*</code>）是开工前
+就存在的基线文件，本包<strong>未写入、未删除</strong>：所有用例都用 <code>monkeypatch.chdir(tmp_path)</code>，store 路径
+是 <code>llm_config.config_file.parent / "quick_scan_work.sqlite"</code>，即临时根之下。</p>
+<h2 id="_2">网络 / 收费 / 下载<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>实际次数</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>外部 HTTP 请求（模型）</td>
+<td><strong>0</strong>（HTTP 边界仅 <code>unittest.mock</code> 替换 <code>src.providers.llm_client.http_client_manager</code>）</td>
+</tr>
+<tr>
+<td>搜索调用</td>
+<td><strong>0</strong>（<code>web_search_call</code> 由 stub 响应伪造，不发起网络）</td>
+</tr>
+<tr>
+<td>付费 API 调用</td>
+<td><strong>0</strong></td>
+</tr>
+<tr>
+<td>下载（财报/网页正文）</td>
+<td><strong>0</strong></td>
+</tr>
+<tr>
+<td>环境 key</td>
+<td>未读取、未打印；用例内 <code>api_key</code> 为字面量 <code>offline-fixture-key</code></td>
+</tr>
+<tr>
+<td><code>STOCKQA_RUN_LIVE_E22E</code> / live 开关</td>
+<td><code>STOCKQA_RUN_LIVE_E2E=0</code>（<code>scripts/checks.py</code> 自带 OFFLINE_ENV）</td>
+</tr>
+</tbody>
+</table>
+<p><code>python -B scripts/checks.py --full --timeout 300</code> 的 OFFLINE_ENV 同时注入离线守卫；
+本包未申请、未使用任何在线授权（旧 B01 费用授权不复用）。</p>
+<p>整改批次 2 的<strong>子进程</strong> E2E：guard（<code>sitecustomize.py</code>，由用例写入自己的 <code>tmp_path/guard/</code>
+并注入子进程 <code>PYTHONPATH</code>）审计拒绝一切网络事件（连接/DNS/绑定/发送），只放行 Windows
+asyncio 内部 socketpair 的<strong>精确</strong> ephemeral loopback 绑定（<code>127.0.0.1:0</code> / <code>::1:0</code>）及其
+对端连接——放行不记账，其余事件先写 <code>network-attempts.jsonl</code> 再拒绝；HTTP 边界 stub 只在
+<code>QA100_STUB_HTTP=1</code> 时替换 <code>requests.Session.post</code>（应答取自用例生成的
+<code>stub-responses.json</code>，逐次记 <code>http-stub-sends.jsonl</code>）。<strong>warm/seal 子进程显式撤掉 stub</strong>
+（<code>QA100_STUB_HTTP=0</code>）仍 exit 0，发送账本字节不变；四个测试结束时网络账本均不存在。
+key 读取由 guard 对 <code>llm_apis.json</code> 只读打开记账（<code>key-opens.jsonl</code>）：拒绝类用例断言其
+不存在（key 读取 0），cold 对照用例断言其存在。子进程 <code>TEMP/TMP/TMPDIR</code> 指到
+<code>tmp_path/temp</code>，<code>*_API_KEY</code> 环境变量在 spawn 前剔除，<code>STOCKQA_RUN_LIVE_E2E=0</code>。</p>
+<p>第二轮同口径：<code>remaining_cases.py</code> 与镜像的子进程用例由用例自写 guard（<code>tmp_path/guard/</code>）注入
+子进程 <code>PYTHONPATH</code>，去密钥环境（spawn 前剔除 <code>*_API_KEY</code>）、<code>STOCKQA_RUN_LIVE_E2E=0</code>、
+<code>TEMP/TMP/TMPDIR</code> 与 <code>--basetemp</code> 全在两根之下；被拒类用例断言网络/key 账本不存在；
+外部网络、收费、下载、生产库访问均为 0。</p>
+<p><strong>监听端口</strong>：0。用例不启动任何服务、线程或 server；只对 <code>requests</code> 会话做对象级 stub。
+<code>tasklist</code> 可见的 python.exe 进程为编辑器语言服务/检查器常驻进程，非本包启动的测试进程；
+pytest 进程在每次调用返回时已退出（exit 0）。</p>
+<h2 id="_3">逐文件清理<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>路径</th>
+<th>动作</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>%TEMP%\qa-c06-02-golden-*</code></td>
+<td>删除（本包创建）</td>
+</tr>
+<tr>
+<td><code>%TEMP%\qa_c06_02_golden_export.py</code></td>
+<td>删除（本包创建）</td>
+</tr>
+<tr>
+<td>仓内 <code>tests/</code>、<code>src/</code> 下无临时产物</td>
+<td>无</td>
+</tr>
+<tr>
+<td><code>%TEMP%\qa-c0602r-58cdae\</code>、<code>%TEMP%\qa-c0602g-19576b\</code>、<code>%TEMP%\qa-c0602r-58cdae.path</code></td>
+<td>删除（本批创建；回执 <code>logs/cleanup-remediation-receipt.json</code>：逐文件 SHA 清单 + CIM <code>python*</code> 匹配进程 0 + 删除后目录不存在）</td>
+</tr>
+<tr>
+<td><code>%TEMP%\pytest-of-郑曾波\pytest-149\</code></td>
+<td>删除（唯一可证归属目录；同回执）</td>
+</tr>
+<tr>
+<td><code>%TEMP%\pytest-of-郑曾波\pytest-147\</code>、<code>pytest-148\</code></td>
+<td><strong>不删</strong>（归属不可证，见上表）</td>
+</tr>
+<tr>
+<td>本批交接目录 <code>docs/handoff/QA-C06-02/</code></td>
+<td><strong>保留</strong>（交接物）</td>
+</tr>
+<tr>
+<td>九件 overlay 原字节</td>
+<td>见下方“EOL 事件”</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_4">过程异常（如实记录）<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>pre-commit <code>mixed-line-ending</code> 改写了 6 个 overlay 输入的行尾。</strong>
+   <code>tests/fixtures/quick_scan_c06_manifest_v2_fixture.json</code>、
+   <code>quick_scan_c06_authority_v2_fixture.json</code>、
+   <code>src/config/quick_scan_observation.schema.json</code>、<code>quick_scan_answer_content.schema.json</code>、
+   <code>quick_scan_metric_registry.json</code>、<code>pyproject.toml</code> 原为 CRLF，被 hook 就地转为 LF，
+   导致 8 个用例立刻 RED（<code>manifest_file_sha256</code> 与文件字节不符）。
+   <strong>处置</strong>：从 <code>inputs/qa-phase92-overlay/</code> 按原字节恢复前 5 个（SHA 分别回到
+   <code>a7e80a5b…</code> / <code>e5bc782a…</code> / <code>6344d2af…</code> / <code>a83236c2…</code> / <code>790d0a82…</code>，与输入锁一致），
+   复核 55 个相关用例全绿。<code>pyproject.toml</code> 由本包新增 mypy 覆写，内容本就变化，未回滚。
+   <strong>提交顺序</strong>：<code>git add</code> → 第一次 <code>git commit</code>（hook 首轮把 5 个文件转 LF 后 fail）
+   → 再次 <code>git add</code> → 第二次 <code>git commit</code>（hook 通过）→ <strong>提交后按 overlay 原字节恢复工作树</strong>。
+   <code>core.autocrlf=true</code> 下索引存 LF、工作树恢复 CRLF，<code>git status</code> 归一化后为 clean。
+   这正对应输入锁“Windows 工作树 SHA 与 Git blob SHA 不同口径；不能用 EOL 转换修复原输入”。</li>
+<li>早期一次 <code>black</code>（line-length 100，读 <code>pyproject.toml</code>）对 4 个文件重排；其中
+   <code>src/utils/quick_scan_observation_context.py</code>、<code>tests/unit/test_quick_scan_observation_context.py</code>
+   是九件 overlay 中本就不 black-clean 的两件。静态门要求 black 通过，故保留重排；
+   与 overlay 原字节做过 AST 对比（<code>ast.dump</code> 等价），语义未变。</li>
+<li>未发生测试失败遗留：最终门 <code>result=pass</code>，失败用例 0。</li>
+<li><strong>整改批次 2 的子进程 guard 首跑拦了 Windows asyncio socketpair。</strong> 首轮子进程 RED 里
+   <code>network-attempts.jsonl</code> 记到 <code>socket.bind</code>——实测为 CPython 在本机的 socketpair 绑定
+   <code>('::1', 0)</code>（IPv6 回环），而总控修正版 guard 只放行 <code>('127.0.0.1', 0)</code>。处置：把放行
+   条件改为<strong>两个精确 ephemeral 回环</strong>地址（仍先记账任何其它地址），不放行任意 loopback
+   服务或模型 HTTP；修正后 cold/warm/seal 与全部拒绝类用例复跑，网络账本不存在。
+   该轮 RED 日志如实保留（<code>logs/red-subprocess-remediation.log</code>），其中错 metadata /
+   重复 authority 的产品级 RED（CLI exit 0 并实发 31）不依赖该环境修正。</li>
+<li><strong>证据日志按仓标准 hook 归一化后提交。</strong> <code>logs/red-boundary-remediation.log</code> 等原始 pytest
+   输出含行尾空格与混合行尾，<code>pre-commit</code> 的 <code>trailing-whitespace</code>/<code>mixed-line-ending --fix=lf</code>
+   就地规范化（<strong>无内容行增删</strong>）；IQS intake 内总控原始日志字节不碰。
+6a. <strong>第二轮 controller 自身两处环境记录（不计产品 RED）。</strong> 其一：首轮 GREEN 副本里我预先
+   <code>mkdir</code> 了 <code>--basetemp</code> 目录，pytest 清理旧 basetemp 时 Windows 扩展路径 <code>\?\</code> 前缀未通过
+   guard 的 <code>is_relative_to</code> → 8 例 setup 报 <code>E97 write outside owned test root</code>；删除预建目录、
+   由 pytest 自建后原字节 9 例 <code>9 passed</code>（<code>logs/green-original-nine-r2.log</code>），与产品无关。
+   其二：受影响选择器必须带 <code>-p no:base_url</code>（或等价 <code>PYTEST_DISABLE_PLUGIN_AUTOLOAD=1</code>），
+   否则 pytest-base-url 触发 <code>ScopeMismatch</code> 4 例 setup 错误——首轮已知坑，回执日志用的是
+   带 <code>-p no:base_url</code> 的命令（<code>247 passed</code>）。
+6b. <strong>冻结 CRLF 输入：工作树 SHA vs Git blob SHA 与可复现还原。</strong> 本批未改任何冻结输入；
+   5 个 IQS 冻结文件在 <code>core.autocrlf=true</code> 下的双口径如下（工作树 SHA = 输入锁口径；
+   blob 为对象库 LF 字节）：</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>工作树 SHA256（CRLF 字节）</th>
+<th>Git blob SHA256（HEAD，LF 字节）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>src/config/quick_scan_observation.schema.json</code></td>
+<td><code>6344d2afc9e0d937e05baba8aef27ad15c91770ab7ecb2ddbd549e5ab4fb70ec</code></td>
+<td><code>fceea2a0c68e7260d4bdb3c0ac220dda2c1abccc55211fe43ab607856a7375b8</code></td>
+</tr>
+<tr>
+<td><code>src/config/quick_scan_answer_content.schema.json</code></td>
+<td><code>a83236c2aba50115038cd2d404d5810bd50791c2b3f089f252b77b6a6d322547</code></td>
+<td><code>14800653a0690ff64813025b603068dd3325e99308242860b7ce2cfa8aebbad0</code></td>
+</tr>
+<tr>
+<td><code>src/config/quick_scan_metric_registry.json</code></td>
+<td><code>790d0a8295771c372d8266ab1f0883c93b2bb22f4f81ab482dd8d95054bf0e75</code></td>
+<td><code>a18f51cca30e887835c4e136d5e9903dd1c28a2538a060363f9cab3cb50b7ca0</code></td>
+</tr>
+<tr>
+<td><code>tests/fixtures/quick_scan_c06_authority_v2_fixture.json</code></td>
+<td><code>e5bc782afd245374fff3bc224f04cb9dbcc0fb22b76d62faf2a16917db1ded43</code></td>
+<td><code>d337be135560c0c3b96c1e77a41cf596a0929c095e4532702ecd8fcc689d402b</code></td>
+</tr>
+<tr>
+<td><code>tests/fixtures/quick_scan_c06_manifest_v2_fixture.json</code></td>
+<td><code>a7e80a5bcaf2cb2499fa24f091b129d7e1a2ebbf6e91a5666359c5e91c90270c</code></td>
+<td><code>73853233364ea3cb019d02b13cd774f1cbaa3f6e3c671b891b37ae835271977d</code></td>
+</tr>
+</tbody>
+</table>
+<p>已验证：<code>blob(LF) 经 LF→CRLF 转换 == 工作树字节</code>（5/5 成立）。可复现还原命令：
+   <code>git -c core.autocrlf=true checkout -- &lt;path&gt;</code>（本批实测还原后工作树 SHA 回到左列且
+   <code>git status</code> 干净）；<code>git cat-file blob HEAD:&lt;path&gt;</code> 取到的是右列 LF 原字节，
+   <strong>不可</strong>用 <code>git show HEAD:&lt;path&gt; &gt; &lt;path&gt;</code> 直接当工作树字节写回（会丢 CRLF）。
+   本批未偷偷换行、未重签任何 IQS 冻结输入；<code>.pre-commit-config.yaml</code> 等其余 20 个
+   均匀 CRLF 文件同样未触碰。第二轮收尾复验：左列 5 个工作树 SHA <strong>逐一未变</strong>（与输入锁一致）。</p>
+<h2 id="_5">未清理/未触碰<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
+<p><code>.codegraph/</code>、<code>.workbuddy-ai/</code>、<code>nul</code>、<code>pilot_runs/b2a_2026-10-03/</code>、
+<code>pilot_runs/g2b_alphabet_2026-10-04/</code>、<code>pilot_runs/l02_2026-10-04/</code>、<code>progress_update.txt</code>
+——输入锁登记的 7 项旧未跟踪，未读内容、未删除、未提交。
+其他仓（invest-quick-scan / StockWiki / company-wiki / Theme / Industry）只读，零写入。
+整改批次 2 同样：唯一写根仍是本仓；IQS 只读取 intake 原字节（controller 9 例、
+guard 模板、v5 源）复制进独占副本执行，未回写一个字节。</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.suggest", "search.highlight", "content.code.copy"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "git"}}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

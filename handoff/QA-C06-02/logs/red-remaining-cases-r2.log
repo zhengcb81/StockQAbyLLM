@@ -1,0 +1,309 @@
+.FFFFFF.FF.FFFFF                                                         [100%]
+================================== FAILURES ===================================
+___________ test_overflow_number_is_refused_at_standard_body_entry ____________
+
+    def test_overflow_number_is_refused_at_standard_body_entry():
+        raw=json.dumps(f._standard_body()).replace('"metrics": []','"metrics": [{"value": 1e400}]')
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+..\remaining_cases.py:47: Failed
+____________ test_wrong_security_id_is_refused_by_authority_loader ____________
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r2-c2f788/tmp/b1/test_wrong_security_id_is_refu0')
+
+    def test_wrong_security_id_is_refused_by_authority_loader(tmp_path):
+        doc=copy.deepcopy(f.AUTHORITY_V2)
+        assert f.MANIFEST['profile']['security_id']=='SEC_CONTEXT_FIXTURE'
+        doc['observation_context']['questions']['IQS_22']['metadata']['security_id']='SEC_FOREIGN'
+>       with pytest.raises(AuthorityUnavailable):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE AuthorityUnavailable
+
+..\remaining_cases.py:54: Failed
+________ test_wrong_security_id_cli_is_refused_before_key_http_budget _________
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r2-c2f788/tmp/b1/test_wrong_security_id_cli_is_0')
+
+    def test_wrong_security_id_cli_is_refused_before_key_http_budget(tmp_path):
+        files=s._prepare_root(tmp_path)
+        document=json.loads(files['authority'].read_text('utf-8'))
+        document['observation_context']['questions']['IQS_22']['metadata']['security_id']='SEC_FOREIGN'
+        document['observation_context_sha256']=canonical_sha256(document['observation_context'])
+        files['authority'].write_text(json.dumps(document,ensure_ascii=False),encoding='utf-8')
+        result=s._spawn(tmp_path,s._cold_argv(files),stub=True)
+        (tmp_path/'child.stdout.log').write_text(result.stdout,encoding='utf-8')
+        (tmp_path/'child.stderr.log').write_text(result.stderr,encoding='utf-8')
+>       s._assert_rejected_before_key_http_budget(tmp_path,files,result)
+
+..\remaining_cases.py:67:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r2-c2f788/tmp/b1/test_wrong_security_id_cli_is_0')
+files = {'questions': WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r2-c2f788/tmp/b1/test_wrong_security_id_cli_is_0/qu...s/郑曾波/AppData/Local/Temp/qa-c0602r2-c2f788/tmp/b1/test_wrong_security_id_cli_is_0/quick_scan_c06_authority.json'), ...}
+result = CompletedProcess(args=['C:\\Miniconda\\python.exe', '-B', '-X', 'utf8', 'C:\\Users\\郑曾波\\AppData\\Local\\Temp\\qa-c060....0/10\n[OK] 评分分布: {8: 30}\nERROR - Quick-scan contains 1 failed question(s); partial results were saved.\n', stderr='')
+
+    def _assert_rejected_before_key_http_budget(tmp_path: Path, files: dict, result) -> None:
+        assert result.returncode == 1, result.stdout[-3000:] + result.stderr[-3000:]
+>       assert _sends(tmp_path) == []
+               ^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError
+
+tests\integration\test_qa_c06_02_subprocess_cli.py:290: AssertionError
+______ test_new_complete_write_requires_durable_complete_inputs[prepare] ______
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r2-c2f788/tmp/b1/test_new_complete_write_requir0')
+method = 'prepare'
+
+    @pytest.mark.parametrize('method',['prepare','supersede'])
+    def test_new_complete_write_requires_durable_complete_inputs(tmp_path,method):
+        store,item,checkpoint,body=f._checkpointed(tmp_path,with_context=False)
+        wid=item['work_item_id']
+        assert store.get_observation_context(wid) is None and store.get_standard_answer(wid) is None
+        if method=='supersede':
+            assert f.seal_result_delivery(store,wid,authority=f.V1_AUTHORITY)['action']=='sealed'
+        before=store.get_result_delivery(wid)
+        revisions=store.list_delivery_revisions(wid)
+        package=complete(store,item,checkpoint,body,f.CONTEXT,f._v2_authority(tmp_path))
+        forged=f._forged_complete_package(package,lambda obs:f._mutate(obs,'claim_and_start'))
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+..\remaining_cases.py:80: Failed
+_____ test_new_complete_write_requires_durable_complete_inputs[supersede] _____
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r2-c2f788/tmp/b1/test_new_complete_write_requir1')
+method = 'supersede'
+
+    @pytest.mark.parametrize('method',['prepare','supersede'])
+    def test_new_complete_write_requires_durable_complete_inputs(tmp_path,method):
+        store,item,checkpoint,body=f._checkpointed(tmp_path,with_context=False)
+        wid=item['work_item_id']
+        assert store.get_observation_context(wid) is None and store.get_standard_answer(wid) is None
+        if method=='supersede':
+            assert f.seal_result_delivery(store,wid,authority=f.V1_AUTHORITY)['action']=='sealed'
+        before=store.get_result_delivery(wid)
+        revisions=store.list_delivery_revisions(wid)
+        package=complete(store,item,checkpoint,body,f.CONTEXT,f._v2_authority(tmp_path))
+        forged=f._forged_complete_package(package,lambda obs:f._mutate(obs,'claim_and_start'))
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+..\remaining_cases.py:80: Failed
+---------------------------- Captured stdout call -----------------------------
+INFO - C06 包已封存（WORK_32d1a9d6007b43a382898602bec03a39）→ pkg_39462f5638051e7a76a7836952da4279073b38534714f8ba823cb2eb92342136
+------------------------------ Captured log call ------------------------------
+INFO     src.utils.quick_scan_delivery_seal:quick_scan_delivery_seal.py:263 C06 包已封存（WORK_32d1a9d6007b43a382898602bec03a39）→ pkg_39462f5638051e7a76a7836952da4279073b38534714f8ba823cb2eb92342136
+_________________ test_prepare_cannot_bypass_a_run_scan_block _________________
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r2-c2f788/tmp/b1/test_prepare_cannot_bypass_a_r0')
+
+    def test_prepare_cannot_bypass_a_run_scan_block(tmp_path):
+        store,item,checkpoint,body=f._checkpointed(tmp_path,with_context=False)
+        wid=item['work_item_id']
+        doc=copy.deepcopy(f.AUTHORITY_V2)
+        for question in doc['observation_context']['questions'].values():
+            question['metadata']['run_id']='FOREIGN_RUN'
+            question['metadata']['scan_id']='FOREIGN_SCAN'
+        authority=load_c06_authority(authority_file(tmp_path,doc))
+        store.attach_standard_inputs(wid,observation_context=doc['observation_context'],standard_answer=body)
+        result=f.seal_result_delivery(store,wid,authority=authority)
+        assert result['action']=='blocked' and result['block_code']=='c06_run_scan_unbound'
+        before=store.get_result_delivery(wid)
+        package=complete(store,item,checkpoint,body,doc['observation_context'],authority)
+>       with pytest.raises(ValueError): store.prepare_result_delivery(wid,package)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+..\remaining_cases.py:100: Failed
+---------------------------- Captured stdout call -----------------------------
+WARNING - 封存 run/scan 绑定拒绝（WORK_0717e736efca492ca708b427c788ac42）：冻结 run/scan 未映射到该 work 的实际执行
+WARNING - C06 封存阻断（WORK_0717e736efca492ca708b427c788ac42）：c06_run_scan_unbound
+------------------------------ Captured log call ------------------------------
+WARNING  src.utils.quick_scan_delivery_seal:quick_scan_delivery_seal.py:102 封存 run/scan 绑定拒绝（WORK_0717e736efca492ca708b427c788ac42）：冻结 run/scan 未映射到该 work 的实际执行
+WARNING  src.utils.quick_scan_delivery_seal:quick_scan_delivery_seal.py:130 C06 封存阻断（WORK_0717e736efca492ca708b427c788ac42）：c06_run_scan_unbound
+___________ test_overflow_number_is_refused_at_standard_body_entry ____________
+
+    def test_overflow_number_is_refused_at_standard_body_entry():
+        raw = json.dumps(_standard_body()).replace(
+            '"metrics": []', '"metrics": [{"value": 1e400}]'
+        )
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\integration\test_qa_c06_02_remaining_boundaries.py:82: Failed
+________ test_nested_overflow_number_is_refused_at_standard_body_entry ________
+
+    def test_nested_overflow_number_is_refused_at_standard_body_entry():
+        raw = json.dumps(_standard_body()).replace(
+            '"score": 8', '"score": 8, "nested": {"deep": [1e400]}', 1
+        )
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\integration\test_qa_c06_02_remaining_boundaries.py:90: Failed
+____________ test_wrong_security_id_is_refused_by_authority_loader ____________
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r2-c2f788/tmp/b1/test_wrong_security_id_is_refu1')
+
+    def test_wrong_security_id_is_refused_by_authority_loader(tmp_path):
+        document = copy.deepcopy(AUTHORITY_V2)
+        assert MANIFEST["profile"]["security_id"] == "SEC_CONTEXT_FIXTURE"
+        document["observation_context"]["questions"]["IQS_22"]["metadata"][
+            "security_id"
+        ] = "SEC_FOREIGN"
+>       with pytest.raises(AuthorityUnavailable):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE AuthorityUnavailable
+
+tests\integration\test_qa_c06_02_remaining_boundaries.py:109: Failed
+________ test_wrong_security_id_cli_is_refused_before_key_http_budget _________
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r2-c2f788/tmp/b1/test_wrong_security_id_cli_is_1')
+
+    def test_wrong_security_id_cli_is_refused_before_key_http_budget(tmp_path):
+        files = _prepare_root(tmp_path)
+        document = json.loads(files["authority"].read_text("utf-8"))
+        document["observation_context"]["questions"]["IQS_22"]["metadata"][
+            "security_id"
+        ] = "SEC_FOREIGN"
+        document["observation_context_sha256"] = canonical_sha256(
+            document["observation_context"]
+        )
+        files["authority"].write_text(
+            json.dumps(document, ensure_ascii=False), encoding="utf-8"
+        )
+        result = _spawn(tmp_path, _cold_argv(files), stub=True)
+>       _assert_rejected_before_key_http_budget(tmp_path, files, result)
+
+tests\integration\test_qa_c06_02_remaining_boundaries.py:130:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r2-c2f788/tmp/b1/test_wrong_security_id_cli_is_1')
+files = {'questions': WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r2-c2f788/tmp/b1/test_wrong_security_id_cli_is_1/qu...s/郑曾波/AppData/Local/Temp/qa-c0602r2-c2f788/tmp/b1/test_wrong_security_id_cli_is_1/quick_scan_c06_authority.json'), ...}
+result = CompletedProcess(args=['C:\\Miniconda\\python.exe', '-B', '-X', 'utf8', 'C:\\Users\\郑曾波\\AppData\\Local\\Temp\\qa-c060....0/10\n[OK] 评分分布: {8: 30}\nERROR - Quick-scan contains 1 failed question(s); partial results were saved.\n', stderr='')
+
+    def _assert_rejected_before_key_http_budget(tmp_path: Path, files: dict, result) -> None:
+        assert result.returncode == 1, result.stdout[-3000:] + result.stderr[-3000:]
+>       assert _sends(tmp_path) == []
+E       AssertionError: assert [{'question_i...': True}, ...] == []
+E
+E         Left contains 31 more items, first extra item: {'question_id': 'IQS_01', 'synthetic_only': True}
+E         Use -v to get more diff
+
+tests\integration\test_qa_c06_02_subprocess_cli.py:290: AssertionError
+______ test_new_complete_write_requires_durable_complete_inputs[prepare] ______
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r2-c2f788/tmp/b1/test_new_complete_write_requir2')
+method = 'prepare'
+
+    @pytest.mark.parametrize("method", ["prepare", "supersede"])
+    def test_new_complete_write_requires_durable_complete_inputs(tmp_path, method):
+        store, item, checkpoint, body = _checkpointed(tmp_path, with_context=False)
+        work_item_id = item["work_item_id"]
+        assert store.get_observation_context(work_item_id) is None
+        assert store.get_standard_answer(work_item_id) is None
+        if method == "supersede":
+            assert seal_result_delivery(store, work_item_id, authority=dict(V1_AUTHORITY))[
+                "action"
+            ] == ("sealed")
+        before = store.get_result_delivery(work_item_id)
+        revisions = store.list_delivery_revisions(work_item_id)
+        package = _complete_package(
+            store, item, checkpoint, body, CONTEXT, _v2_authority(tmp_path)
+        )
+        forged = _forged_complete_package(
+            package, lambda observation: _mutate(observation, "claim_and_start")
+        )
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\integration\test_qa_c06_02_remaining_boundaries.py:151: Failed
+_____ test_new_complete_write_requires_durable_complete_inputs[supersede] _____
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r2-c2f788/tmp/b1/test_new_complete_write_requir3')
+method = 'supersede'
+
+    @pytest.mark.parametrize("method", ["prepare", "supersede"])
+    def test_new_complete_write_requires_durable_complete_inputs(tmp_path, method):
+        store, item, checkpoint, body = _checkpointed(tmp_path, with_context=False)
+        work_item_id = item["work_item_id"]
+        assert store.get_observation_context(work_item_id) is None
+        assert store.get_standard_answer(work_item_id) is None
+        if method == "supersede":
+            assert seal_result_delivery(store, work_item_id, authority=dict(V1_AUTHORITY))[
+                "action"
+            ] == ("sealed")
+        before = store.get_result_delivery(work_item_id)
+        revisions = store.list_delivery_revisions(work_item_id)
+        package = _complete_package(
+            store, item, checkpoint, body, CONTEXT, _v2_authority(tmp_path)
+        )
+        forged = _forged_complete_package(
+            package, lambda observation: _mutate(observation, "claim_and_start")
+        )
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\integration\test_qa_c06_02_remaining_boundaries.py:151: Failed
+---------------------------- Captured stdout call -----------------------------
+INFO - C06 包已封存（WORK_13447903359a4f31b8fb4e690325b0cb）→ pkg_39462f5638051e7a76a7836952da4279073b38534714f8ba823cb2eb92342136
+------------------------------ Captured log call ------------------------------
+INFO     src.utils.quick_scan_delivery_seal:quick_scan_delivery_seal.py:263 C06 包已封存（WORK_13447903359a4f31b8fb4e690325b0cb）→ pkg_39462f5638051e7a76a7836952da4279073b38534714f8ba823cb2eb92342136
+_________________ test_prepare_cannot_bypass_a_run_scan_block _________________
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r2-c2f788/tmp/b1/test_prepare_cannot_bypass_a_r1')
+
+    def test_prepare_cannot_bypass_a_run_scan_block(tmp_path):
+        store, item, checkpoint, body = _checkpointed(tmp_path, with_context=False)
+        work_item_id = item["work_item_id"]
+        document = copy.deepcopy(AUTHORITY_V2)
+        for question in document["observation_context"]["questions"].values():
+            question["metadata"]["run_id"] = "FOREIGN_RUN"
+            question["metadata"]["scan_id"] = "FOREIGN_SCAN"
+        authority = load_c06_authority(_signed_path(tmp_path, document))
+        store.attach_standard_inputs(
+            work_item_id,
+            observation_context=document["observation_context"],
+            standard_answer=body,
+        )
+        result = seal_result_delivery(store, work_item_id, authority=authority)
+        assert result["action"] == "blocked"
+        assert result["block_code"] == "c06_run_scan_unbound"
+        before = store.get_result_delivery(work_item_id)
+        package = _complete_package(
+            store, item, checkpoint, body, document["observation_context"], authority
+        )
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\integration\test_qa_c06_02_remaining_boundaries.py:185: Failed
+---------------------------- Captured stdout call -----------------------------
+WARNING - 封存 run/scan 绑定拒绝（WORK_fdd0739310c54c2ca646079e21407e33）：冻结 run/scan 未映射到该 work 的实际执行
+WARNING - C06 封存阻断（WORK_fdd0739310c54c2ca646079e21407e33）：c06_run_scan_unbound
+------------------------------ Captured log call ------------------------------
+WARNING  src.utils.quick_scan_delivery_seal:quick_scan_delivery_seal.py:102 封存 run/scan 绑定拒绝（WORK_fdd0739310c54c2ca646079e21407e33）：冻结 run/scan 未映射到该 work 的实际执行
+WARNING  src.utils.quick_scan_delivery_seal:quick_scan_delivery_seal.py:130 C06 封存阻断（WORK_fdd0739310c54c2ca646079e21407e33）：c06_run_scan_unbound
+=========================== short test summary info ===========================
+FAILED ::test_overflow_number_is_refused_at_standard_body_entry - Failed: DID...
+FAILED ::test_wrong_security_id_is_refused_by_authority_loader - Failed: DID ...
+FAILED ::test_wrong_security_id_cli_is_refused_before_key_http_budget - Asser...
+FAILED ::test_new_complete_write_requires_durable_complete_inputs[prepare] - ...
+FAILED ::test_new_complete_write_requires_durable_complete_inputs[supersede]
+FAILED ::test_prepare_cannot_bypass_a_run_scan_block - Failed: DID NOT RAISE ...
+FAILED tests/integration/test_qa_c06_02_remaining_boundaries.py::test_overflow_number_is_refused_at_standard_body_entry
+FAILED tests/integration/test_qa_c06_02_remaining_boundaries.py::test_nested_overflow_number_is_refused_at_standard_body_entry
+FAILED tests/integration/test_qa_c06_02_remaining_boundaries.py::test_wrong_security_id_is_refused_by_authority_loader
+FAILED tests/integration/test_qa_c06_02_remaining_boundaries.py::test_wrong_security_id_cli_is_refused_before_key_http_budget
+FAILED tests/integration/test_qa_c06_02_remaining_boundaries.py::test_new_complete_write_requires_durable_complete_inputs[prepare]
+FAILED tests/integration/test_qa_c06_02_remaining_boundaries.py::test_new_complete_write_requires_durable_complete_inputs[supersede]
+FAILED tests/integration/test_qa_c06_02_remaining_boundaries.py::test_prepare_cannot_bypass_a_run_scan_block
+13 failed, 3 passed in 25.85s

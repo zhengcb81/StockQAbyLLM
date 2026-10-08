@@ -1,0 +1,353 @@
+{
+  "artifacts": [
+    {
+      "bytes": 2633,
+      "kind": "config",
+      "path": ".gitignore",
+      "sha256": "b4479b5199192a1dc059dac8b1617f9aa013d64a03203ac4538ad04965ddad38"
+    },
+    {
+      "bytes": 11576,
+      "kind": "config",
+      "path": ".secrets.baseline",
+      "sha256": "885d5f25d7a95cbbe2e772390d6eab8f1d729cfa711b3cf546ad27303501158b"
+    },
+    {
+      "bytes": 19103,
+      "kind": "document",
+      "path": "docs/handoff/QA-C06-02/case-map.md",
+      "sha256": "31b92bd68186bd29cfeba3f77dfecde8c26cbd227220d5b28b36b2d980558936"
+    },
+    {
+      "bytes": 7708,
+      "kind": "document",
+      "path": "docs/handoff/QA-C06-02/compatibility-matrix.md",
+      "sha256": "ddeba135fba22aafe3475972568aff79a948628071445c131f13dd96f774ac8d"
+    },
+    {
+      "bytes": 4549,
+      "kind": "golden",
+      "path": "docs/handoff/QA-C06-02/golden/complete_c06_package.json",
+      "sha256": "6e8bc3ec416c96ff772c1d25ef5547bb0bb57458b1c69edac14faf58cbc6406c"
+    },
+    {
+      "bytes": 3042,
+      "kind": "golden",
+      "path": "docs/handoff/QA-C06-02/golden/golden.json",
+      "sha256": "ddba0f4036f7e4bba4f1f659572870b6098d02c82959a660f4076d721be7b948"
+    },
+    {
+      "bytes": 902,
+      "kind": "golden",
+      "path": "docs/handoff/QA-C06-02/golden/standard_answer.json",
+      "sha256": "d0c742e4a70b1f0f7646d58cafa251fb7308d86f396af53135bf494543100e20"
+    },
+    {
+      "bytes": 29649,
+      "kind": "interface",
+      "path": "docs/handoff/QA-C06-02/handoff.json",
+      "sha256": "1aedb96008d377ceb6250e8c5b0d133825ad407e221b26d74a9d24f97aa6f2a6"
+    },
+    {
+      "bytes": 8664,
+      "kind": "document",
+      "path": "docs/handoff/QA-C06-02/interfaces.md",
+      "sha256": "f0e17b8185d6e189bd5d780c751ca5e8f74e6fde835338747baaa64cdba3da99"
+    },
+    {
+      "bytes": 13190,
+      "kind": "document",
+      "path": "docs/handoff/QA-C06-02/isolation.md",
+      "sha256": "b1d8dd854aebd9539bf79d205f205eb37ac9a1c73cc5544f08ff416a4fc155cd"
+    },
+    {
+      "bytes": 351,
+      "kind": "log",
+      "path": "docs/handoff/QA-C06-02/logs/baseline-affected-247-r2.log",
+      "sha256": "8175e5f061db6d52cd1384a549d2b3b443f0c31f25b1fd36f67e2d968437afac"
+    },
+    {
+      "bytes": 465782,
+      "kind": "log",
+      "path": "docs/handoff/QA-C06-02/logs/cleanup-remediation-r2-receipt.json",
+      "sha256": "84d3e74f282de1ab051c6b13b9ab03726df70ec10fd9121b9bccf52cbc2ae393"
+    },
+    {
+      "bytes": 1789,
+      "kind": "log",
+      "path": "docs/handoff/QA-C06-02/logs/cleanup-remediation-receipt.json",
+      "sha256": "17d345661e51beb4211c935159f973b3cdcb49e0527604265c0aebec95e1241a"
+    },
+    {
+      "bytes": 3015,
+      "kind": "log",
+      "path": "docs/handoff/QA-C06-02/logs/full-gate-GREEN.log",
+      "sha256": "46077e0b477f4344a9b4ccc66d393d6d32e5bc931333af6020b4bc15fc842ca0"
+    },
+    {
+      "bytes": 3098,
+      "kind": "log",
+      "path": "docs/handoff/QA-C06-02/logs/full-gate-remediation-2026-10-08.log",
+      "sha256": "71f748d778045e126c2a8c91715387e2d25c30eb232d40e614745f9d1c964b05"
+    },
+    {
+      "bytes": 351,
+      "kind": "log",
+      "path": "docs/handoff/QA-C06-02/logs/green-affected-247-r2.log",
+      "sha256": "1b8722556988c48537aa15f61f32805020e09256ec025e6096b632e6ec5523b7"
+    },
+    {
+      "bytes": 98,
+      "kind": "log",
+      "path": "docs/handoff/QA-C06-02/logs/green-boundary-remediation.log",
+      "sha256": "5c1972468a4936a384b3a32e3f8eb9987fa5c5a110d509c08a4f0f75ec23a0d8"
+    },
+    {
+      "bytes": 113,
+      "kind": "log",
+      "path": "docs/handoff/QA-C06-02/logs/green-embedded-answer.log",
+      "sha256": "d7dc174d0252d16dbef418d72e1be5625d64e21030ca85384a747c00b1118759"
+    },
+    {
+      "bytes": 261,
+      "kind": "log",
+      "path": "docs/handoff/QA-C06-02/logs/green-extended-affected-r2.log",
+      "sha256": "06bfe58a7e1c9d8c216dc316440b1d976b085999ce70a1f81c250d4608eef36d"
+    },
+    {
+      "bytes": 98,
+      "kind": "log",
+      "path": "docs/handoff/QA-C06-02/logs/green-original-nine-r2.log",
+      "sha256": "1846a041a544faa4ff8ec5f6c896cfd3e18f862933d96aeef35eb93fbb4ec42b"
+    },
+    {
+      "bytes": 99,
+      "kind": "log",
+      "path": "docs/handoff/QA-C06-02/logs/green-remaining-cases-r2.log",
+      "sha256": "785257dd07c79cc25dc5e9581a9f7f14e69ca89e27d19d3ecba812c93f6eac57"
+    },
+    {
+      "bytes": 1645,
+      "kind": "log",
+      "path": "docs/handoff/QA-C06-02/logs/green-static-only-r2.log",
+      "sha256": "6ef8f1890f73b834367023549d96dad6ffcc4b01bebb5c87b5de7735686e2eaf"
+    },
+    {
+      "bytes": 99,
+      "kind": "log",
+      "path": "docs/handoff/QA-C06-02/logs/green-subprocess-remediation.log",
+      "sha256": "272139109477cb9a836e9d217403df105882d2be641d217d677f88874ed2d061"
+    },
+    {
+      "bytes": 1120,
+      "kind": "log",
+      "path": "docs/handoff/QA-C06-02/logs/pre-commit-r2.log",
+      "sha256": "a2dd6c2f21e42175ac5f1347cf3a496e635eeeba65b3b84bb777c1f08589a80c"
+    },
+    {
+      "bytes": 1120,
+      "kind": "log",
+      "path": "docs/handoff/QA-C06-02/logs/pre-commit-remediation-2026-10-08.log",
+      "sha256": "a2dd6c2f21e42175ac5f1347cf3a496e635eeeba65b3b84bb777c1f08589a80c"
+    },
+    {
+      "bytes": 8838,
+      "kind": "log",
+      "path": "docs/handoff/QA-C06-02/logs/red-boundary-remediation.log",
+      "sha256": "a828cd10dd40ab47e57cc846f9df275a606ca3b7d952d696defb46e857a09dfa"
+    },
+    {
+      "bytes": 1370,
+      "kind": "log",
+      "path": "docs/handoff/QA-C06-02/logs/red-embedded-answer.log",
+      "sha256": "68f7faa194b31afebafa7fbd8dd8c83913e01fcf16c7e047fe9df990eb45b2af"
+    },
+    {
+      "bytes": 18963,
+      "kind": "log",
+      "path": "docs/handoff/QA-C06-02/logs/red-remaining-cases-r2.log",
+      "sha256": "ce61cfe555fb7e5ed8c95b1ced3f94e8bf06903816bfeeac5c2a28d6c978b99f"
+    },
+    {
+      "bytes": 18299,
+      "kind": "log",
+      "path": "docs/handoff/QA-C06-02/logs/red-subprocess-remediation.log",
+      "sha256": "9a3996bf969c797d885733b594c113b5b280a7cbb911a80c68e53cfdac479dd2"
+    },
+    {
+      "bytes": 47854,
+      "kind": "log",
+      "path": "docs/handoff/QA-C06-02/logs/red-unit-remediation.log",
+      "sha256": "e96b0c73c4a54e1da8572fd07197c35e17d6d41944fb383993c8f85cdded1278"
+    },
+    {
+      "bytes": 8725,
+      "kind": "document",
+      "path": "docs/handoff/QA-C06-02/planning/findings.md",
+      "sha256": "7fe3858b63c40d3a9375feeb62e76b468dfcde6c75a0b74e80f4e01a87b43246"
+    },
+    {
+      "bytes": 4815,
+      "kind": "document",
+      "path": "docs/handoff/QA-C06-02/planning/progress.md",
+      "sha256": "362d4d3af9be30394f133ed61875185d719e6add203921ce036ae253dacc8383"
+    },
+    {
+      "bytes": 8997,
+      "kind": "document",
+      "path": "docs/handoff/QA-C06-02/planning/task_plan.md",
+      "sha256": "437fe7fa1827c0e6be2f378769d86c0e3578e1d061dfa0839a71d60f8f003f30"
+    },
+    {
+      "bytes": 15516,
+      "kind": "document",
+      "path": "docs/handoff/QA-C06-02/summary.md",
+      "sha256": "99775f56440135d9e69c25335d710b5139f6d2d5e0f3bb6241fca9c4a1f57d93"
+    },
+    {
+      "bytes": 3695,
+      "kind": "config",
+      "path": "pyproject.toml",
+      "sha256": "2b1cb8a93f10fd99778f7b675c1225cdf1c9eb60c2c66474b419acf3c4c40f0f"
+    },
+    {
+      "bytes": 14152,
+      "kind": "interface",
+      "path": "src/config/quick_scan_answer_content.schema.json",
+      "sha256": "a83236c2aba50115038cd2d404d5810bd50791c2b3f089f252b77b6a6d322547"
+    },
+    {
+      "bytes": 3714,
+      "kind": "interface",
+      "path": "src/config/quick_scan_c06_authority.v2.schema.json",
+      "sha256": "78533868c0f68314dc42347f930642644466b96055c89c7d0fb04dd433765c50"
+    },
+    {
+      "bytes": 3521,
+      "kind": "interface",
+      "path": "src/config/quick_scan_metric_registry.json",
+      "sha256": "790d0a8295771c372d8266ab1f0883c93b2bb22f4f81ab482dd8d95054bf0e75"
+    },
+    {
+      "bytes": 7076,
+      "kind": "interface",
+      "path": "src/config/quick_scan_observation.schema.json",
+      "sha256": "6344d2afc9e0d937e05baba8aef27ad15c91770ab7ecb2ddbd549e5ab4fb70ec"
+    },
+    {
+      "bytes": 15629,
+      "kind": "source",
+      "path": "src/providers/base_llm_provider.py",
+      "sha256": "381eeb5d0bd5bece16cf4c14602cdad21438f118ef67b156635205412f4914d7"
+    },
+    {
+      "bytes": 83645,
+      "kind": "source",
+      "path": "src/runners/llm_runner.py",
+      "sha256": "ea772846a7f4805cea08e8a4336e60a0b84dd8c4c118e6d2b02e6fc324cb7a58"
+    },
+    {
+      "bytes": 11925,
+      "kind": "source",
+      "path": "src/utils/quick_scan_c06_adapter.py",
+      "sha256": "a1c9bdb005fb41626f8d23d5f22a1a6cf164517e87131121ba5ad8bb44fd21b2"
+    },
+    {
+      "bytes": 11423,
+      "kind": "source",
+      "path": "src/utils/quick_scan_c06_authority.py",
+      "sha256": "4de11ac09aeb7cd7bf2251549fa26fbbfeb5154816021c3b3fa1b12274a350ca"
+    },
+    {
+      "bytes": 12569,
+      "kind": "source",
+      "path": "src/utils/quick_scan_delivery_seal.py",
+      "sha256": "c0a860bc47c91da6218cfc900aa715c61b8024bbd48cfe315d5aaac26cae3dc2"
+    },
+    {
+      "bytes": 22528,
+      "kind": "source",
+      "path": "src/utils/quick_scan_observation_context.py",
+      "sha256": "586deae394e0f0faedf3e639258497d6aa7fbde0c963db06d73728a4819ad910"
+    },
+    {
+      "bytes": 16345,
+      "kind": "source",
+      "path": "src/utils/quick_scan_result_outbox.py",
+      "sha256": "27206e0822f1cc40a7dc561b6fb645eeb437d2f4314810566c3c23203ceed6bc"
+    },
+    {
+      "bytes": 174793,
+      "kind": "source",
+      "path": "src/utils/quick_scan_work_store.py",
+      "sha256": "16b9556974ede4cfa98d02ee83a23cd0d92a21b63c50f34f72638814494c3898"
+    },
+    {
+      "bytes": 54446,
+      "kind": "test",
+      "path": "tests/fixtures/quick_scan_c06_authority_v2_fixture.json",
+      "sha256": "e5bc782afd245374fff3bc224f04cb9dbcc0fb22b76d62faf2a16917db1ded43"
+    },
+    {
+      "bytes": 449049,
+      "kind": "test",
+      "path": "tests/fixtures/quick_scan_c06_manifest_v2_fixture.json",
+      "sha256": "a7e80a5bcaf2cb2499fa24f091b129d7e1a2ebbf6e91a5666359c5e91c90270c"
+    },
+    {
+      "bytes": 17529,
+      "kind": "test",
+      "path": "tests/integration/test_qa_c06_02_e2e.py",
+      "sha256": "f2eec3ecaecc7d11dca32af75716996728b8110a6c8809376df290420510ced7"
+    },
+    {
+      "bytes": 7094,
+      "kind": "test",
+      "path": "tests/integration/test_qa_c06_02_remaining_boundaries.py",
+      "sha256": "678772a90c9e1dcc17ce9ecd16cf843a82853daeef32cb03e7289e7563c30e2b"
+    },
+    {
+      "bytes": 17140,
+      "kind": "test",
+      "path": "tests/integration/test_qa_c06_02_subprocess_cli.py",
+      "sha256": "a6c186be2ad273622b12043f111d41df25eba1ef900c86219fb8da1dbe9596a0"
+    },
+    {
+      "bytes": 22193,
+      "kind": "test",
+      "path": "tests/unit/test_quick_scan_budget.py",
+      "sha256": "fb49e302161e2e73eac4a2d57a302e6119b4faecc6c283ab5ba730131ccb887d"
+    },
+    {
+      "bytes": 6748,
+      "kind": "test",
+      "path": "tests/unit/test_quick_scan_c06_authority_binding.py",
+      "sha256": "aa4f4aa6bd1fe4c573231b6c3e16e223556390c4ee036d582252ca1592d9deb0"
+    },
+    {
+      "bytes": 23239,
+      "kind": "test",
+      "path": "tests/unit/test_quick_scan_c06_complete_seal.py",
+      "sha256": "75842f0a010b7ecbab123b2146b5dd8e77309fc6bf5d30045be960981564c00e"
+    },
+    {
+      "bytes": 19269,
+      "kind": "test",
+      "path": "tests/unit/test_quick_scan_observation_context.py",
+      "sha256": "adf5a53ddd5bcd47da4fb6b1f15d2911c8491c5c9b0996a8778647bb253f3cb2"
+    },
+    {
+      "bytes": 63431,
+      "kind": "test",
+      "path": "tests/unit/test_quick_scan_work_store.py",
+      "sha256": "11a9d90f7884e1748a482af7ffc799a19a83130ead3bef5a415e6c7533ca80e8"
+    }
+  ],
+  "format_version": "1.0.0",
+  "generated_at_utc": "2026-10-08T20:52:52.610222+00:00",
+  "hash_algorithm": "sha256 over exact working-tree file bytes (Windows CRLF kept for the five inputs/qa-phase92-overlay files; git blob stores the LF normalisation, see isolation.md)",
+  "note": "artifacts.json does not hash itself. Every entry is relative to the repository root.",
+  "package_id": "QA-C06-02",
+  "repository": "C:/Users/郑曾波/Projects/StockQAbyLLM",
+  "result_commit": "b6eaa082e6e1df1306fa144bd623aa6de68213a1"
+}

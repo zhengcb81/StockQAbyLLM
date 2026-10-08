@@ -1,0 +1,1065 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A stock question-answering system powered by Large Language Models">
+      
+      
+        <meta name="author" content="Zheng Zengbo">
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>QA-C06-02 兼容矩阵 - StockQAbyLLM Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#qa-c06-02" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="StockQAbyLLM Documentation" class="md-header__button md-logo" aria-label="StockQAbyLLM Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            StockQAbyLLM Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              QA-C06-02 兼容矩阵
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/yourusername/StockQAbyLLM" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    StockQAbyLLM
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../QUICKSTART/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Quick Start
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../api/core/" class="md-tabs__link">
+          
+  
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="StockQAbyLLM Documentation" class="md-nav__button md-logo" aria-label="StockQAbyLLM Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    StockQAbyLLM Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/yourusername/StockQAbyLLM" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    StockQAbyLLM
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../QUICKSTART/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/core/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Config
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/utils/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Utils
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/interfaces/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interfaces
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/providers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Providers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-authority" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Authority 文档
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-work-store-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Work store schema
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. 打包产物
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. 交付状态机与修订链
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-stockwiki" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. 读取方（StockWiki 方向）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. 依赖
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. 回退
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-22026-10-08" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. 整改批次 2（2026-10-08）对兼容性的影响
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-remaining-repair" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. 第二轮剩余整改（remaining-repair）对兼容性的影响
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="qa-c06-02">QA-C06-02 兼容矩阵<a class="headerlink" href="#qa-c06-02" title="Permanent link">&para;</a></h1>
+<h2 id="1-authority">1. Authority 文档<a class="headerlink" href="#1-authority" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th><code>schema_version</code></th>
+<th>读取</th>
+<th>封包行为</th>
+<th>越界字段</th>
+<th>未知版本</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1.0.0</code>（<code>quick_scan_c06_authority.schema.json</code>，<code>const</code> 未改）</td>
+<td>原 loader 原样通过</td>
+<td>原紧凑 C06 包（<code>build_c06_package</code>）</td>
+<td>顶层字段集不等即拒</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>2.0.0</code>（新增 <code>quick_scan_c06_authority.v2.schema.json</code>）</td>
+<td>严格字段集 + <code>validate_context_document</code> + 可选 manifest/identity 交叉核验</td>
+<td>完整 Observation（<code>build_complete_c06_package</code>）</td>
+<td>顶层/context/逐题/metadata 四处注入均拒（重签 digest 也拒）</td>
+<td>—</td>
+</tr>
+<tr>
+<td>其它任何值</td>
+<td><code>AuthorityUnavailable("unsupported c06 authority schema_version: …")</code></td>
+<td>不适用</td>
+<td>不适用</td>
+<td><strong>fail-closed，绝不降级成 v1</strong></td>
+</tr>
+</tbody>
+</table>
+<h2 id="2-work-store-schema">2. Work store schema<a class="headerlink" href="#2-work-store-schema" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>打开时 <code>user_version</code></th>
+<th>行为</th>
+<th>数据影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0（新库）</td>
+<td>建 v1…v6 全部对象</td>
+<td>无历史</td>
+</tr>
+<tr>
+<td>1 / 2 / 3 / 4 / 5</td>
+<td>逐级 <code>_apply_v4/_v5/_v6_migration</code>，单事务 COMMIT/ROLLBACK</td>
+<td>旧 checkpoint / 旧 sealed 包 / 旧 ACK / 费用账本 <strong>payload 与 hash 不变</strong>；已封存包被写入 <code>quick_scan_delivery_revision</code> 作为 revision 1（只增行，不改旧行）</td>
+</tr>
+<tr>
+<td>6</td>
+<td>直接 <code>_validate_schema(6)</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>其它</td>
+<td><code>ValueError("unsupported quick-scan work database schema version")</code></td>
+<td>不写</td>
+</tr>
+</tbody>
+</table>
+<p>迁移失败（如 v1 含 result_ready 但无 checkpoint）→ 整体 ROLLBACK，<code>user_version</code> 保持原值、
+无新表（<code>test_v1_migration_rejects_completed_work_without_checkpoint</code> 断言）。</p>
+<h2 id="3">3. 打包产物<a class="headerlink" href="#3" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>产物</th>
+<th>旧（v1 紧凑）</th>
+<th>新（v2 完整）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ExchangePackage envelope</td>
+<td>1.0.0</td>
+<td>1.0.0（<strong>未改</strong>）</td>
+</tr>
+<tr>
+<td><code>observation.schema_version</code></td>
+<td>不带（紧凑观察仅 entity/question/scope/answer-lite/execution）</td>
+<td>元数据来自 <code>metadata</code>，1.1.0 完整字段</td>
+</tr>
+<tr>
+<td><code>observation.information_cutoff</code></td>
+<td>无</td>
+<td>有（来自冻结 metadata，<strong>不借封包时钟</strong>）</td>
+</tr>
+<tr>
+<td><code>observation.answer</code></td>
+<td><code>{question_id,response_kind,score,summary,status,evidence:[{url}]}</code></td>
+<td>完整 answer-content 1.0.0（evidence 带 id/title/url/published_at/claim，metrics、coverage 等全字段）</td>
+</tr>
+<tr>
+<td><code>execution.started_at</code></td>
+<td>无</td>
+<td><code>attempt.send_intent_at</code>（原派发时刻的 UTC ISO）</td>
+</tr>
+<tr>
+<td><code>observation_id</code></td>
+<td><code>obs_sha(entity,question,scope)</code></td>
+<td><code>obs_sha(完整观察内容)</code> —— 与 IQS canonical digest 同一算法</td>
+</tr>
+<tr>
+<td><code>payload_sha256</code> / <code>item_id</code> / <code>package_id</code> / <code>delivery_key</code></td>
+<td>不变算法</td>
+<td>不变算法（<code>itm_</code>/<code>pkg_</code>/<code>canonical_sha256</code>/<code>sha256(pkg\nitm\tpayload)</code>）</td>
+</tr>
+</tbody>
+</table>
+<p><code>validate_checkpoint_binding</code> 对两种观察都成立：<code>answer.summary == checkpoint.answer.description</code>、
+evidence URL ⊆ provenance.source_urls、execution 九项与 provenance 一一对应。</p>
+<h2 id="4">4. 交付状态机与修订链<a class="headerlink" href="#4" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>允许的后续</th>
+<th>本包改动</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>blocked</code>（无包）</td>
+<td><code>blocked</code> / <code>ready</code></td>
+<td>新增可持久化阻断码；补齐后可 <code>ready</code></td>
+</tr>
+<tr>
+<td><code>ready</code>（包=revision N）</td>
+<td><code>send_uncertain</code> / <code>delivered</code> / <code>rejected</code> / <code>conflict</code>；<strong>v2 另允许 supersede → 新包=revision N+1</strong></td>
+<td>新增</td>
+</tr>
+<tr>
+<td><code>send_uncertain</code></td>
+<td><code>ready</code>（<code>confirm_result_delivery_not_sent</code>，四类“未发出”原因）/ <code>delivered</code> / <code>rejected</code> / <code>conflict</code></td>
+<td>未改；<strong>禁止 supersede，先对账</strong></td>
+</tr>
+<tr>
+<td><code>delivered</code> / <code>rejected</code> / <code>conflict</code></td>
+<td>终态，ACK 不可改</td>
+<td>未改；<strong>禁止 supersede、禁止重投</strong></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>head 定义 = <code>MAX(revision)</code>，且必须与 <code>quick_scan_result_delivery.package_sha256</code> 一致
+  （<code>_validate_v6_side_tables</code> 每次打开校验）。</li>
+<li>包不可变触发器 v5→v6：语义“任何改写都 ABORT”，仅当新包恰等于 <strong>当前 MAX 修订</strong> 的完整八列时放行；
+  部分列改写（如只改 <code>package_json</code>）仍 ABORT。</li>
+<li>旧 head 的 ACK：<code>validate_import_ack</code> 按 head 行逐字段比对，<code>package_id</code> 不匹配即 <code>ValueError</code>
+  → <strong>旧 head ACK 落不到新 head</strong>；终态重复 ACK 幂等返回同一条记录。</li>
+</ul>
+<h2 id="5-stockwiki">5. 读取方（StockWiki 方向）<a class="headerlink" href="#5-stockwiki" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>兼容性</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>旧 v1 紧凑包</td>
+<td>字节/<code>package_id</code>/<code>delivery_key</code> 不变，可继续导入</td>
+</tr>
+<tr>
+<td>新 v2 完整包</td>
+<td>envelope 同 1.0.0，observation 满足既有 Observation 1.1.0；接收方需具备完整观察能力</td>
+</tr>
+<tr>
+<td>旧 ACK</td>
+<td>保留只读；新 head 不接受旧 ACK</td>
+</tr>
+<tr>
+<td>公共 schema（Exchange/Observation/Answer）</td>
+<td><strong>零改动</strong>（<code>schemas/</code> 未触碰）</td>
+</tr>
+<tr>
+<td>IQS 公共 C06 题义 / 问卷发布锁</td>
+<td><strong>零改动</strong></td>
+</tr>
+</tbody>
+</table>
+<h2 id="6">6. 依赖<a class="headerlink" href="#6" title="Permanent link">&para;</a></h2>
+<p><code>pyproject.toml</code> 仅新增 <code>jsonschema[format-nongpl]&gt;=4.23.0</code>（九件 overlay 原有声明）与
+mypy 对 <code>jsonschema</code>/<code>referencing</code> 的 <code>ignore_missing_imports</code> 覆写。未安装、未升级任何全局包，
+未新增其它依赖，未改动锁定文件 <code>requirements-lock.txt</code>。</p>
+<h2 id="7">7. 回退<a class="headerlink" href="#7" title="Permanent link">&para;</a></h2>
+<p><strong>唯一回退方式：禁用新 v2 写能力，保留侧表与历史。</strong></p>
+<ol>
+<li>把 <code>--c06-authority</code> 指回 1.0.0 文档（或移除 2.0.0 文档，改用约定文件名下的 1.0.0 内容）；</li>
+<li>新运行即回到 v1 紧凑路径；已有 <code>quick_scan_*</code> 侧表与 <code>quick_scan_delivery_revision</code> 保持可读；</li>
+<li><strong>禁止</strong> <code>PRAGMA user_version=&lt;5</code> 降库、<strong>禁止</strong>删除侧表/修订链/旧包/旧 ACK。
+   降库会让 <code>_validate_schema</code> 与新触发器不匹配，且会破坏“历史 hash 不改”的承诺。</li>
+</ol>
+<h2 id="8-22026-10-08">8. 整改批次 2（2026-10-08）对兼容性的影响<a class="headerlink" href="#8-22026-10-08" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ExchangePackage 1.0.0 / Observation 1.1.0 / Answer 1.0.0 / authority 1.0 &amp; 2.0 schema</td>
+<td><strong>零改动</strong>（未改任何公共 schema 与 <code>const</code>）</td>
+</tr>
+<tr>
+<td>正常 authority/正文输入</td>
+<td>行为不变：合法 v1/v2 文档、合法标准正文、散文描述全部照旧通过（门 1083 全绿含原全部用例）</td>
+</tr>
+<tr>
+<td>仅拒绝面收窄</td>
+<td>逐题 metadata 与 manifest 不一致、重复键/非有限 JSON、foreign run/scan、伪造完整观察——四类歧义输入从“被接受”变为“前置拒绝/持久阻断”，无任何原本合法的输入被误伤</td>
+</tr>
+<tr>
+<td>新增阻断码</td>
+<td><code>c06_run_scan_unbound</code>（只增枚举值；接收方按既有“阻断码为不透明 token”处理，无 schema 变更）</td>
+</tr>
+<tr>
+<td><code>work_run_ref</code></td>
+<td>带 context 的 checkpoint 会<strong>多写</strong> owner run/scan 映射行（<code>INSERT OR IGNORE</code>，只增行不改行；已有行与派发 run 行不变）</td>
+</tr>
+<tr>
+<td>prepare/supersede</td>
+<td>有侧表的完整包多一次“重建比对”；无侧表旧库与 compact 包路径逐字节保持旧行为</td>
+</tr>
+<tr>
+<td>严格 JSON</td>
+<td>只影响含重复键/NaN/Infinity 的文档；RFC 合法输入不受影响</td>
+</tr>
+<tr>
+<td>回退</td>
+<td>仍只需禁用 v2 写能力（回指 authority 1.0.0）；新增映射行与阻断码对 v1 读写无影响；<strong>禁止</strong>降库/删数据</td>
+</tr>
+</tbody>
+</table>
+<h2 id="9-remaining-repair">9. 第二轮剩余整改（remaining-repair）对兼容性的影响<a class="headerlink" href="#9-remaining-repair" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ExchangePackage 1.0.0 / Observation 1.1.0 / Answer 1.0.0 / authority schema / work store schema</td>
+<td><strong>零改动</strong>（仅校验逻辑，无 schema/DDL/字段集变更；不新增阻断码——store 写入路径以 <code>WorkConflictError</code> 拒绝，seal 仍用既有 <code>c06_run_scan_unbound</code>）</td>
+</tr>
+<tr>
+<td>正常输入</td>
+<td>行为不变：合法 v1/v2 authority（含全部 security 题）、合法正文含有限浮点、正常封存/warm/seal/ACK——247 受影响修复前后均 247 passed</td>
+</tr>
+<tr>
+<td>收窄的拒绝面</td>
+<td>仅四个缺口变为早拒：错挂牌 ID（入口）、外来 run/scan 的完整 write（prepare/supersede）、溢出数值字面量（strict decoder）、缺侧表的完整 write（直接拒绝）</td>
+</tr>
+<tr>
+<td>work_store ACK/派发 fixture</td>
+<td>观察形状对齐历史 compact 八字段（测试资产调整，非产品行为变化）；其断言的 ACK/幂等/终态/不可变语义全部保持并仍绿</td>
+</tr>
+<tr>
+<td>回退</td>
+<td>与第一轮相同：禁用 v2 写能力即可；不降库、不删数据</td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.suggest", "search.highlight", "content.code.copy"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "git"}}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

@@ -1,0 +1,52 @@
+{
+ "package_id": "QA-C06-02",
+ "batch": "remediation-2026-10-08",
+ "generated_at_utc": "2026-10-08T19:12:48+00:00",
+ "cim_check": {
+  "query": "python* processes whose CommandLine contains qa-c0602r-58cdae / qa-c0602g-19576b",
+  "matched_processes": 0,
+  "detail": []
+ },
+ "roots": [
+  {
+   "path": "C:\\Users\\郑曾波\\AppData\\Local\\Temp\\qa-c0602r-58cdae",
+   "file_count": 1033,
+   "total_bytes": 99301602,
+   "manifest_sha256": "0f38c6154ee70a7488e84850ebe360c55afc0d158a3c73b9c9f1f790b5a80924",
+   "cleaned": true,
+   "exists_after": false
+  },
+  {
+   "path": "C:\\Users\\郑曾波\\AppData\\Local\\Temp\\qa-c0602g-19576b",
+   "file_count": 349,
+   "total_bytes": 7990209,
+   "manifest_sha256": "789a456bedd7366b2a2453817839bf14c0633b63e3400fdaf50d1faf21e289eb",
+   "cleaned": true,
+   "exists_after": false
+  },
+  {
+   "path": "C:\\Users\\郑曾波\\AppData\\Local\\Temp\\pytest-of-郑曾波\\pytest-149",
+   "file_count": 971,
+   "total_bytes": 52205111,
+   "manifest_sha256": "1467da662cc38fcca3edfc83a1cd6b3b1aee9762097eef6d6b792867b439cba4",
+   "cleaned": true,
+   "exists_after": false
+  }
+ ],
+ "residuals_not_owned": [
+  {
+   "path": "C:\\Users\\郑曾波\\AppData\\Local\\Temp\\pytest-of-郑曾波\\pytest-147",
+   "reason": "shared pytest numbering only; ownership not provable from this batch - listed, never deleted by number/mtime/glob"
+  },
+  {
+   "path": "C:\\Users\\郑曾波\\AppData\\Local\\Temp\\pytest-of-郑曾波\\pytest-148",
+   "reason": "shared pytest numbering only; ownership not provable from this batch - listed, never deleted by number/mtime/glob"
+  }
+ ],
+ "scratch_removed": [
+  {
+   "path": "C:\\Users\\郑曾波\\AppData\\Local\\Temp\\qa-c0602r-58cdae.path",
+   "sha256": "9bd7516831315191b525569dbe0aa13e25966e332f576874ee902d7e610e7b8a"
+  }
+ ]
+}

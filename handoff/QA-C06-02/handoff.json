@@ -1,0 +1,474 @@
+{
+  "interfaces": [
+    {
+      "content_hash": "a7e80a5bcaf2cb2499fa24f091b129d7e1a2ebbf6e91a5666359c5e91c90270c",
+      "direction": "consumed",
+      "name": "iqs_frozen_question_manifest",
+      "result": "compatible",
+      "version": "3.1 (file sha a7e80a5b…)"
+    },
+    {
+      "content_hash": "78533868c0f68314dc42347f930642644466b96055c89c7d0fb04dd433765c50",
+      "direction": "consumed",
+      "name": "iqs_authority",
+      "result": "changed",
+      "version": "2.0.0 (new) / 1.0.0 (kept)"
+    },
+    {
+      "content_hash": "6344d2afc9e0d937e05baba8aef27ad15c91770ab7ecb2ddbd549e5ab4fb70ec",
+      "direction": "consumed",
+      "name": "iqs_observation_schema",
+      "result": "compatible",
+      "version": "1.1.0"
+    },
+    {
+      "content_hash": "a83236c2aba50115038cd2d404d5810bd50791c2b3f089f252b77b6a6d322547",
+      "direction": "consumed",
+      "name": "iqs_answer_content_schema",
+      "result": "compatible",
+      "version": "1.0.0"
+    },
+    {
+      "content_hash": "790d0a8295771c372d8266ab1f0883c93b2bb22f4f81ab482dd8d95054bf0e75",
+      "direction": "consumed",
+      "name": "iqs_metric_registry",
+      "result": "compatible",
+      "version": "1.0.0"
+    },
+    {
+      "content_hash": "6e8bc3ec416c96ff772c1d25ef5547bb0bb57458b1c69edac14faf58cbc6406c",
+      "direction": "produced",
+      "name": "quick_scan_exchange_package",
+      "result": "compatible",
+      "version": "1.0.0"
+    },
+    {
+      "content_hash": "6e8bc3ec416c96ff772c1d25ef5547bb0bb57458b1c69edac14faf58cbc6406c",
+      "direction": "produced",
+      "name": "quick_scan_observation",
+      "result": "changed",
+      "version": "1.1.0 complete observation"
+    },
+    {
+      "content_hash": "b1664f04a34c6f775af5aa492c001d8b00ae5f61dc0aaa7da6538133446981bb",
+      "direction": "produced",
+      "name": "quick_scan_work_store_schema",
+      "result": "changed",
+      "version": "6 (was 5)"
+    },
+    {
+      "content_hash": "ddba0f4036f7e4bba4f1f659572870b6098d02c82959a660f4076d721be7b948",
+      "direction": "both",
+      "name": "quick_scan_import_ack",
+      "result": "compatible",
+      "version": "1.0.0"
+    }
+  ],
+  "lane_id": "stockqa",
+  "next_action": "Coordinator verifies docs/handoff/QA-C06-02/artifacts.json against code commit b6eaa08, re-runs only the affected scope plus the original-byte remaining_cases (7 cases) once, and then decides whether to start the existing joint 12-group execution; QA<->StockWiki import/ACK/UI, dual-owner recovery, owner golden, G3/F05/TH/IN/L03 remain outside this package.",
+  "open_items": [
+    "not_run: real StockQA -> StockWiki observation-import -> ACK -> query/UI joint acceptance (coordinator owns StockWiki).",
+    "not_run: G3 and F05 gates; this package does not close them.",
+    "not_run: real owner identity golden — every fixture here is synthetic (golden_class=synthetic_only) and must not be promoted to an owner golden.",
+    "not_run: online live E2E (STOCKQA_RUN_LIVE_E2E=0; no online authorization requested).",
+    "--seal-deliveries does not accept --question-manifest/--identity-snapshot: restart sealing relies on the durable context side table written during the run.",
+    "Under authority 2.0.0 an answer status outside {scored, insufficient_evidence, not_applicable} has no complete standard body and stays durably blocked (answer schema has no 'unknown').",
+    "Harness-reported HEAD f937b2d is not present in this repository; this delivery is commit 7e71b2cd8bbb042a72b282e83cb361a1ddcbb8b7 on top of 09f68a69bbdbf76e3a4fff63043cdd4815572e5b.",
+    "Coordinator re-verification of batch 2 (the four counter-case groups, the real-subprocess CLI E2E and this handoff) is pending; the worker's own review is not the signing step.",
+    "Work stores that stored a frozen context BEFORE this remediation have no run/scan mapping row yet: sealing them under authority 2.0.0 blocks with c06_run_scan_unbound until one idempotent save_answer_checkpoint re-invocation records the mapping; no production database was read or written by this batch.",
+    "Round-2 coordinator verification (original-byte remaining_cases, the affected 247 and this updated handoff) is pending; the worker's own review is not the signing step, and the fixed full-suite log from round 1 remains the received 1083 record.",
+    "The QR1B segment_id branch has no dynamic fixture case (no segment-scope question in the frozen fixture); flagged rather than silently untested."
+  ],
+  "package_id": "QA-C06-02",
+  "review": {
+    "findings": [
+      "Worker's own consolidated batch review at delivery: full-diff re-read of all 11 changed source/test files plus one offline `checks.py --full` run (1037 passed) and one `pre-commit run --files` run over the exact delivery path list; no second independent reviewer re-ran the gate.",
+      "Overlay input bytes were restored to the inputs/qa-phase92-overlay originals after the mixed-line-ending hook rewrote them (documented in isolation.md); working-tree SHA256 re-verified against inputs.lock.",
+      ".secrets.baseline gained exactly two entries (the golden JSON files) on user approval; the four pre-existing pilot_runs entries were preserved.",
+      "Whole package is local only: real StockWiki import/ACK/UI joint acceptance, G3 and F05 remain with the coordinator (case-map: not_run).",
+      "Batch-2 consolidated worker review (self-review, disclosed): full re-read of the 552-line src diff for the five changed source files plus every handoff document, one full offline gate run (1083 passed) and one pre-commit run over the exact delivery path list on code commit acb7dbf; no second independent reviewer re-ran the gate - coordinator re-verification is the signing step.",
+      "RED->GREEN evidence mapping: original-byte concentrated cases 7 failed/2 passed -> 9 passed; new unit cases 31 failed/63 passed -> green in the gate; subprocess cases 4 failed -> 4 passed. Original coordinator RED evidence stays untouched in the IQS intake; raw logs in logs/ were normalized only by the repository's standard whitespace/EOL hooks (no content lines added or removed).",
+      "scope.changed_paths is the real base->result list: git diff --name-only 09f68a6..acb7dbf plus the one path first added by this handoff commit (logs/cleanup-remediation-receipt.json); explanations live here and in authorization_scope_ref, never inside authorized_paths.",
+      "snapshot.worktree_after counts the seven original untracked entries at the result commit (default porcelain); its manifest_sha256 = SHA256 of that exact porcelain output text (method disclosed here; worktree_before keeps batch-1's original values verbatim).",
+      "Frozen inputs untouched: none of the five CRLF IQS inputs or any fixture/schema changed (working-tree SHAs equal the input-lock SHAs; the dual working-tree/blob SHA table and the reproducible 'git -c core.autocrlf=true checkout -- <path>' restore command are in isolation.md).",
+      "Test-fixture honesty: _checkpointed(with_context=False) now pairs context and body (no side tables without a context) so the foreign run/scan case reaches the real seal check; no run/scan fixture label was altered - git status shows both fixtures unmodified.",
+      "Cleanup receipt logs/cleanup-remediation-receipt.json: per-file SHA manifests for the two exclusive copies and the provably-owned pytest-149, CIM python* process matches = 0, directories verified gone; unprovable shared-TEMP residuals pytest-147/148 are listed with reasons and were not deleted.",
+      "Gate arithmetic: 1083 passed = 1037 batch-1 baseline + 46 new collected cases; the single async case the coordinator could not confirm under its guard (test_quick_scan_budget.py::test_async_search_settles_the_same_durable_budget_ledger) is GREEN inside this batch's full gate.",
+      "Round-2 consolidated worker review (self-review, disclosed): full re-read of the 253-line source/test diff plus every updated handoff document; verification = targeted batches only (remaining 16, original nine 9, affected 247 twice, extended consumers 190, static-only, pre-commit) — the full 1083 pytest gate was NOT re-run because the card explicitly says the coordinator already received those logs and must not re-run the full suite/UI/live without cause.",
+      "RED->GREEN mapping for the fixed cases: coordinator remaining_cases (6 counter) + repo mirrors ran 13 failed/3 passed on baseline code -> 16 passed after the fix; original byte-fixed nine stayed 9 passed; the coordinator's exact 247-file selection passed both before (247) and after (247) so the count stays comparable.",
+      "Test-asset disclosure: the four fixes live only in quick_scan_observation_context (listing-ID entry binding), quick_scan_result_outbox (finite-float strict decoder), quick_scan_work_store + quick_scan_delivery_seal (shared run/scan gate and the durable-input refusal). tests/unit/test_quick_scan_work_store.py's shared _c06_package_for_checkpoint builder was aligned to the historical compact eight-field observation — an ACK/dispatch fixture adjustment, not a product behaviour change; its ACK/idempotence/terminal/immutability/evidence assertions are untouched and green. No frozen fixture label or IQS input changed; all five frozen CRLF working-tree SHAs re-verified unchanged at round-2 close.",
+      "Mirror placement disclosure: round-2 mirrors live in the NEW file tests/integration/test_qa_c06_02_remaining_boundaries.py so the coordinator's fixed 6-unit+3-integration selection keeps counting exactly 247.",
+      "Cleanup: both round-2 exclusive roots deleted with a receipt that now INCLUDES the per-file [relpath,bytes,sha256] manifests, manifest SHA, CIM python* matches = 0 and exists_after=false (logs/cleanup-remediation-r2-receipt.json). The round-1 receipt persisted only counts/aggregate hash, so its per-file lists are declared not_reconstructable inside that receipt — never backfilled. Round-2 runs added zero shared-TEMP residue; the round-1-listed pytest-147/148 were later recycled by pytest's own generation retention during non-batch activity, not deleted by number or mtime by this package.",
+      "Controller/process notes kept out of product RED: pre-creating the --basetemp directory makes pytest's cleanup hit Windows extended-length (\\\\?\\) paths that the guard's is_relative_to rejects (8 setup errors — fixed by letting pytest create the dir); the affected selection also requires -p no:base_url (or PYTEST_DISABLE_PLUGIN_AUTOLOAD=1) or pytest-base-url raises 4 ScopeMismatch setup errors. Both are documented in isolation.md6a with their GREEN reruns.",
+      "Segment branch disclosure: the QR1B segment_id-vs-profile rule is implemented (mirrors the security rule) but the frozen fixture contains no segment-scope question, so only the security and entity branches have dynamic coverage (IQS_22 security_id positive inside the 247, SEC_FOREIGN negative in the fixed cases and mirrors)."
+    ],
+    "snapshot_commit": "b6eaa082e6e1df1306fa144bd623aa6de68213a1",
+    "status": "approved"
+  },
+  "schema_version": "1.0.0",
+  "scope": {
+    "authorization_scope_ref": "user dispatch message 2026-10-08 'do the task <C:/Users/郑曾波/Projects/invest-quick-scan/docs/implementation/parallel-lanes/packages/2026-10-07-wave2/QA-C06-02.md>'; card defines the allowed paths and this directory is the sole writer root; .secrets.baseline additionally approved by the user in-session for the golden false-positive registration (kept verifiable by opaque hash only, never re-read, re-copied or extended); remediation batch 2 under the 2026-10-08 review card <C:/Users/郑曾波/Projects/invest-quick-scan/docs/implementation/reviews/QA-C06-02/remediation-2026-10-08.md> reuses the same card authorization: the tests/ entries cover this package's existing quick-scan unit/integration tests plus the two batch-2 test files reported in planning/task_plan.md, and docs/handoff/QA-C06-02/ covers all handoff evidence; second-round remaining-repair card <C:/Users/郑曾波/Projects/invest-quick-scan/docs/implementation/reviews/QA-C06-02/remediation-2026-10-08/remaining-repair.md> reuses the same authorization for the same paths: four same-chain boundary fixes in quick_scan_observation_context / quick_scan_result_outbox / quick_scan_work_store / quick_scan_delivery_seal plus their tests and this handoff; remaining_cases.py and the round-2 harness scripts were read-only inputs copied into exclusive temp roots, never written back",
+    "authorized_paths": [
+      ".gitignore",
+      ".secrets.baseline",
+      "docs/handoff/QA-C06-02/",
+      "main_with_llm.py",
+      "pyproject.toml",
+      "src/config/quick_scan_answer_content.schema.json",
+      "src/config/quick_scan_c06_authority.v2.schema.json",
+      "src/config/quick_scan_metric_registry.json",
+      "src/config/quick_scan_observation.schema.json",
+      "src/providers/base_llm_provider.py",
+      "src/runners/llm_runner.py",
+      "src/utils/quick_scan_c06_adapter.py",
+      "src/utils/quick_scan_c06_authority.py",
+      "src/utils/quick_scan_delivery_seal.py",
+      "src/utils/quick_scan_observation_context.py",
+      "src/utils/quick_scan_question_manifest.py",
+      "src/utils/quick_scan_result_outbox.py",
+      "src/utils/quick_scan_work_store.py",
+      "tests/fixtures/quick_scan_c06_authority_v2_fixture.json",
+      "tests/fixtures/quick_scan_c06_manifest_v2_fixture.json",
+      "tests/integration/",
+      "tests/integration/test_qa_c06_02_e2e.py",
+      "tests/integration/test_qa_c06_02_subprocess_cli.py",
+      "tests/unit/",
+      "tests/unit/test_quick_scan_c06_authority_binding.py",
+      "tests/unit/test_quick_scan_c06_complete_seal.py",
+      "tests/unit/test_quick_scan_observation_context.py"
+    ],
+    "changed_paths": [
+      ".gitignore",
+      ".secrets.baseline",
+      "docs/handoff/QA-C06-02/artifacts.json",
+      "docs/handoff/QA-C06-02/case-map.md",
+      "docs/handoff/QA-C06-02/compatibility-matrix.md",
+      "docs/handoff/QA-C06-02/golden/complete_c06_package.json",
+      "docs/handoff/QA-C06-02/golden/golden.json",
+      "docs/handoff/QA-C06-02/golden/standard_answer.json",
+      "docs/handoff/QA-C06-02/handoff.json",
+      "docs/handoff/QA-C06-02/interfaces.md",
+      "docs/handoff/QA-C06-02/isolation.md",
+      "docs/handoff/QA-C06-02/logs/baseline-affected-247-r2.log",
+      "docs/handoff/QA-C06-02/logs/cleanup-remediation-r2-receipt.json",
+      "docs/handoff/QA-C06-02/logs/cleanup-remediation-receipt.json",
+      "docs/handoff/QA-C06-02/logs/full-gate-GREEN.log",
+      "docs/handoff/QA-C06-02/logs/full-gate-remediation-2026-10-08.log",
+      "docs/handoff/QA-C06-02/logs/green-affected-247-r2.log",
+      "docs/handoff/QA-C06-02/logs/green-boundary-remediation.log",
+      "docs/handoff/QA-C06-02/logs/green-embedded-answer.log",
+      "docs/handoff/QA-C06-02/logs/green-extended-affected-r2.log",
+      "docs/handoff/QA-C06-02/logs/green-original-nine-r2.log",
+      "docs/handoff/QA-C06-02/logs/green-remaining-cases-r2.log",
+      "docs/handoff/QA-C06-02/logs/green-static-only-r2.log",
+      "docs/handoff/QA-C06-02/logs/green-subprocess-remediation.log",
+      "docs/handoff/QA-C06-02/logs/pre-commit-r2.log",
+      "docs/handoff/QA-C06-02/logs/pre-commit-remediation-2026-10-08.log",
+      "docs/handoff/QA-C06-02/logs/red-boundary-remediation.log",
+      "docs/handoff/QA-C06-02/logs/red-embedded-answer.log",
+      "docs/handoff/QA-C06-02/logs/red-remaining-cases-r2.log",
+      "docs/handoff/QA-C06-02/logs/red-subprocess-remediation.log",
+      "docs/handoff/QA-C06-02/logs/red-unit-remediation.log",
+      "docs/handoff/QA-C06-02/planning/findings.md",
+      "docs/handoff/QA-C06-02/planning/progress.md",
+      "docs/handoff/QA-C06-02/planning/task_plan.md",
+      "docs/handoff/QA-C06-02/summary.md",
+      "pyproject.toml",
+      "src/config/quick_scan_answer_content.schema.json",
+      "src/config/quick_scan_c06_authority.v2.schema.json",
+      "src/config/quick_scan_metric_registry.json",
+      "src/config/quick_scan_observation.schema.json",
+      "src/providers/base_llm_provider.py",
+      "src/runners/llm_runner.py",
+      "src/utils/quick_scan_c06_adapter.py",
+      "src/utils/quick_scan_c06_authority.py",
+      "src/utils/quick_scan_delivery_seal.py",
+      "src/utils/quick_scan_observation_context.py",
+      "src/utils/quick_scan_result_outbox.py",
+      "src/utils/quick_scan_work_store.py",
+      "tests/fixtures/quick_scan_c06_authority_v2_fixture.json",
+      "tests/fixtures/quick_scan_c06_manifest_v2_fixture.json",
+      "tests/integration/test_qa_c06_02_e2e.py",
+      "tests/integration/test_qa_c06_02_remaining_boundaries.py",
+      "tests/integration/test_qa_c06_02_subprocess_cli.py",
+      "tests/unit/test_quick_scan_budget.py",
+      "tests/unit/test_quick_scan_c06_authority_binding.py",
+      "tests/unit/test_quick_scan_c06_complete_seal.py",
+      "tests/unit/test_quick_scan_observation_context.py",
+      "tests/unit/test_quick_scan_work_store.py"
+    ],
+    "out_of_scope_writes": [],
+    "owned_paths": [
+      "C:/Users/郑曾波/Projects/StockQAbyLLM"
+    ],
+    "task_ids": [
+      "Q10"
+    ]
+  },
+  "snapshot": {
+    "base_commit": "09f68a69bbdbf76e3a4fff63043cdd4815572e5b",
+    "base_ref": "master",
+    "repository": "C:/Users/郑曾波/Projects/StockQAbyLLM",
+    "result_commit": "b6eaa082e6e1df1306fa144bd623aa6de68213a1",
+    "result_ref": "master",
+    "worktree_after": {
+      "state": "dirty",
+      "dirty_path_count": 7,
+      "manifest_sha256": "dc0b3cad08c2a1b6bc17c5667e708e3f913e707d1c165b7471d53638255cba32"
+    },
+    "worktree_before": {
+      "dirty_path_count": 16,
+      "manifest_sha256": "1db3051fd230ae7531f05be06e67641e2c48f9498201c05e385b2757030051fc",
+      "state": "dirty"
+    }
+  },
+  "status": "complete",
+  "verification": {
+    "checks": [
+      {
+        "command": "python -B -X utf8 -m pytest -p no:base_url tests/unit/test_quick_scan_observation_context.py -k embedded_answer -q",
+        "failed": 1,
+        "name": "red-baseline-embedded-answer",
+        "passed": 0,
+        "result": "failed",
+        "scope": "expected failing reproduction before the fix (1 failed / 44 deselected)",
+        "skipped": 0
+      },
+      {
+        "command": "python -B -X utf8 -m pytest -p no:base_url tests/unit/test_quick_scan_observation_context.py -k embedded_answer -q",
+        "failed": 0,
+        "name": "green-embedded-answer",
+        "passed": 1,
+        "result": "passed",
+        "scope": "same selector after the fix (1 passed / 44 deselected)",
+        "skipped": 0
+      },
+      {
+        "command": "python -B -X utf8 -m pytest -p no:base_url tests/unit/test_quick_scan_c06_complete_seal.py tests/integration/test_qa_c06_02_e2e.py -q",
+        "failed": 0,
+        "name": "package-new-suite",
+        "passed": 10,
+        "result": "passed",
+        "scope": "7 unit + 3 integration cases added by this package",
+        "skipped": 0
+      },
+      {
+        "command": "python -B scripts/checks.py --full --timeout 300",
+        "failed": 0,
+        "name": "full-offline-gate",
+        "passed": 1037,
+        "result": "passed",
+        "scope": "black,isort,mypy,bandit,pytest(unit+integration),smoke — one batch run",
+        "skipped": 0
+      },
+      {
+        "command": "python -m pre_commit run --files <exact delivery path list>",
+        "failed": 0,
+        "name": "pre-commit-hooks",
+        "passed": 14,
+        "result": "passed",
+        "scope": "trailing-whitespace,end-of-file,yaml,toml,json,merge-conflict,case-conflict,debug-statements,mixed-line-ending,black,isort,mypy,detect-secrets",
+        "skipped": 3
+      },
+      {
+        "command": "coordinator-owned (not run by this package)",
+        "failed": 0,
+        "name": "real-stockwiki-joint-e2e",
+        "passed": 0,
+        "result": "not_run",
+        "scope": "StockQA -> StockWiki observation-import -> ACK -> UI",
+        "skipped": 1
+      },
+      {
+        "name": "remediation-red-boundary",
+        "command": "python -B -X utf8 -m pytest <exclusive-root>/controller_cases.py -q -o addopts= -p no:cacheprovider --basetemp <exclusive-root>/tmp/boundaries (cwd=<exclusive copy of HEAD bytes>, QA100_QA_ROOT=<copy>, E97_OWNED_ROOT=<exclusive-root>, PYTHONPATH=<exclusive-root>/guard)",
+        "scope": "expected RED reproduction before the fix: original bytes of the 9 concentrated counter-cases from the IQS intake",
+        "result": "failed",
+        "passed": 2,
+        "failed": 7,
+        "skipped": 0
+      },
+      {
+        "name": "remediation-red-unit",
+        "command": "python -B -X utf8 -m pytest tests/unit/test_quick_scan_c06_authority_binding.py tests/unit/test_quick_scan_observation_context.py tests/unit/test_quick_scan_c06_complete_seal.py -q -o addopts= -p no:cacheprovider --basetemp <exclusive-root>/tmp/unit-red",
+        "scope": "expected RED for the four remediation groups before the fix (31 failures across manifest binding, strict JSON, run/scan mapping, complete-observation rebuild)",
+        "result": "failed",
+        "passed": 63,
+        "failed": 31,
+        "skipped": 0
+      },
+      {
+        "name": "remediation-red-subprocess",
+        "command": "python -B -X utf8 -m pytest tests/integration/test_qa_c06_02_subprocess_cli.py -q -o addopts= -p no:cacheprovider --basetemp <exclusive-root>/tmp/sub-red",
+        "scope": "expected RED before the fix; product-level RED (wrong metadata and duplicate authority exited 0 and sent 31) is independent of the same log's guard socketpair environment correction",
+        "result": "failed",
+        "passed": 0,
+        "failed": 4,
+        "skipped": 0
+      },
+      {
+        "name": "remediation-green-boundary",
+        "command": "python -B -X utf8 -m pytest <exclusive-root>/controller_cases.py -q -o addopts= -p no:cacheprovider --basetemp <exclusive-root>/tmp/boundaries (cwd=<exclusive copy of the fixed working tree>)",
+        "scope": "same original 9 cases after the fix - includes the two real v5 migration regression cases",
+        "result": "passed",
+        "passed": 9,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "remediation-subprocess-e2e",
+        "command": "python -B -X utf8 -m pytest tests/integration/test_qa_c06_02_subprocess_cli.py -q -o addopts= -p no:cacheprovider --basetemp <exclusive-root>/tmp/sub-green3",
+        "scope": "real subprocess cold (HTTP-boundary stub only) -> warm and seal in further processes with the stub withdrawn -> wrong metadata / duplicate authority rejected before key+HTTP+budget -> corrupt body rejected without re-asking",
+        "result": "passed",
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "remediation-full-offline-gate",
+        "command": "python -B scripts/checks.py --full --timeout 300",
+        "scope": "black,isort,mypy,bandit,pytest,smoke over batch-2 code commit acb7dbf - one batch run; 1037 baseline + 46 new cases",
+        "result": "passed",
+        "passed": 1083,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "remediation-pre-commit",
+        "command": "python -m pre_commit run --files <exact batch-2 delivery path list>",
+        "scope": "trailing-whitespace,end-of-file,yaml,toml,json,merge-conflict,case-conflict,debug-statements,mixed-line-ending,black,isort,mypy,detect-secrets - raw evidence logs normalized by the standard hooks with no content-line changes",
+        "result": "passed",
+        "passed": 11,
+        "failed": 0,
+        "skipped": 3
+      },
+      {
+        "name": "round2-red-remaining",
+        "command": "python -B -X utf8 -m pytest <exclusive-root>/remaining_cases.py <exclusive-root>/qa/tests/integration/test_qa_c06_02_remaining_boundaries.py -q -o addopts= -p no:base_url -p no:cacheprovider --basetemp <exclusive-root>/tmp/b1 (cwd=<copy of 361a721 bytes + new mirror>, QA100_QA_ROOT/E97_OWNED_ROOT/TEMP under the exclusive root)",
+        "scope": "expected RED before the fix: the coordinator's fixed remaining_cases (6 counter-cases) plus the repo mirrors, on baseline code with only the new test file overlaid",
+        "result": "failed",
+        "passed": 3,
+        "failed": 13,
+        "skipped": 0
+      },
+      {
+        "name": "round2-green-remaining",
+        "command": "same command as round2-red-remaining against the fixed working tree copy",
+        "scope": "7 fixed cases + 9 repo mirror cases after the four fixes",
+        "result": "passed",
+        "passed": 16,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "round2-green-original-nine",
+        "command": "python -B -X utf8 -m pytest <exclusive-root>/controller_cases.py -q -o addopts= -p no:cacheprovider --basetemp <exclusive-root>/tmp/nine (controller guard on PYTHONPATH, basetemp created by pytest itself)",
+        "scope": "original byte-fixed 9 counter-cases incl. the two real v5 migration cases",
+        "result": "passed",
+        "passed": 9,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "round2-baseline-affected-247",
+        "command": "python -B -X utf8 -m pytest tests/unit/test_quick_scan_observation_context.py tests/unit/test_quick_scan_c06_authority_binding.py tests/unit/test_quick_scan_c06_complete_seal.py tests/unit/test_quick_scan_work_store.py tests/unit/test_quick_scan_budget.py tests/unit/test_quick_scan_result_outbox.py tests/integration/test_qa_c06_02_e2e.py tests/integration/test_quick_scan_cli.py tests/integration/test_qa_c06_02_subprocess_cli.py -q -o addopts= -p no:base_url -p no:cacheprovider --basetemp <exclusive-root>/tmp/a247",
+        "scope": "baseline sanity of the coordinator's exact 6 unit + 3 integration selection",
+        "result": "passed",
+        "passed": 247,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "round2-green-affected-247",
+        "command": "same selection as round2-baseline-affected-247 after the fixes",
+        "scope": "affected regression green on fixed code (count identical to the received 247)",
+        "result": "passed",
+        "passed": 247,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "round2-green-extended-affected",
+        "command": "python -B -X utf8 -m pytest tests/unit/test_llm_integration.py tests/unit/test_q05_content_boundary.py tests/unit/test_q06_work_binding.py tests/unit/test_q07_checkpoint.py tests/unit/test_q09_budget_concurrency.py tests/unit/test_q10_delivery.py tests/unit/test_qa_net01_c06_seal.py tests/unit/test_qa_net01_question_manifest.py tests/unit/test_quick_scan_work_transport.py tests/integration/test_qa_net01_cli_e2e.py tests/integration/test_qa_net01_transport_e2e.py tests/integration/test_quick_scan_budget.py tests/integration/test_qa_c06_02_remaining_boundaries.py -q -o addopts= -p no:base_url -p no:cacheprovider --basetemp <exclusive-root>/tmp/extended",
+        "scope": "every other test file importing the changed modules (targeted, not the full suite)",
+        "result": "passed",
+        "passed": 190,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "round2-static-only",
+        "command": "python -B scripts/checks.py --static-only",
+        "scope": "black,isort,mypy,bandit over the fixed tree — one batch; full pytest gate NOT re-run per card",
+        "result": "passed",
+        "passed": 0,
+        "failed": 0,
+        "skipped": 4
+      },
+      {
+        "name": "round2-pre-commit",
+        "command": "python -m pre_commit run --files <exact round-2 delivery path list>",
+        "scope": "all hooks including detect-secrets and check-json over source, tests, logs and receipts",
+        "result": "passed",
+        "passed": 11,
+        "failed": 0,
+        "skipped": 3
+      }
+    ],
+    "external_writes": false,
+    "network_calls": false,
+    "paid_calls": false,
+    "temporary_roots": [
+      {
+        "cleaned": true,
+        "created": true,
+        "path_or_id": "%TEMP%/qa-c06-02-golden-5k1050lz"
+      },
+      {
+        "cleaned": true,
+        "created": true,
+        "path_or_id": "%TEMP%/qa_c06_02_golden_export.py"
+      },
+      {
+        "cleaned": false,
+        "created": true,
+        "path_or_id": "%TEMP%/pytest-of-郑曾波/pytest-* (shared TEMP, never cleaned by number)"
+      },
+      {
+        "path_or_id": "%TEMP%/qa-c0602r-58cdae (remediation RED exclusive copy + basetemps)",
+        "created": true,
+        "cleaned": true
+      },
+      {
+        "path_or_id": "%TEMP%/qa-c0602g-19576b (remediation GREEN exclusive copy + basetemp)",
+        "created": true,
+        "cleaned": true
+      },
+      {
+        "path_or_id": "%TEMP%/pytest-of-郑曾波/pytest-149 (provable ownership: final full-gate run)",
+        "created": true,
+        "cleaned": true
+      },
+      {
+        "path_or_id": "%TEMP%/pytest-of-郑曾波/pytest-147,pytest-148 (residuals; ownership unprovable - listed in isolation.md, never deleted by number/mtime/glob)",
+        "created": false,
+        "cleaned": false
+      },
+      {
+        "path_or_id": "%TEMP%/qa-c0602r2-c2f788 (round-2 RED exclusive copy + basetemps)",
+        "created": true,
+        "cleaned": true
+      },
+      {
+        "path_or_id": "%TEMP%/qa-c0602g2-225e50 (round-2 GREEN exclusive copy + basetemps)",
+        "created": true,
+        "cleaned": true
+      },
+      {
+        "path_or_id": "shared %TEMP%/pytest-of-郑曾波/pytest-* — round 2 added ZERO residue (every run used an exclusive --basetemp under the two roots); current numbered dirs belong to parallel lanes and are never touched",
+        "created": false,
+        "cleaned": false
+      }
+    ]
+  }
+}
