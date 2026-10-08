@@ -1,0 +1,224 @@
+{
+  "interfaces": [
+    {
+      "content_hash": "a7e80a5bcaf2cb2499fa24f091b129d7e1a2ebbf6e91a5666359c5e91c90270c",
+      "direction": "consumed",
+      "name": "iqs_frozen_question_manifest",
+      "result": "compatible",
+      "version": "3.1 (file sha a7e80a5b…)"
+    },
+    {
+      "content_hash": "78533868c0f68314dc42347f930642644466b96055c89c7d0fb04dd433765c50",
+      "direction": "consumed",
+      "name": "iqs_authority",
+      "result": "changed",
+      "version": "2.0.0 (new) / 1.0.0 (kept)"
+    },
+    {
+      "content_hash": "6344d2afc9e0d937e05baba8aef27ad15c91770ab7ecb2ddbd549e5ab4fb70ec",
+      "direction": "consumed",
+      "name": "iqs_observation_schema",
+      "result": "compatible",
+      "version": "1.1.0"
+    },
+    {
+      "content_hash": "a83236c2aba50115038cd2d404d5810bd50791c2b3f089f252b77b6a6d322547",
+      "direction": "consumed",
+      "name": "iqs_answer_content_schema",
+      "result": "compatible",
+      "version": "1.0.0"
+    },
+    {
+      "content_hash": "790d0a8295771c372d8266ab1f0883c93b2bb22f4f81ab482dd8d95054bf0e75",
+      "direction": "consumed",
+      "name": "iqs_metric_registry",
+      "result": "compatible",
+      "version": "1.0.0"
+    },
+    {
+      "content_hash": "6e8bc3ec416c96ff772c1d25ef5547bb0bb57458b1c69edac14faf58cbc6406c",
+      "direction": "produced",
+      "name": "quick_scan_exchange_package",
+      "result": "compatible",
+      "version": "1.0.0"
+    },
+    {
+      "content_hash": "6e8bc3ec416c96ff772c1d25ef5547bb0bb57458b1c69edac14faf58cbc6406c",
+      "direction": "produced",
+      "name": "quick_scan_observation",
+      "result": "changed",
+      "version": "1.1.0 complete observation"
+    },
+    {
+      "content_hash": "b1664f04a34c6f775af5aa492c001d8b00ae5f61dc0aaa7da6538133446981bb",
+      "direction": "produced",
+      "name": "quick_scan_work_store_schema",
+      "result": "changed",
+      "version": "6 (was 5)"
+    },
+    {
+      "content_hash": "ddba0f4036f7e4bba4f1f659572870b6098d02c82959a660f4076d721be7b948",
+      "direction": "both",
+      "name": "quick_scan_import_ack",
+      "result": "compatible",
+      "version": "1.0.0"
+    }
+  ],
+  "lane_id": "stockqa",
+  "next_action": "Verify docs/handoff/QA-C06-02/artifacts.json against the commit, then run the coordinator-owned joint offline E2E (real StockQA CLI -> real StockWiki observation-import -> ACK -> restart/recovery) in an isolated temp root.",
+  "open_items": [
+    "not_run: real StockQA -> StockWiki observation-import -> ACK -> query/UI joint acceptance (coordinator owns StockWiki).",
+    "not_run: G3 and F05 gates; this package does not close them.",
+    "not_run: real owner identity golden — every fixture here is synthetic (golden_class=synthetic_only) and must not be promoted to an owner golden.",
+    "not_run: online live E2E (STOCKQA_RUN_LIVE_E2E=0; no online authorization requested).",
+    "--seal-deliveries does not accept --question-manifest/--identity-snapshot: restart sealing relies on the durable context side table written during the run.",
+    "Under authority 2.0.0 an answer status outside {scored, insufficient_evidence, not_applicable} has no complete standard body and stays durably blocked (answer schema has no 'unknown').",
+    "Harness-reported HEAD f937b2d is not present in this repository; this delivery is commit 7e71b2cd8bbb042a72b282e83cb361a1ddcbb8b7 on top of 09f68a69bbdbf76e3a4fff63043cdd4815572e5b."
+  ],
+  "package_id": "QA-C06-02",
+  "review": {
+    "findings": [
+      "Worker's own consolidated batch review at delivery: full-diff re-read of all 11 changed source/test files plus one offline `checks.py --full` run (1037 passed) and one `pre-commit run --files` run over the exact delivery path list; no second independent reviewer re-ran the gate.",
+      "Overlay input bytes were restored to the inputs/qa-phase92-overlay originals after the mixed-line-ending hook rewrote them (documented in isolation.md); working-tree SHA256 re-verified against inputs.lock.",
+      ".secrets.baseline gained exactly two entries (the golden JSON files) on user approval; the four pre-existing pilot_runs entries were preserved.",
+      "Whole package is local only: real StockWiki import/ACK/UI joint acceptance, G3 and F05 remain with the coordinator (case-map: not_run)."
+    ],
+    "snapshot_commit": "7e71b2cd8bbb042a72b282e83cb361a1ddcbb8b7",
+    "status": "approved"
+  },
+  "schema_version": "1.0.0",
+  "scope": {
+    "authorization_scope_ref": "user dispatch message 2026-10-08 'do the task <C:/Users/郑曾波/Projects/invest-quick-scan/docs/implementation/parallel-lanes/packages/2026-10-07-wave2/QA-C06-02.md>'; card defines the allowed paths and this directory is the sole writer root; .secrets.baseline additionally approved by the user in-session for the golden false-positive registration",
+    "authorized_paths": [
+      ".gitignore",
+      ".secrets.baseline (user-approved, card-external)",
+      "docs/handoff/QA-C06-02/",
+      "main_with_llm.py",
+      "pyproject.toml",
+      "src/config/quick_scan_answer_content.schema.json",
+      "src/config/quick_scan_c06_authority.v2.schema.json",
+      "src/config/quick_scan_metric_registry.json",
+      "src/config/quick_scan_observation.schema.json",
+      "src/providers/base_llm_provider.py",
+      "src/runners/llm_runner.py",
+      "src/utils/quick_scan_c06_adapter.py",
+      "src/utils/quick_scan_c06_authority.py",
+      "src/utils/quick_scan_delivery_seal.py",
+      "src/utils/quick_scan_observation_context.py",
+      "src/utils/quick_scan_question_manifest.py",
+      "src/utils/quick_scan_result_outbox.py",
+      "src/utils/quick_scan_work_store.py",
+      "tests/fixtures/quick_scan_c06_authority_v2_fixture.json",
+      "tests/fixtures/quick_scan_c06_manifest_v2_fixture.json",
+      "tests/integration/ (existing quick-scan CLI tests)",
+      "tests/integration/test_qa_c06_02_e2e.py",
+      "tests/unit/ (existing quick-scan component tests)",
+      "tests/unit/test_quick_scan_c06_complete_seal.py",
+      "tests/unit/test_quick_scan_observation_context.py"
+    ],
+    "changed_paths": [],
+    "out_of_scope_writes": [],
+    "owned_paths": [
+      "C:/Users/郑曾波/Projects/StockQAbyLLM"
+    ],
+    "task_ids": [
+      "Q10"
+    ]
+  },
+  "snapshot": {
+    "base_commit": "09f68a69bbdbf76e3a4fff63043cdd4815572e5b",
+    "base_ref": "master",
+    "repository": "C:/Users/郑曾波/Projects/StockQAbyLLM",
+    "result_commit": "7e71b2cd8bbb042a72b282e83cb361a1ddcbb8b7",
+    "result_ref": "master",
+    "worktree_after": {
+      "dirty_path_count": 14,
+      "manifest_sha256": "931c5a5506f2901ba193079773d79ff3d591f5b904e82a5fd417d83d9745d721",
+      "state": "dirty"
+    },
+    "worktree_before": {
+      "dirty_path_count": 16,
+      "manifest_sha256": "1db3051fd230ae7531f05be06e67641e2c48f9498201c05e385b2757030051fc",
+      "state": "dirty"
+    }
+  },
+  "status": "complete",
+  "verification": {
+    "checks": [
+      {
+        "command": "python -B -X utf8 -m pytest -p no:base_url tests/unit/test_quick_scan_observation_context.py -k embedded_answer -q",
+        "failed": 1,
+        "name": "red-baseline-embedded-answer",
+        "passed": 0,
+        "result": "failed",
+        "scope": "expected failing reproduction before the fix (1 failed / 44 deselected)",
+        "skipped": 0
+      },
+      {
+        "command": "python -B -X utf8 -m pytest -p no:base_url tests/unit/test_quick_scan_observation_context.py -k embedded_answer -q",
+        "failed": 0,
+        "name": "green-embedded-answer",
+        "passed": 1,
+        "result": "passed",
+        "scope": "same selector after the fix (1 passed / 44 deselected)",
+        "skipped": 0
+      },
+      {
+        "command": "python -B -X utf8 -m pytest -p no:base_url tests/unit/test_quick_scan_c06_complete_seal.py tests/integration/test_qa_c06_02_e2e.py -q",
+        "failed": 0,
+        "name": "package-new-suite",
+        "passed": 10,
+        "result": "passed",
+        "scope": "7 unit + 3 integration cases added by this package",
+        "skipped": 0
+      },
+      {
+        "command": "python -B scripts/checks.py --full --timeout 300",
+        "failed": 0,
+        "name": "full-offline-gate",
+        "passed": 1037,
+        "result": "passed",
+        "scope": "black,isort,mypy,bandit,pytest(unit+integration),smoke — one batch run",
+        "skipped": 0
+      },
+      {
+        "command": "python -m pre_commit run --files <exact delivery path list>",
+        "failed": 0,
+        "name": "pre-commit-hooks",
+        "passed": 14,
+        "result": "passed",
+        "scope": "trailing-whitespace,end-of-file,yaml,toml,json,merge-conflict,case-conflict,debug-statements,mixed-line-ending,black,isort,mypy,detect-secrets",
+        "skipped": 3
+      },
+      {
+        "command": "coordinator-owned (not run by this package)",
+        "failed": 0,
+        "name": "real-stockwiki-joint-e2e",
+        "passed": 0,
+        "result": "not_run",
+        "scope": "StockQA -> StockWiki observation-import -> ACK -> UI",
+        "skipped": 1
+      }
+    ],
+    "external_writes": false,
+    "network_calls": false,
+    "paid_calls": false,
+    "temporary_roots": [
+      {
+        "cleaned": true,
+        "created": true,
+        "path_or_id": "%TEMP%/qa-c06-02-golden-5k1050lz"
+      },
+      {
+        "cleaned": true,
+        "created": true,
+        "path_or_id": "%TEMP%/qa_c06_02_golden_export.py"
+      },
+      {
+        "cleaned": false,
+        "created": true,
+        "path_or_id": "%TEMP%/pytest-of-郑曾波/pytest-* (shared TEMP, never cleaned by number)"
+      }
+    ]
+  }
+}

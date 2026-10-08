@@ -1,0 +1,227 @@
+{
+  "artifacts": [
+    {
+      "bytes": 2597,
+      "kind": "config",
+      "path": ".gitignore",
+      "sha256": "b6503805b589d05a6bbd82daf8c87ceac28b08f14507e953bcd7d24c9de92ba6"
+    },
+    {
+      "bytes": 11576,
+      "kind": "config",
+      "path": ".secrets.baseline",
+      "sha256": "885d5f25d7a95cbbe2e772390d6eab8f1d729cfa711b3cf546ad27303501158b"
+    },
+    {
+      "bytes": 8386,
+      "kind": "document",
+      "path": "docs/handoff/QA-C06-02/case-map.md",
+      "sha256": "a11e06a4a1742ad99c53521e6cbb1f82a4cf86cabe1c583a104a020a60728aef"
+    },
+    {
+      "bytes": 5275,
+      "kind": "document",
+      "path": "docs/handoff/QA-C06-02/compatibility-matrix.md",
+      "sha256": "08dd21043229162613b30e706717c1ebdd025a1338c89a547a672b44e07e8189"
+    },
+    {
+      "bytes": 4549,
+      "kind": "golden",
+      "path": "docs/handoff/QA-C06-02/golden/complete_c06_package.json",
+      "sha256": "6e8bc3ec416c96ff772c1d25ef5547bb0bb57458b1c69edac14faf58cbc6406c"
+    },
+    {
+      "bytes": 3042,
+      "kind": "golden",
+      "path": "docs/handoff/QA-C06-02/golden/golden.json",
+      "sha256": "ddba0f4036f7e4bba4f1f659572870b6098d02c82959a660f4076d721be7b948"
+    },
+    {
+      "bytes": 902,
+      "kind": "golden",
+      "path": "docs/handoff/QA-C06-02/golden/standard_answer.json",
+      "sha256": "d0c742e4a70b1f0f7646d58cafa251fb7308d86f396af53135bf494543100e20"
+    },
+    {
+      "bytes": 9565,
+      "kind": "interface",
+      "path": "docs/handoff/QA-C06-02/handoff.json",
+      "sha256": "21bcd76a34afc866b1e0622610000cd66b8beaf54fa6a6bc522677fa49a26d36"
+    },
+    {
+      "bytes": 6466,
+      "kind": "document",
+      "path": "docs/handoff/QA-C06-02/interfaces.md",
+      "sha256": "5a7ef74f70fce0c76678cf0bd4e5a9874b2eff4936468de60c8693dca2a482f4"
+    },
+    {
+      "bytes": 4855,
+      "kind": "document",
+      "path": "docs/handoff/QA-C06-02/isolation.md",
+      "sha256": "55d0836232b85ba42c59e0295860a811a246e11f93a3ee9936d1aa8c7b642dc2"
+    },
+    {
+      "bytes": 3015,
+      "kind": "log",
+      "path": "docs/handoff/QA-C06-02/logs/full-gate-GREEN.log",
+      "sha256": "46077e0b477f4344a9b4ccc66d393d6d32e5bc931333af6020b4bc15fc842ca0"
+    },
+    {
+      "bytes": 113,
+      "kind": "log",
+      "path": "docs/handoff/QA-C06-02/logs/green-embedded-answer.log",
+      "sha256": "d7dc174d0252d16dbef418d72e1be5625d64e21030ca85384a747c00b1118759"
+    },
+    {
+      "bytes": 1370,
+      "kind": "log",
+      "path": "docs/handoff/QA-C06-02/logs/red-embedded-answer.log",
+      "sha256": "68f7faa194b31afebafa7fbd8dd8c83913e01fcf16c7e047fe9df990eb45b2af"
+    },
+    {
+      "bytes": 3943,
+      "kind": "document",
+      "path": "docs/handoff/QA-C06-02/planning/findings.md",
+      "sha256": "2abf45850fbcd950fdad83837cf478b153b095247d4e7090a118b4fc56e2c697"
+    },
+    {
+      "bytes": 1764,
+      "kind": "document",
+      "path": "docs/handoff/QA-C06-02/planning/progress.md",
+      "sha256": "ea86dc2a129df4128546e660a337509be818297816a7d6783a7a5f933cdeb8aa"
+    },
+    {
+      "bytes": 2437,
+      "kind": "document",
+      "path": "docs/handoff/QA-C06-02/planning/task_plan.md",
+      "sha256": "1f1ab3bdcdc5393aa2f293d9bc0435340bc3d8b201fa2f41f385ae14f884e4ed"
+    },
+    {
+      "bytes": 7384,
+      "kind": "document",
+      "path": "docs/handoff/QA-C06-02/summary.md",
+      "sha256": "06f5cfd462ed13566f543ad8da9e314e5ef1e0665bd42769156b27c76f876377"
+    },
+    {
+      "bytes": 3695,
+      "kind": "config",
+      "path": "pyproject.toml",
+      "sha256": "2b1cb8a93f10fd99778f7b675c1225cdf1c9eb60c2c66474b419acf3c4c40f0f"
+    },
+    {
+      "bytes": 14152,
+      "kind": "interface",
+      "path": "src/config/quick_scan_answer_content.schema.json",
+      "sha256": "a83236c2aba50115038cd2d404d5810bd50791c2b3f089f252b77b6a6d322547"
+    },
+    {
+      "bytes": 3714,
+      "kind": "interface",
+      "path": "src/config/quick_scan_c06_authority.v2.schema.json",
+      "sha256": "78533868c0f68314dc42347f930642644466b96055c89c7d0fb04dd433765c50"
+    },
+    {
+      "bytes": 3521,
+      "kind": "interface",
+      "path": "src/config/quick_scan_metric_registry.json",
+      "sha256": "790d0a8295771c372d8266ab1f0883c93b2bb22f4f81ab482dd8d95054bf0e75"
+    },
+    {
+      "bytes": 7076,
+      "kind": "interface",
+      "path": "src/config/quick_scan_observation.schema.json",
+      "sha256": "6344d2afc9e0d937e05baba8aef27ad15c91770ab7ecb2ddbd549e5ab4fb70ec"
+    },
+    {
+      "bytes": 15629,
+      "kind": "source",
+      "path": "src/providers/base_llm_provider.py",
+      "sha256": "381eeb5d0bd5bece16cf4c14602cdad21438f118ef67b156635205412f4914d7"
+    },
+    {
+      "bytes": 83645,
+      "kind": "source",
+      "path": "src/runners/llm_runner.py",
+      "sha256": "ea772846a7f4805cea08e8a4336e60a0b84dd8c4c118e6d2b02e6fc324cb7a58"
+    },
+    {
+      "bytes": 11925,
+      "kind": "source",
+      "path": "src/utils/quick_scan_c06_adapter.py",
+      "sha256": "a1c9bdb005fb41626f8d23d5f22a1a6cf164517e87131121ba5ad8bb44fd21b2"
+    },
+    {
+      "bytes": 12382,
+      "kind": "source",
+      "path": "src/utils/quick_scan_c06_authority.py",
+      "sha256": "0043d99d6494b70b5e66a0d30310f9e6a994b31d55313f9d1ba52c2bb4a163f0"
+    },
+    {
+      "bytes": 11826,
+      "kind": "source",
+      "path": "src/utils/quick_scan_delivery_seal.py",
+      "sha256": "d2adfd8a84ce9bf18e25f938e78f35b90cdb712196c4412e3a27f7b30169876a"
+    },
+    {
+      "bytes": 19051,
+      "kind": "source",
+      "path": "src/utils/quick_scan_observation_context.py",
+      "sha256": "5913740298e21d529dae7006adb1e65c25d7f49def46374dcb696d7e141e9deb"
+    },
+    {
+      "bytes": 167875,
+      "kind": "source",
+      "path": "src/utils/quick_scan_work_store.py",
+      "sha256": "b1664f04a34c6f775af5aa492c001d8b00ae5f61dc0aaa7da6538133446981bb"
+    },
+    {
+      "bytes": 54446,
+      "kind": "test",
+      "path": "tests/fixtures/quick_scan_c06_authority_v2_fixture.json",
+      "sha256": "e5bc782afd245374fff3bc224f04cb9dbcc0fb22b76d62faf2a16917db1ded43"
+    },
+    {
+      "bytes": 449049,
+      "kind": "test",
+      "path": "tests/fixtures/quick_scan_c06_manifest_v2_fixture.json",
+      "sha256": "a7e80a5bcaf2cb2499fa24f091b129d7e1a2ebbf6e91a5666359c5e91c90270c"
+    },
+    {
+      "bytes": 17529,
+      "kind": "test",
+      "path": "tests/integration/test_qa_c06_02_e2e.py",
+      "sha256": "f2eec3ecaecc7d11dca32af75716996728b8110a6c8809376df290420510ced7"
+    },
+    {
+      "bytes": 22193,
+      "kind": "test",
+      "path": "tests/unit/test_quick_scan_budget.py",
+      "sha256": "fb49e302161e2e73eac4a2d57a302e6119b4faecc6c283ab5ba730131ccb887d"
+    },
+    {
+      "bytes": 15108,
+      "kind": "test",
+      "path": "tests/unit/test_quick_scan_c06_complete_seal.py",
+      "sha256": "e0eff3481008fdca10cb38a33379e2afe462f0ca1968e5cf0d9a7afb67811134"
+    },
+    {
+      "bytes": 16116,
+      "kind": "test",
+      "path": "tests/unit/test_quick_scan_observation_context.py",
+      "sha256": "6ce663b7b86a807f6362e9d245af16811228bfe7c2b4de209c6154e85a35f1f2"
+    },
+    {
+      "bytes": 63826,
+      "kind": "test",
+      "path": "tests/unit/test_quick_scan_work_store.py",
+      "sha256": "4e77dee9ea4d369cb5f7d1012938d4749c0c08e27b9bde8e3d0435c3960ded12"
+    }
+  ],
+  "format_version": "1.0.0",
+  "generated_at_utc": "2026-10-08T06:55:25.784117+00:00",
+  "hash_algorithm": "sha256 over exact working-tree file bytes (Windows CRLF kept for the five inputs/qa-phase92-overlay files; git blob stores the LF normalisation, see isolation.md)",
+  "note": "artifacts.json does not hash itself. Every entry is relative to the repository root.",
+  "package_id": "QA-C06-02",
+  "repository": "C:/Users/郑曾波/Projects/StockQAbyLLM",
+  "result_commit": "7e71b2cd8bbb042a72b282e83cb361a1ddcbb8b7"
+}
