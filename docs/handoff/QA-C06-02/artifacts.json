@@ -61,10 +61,10 @@
       "sha256": "42a83f9d63f92b48d5676d7087ae6b038cbc6eaf65c1a045db3bb53c2b03aded"
     },
     {
-      "bytes": 1788,
+      "bytes": 1789,
       "kind": "log",
       "path": "docs/handoff/QA-C06-02/logs/cleanup-remediation-receipt.json",
-      "sha256": "1a27129f84cfe367e5e343300af4121efcc181dc2a8e1a5cb802f38e3ca379a3"
+      "sha256": "17d345661e51beb4211c935159f973b3cdcb49e0527604265c0aebec95e1241a"
     },
     {
       "bytes": 3015,
@@ -284,7 +284,7 @@
     }
   ],
   "format_version": "1.0.0",
-  "generated_at_utc": "2026-10-08T19:23:26.850741+00:00",
+  "generated_at_utc": "2026-10-08T19:25:54.052347+00:00",
   "hash_algorithm": "sha256 over exact working-tree file bytes (Windows CRLF kept for the five inputs/qa-phase92-overlay files; git blob stores the LF normalisation, see isolation.md)",
   "note": "artifacts.json does not hash itself. Every entry is relative to the repository root.",
   "package_id": "QA-C06-02",
