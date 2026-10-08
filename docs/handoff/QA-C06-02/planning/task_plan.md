@@ -92,6 +92,33 @@
   `../logs/cleanup-remediation-receipt.json`（逐文件 SHA、CIM 进程 0、删后目录不存在）；
   `pytest-147/148` 归属不可证 → 列出不删。
 
+## 批次 3 — 第二轮剩余整改（remaining-repair-2026-10-08）
+
+基线核对：HEAD=`361a721`（=卡上收到交接）、工作树仅原 7 未跟踪、无并行变化 → 直接开工。
+六个失败 case 收敛为四组同链边界；建议改动面 context/outbox/work_store 及其测试/交接。
+
+### 步骤（TDD 连续推进）
+
+28. [x] 报备本轮精确文件：源码 `quick_scan_observation_context.py`、`quick_scan_result_outbox.py`、
+       `quick_scan_work_store.py`、`quick_scan_delivery_seal.py`；测试 `tests/unit/
+       test_quick_scan_work_store.py`（fixture 对齐 compact 形状）与**新文件**
+       `tests/integration/test_qa_c06_02_remaining_boundaries.py`（镜像 7 例，不动总控
+       247 选择器内文件的用例数量）；交接沿 `docs/handoff/QA-C06-02/`。
+29. [x] RED：独占根 `qa-c0602r2-c2f788`，原字节 `remaining_cases.py` + 镜像
+       → `13 failed / 3 passed`（`../logs/red-remaining-cases-r2.log`）；受影响 247 基线
+       `247 passed`（`../logs/baseline-affected-247-r2.log`）。
+30. [x] QR1B：共享 manifest 规则加 `security_id`/`segment_id` ↔ profile 挂牌核对。
+31. [x] QR2B：唯一 `_unmapped_run_scan_pairs` 助手，seal 与 prepare/supersede 同门。
+32. [x] QR3B：`strict_json_loads` 增 `parse_float` 有限性（1e400 等嵌套/数组同拒）。
+33. [x] QR4B：缺侧表的完整 write 直接拒绝；work_store ACK fixture 观察对齐 compact 八字段。
+34. [x] GREEN：`remaining+镜像16 passed`、原 9 反例 `9 passed`、受影响 `247 passed`、
+       改动模块其余消费方 `190 passed`、`--static-only` pass、pre-commit 精确清单 pass。
+35. [x] 清理：两独占根删除，回执**含逐文件清单**（`../logs/cleanup-remediation-r2-receipt.json`）；
+       第一轮回执缺逐文件清单如实声明 `not_reconstructable`；冻结 CRLF 5 SHA 复验未变。
+36. [x] 集中审查（本轮 src+test diff 253 行复读）→ 代码/日志提交 `b6eaa08` → 交接与
+       artifacts 更新后二次提交。
+
 ## Next Step
 
-交总控复验（重验受影响范围与本组反例，一次集中签收）；QA↔SW 联合节点与 F05 仍开放。
+交总控按 remaining-repair 卡复验（原字节 7 例 + 受影响 247 + 本交接），再决定既有联合 12 组执行；
+QA↔SW 联合节点与 F05 仍开放。

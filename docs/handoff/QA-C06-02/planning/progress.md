@@ -34,3 +34,15 @@
 | 27 | 总控复验 / QA↔SW 联合 / G3 / F05 / owner golden / 线上 live | **not_run**（总控） |
 
 整改批次失败用例：0（GREEN 后）。网络/付费/下载：0（子进程 guard 账本不存在）。
+| 28 | 第二轮基线核对：HEAD=361a721、7 未跟踪、无并行变化 | 完成 |
+| 29 | RED：原字节 remaining_cases + 镜像 → 13 failed/3 passed；247 基线 247 passed | 完成 → `../logs/red-remaining-cases-r2.log`、`../logs/baseline-affected-247-r2.log` |
+| 30 | QR1B 挂牌 ID 入口绑定（security_id/segment_id ↔ profile） | 完成 |
+| 31 | QR2B `_unmapped_run_scan_pairs` 唯一门（seal + prepare/supersede） | 完成 |
+| 32 | QR3B `strict_json_loads` 有限 float（parse_float） | 完成 |
+| 33 | QR4B 缺侧表完整 write 拒绝 + work_store fixture 对齐 compact | 完成 |
+| 34 | GREEN：remaining+镜像16、原 9、247、扩展190、static-only、pre-commit | 完成 → `../logs/green-*-r2.log`、`../logs/pre-commit-r2.log` |
+| 35 | 清理两根（逐文件清单回执）+ round1 not_reconstructable + CRLF 5 SHA 复验 | 完成 → `../logs/cleanup-remediation-r2-receipt.json` |
+| 36 | 集中审查（253 行 diff）+ 代码提交 `b6eaa08` + 交接/artifacts 二次提交 | 完成（见 `../handoff.json`） |
+| 37 | 总控按卡复验（原字节 7 例 + 受影响 247 + 交接）；联合 12 组 / SW-SR02-4B / Lab-LR-02B | **not_run**（总控/各原 writer） |
+
+第二轮失败用例（修复后）：0。网络/付费/下载：0。全量 1083 门按卡未重跑（定向批次覆盖改动面）。

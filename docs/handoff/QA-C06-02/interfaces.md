@@ -26,6 +26,7 @@
 | Observation context | `stockqa.quick_scan_observation_context/1.0.0` | authority 2.0.0 的 `observation_context` |
 | Work store | `SCHEMA_VERSION = 6`（v5→v6 向前迁移） | `src/utils/quick_scan_work_store.py` |
 | 阻断码 | `c06_authority_unavailable` / `c06_adapter_missing_fields` / `c06_observation_context_unavailable` / `c06_observation_context_conflict` / `c06_run_scan_unbound`（整改新增） / `c06_standard_answer_unavailable` / `c06_attempt_send_intent_unavailable` | `src/utils/quick_scan_delivery_seal.py` |
+| 第二轮写入拒绝（非阻断码） | `WorkConflictError`：`complete observation write requires the durable context and standard answer`（QR4B）、`complete observation run/scan is not mapped to this work's attempts`（QR2B，prepare/supersede 公开入口）；`AuthorityUnavailable`：`context security_id/segment_id differs from the frozen manifest profile`（QR1B，loader 入口）；`ValueError`：`non-finite JSON number is not allowed`（QR3B，共享 strict decoder） | `quick_scan_work_store.py` / `quick_scan_observation_context.py` / `quick_scan_result_outbox.py` |
 | 修订链 | `quick_scan_delivery_revision`（revision / supersedes_revision / supersedes_package_id） | 同上 + work store |
 | Golden | `stockqa.qa_c06_02_golden/1.0.0`（**synthetic_only**） | `golden/golden.json`、`golden/complete_c06_package.json`、`golden/standard_answer.json` |
 
@@ -55,6 +56,14 @@ RED→GREEN selector（整改批次 2，四组反例 + 真实子进程）：
 ```powershell
 python -B -X utf8 -m pytest -p no:base_url tests/unit/test_quick_scan_c06_authority_binding.py tests/unit/test_quick_scan_c06_complete_seal.py tests/unit/test_quick_scan_observation_context.py tests/integration/test_qa_c06_02_subprocess_cli.py -q
 ```
+
+RED→GREEN selector（第二轮剩余边界，仓内镜像）：
+
+```powershell
+python -B -X utf8 -m pytest -p no:base_url tests/integration/test_qa_c06_02_remaining_boundaries.py -q
+```
+
+固定原字节（总控 harness，只读参照）：`remaining_cases.py` 7 例；本仓以镜像保持同一回归。
 
 输入来源：`tests/fixtures/quick_scan_c06_manifest_v2_fixture.json`（原字节）、
 运行时生成的 `identity.json` / `quick_scan_c06_authority.json`（fixture authority 重签到该

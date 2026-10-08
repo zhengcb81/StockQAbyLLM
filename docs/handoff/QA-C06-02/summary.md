@@ -78,6 +78,39 @@ RED→GREEN 证据：原字节 9 例集中反例 `7 failed/2 passed → 9 passed
 asyncio socketpair 的环境修正记录）→ 门内全 GREEN。原始总控 RED 证据仍在 IQS intake
 （`controller-boundaries.stdout.log` 等），本仓不改其字节。
 
+## 第二轮剩余整改（2026-10-08 remaining-repair 卡：四组同链边界）
+
+总控复验结论 `partial_verified/changes_requested` 后的六个失败 case 收敛为四个同链边界，
+同批修复，未新增验收门（代码结果 `b6eaa08`，基线 `361a721`）：
+
+1. **QR1B 具体挂牌 ID 在入口绑定（P1）**：共享规则 `check_context_matches_manifest` 在
+   entity/scope 之外同时核 `metadata.security_id`/`segment_id` 与 `manifest.profile` 的
+   对应挂牌——IQS_22 改 `SEC_FOREIGN` 并重签 context 后，loader 在 key/HTTP/费用预约/
+   checkpoint **之前**拒绝（真实子进程 CLI：exit 1、HTTP stub 发送 0、key 打开账本不存在、
+   DB/输出文件未创建）；正常 entity/security 保持通过（fixture 无 segment 题，规则已实现）。
+   未改任何冻结 fixture 标签。
+2. **QR2B 所有新完整 write 共享 run/scan 门（P1）**：seal 的映射检查抽成唯一
+   `_unmapped_run_scan_pairs` 助手，`prepare_result_delivery` / `supersede_result_delivery`
+   同事务调用——已被 `c06_run_scan_unbound` 阻断的外来 context 无法再经公开 prepare 落
+   ready；失败不增 revision、不替换 blocked/head、不自动重问。合法晚 attach 与已有映射不变。
+3. **QR3B strict JSON 拒数值溢出（P2）**：共享 `strict_json_loads` 增加 `parse_float` 有限性
+   检查，`1e400` 一类溢出字面量（普通 `json.loads` 静默变 `inf`）在任意嵌套/数组层拒绝；
+   正常有限数与普通文字维持旧约定，坏正文不退可计分 compact、不补默认分。
+4. **QR4B 缺持久完整输入的新完整 write 必须拒绝（P1）**：`_assert_complete_observation_binding`
+   对自称完整的包在缺 context/answer 侧表时**直接抛出**（不再 fail-open 回落历史规则），
+   并同样核 run/scan 映射；历史已 sealed 读取、compact v1 写入、合法补齐升级、delivered
+   只读保持兼容——为此把 work_store 的 ACK/派发 fixture 观察对齐为历史 compact 形状
+   （八个字段，测的是交付机制而非完整写入），不插默认侧表、不改旧记录。
+
+RED→GREEN：固定原字节 `remaining_cases.py` + 仓内镜像
+`13 failed/3 passed → 16 passed`（`logs/red-remaining-cases-r2.log` →
+`logs/green-remaining-cases-r2.log`）；原 9 反例 `9 passed`
+（`logs/green-original-nine-r2.log`）；受影响 247 基线与修复后均 `247 passed`
+（`logs/baseline-affected-247-r2.log`、`logs/green-affected-247-r2.log`）；
+改动模块的其余消费方定向批次 `190 passed`（`logs/green-extended-affected-r2.log`）；
+`checks.py --static-only` pass（`logs/green-static-only-r2.log`）、pre-commit 精确清单 pass
+（`logs/pre-commit-r2.log`）。按卡“已收 1083 全套日志、不无故重跑全套”，本轮未重跑全量门。
+
 ## 实际验证（同一批集中门）
 
 批次 1（原交付）：`python -B scripts/checks.py --full --timeout 300`

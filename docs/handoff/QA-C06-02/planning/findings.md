@@ -71,3 +71,26 @@
 16. **日志按仓 hook 归一化是提交的必经步骤**：原始 pytest 输出含行尾空格/混合行尾，
     `trailing-whitespace` + `mixed-line-ending --fix=lf` 会就地改（无内容行增删）；IQS intake
     原始字节不碰。
+
+17. **QR4B 的“完整主张”判别仍用 `_COMPACT_OBSERVATION_FIELDS` 二分**，没有另造第三套分类：
+    非精确 compact 八字段 = 完整写入主张 → 必须有侧表+映射+原 attempt 才能落库。总控 6 个
+    反例包都由真实 `build_complete_c06_package` 构造（必含主张字段）→ 被拒；work_store 的
+    8 个既有 ACK/派发调用点用 `_c06_package_for_checkpoint`——其富观察是测试资产而非
+    持久完整写入，故把该 fixture 对齐为历史 compact 形状（一处改动、8 调用点共享），
+    断言语义（ACK/幂等/终态/不可变/证据负例）逐条不变，247 计数也不变。
+18. **QR2B 与 QR1B 都刻意“共享一处规则”**：run/scan 抽 `_unmapped_run_scan_pairs`（work_store
+    模块级，seal 与 store 双调用）；挂牌绑定进既有 `check_context_matches_manifest`
+    （loader 与 bind_question_context 双走）——没有第二份实现可漂移。
+19. **`json.loads` 的 `parse_float` 才是溢出口**：`1e400` 不触发 `parse_constant`（那只管
+    NaN/Infinity 字面量），`float("1e400")` 静默得 `inf`；有限性检查必须放在 `parse_float`
+    钩子里、共享 decoder 内，嵌套与数组自然覆盖。
+20. **镜像测试放新文件而不是 247 选择器内**：总控按固定 9 文件路径跑 247，镜像若塞进这些
+    文件会把计数改掉；新文件 `tests/integration/test_qa_c06_02_remaining_boundaries.py`
+    使 247 保持可比，同时仓内保有同一回归。
+21. **预建 `--basetemp` 会撞 guard 的 `\?\` 扩展路径**：pytest 清理已存在的 basetemp 用
+    Windows 扩展前缀路径，`Path.resolve()` 后不再 `is_relative_to(OWNED)` → 8 例 setup 全挂。
+    受影响选择器还必须 `-p no:base_url`（否则 pytest-base-url `ScopeMismatch` 4 错）。
+    两处都是本轮 controller 自身问题，已记 isolation 6a，不计产品 RED。
+22. **清理回执这次落逐文件清单**（`[relpath,bytes,sha256]` + 清单 SHA + CIM 0 + 删后不存在）；
+    第一轮只有聚合 hash，按卡声明 `not_reconstructable`、不回填。共享 TEMP 现由并行 lane
+    滚动占用（177+），147/148 已被 pytest 代数保留自行回收——本包两轮都只删自己证明归属的根。

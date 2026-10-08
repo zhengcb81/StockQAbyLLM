@@ -88,3 +88,13 @@ mypy 对 `jsonschema`/`referencing` 的 `ignore_missing_imports` 覆写。未安
 | prepare/supersede | 有侧表的完整包多一次“重建比对”；无侧表旧库与 compact 包路径逐字节保持旧行为 |
 | 严格 JSON | 只影响含重复键/NaN/Infinity 的文档；RFC 合法输入不受影响 |
 | 回退 | 仍只需禁用 v2 写能力（回指 authority 1.0.0）；新增映射行与阻断码对 v1 读写无影响；**禁止**降库/删数据 |
+
+## 9. 第二轮剩余整改（remaining-repair）对兼容性的影响
+
+| 项 | 影响 |
+|---|---|
+| ExchangePackage 1.0.0 / Observation 1.1.0 / Answer 1.0.0 / authority schema / work store schema | **零改动**（仅校验逻辑，无 schema/DDL/字段集变更；不新增阻断码——store 写入路径以 `WorkConflictError` 拒绝，seal 仍用既有 `c06_run_scan_unbound`） |
+| 正常输入 | 行为不变：合法 v1/v2 authority（含全部 security 题）、合法正文含有限浮点、正常封存/warm/seal/ACK——247 受影响修复前后均 247 passed |
+| 收窄的拒绝面 | 仅四个缺口变为早拒：错挂牌 ID（入口）、外来 run/scan 的完整 write（prepare/supersede）、溢出数值字面量（strict decoder）、缺侧表的完整 write（直接拒绝） |
+| work_store ACK/派发 fixture | 观察形状对齐历史 compact 八字段（测试资产调整，非产品行为变化）；其断言的 ACK/幂等/终态/不可变语义全部保持并仍绿 |
+| 回退 | 与第一轮相同：禁用 v2 写能力即可；不降库、不删数据 |

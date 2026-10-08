@@ -12,6 +12,11 @@
 | 本批最后一次全量门的 pytest 共享 TEMP | `%TEMP%\pytest-of-郑曾波\pytest-149\` | 可证归属（971 文件均为门内用例 `tmp_path`，mtime 与 `logs/full-gate-remediation-2026-10-08.log` 完成时刻一致） | **已删除**（同回执；仅删除这一可证明归属的编号目录） |
 | 共享 TEMP 无法证归属的残余 | `%TEMP%\pytest-of-郑曾波\pytest-147\`、`pytest-148\` | 早于本批任何执行、仅剩编号可循 | **列出不删**——不按编号/mtime/宽 glob 删除；归属判断交总控 |
 | 本批 scratch | `%TEMP%\qa-c0602r-58cdae.path`、`%TEMP%\src.diff`、`%TEMP%\qa_c0602_update_handoff.py`、`%TEMP%\qa_c0602_update_artifacts.py`、`%TEMP%\qa-c0602-cim-check.ps1` | 本批创建 | **已删除** |
+| 第二轮 RED 独占副本（新编号，含 `--basetemp <root>/tmp/*`） | `%TEMP%\qa-c0602r2-c2f788\` | 本轮一次性创建（341 追踪文件字节副本 + 原字节 remaining/controller 用例 + guard） | **已删除**（回执 `logs/cleanup-remediation-r2-receipt.json`：**含逐文件** `[relpath,bytes,sha256]` 清单与清单 SHA、CIM `python*` 匹配 0、删后目录不存在） |
+| 第二轮 GREEN 独占副本 | `%TEMP%\qa-c0602g2-225e50\` | 同上（修复后工作树字节） | **已删除**（同回执） |
+| 第二轮 scratch | `%TEMP%\qa_c0602_r2_store_edits.py`、`%TEMP%\qa-c0602-r2-cim.ps1` | 本轮创建 | **已删除** |
+| 第一轮逐文件清单 | 不适用 | 回执只落了计数/字节/清单聚合 SHA，逐文件清单当时未持久化、根已删 | **not_reconstructable**——不回填、不伪称可重构（见回执 `round1_receipt_backfill`） |
+| 共享 TEMP 现状（第二轮收尾时） | `%TEMP%\pytest-of-郑曾波\pytest-177…181\`（编号随并行 lane 持续滚动） | 归属为并行 SW/Lab/总控活动，非本包 | **不碰**——本轮全部测试使用独占 `--basetemp`（两根之下），本包零新增共享 TEMP 残余；第一轮列出的 `pytest-147/148` 已被 pytest 自身代数保留策略在后续非本包活动中回收（非按编号/mtime 删除） |
 
 用例内所有 DB / cache / logs / 子进程都在 pytest `tmp_path` 之下：
 `quick_scan_work.sqlite`、`quick_scan_health.sqlite`、`llm_apis.json`、`manifest.json`、
@@ -46,6 +51,11 @@ asyncio 内部 socketpair 的**精确** ephemeral loopback 绑定（`127.0.0.1:0
 key 读取由 guard 对 `llm_apis.json` 只读打开记账（`key-opens.jsonl`）：拒绝类用例断言其
 不存在（key 读取 0），cold 对照用例断言其存在。子进程 `TEMP/TMP/TMPDIR` 指到
 `tmp_path/temp`，`*_API_KEY` 环境变量在 spawn 前剔除，`STOCKQA_RUN_LIVE_E2E=0`。
+
+第二轮同口径：`remaining_cases.py` 与镜像的子进程用例由用例自写 guard（`tmp_path/guard/`）注入
+子进程 `PYTHONPATH`，去密钥环境（spawn 前剔除 `*_API_KEY`）、`STOCKQA_RUN_LIVE_E2E=0`、
+`TEMP/TMP/TMPDIR` 与 `--basetemp` 全在两根之下；被拒类用例断言网络/key 账本不存在；
+外部网络、收费、下载、生产库访问均为 0。
 
 **监听端口**：0。用例不启动任何服务、线程或 server；只对 `requests` 会话做对象级 stub。
 `tasklist` 可见的 python.exe 进程为编辑器语言服务/检查器常驻进程，非本包启动的测试进程；
@@ -94,7 +104,14 @@ pytest 进程在每次调用返回时已退出（exit 0）。
 5. **证据日志按仓标准 hook 归一化后提交。** `logs/red-boundary-remediation.log` 等原始 pytest
    输出含行尾空格与混合行尾，`pre-commit` 的 `trailing-whitespace`/`mixed-line-ending --fix=lf`
    就地规范化（**无内容行增删**）；IQS intake 内总控原始日志字节不碰。
-6. **冻结 CRLF 输入：工作树 SHA vs Git blob SHA 与可复现还原。** 本批未改任何冻结输入；
+6a. **第二轮 controller 自身两处环境记录（不计产品 RED）。** 其一：首轮 GREEN 副本里我预先
+   `mkdir` 了 `--basetemp` 目录，pytest 清理旧 basetemp 时 Windows 扩展路径 `\?\` 前缀未通过
+   guard 的 `is_relative_to` → 8 例 setup 报 `E97 write outside owned test root`；删除预建目录、
+   由 pytest 自建后原字节 9 例 `9 passed`（`logs/green-original-nine-r2.log`），与产品无关。
+   其二：受影响选择器必须带 `-p no:base_url`（或等价 `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`），
+   否则 pytest-base-url 触发 `ScopeMismatch` 4 例 setup 错误——首轮已知坑，回执日志用的是
+   带 `-p no:base_url` 的命令（`247 passed`）。
+6b. **冻结 CRLF 输入：工作树 SHA vs Git blob SHA 与可复现还原。** 本批未改任何冻结输入；
    5 个 IQS 冻结文件在 `core.autocrlf=true` 下的双口径如下（工作树 SHA = 输入锁口径；
    blob 为对象库 LF 字节）：
 
@@ -111,7 +128,7 @@ pytest 进程在每次调用返回时已退出（exit 0）。
    `git status` 干净）；`git cat-file blob HEAD:<path>` 取到的是右列 LF 原字节，
    **不可**用 `git show HEAD:<path> > <path>` 直接当工作树字节写回（会丢 CRLF）。
    本批未偷偷换行、未重签任何 IQS 冻结输入；`.pre-commit-config.yaml` 等其余 20 个
-   均匀 CRLF 文件同样未触碰。
+   均匀 CRLF 文件同样未触碰。第二轮收尾复验：左列 5 个工作树 SHA **逐一未变**（与输入锁一致）。
 
 ## 未清理/未触碰
 

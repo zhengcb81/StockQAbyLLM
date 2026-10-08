@@ -65,6 +65,21 @@
 | 一批验证（相关 unit/integration/真实 CLI/旧迁移/替代链 + 仓既定门 + pre-commit） | `python -B scripts/checks.py --full --timeout 300` → 1083 passed；`python -m pre_commit run --files <精确交付清单>` → 全 hook pass | `logs/full-gate-remediation-2026-10-08.log`、`logs/pre-commit-remediation-2026-10-08.log` | passed |
 | 交接收尾：changed_paths 实填、authorized_paths 纯路径、TEMP 残余清单、冻结 CRLF 双口径与还原命令 | `handoff.json` `scope.changed_paths`（= `git diff --name-only 09f68a6…acb7dbf`）、`isolation.md` 两节、`logs/cleanup-remediation-receipt.json` | `logs/cleanup-remediation-receipt.json` | passed |
 
+## 第二轮剩余整改（remaining-repair 卡）
+
+| 卡断言 | 真实测试 selector / 执行 | 日志 | 状态 |
+|---|---|---|---|
+| QR1B 具体挂牌 ID 入口绑定（loader 反例 + 正常通过） | 固定字节 `remaining_cases.py::test_wrong_security_id_is_refused_by_authority_loader`；仓内镜像 `tests/integration/test_qa_c06_02_remaining_boundaries.py::test_wrong_security_id_is_refused_by_authority_loader`；正常正例 `tests/unit/test_quick_scan_c06_authority_binding.py::test_pure_metadata_v2_authority_still_loads_unchanged`（含 IQS_22/23/24 security 题）在 247 内 | `logs/red-remaining-cases-r2.log` → `logs/green-remaining-cases-r2.log`、`logs/green-affected-247-r2.log` | passed |
+| QR1B 真实 CLI 在 key/HTTP/预算/checkpoint 前拒绝（非仅退出码） | 固定字节 `remaining_cases.py::test_wrong_security_id_cli_is_refused_before_key_http_budget`（经 `_assert_rejected_before_key_http_budget`：exit1、stub 发送 0、key 账本不存在、DB/输出未创建）；镜像同名例 | 同上 | passed |
+| QR2B prepare 不能绕过 run/scan 阻断（失败不增 revision、不换 blocked/head） | 固定字节 `remaining_cases.py::test_prepare_cannot_bypass_a_run_scan_block`；镜像同名例 | `logs/red-remaining-cases-r2.log` → `logs/green-remaining-cases-r2.log` | passed |
+| QR3B strict JSON 拒数值溢出（嵌套/数组）；正常有限数/文字不变 | 固定字节 `remaining_cases.py::test_overflow_number_is_refused_at_standard_body_entry`；镜像 `::test_overflow_number_is_refused_at_standard_body_entry`、`::test_nested_overflow_number_is_refused_at_standard_body_entry`、正例 `::test_finite_float_numbers_keep_their_legacy_handling`、`::test_normal_standard_body_remains_parseable` | 同上 | passed |
+| QR4B 缺持久完整输入的完整 write 两入口拒绝（不增 revision、侧表仍 0） | 固定字节 `remaining_cases.py::test_new_complete_write_requires_durable_complete_inputs[prepare/supersede]`；镜像同名参数例 | 同上 | passed |
+| 原 9 反例（含真实 v5 迁移 2 例）修复后保持 GREEN | 原字节 `controller_cases.py`，独占副本 + guard | `logs/green-original-nine-r2.log`（9 passed） | passed |
+| 247 受影响回归（6 unit + 3 integration）修复前后均 GREEN | 与总控同选择器：observation_context / c06_authority_binding / c06_complete_seal / work_store / budget / result_outbox + qa_c06_02_e2e / quick_scan_cli / qa_c06_02_subprocess_cli | `logs/baseline-affected-247-r2.log`（247）、`logs/green-affected-247-r2.log`（247） | passed |
+| 改动模块其余消费方定向重验（有实际改动才定向） | q05/q06/q07/q09/q10、llm_integration、qa_net01_c06_seal、qa_net01_question_manifest、quick_scan_work_transport、qa_net01_cli_e2e、qa_net01_transport_e2e、integration budget、remaining 镜像 | `logs/green-extended-affected-r2.log`（190 passed） | passed |
+| 静态与 hook（不重跑全量门，按卡） | `python -B scripts/checks.py --static-only` → pass；`pre-commit run --files <本轮精确清单>` → 全 hook pass | `logs/green-static-only-r2.log`、`logs/pre-commit-r2.log` | passed |
+| 全量 1083 门 | **not_re_run**：卡明示“已收到 1083 全套日志，不无故重跑全套/UI/live”；本轮以上述定向批次覆盖改动面 | `logs/full-gate-remediation-2026-10-08.log`（上一轮原件保留） | not_run（按卡） |
+
 ### 未单独确认项（如实报告）
 
 | 项 | 说明 |
