@@ -849,6 +849,21 @@ _COMPACT_OBSERVATION_FIELDS = frozenset(
 )
 
 
+def _unmapped_run_scan_pairs(context: dict, refs) -> set:
+    """Frozen run/scan label pairs of ``context`` that ``refs`` does not map.
+
+    The ONE run/scan mapping rule, shared by the seal block path and the
+    prepare/supersede write path: every owner-frozen (run_id, scan_id) pair of
+    the durable context must already appear in this work item's durable
+    ``work_run_ref`` rows. Never re-labelled, never invented.
+    """
+    pairs = {
+        (question["metadata"]["run_id"], question["metadata"]["scan_id"])
+        for question in context["questions"].values()
+    }
+    return pairs - set(refs)
+
+
 class QuickScanWorkStore:
     """SQLite ledger for per-question work, answer checkpoints, and attempts."""
 
@@ -3164,14 +3179,16 @@ class QuickScanWorkStore:
     ) -> None:
         """A package that CLAIMS to be a complete Observation must equal a rebuild.
 
-        Envelope and checkpoint bindings alone never prove the full body: the
-        package is re-derived from the IMMUTABLE context side table, the
-        durable standard answer and the ORIGINAL successful attempt's send
-        intent, and must match byte-for-byte. Any single forged claim, typed
-        metric, metadata field or started_at is refused inside the same
-        transaction — a failed check writes no revision and leaves the head
-        untouched. Legacy compact packages, and items without durable complete
-        inputs, keep their historical binding rules.
+        Envelope and checkpoint bindings alone never prove the full body: a
+        NEW complete write must have its durable inputs — the immutable
+        context side table, the durable standard answer, the original
+        successful attempt's send intent AND the frozen run/scan mapping —
+        and the package is re-derived from them byte-for-byte. Missing durable
+        data is a refusal (QR4B), never a skip: only the historical COMPACT
+        observation keeps the legacy checkpoint binding. Any single forged
+        claim, typed metric, metadata field or started_at, and any unmapped
+        run/scan (QR2B), is refused inside the same transaction — a failed
+        check writes no revision and leaves the head untouched.
         """
         from .quick_scan_delivery_seal import _send_intent_iso
         from .quick_scan_observation_context import (
@@ -3194,11 +3211,24 @@ class QuickScanWorkStore:
             (work_item_id,),
         ).fetchone()
         if context_row is None or answer_row is None:
-            # This item has NO durable complete inputs (pre-v6 or legacy
-            # fixture stores): there is nothing to re-derive, so the
-            # historical checkpoint binding stays the only rule — the same
-            # behaviour those stores have always had.
-            return
+            # QR4B: a new complete write without durable complete inputs is
+            # refused outright — it can never be re-derived or verified.
+            raise WorkConflictError(
+                "complete observation write requires the durable context and standard answer"
+            )
+        context_document = json.loads(context_row["context_json"])
+        refs = {
+            (row["run_id"], row["scan_id"])
+            for row in connection.execute(
+                "SELECT run_id,scan_id FROM work_run_ref WHERE work_item_id=?",
+                (work_item_id,),
+            )
+        }
+        if _unmapped_run_scan_pairs(context_document, refs):
+            # QR2B: prepare/supersede share the seal-time run/scan gate.
+            raise WorkConflictError(
+                "complete observation run/scan is not mapped to this work's attempts"
+            )
         attempt_row = connection.execute(
             "SELECT send_intent_at FROM attempt WHERE attempt_id=? AND work_item_id=?",
             (checkpoint["attempt_id"], work_item_id),
@@ -3209,7 +3239,7 @@ class QuickScanWorkStore:
         if started_at is None:
             raise WorkConflictError("complete observation requires the original successful attempt")
         bound = bind_context_to_work_item(
-            json.loads(context_row["context_json"]),
+            context_document,
             work_item=item,
             question_id=item["question_id"],
         )

@@ -28,7 +28,10 @@ from src.utils.quick_scan_c06_authority import (
     authority_adapter_input,
 )
 from src.utils.quick_scan_observation_context import bind_context_to_work_item
-from src.utils.quick_scan_work_store import QuickScanWorkStore
+from src.utils.quick_scan_work_store import (
+    QuickScanWorkStore,
+    _unmapped_run_scan_pairs,
+)
 
 logger = get_logger(__name__)
 
@@ -92,18 +95,17 @@ def _complete_package(
     except ValueError as error:
         logger.warning("封存上下文绑定拒绝（%s）：%s", work_item_id, error)
         return None, BLOCK_CONTEXT
-    # group 2: the frozen run/scan labels of this context must be part of the
-    # durable mapping this work item's actual attempts were recorded under —
-    # verified here, never re-labelled to fit.
+    # QR2B shared gate: the frozen run/scan labels of this context must be
+    # part of the durable mapping this work item's actual attempts were
+    # recorded under — verified here, never re-labelled to fit. The exact
+    # same rule guards prepare/supersede in the work store.
     run_refs = {(row["run_id"], row["scan_id"]) for row in store.list_run_refs(work_item_id)}
-    for question in stored["context"]["questions"].values():
-        metadata = question["metadata"]
-        if (metadata["run_id"], metadata["scan_id"]) not in run_refs:
-            logger.warning(
-                "封存 run/scan 绑定拒绝（%s）：冻结 run/scan 未映射到该 work 的实际执行",
-                work_item_id,
-            )
-            return None, BLOCK_RUN_SCAN
+    if _unmapped_run_scan_pairs(stored["context"], run_refs):
+        logger.warning(
+            "封存 run/scan 绑定拒绝（%s）：冻结 run/scan 未映射到该 work 的实际执行",
+            work_item_id,
+        )
+        return None, BLOCK_RUN_SCAN
     try:
         transmission = store.get_attempt_transmission(checkpoint["attempt_id"])
     except KeyError:

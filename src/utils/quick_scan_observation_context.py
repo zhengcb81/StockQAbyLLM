@@ -225,6 +225,20 @@ def check_context_matches_manifest(context: dict[str, Any], manifest: dict[str, 
             raise ValueError(
                 f"context entity/scope differs from the frozen manifest for {question_id}"
             )
+        # QR1B: the specific listing ID must be bound at the entry too — a
+        # security/segment question may only carry the listing frozen in the
+        # manifest profile, so a re-signed SEC_FOREIGN/segment label is refused
+        # before any key read, HTTP, budget reservation or checkpoint.
+        if expected_scope == "security" and metadata.get("security_id") != profile.get(
+            "security_id"
+        ):
+            raise ValueError(
+                f"context security_id differs from the frozen manifest profile for {question_id}"
+            )
+        if expected_scope == "segment" and metadata.get("segment_id") != profile.get("segment_id"):
+            raise ValueError(
+                f"context segment_id differs from the frozen manifest profile for {question_id}"
+            )
         prompt = question.get("prompt")
         if (
             not isinstance(prompt, str)

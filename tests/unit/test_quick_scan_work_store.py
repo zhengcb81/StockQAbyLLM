@@ -1210,31 +1210,18 @@ def _c06_package_for_checkpoint(checkpoint, *, observation_changes=None):
     provenance = payload["provenance"]
     question_id = work["question_id"]
     scope = work["scope"]
+    # Historical COMPACT observation shape (exactly the eight fields the real
+    # build_c06_package emits): these ACK/dispatch/immutability fixtures
+    # exercise the delivery machinery, never a NEW durable complete write —
+    # complete-form writes and their durable-input requirement are covered by
+    # test_quick_scan_c06_complete_seal.py and
+    # test_qa_c06_02_remaining_boundaries.py.
     observation = {
-        "schema_version": "1.0.0",
         "entity_id": answer["entity_id"],
         "security_id": work["scope_id"] if scope == "security" else None,
         "segment_id": work["scope_id"] if scope == "segment" else None,
-        "field_id": "score." + question_id.lower(),
-        "construct_id": question_id,
         "question_id": question_id,
-        "question_version": "1.0.0",
-        "template_version": "3.0.0",
-        "method_id": "core-constructs-v1/context-1/fixture",
         "scope": scope,
-        "cohort": {
-            "company_type": "operating",
-            "industries": ["industrial"],
-            "stage": "mature",
-            "subtype": None,
-        },
-        "information_cutoff": "2026-09-27",
-        "run_id": "RUN_C06_FIXTURE",
-        "scan_id": "SCAN_C06_FIXTURE",
-        "inputset_id": "INPUT_C06_FIXTURE_V1",
-        "task_mode": "comparison",
-        "comparison_group_id": "GROUP_C06_FIXTURE",
-        "observed_at": provenance["response_completed_at"],
         "execution": {
             "provider": provenance["actual_provider"],
             "model_requested": provenance["model_requested"],
@@ -1280,7 +1267,6 @@ def _c06_package_for_checkpoint(checkpoint, *, observation_changes=None):
             "missing_fields": [],
             "coverage": {"status": "partial", "reason": "Synthetic offline fixture."},
         },
-        "evidence_review_status": "unreviewed",
     }
     if observation_changes:
         observation.update(observation_changes)

@@ -1,0 +1,27 @@
+==> checks [static-only] step=black
+All done! ✨ 🍰 ✨
+128 files would be left unchanged.
+checks: step=black exit=0 seconds=0.99
+==> checks [static-only] step=isort
+checks: step=isort exit=0 seconds=1.49
+==> checks [static-only] step=mypy
+Success: no issues found in 56 source files
+checks: step=mypy exit=0 seconds=37.32
+==> checks [static-only] step=bandit
+[manager]	WARNING	Test in comment: only is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: literal is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: placeholders is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: are is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: joined is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: all is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: values is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: bound is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: as is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: parameters is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: literal is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: placeholders is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: only is not a test name or id, ignoring
+[tester]	WARNING	nosec encountered (B608), but no failed test on line 3572
+[tester]	WARNING	nosec encountered (B608), but no failed test on line 3860
+checks: step=bandit exit=0 seconds=4.78
+checks: mode=static-only result=pass exit=0 steps=black,isort,mypy,bandit seconds=44.59

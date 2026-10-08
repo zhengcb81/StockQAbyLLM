@@ -11,6 +11,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import math
 import re
 from datetime import datetime
 from typing import Any
@@ -82,19 +83,27 @@ def strict_json_loads(text: str) -> Any:
 
     Reuses the response parser's duplicate-key hook (one shared capability,
     never a second omission-prone copy) and refuses ``NaN`` / ``Infinity``
-    tokens that plain ``json.loads`` silently accepts as floats. Callers at
-    the authority-loader and standard-answer-body entries must never silently
-    take the last value of an ambiguous key.
+    tokens AND numerically overflowing literals (``1e400`` silently becomes
+    ``inf`` under plain ``json.loads``) at every nesting level. Callers at the
+    authority-loader and standard-answer-body entries must never silently take
+    the last value of an ambiguous key or a non-finite number.
     """
     from src.providers.llm_response_parser import _reject_duplicate_json_keys
 
     def _reject_constant(value: str) -> None:
         raise ValueError(f"non-finite JSON number is not allowed: {value}")
 
+    def _finite_float(value: str) -> float:
+        number = float(value)
+        if not math.isfinite(number):
+            raise ValueError(f"non-finite JSON number is not allowed: {value}")
+        return number
+
     return json.loads(
         text,
         object_pairs_hook=_reject_duplicate_json_keys,
         parse_constant=_reject_constant,
+        parse_float=_finite_float,
     )
 
 
