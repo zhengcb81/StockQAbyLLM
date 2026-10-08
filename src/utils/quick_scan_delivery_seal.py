@@ -36,6 +36,7 @@ BLOCK_AUTHORITY = "c06_authority_unavailable"
 BLOCK_ADAPTER = "c06_adapter_missing_fields"
 BLOCK_CONTEXT = "c06_observation_context_unavailable"
 BLOCK_CONTEXT_CONFLICT = "c06_observation_context_conflict"
+BLOCK_RUN_SCAN = "c06_run_scan_unbound"
 BLOCK_STANDARD_ANSWER = "c06_standard_answer_unavailable"
 BLOCK_ATTEMPT = "c06_attempt_send_intent_unavailable"
 HISTORICAL_READONLY = "historical_package_readonly"
@@ -47,6 +48,7 @@ __all__ = [
     "BLOCK_AUTHORITY",
     "BLOCK_CONTEXT",
     "BLOCK_CONTEXT_CONFLICT",
+    "BLOCK_RUN_SCAN",
     "BLOCK_STANDARD_ANSWER",
     "HISTORICAL_READONLY",
     "seal_pending_deliveries",
@@ -90,6 +92,18 @@ def _complete_package(
     except ValueError as error:
         logger.warning("封存上下文绑定拒绝（%s）：%s", work_item_id, error)
         return None, BLOCK_CONTEXT
+    # group 2: the frozen run/scan labels of this context must be part of the
+    # durable mapping this work item's actual attempts were recorded under —
+    # verified here, never re-labelled to fit.
+    run_refs = {(row["run_id"], row["scan_id"]) for row in store.list_run_refs(work_item_id)}
+    for question in stored["context"]["questions"].values():
+        metadata = question["metadata"]
+        if (metadata["run_id"], metadata["scan_id"]) not in run_refs:
+            logger.warning(
+                "封存 run/scan 绑定拒绝（%s）：冻结 run/scan 未映射到该 work 的实际执行",
+                work_item_id,
+            )
+            return None, BLOCK_RUN_SCAN
     try:
         transmission = store.get_attempt_transmission(checkpoint["attempt_id"])
     except KeyError:

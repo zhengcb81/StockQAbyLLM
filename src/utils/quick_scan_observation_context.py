@@ -6,6 +6,7 @@ No network, identity attestation, answer synthesis, or checkpoint rewriting.
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import re
 from datetime import datetime
@@ -16,7 +17,7 @@ from typing import Any
 from jsonschema import Draft202012Validator, FormatChecker, ValidationError
 from referencing import Registry, Resource
 
-from .quick_scan_result_outbox import canonical_sha256
+from .quick_scan_result_outbox import canonical_sha256, strict_json_loads
 
 CONTEXT_SCHEMA = "stockqa.quick_scan_observation_context/1.0.0"
 QUESTION_CONTEXT_SCHEMA = "stockqa.quick_scan_question_context/1.0.0"
@@ -143,53 +144,18 @@ def validate_context_document(context: dict[str, Any], *, expected_sha256: str) 
     return copy.deepcopy(context)
 
 
-def bind_question_context(
-    context: dict[str, Any],
-    *,
-    manifest: dict[str, Any],
-    identity_snapshot_sha256: str,
-    entity_id: str,
-    question_id: str,
-    scope: str,
-    scope_id: str,
+def manifest_question_bindings(
+    manifest: dict[str, Any], question: dict[str, Any]
 ) -> dict[str, Any]:
-    """Bind independently loaded files and the actual work scope before dispatch."""
-    validate_context_document(context, expected_sha256=canonical_sha256(context))
-    original = {
-        key: value
-        for key, value in manifest.items()
-        if key not in {"manifest_sha256", "manifest_path", "contract_id"}
-    }
-    if (
-        manifest.get("answer_format") != "standard-1"
-        or context["manifest_file_sha256"] != manifest.get("manifest_sha256")
-        or context["manifest_content_sha256"] != canonical_sha256(original)
-        or context["identity_snapshot_sha256"] != identity_snapshot_sha256
-    ):
-        raise ValueError("context belongs to different manifest/identity inputs")
-    known = {question["id"]: question for question in manifest["questions"]}
-    if set(known) != set(context["questions"]) or question_id not in known:
-        raise ValueError("context question set differs from the frozen manifest")
-    question = known[question_id]
-    selected = context["questions"][question_id]
-    metadata = selected["metadata"]
+    """The ONE shared rule set: frozen per-question metadata == manifest bytes.
+
+    field / construct / question version / template / cutoff / module / method /
+    cohort / cycle sensitivity / definition / semantic — derived from the exact
+    manifest the run loaded, never re-typed per call site.
+    """
     profile = manifest["profile"]
-    if profile.get("entity_id") != entity_id or metadata["entity_id"] != entity_id:
-        raise ValueError("context entity does not match work")
-    expected_id = (
-        metadata["security_id"]
-        if scope == "security"
-        else (metadata["segment_id"] if scope == "segment" else entity_id)
-    )
-    expected_scope = (
-        "segment"
-        if profile.get("segment_id") and question["scope"] == "entity"
-        else question["scope"]
-    )
-    if scope != expected_scope or metadata["scope"] != scope or scope_id != expected_id:
-        raise ValueError("context scope does not match work")
-    expected = {
-        "question_id": question_id,
+    return {
+        "question_id": question["id"],
         "field_id": question.get("field_id", question.get("metric_id")),
         "construct_id": question.get("construct_id"),
         "question_version": question["rubric_version"],
@@ -211,18 +177,102 @@ def bind_question_context(
         },
         "cycle_sensitive": bool(profile.get("cycle_sensitive", False)),
     }
-    if any(metadata.get(key) != value for key, value in expected.items()):
-        raise ValueError("context metadata differs from the frozen manifest")
-    import hashlib
 
-    if (
-        selected["frozen_prompt_sha256"] != question["prompt_sha256"]
-        or selected["frozen_prompt_sha256"]
-        != hashlib.sha256(question["prompt"].encode("utf-8")).hexdigest()
-        or selected["work_prompt_sha256"]
-        != hashlib.sha256(question["prompt"].strip().encode("utf-8")).hexdigest()
-    ):
-        raise ValueError("context prompt differs from actual question")
+
+def check_context_matches_manifest(context: dict[str, Any], manifest: dict[str, Any]) -> None:
+    """Bind both manifest hashes and EVERY frozen question to the manifest file.
+
+    Shared by the v2 authority loader (before any key read or HTTP) and by
+    ``bind_question_context`` — one implementation, so no second,
+    omission-prone validation copy can ever drift apart. Raises ``ValueError``
+    on the first divergence.
+    """
+    if not isinstance(manifest, dict) or manifest.get("answer_format") != "standard-1":
+        raise ValueError("context needs a standard-1 manifest")
+    original = {
+        key: value
+        for key, value in manifest.items()
+        if key not in {"manifest_sha256", "manifest_path", "contract_id"}
+    }
+    if context["manifest_file_sha256"] != manifest.get("manifest_sha256") or context[
+        "manifest_content_sha256"
+    ] != canonical_sha256(original):
+        raise ValueError("manifest hashes do not match the manifest file")
+    questions = manifest.get("questions")
+    known = (
+        {question.get("id"): question for question in questions}
+        if isinstance(questions, list)
+        else {}
+    )
+    if set(known) != set(context["questions"]):
+        raise ValueError("context question set differs from the frozen manifest")
+    profile = manifest["profile"]
+    for question_id, selected in context["questions"].items():
+        question = known[question_id]
+        metadata = selected["metadata"]
+        expected = manifest_question_bindings(manifest, question)
+        if any(metadata.get(key) != value for key, value in expected.items()):
+            raise ValueError(f"context metadata differs from the frozen manifest for {question_id}")
+        expected_scope = (
+            "segment"
+            if profile.get("segment_id") and question["scope"] == "entity"
+            else question["scope"]
+        )
+        if (
+            metadata.get("entity_id") != profile.get("entity_id")
+            or metadata.get("scope") != expected_scope
+        ):
+            raise ValueError(
+                f"context entity/scope differs from the frozen manifest for {question_id}"
+            )
+        prompt = question.get("prompt")
+        if (
+            not isinstance(prompt, str)
+            or selected["frozen_prompt_sha256"] != question.get("prompt_sha256")
+            or selected["frozen_prompt_sha256"]
+            != hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+            or selected["work_prompt_sha256"]
+            != hashlib.sha256(prompt.strip().encode("utf-8")).hexdigest()
+        ):
+            raise ValueError(f"context prompt differs from the frozen manifest for {question_id}")
+
+
+def bind_question_context(
+    context: dict[str, Any],
+    *,
+    manifest: dict[str, Any],
+    identity_snapshot_sha256: str,
+    entity_id: str,
+    question_id: str,
+    scope: str,
+    scope_id: str,
+) -> dict[str, Any]:
+    """Bind independently loaded files and the actual work scope before dispatch."""
+    validate_context_document(context, expected_sha256=canonical_sha256(context))
+    check_context_matches_manifest(context, manifest)
+    if context["identity_snapshot_sha256"] != identity_snapshot_sha256:
+        raise ValueError("context belongs to a different identity snapshot")
+    known = {question["id"]: question for question in manifest["questions"]}
+    if question_id not in known or question_id not in context["questions"]:
+        raise ValueError("context question set differs from the frozen manifest")
+    question = known[question_id]
+    selected = context["questions"][question_id]
+    metadata = selected["metadata"]
+    profile = manifest["profile"]
+    if profile.get("entity_id") != entity_id or metadata["entity_id"] != entity_id:
+        raise ValueError("context entity does not match work")
+    expected_id = (
+        metadata["security_id"]
+        if scope == "security"
+        else (metadata["segment_id"] if scope == "segment" else entity_id)
+    )
+    expected_scope = (
+        "segment"
+        if profile.get("segment_id") and question["scope"] == "entity"
+        else question["scope"]
+    )
+    if scope != expected_scope or metadata["scope"] != scope or scope_id != expected_id:
+        raise ValueError("context scope does not match work")
     bound = {key: value for key, value in context.items() if key != "questions"}
     bound.update(selected)
     bound["schema"] = QUESTION_CONTEXT_SCHEMA
@@ -272,7 +322,10 @@ def parse_standard_answer(text: Any) -> dict[str, Any] | None:
     A description that is not a JSON object with the standard answer identity
     keys is plain prose — the caller keeps its historical compact handling. A
     description that IS shaped like a standard answer is never silently
-    downgraded: the caller must validate it or refuse the answer.
+    downgraded: the caller must validate it or refuse the answer. A JSON-shaped
+    body with duplicate keys or non-finite numbers is CORRUPT — it is refused
+    loudly (``ValueError``) instead of silently keeping the last value or
+    falling back to the legacy compact path.
     """
     if not isinstance(text, str):
         return None
@@ -280,9 +333,11 @@ def parse_standard_answer(text: Any) -> dict[str, Any] | None:
     if not (candidate.startswith("{") and candidate.endswith("}")):
         return None
     try:
-        body = json.loads(candidate)
-    except ValueError:
-        return None
+        body = strict_json_loads(candidate)
+    except json.JSONDecodeError:
+        return None  # not JSON at all: plain prose keeps legacy handling
+    except ValueError as error:
+        raise ValueError(f"standard answer body is not strict JSON: {error}") from error
     if not isinstance(body, dict):
         return None
     if "question_id" in body and "response_kind" in body:

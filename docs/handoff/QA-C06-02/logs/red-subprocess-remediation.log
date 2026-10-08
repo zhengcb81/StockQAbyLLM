@@ -1,0 +1,237 @@
+FFFF                                                                     [100%]
+================================== FAILURES ===================================
+_____ test_real_subprocess_cold_warm_and_seal_with_the_stub_only_at_http ______
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/sub-red/test_real_subprocess_cold_warm0')
+
+    def test_real_subprocess_cold_warm_and_seal_with_the_stub_only_at_http(tmp_path):
+        files = _prepare_root(tmp_path)
+
+        cold = _spawn(tmp_path, _cold_argv(files), stub=True)
+        assert cold.returncode == 0, cold.stdout[-4000:] + cold.stderr[-3000:]
+        sends = _sends(tmp_path)
+        assert len(sends) == len(QUESTIONS)
+        assert sorted({entry["question_id"] for entry in sends}) == sorted(QUESTIONS)
+        assert all(entry["synthetic_only"] for entry in sends)
+        assert (tmp_path / "key-opens.jsonl").exists()
+>       _no_network(tmp_path)
+
+tests\integration\test_qa_c06_02_subprocess_cli.py:301:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/sub-red/test_real_subprocess_cold_warm0')
+
+    def _no_network(tmp_path: Path) -> None:
+>       assert not (tmp_path / "network-attempts.jsonl").exists()
+E       AssertionError: assert not True
+E        +  where True = exists()
+E        +    where exists = (WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/sub-red/test_real_subprocess_cold_warm0') / 'network-attempts.jsonl').exists
+
+tests\integration\test_qa_c06_02_subprocess_cli.py:275: AssertionError
+__ test_real_subprocess_wrong_template_metadata_is_rejected_before_key_http ___
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/sub-red/test_real_subprocess_wrong_tem0')
+
+    def test_real_subprocess_wrong_template_metadata_is_rejected_before_key_http(tmp_path):
+        files = _prepare_root(tmp_path)
+        document = json.loads(files["authority"].read_text(encoding="utf-8"))
+        document["observation_context"]["questions"][QUESTIONS[0]]["metadata"][
+            "template_version"
+        ] = "99.0.0"
+        document["observation_context_sha256"] = canonical_sha256(
+            document["observation_context"]
+        )
+        files["authority"].write_text(
+            json.dumps(document, ensure_ascii=False), encoding="utf-8"
+        )
+        result = _spawn(tmp_path, _cold_argv(files), stub=True)
+>       _assert_rejected_before_key_http_budget(tmp_path, files, result)
+
+tests\integration\test_qa_c06_02_subprocess_cli.py:367:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/sub-red/test_real_subprocess_wrong_tem0')
+files = {'questions': WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/sub-red/test_real_subprocess_wrong_tem...波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/sub-red/test_real_subprocess_wrong_tem0/quick_scan_c06_authority.json'), ...}
+result = CompletedProcess(args=['C:\\Miniconda\\python.exe', '-B', '-X', 'utf8', 'C:\\Users\\郑曾波\\Projects\\StockQAbyLLM\\main_..._wrong_tem0\\result.json\n[OK] 平均评分: 8.0/10\n[OK] 评分分布: {8: 31}\nINFO - \nQuestion processing completed.\n', stderr='')
+
+    def _assert_rejected_before_key_http_budget(
+        tmp_path: Path, files: dict, result
+    ) -> None:
+>       assert result.returncode == 1, result.stdout[-3000:] + result.stderr[-3000:]
+E       AssertionError: any": "Fixture Corp", "ticker": ...
+E         ──────────────────────────────────────────────────────────────────────
+E         Score: 8/10
+E
+E         {"question_id": "INDUSTRIAL_02", "response_kind": "score", "status": "scored", "score": 8, "summary": "Synthetic standard answer; not a real company conclusion.", "information_as_of": "2026-09-01", "p...
+E
+E         ──────────────────────────────────────────────────────────────────────
+E         [27/31] [MATURE_01] 对象与口径={"company": "Fixture Corp", "ticker": "FIX...
+E         ──────────────────────────────────────────────────────────────────────
+E         Score: 8/10
+E
+E         {"question_id": "MATURE_01", "response_kind": "score", "status": "scored", "score": 8, "summary": "Synthetic standard answer; not a real company conclusion.", "information_as_of": "2026-09-01", "perio...
+E
+E         ──────────────────────────────────────────────────────────────────────
+E         [28/31] [MATURE_02] 对象与口径={"company": "Fixture Corp", "ticker": "FIX...
+E         ──────────────────────────────────────────────────────────────────────
+E         Score: 8/10
+E
+E         {"question_id": "MATURE_02", "response_kind": "score", "status": "scored", "score": 8, "summary": "Synthetic standard answer; not a real company conclusion.", "information_as_of": "2026-09-01", "perio...
+E
+E         ──────────────────────────────────────────────────────────────────────
+E         [29/31] [CYCLICAL_01] 对象与口径={"company": "Fixture Corp", "ticker": "F...
+E         ──────────────────────────────────────────────────────────────────────
+E         Score: 8/10
+E
+E         {"question_id": "CYCLICAL_01", "response_kind": "score", "status": "scored", "score": 8, "summary": "Synthetic standard answer; not a real company conclusion.", "information_as_of": "2026-09-01", "per...
+E
+E         ──────────────────────────────────────────────────────────────────────
+E         [30/31] [CYCLICAL_02] 对象与口径={"company": "Fixture Corp", "ticker": "F...
+E         ──────────────────────────────────────────────────────────────────────
+E         Score: 8/10
+E
+E         {"question_id": "CYCLICAL_02", "response_kind": "score", "status": "scored", "score": 8, "summary": "Synthetic standard answer; not a real company conclusion.", "information_as_of": "2026-09-01", "per...
+E
+E         ──────────────────────────────────────────────────────────────────────
+E         [31/31] [CROSS_BORDER_01] 对象与口径={"company": "Fixture Corp", "ticker"...
+E         ──────────────────────────────────────────────────────────────────────
+E         Score: 8/10
+E
+E         {"question_id": "CROSS_BORDER_01", "response_kind": "score", "status": "scored", "score": 8, "summary": "Synthetic standard answer; not a real company conclusion.", "information_as_of": "2026-09-01", ...
+E         INFO - [OK] 结果已保存到: C:\Users\郑曾波\AppData\Local\Temp\qa-c0602r-58cdae\tmp\sub-red\test_real_subprocess_wrong_tem0\result.json
+E
+E         ======================================================================
+E         分析完成统计
+E         ======================================================================
+E         [OK] 处理问题数: 31
+E         [OK] 成功处理: 31
+E         [INFO] 未评分问题: 0
+E         [OK] 完整报告已保存到: C:\Users\郑曾波\AppData\Local\Temp\qa-c0602r-58cdae\tmp\sub-red\test_real_subprocess_wrong_tem0\result.json
+E         [OK] 平均评分: 8.0/10
+E         [OK] 评分分布: {8: 31}
+E         INFO -
+E         Question processing completed.
+E
+E       assert 0 == 1
+E        +  where 0 = CompletedProcess(args=['C:\\Miniconda\\python.exe', '-B', '-X', 'utf8', 'C:\\Users\\郑曾波\\Projects\\StockQAbyLLM\\main_..._wrong_tem0\\result.json\n[OK] 平均评分: 8.0/10\n[OK] 评分分布: {8: 31}\nINFO - \nQuestion processing completed.\n', stderr='').returncode
+
+tests\integration\test_qa_c06_02_subprocess_cli.py:281: AssertionError
+_ test_real_subprocess_duplicate_authority_json_key_is_rejected_before_key_http _
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/sub-red/test_real_subprocess_duplicate0')
+
+    def test_real_subprocess_duplicate_authority_json_key_is_rejected_before_key_http(
+        tmp_path,
+    ):
+        files = _prepare_root(tmp_path)
+        raw = (
+            files["authority"]
+            .read_text(encoding="utf-8")
+            .replace(
+                '"schema_version": "2.0.0"',
+                '"schema_version": "1.0.0", "schema_version": "2.0.0"',
+                1,
+            )
+        )
+        files["authority"].write_text(raw, encoding="utf-8")
+        result = _spawn(tmp_path, _cold_argv(files), stub=True)
+>       _assert_rejected_before_key_http_budget(tmp_path, files, result)
+
+tests\integration\test_qa_c06_02_subprocess_cli.py:385:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/sub-red/test_real_subprocess_duplicate0')
+files = {'questions': WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/sub-red/test_real_subprocess_duplicate...波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/sub-red/test_real_subprocess_duplicate0/quick_scan_c06_authority.json'), ...}
+result = CompletedProcess(args=['C:\\Miniconda\\python.exe', '-B', '-X', 'utf8', 'C:\\Users\\郑曾波\\Projects\\StockQAbyLLM\\main_..._duplicate0\\result.json\n[OK] 平均评分: 8.0/10\n[OK] 评分分布: {8: 31}\nINFO - \nQuestion processing completed.\n', stderr='')
+
+    def _assert_rejected_before_key_http_budget(
+        tmp_path: Path, files: dict, result
+    ) -> None:
+>       assert result.returncode == 1, result.stdout[-3000:] + result.stderr[-3000:]
+E       AssertionError: any": "Fixture Corp", "ticker": ...
+E         ──────────────────────────────────────────────────────────────────────
+E         Score: 8/10
+E
+E         {"question_id": "INDUSTRIAL_02", "response_kind": "score", "status": "scored", "score": 8, "summary": "Synthetic standard answer; not a real company conclusion.", "information_as_of": "2026-09-01", "p...
+E
+E         ──────────────────────────────────────────────────────────────────────
+E         [27/31] [MATURE_01] 对象与口径={"company": "Fixture Corp", "ticker": "FIX...
+E         ──────────────────────────────────────────────────────────────────────
+E         Score: 8/10
+E
+E         {"question_id": "MATURE_01", "response_kind": "score", "status": "scored", "score": 8, "summary": "Synthetic standard answer; not a real company conclusion.", "information_as_of": "2026-09-01", "perio...
+E
+E         ──────────────────────────────────────────────────────────────────────
+E         [28/31] [MATURE_02] 对象与口径={"company": "Fixture Corp", "ticker": "FIX...
+E         ──────────────────────────────────────────────────────────────────────
+E         Score: 8/10
+E
+E         {"question_id": "MATURE_02", "response_kind": "score", "status": "scored", "score": 8, "summary": "Synthetic standard answer; not a real company conclusion.", "information_as_of": "2026-09-01", "perio...
+E
+E         ──────────────────────────────────────────────────────────────────────
+E         [29/31] [CYCLICAL_01] 对象与口径={"company": "Fixture Corp", "ticker": "F...
+E         ──────────────────────────────────────────────────────────────────────
+E         Score: 8/10
+E
+E         {"question_id": "CYCLICAL_01", "response_kind": "score", "status": "scored", "score": 8, "summary": "Synthetic standard answer; not a real company conclusion.", "information_as_of": "2026-09-01", "per...
+E
+E         ──────────────────────────────────────────────────────────────────────
+E         [30/31] [CYCLICAL_02] 对象与口径={"company": "Fixture Corp", "ticker": "F...
+E         ──────────────────────────────────────────────────────────────────────
+E         Score: 8/10
+E
+E         {"question_id": "CYCLICAL_02", "response_kind": "score", "status": "scored", "score": 8, "summary": "Synthetic standard answer; not a real company conclusion.", "information_as_of": "2026-09-01", "per...
+E
+E         ──────────────────────────────────────────────────────────────────────
+E         [31/31] [CROSS_BORDER_01] 对象与口径={"company": "Fixture Corp", "ticker"...
+E         ──────────────────────────────────────────────────────────────────────
+E         Score: 8/10
+E
+E         {"question_id": "CROSS_BORDER_01", "response_kind": "score", "status": "scored", "score": 8, "summary": "Synthetic standard answer; not a real company conclusion.", "information_as_of": "2026-09-01", ...
+E         INFO - [OK] 结果已保存到: C:\Users\郑曾波\AppData\Local\Temp\qa-c0602r-58cdae\tmp\sub-red\test_real_subprocess_duplicate0\result.json
+E
+E         ======================================================================
+E         分析完成统计
+E         ======================================================================
+E         [OK] 处理问题数: 31
+E         [OK] 成功处理: 31
+E         [INFO] 未评分问题: 0
+E         [OK] 完整报告已保存到: C:\Users\郑曾波\AppData\Local\Temp\qa-c0602r-58cdae\tmp\sub-red\test_real_subprocess_duplicate0\result.json
+E         [OK] 平均评分: 8.0/10
+E         [OK] 评分分布: {8: 31}
+E         INFO -
+E         Question processing completed.
+E
+E       assert 0 == 1
+E        +  where 0 = CompletedProcess(args=['C:\\Miniconda\\python.exe', '-B', '-X', 'utf8', 'C:\\Users\\郑曾波\\Projects\\StockQAbyLLM\\main_..._duplicate0\\result.json\n[OK] 平均评分: 8.0/10\n[OK] 评分分布: {8: 31}\nINFO - \nQuestion processing completed.\n', stderr='').returncode
+
+tests\integration\test_qa_c06_02_subprocess_cli.py:281: AssertionError
+___ test_real_subprocess_corrupt_standard_body_is_rejected_without_reasking ___
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/sub-red/test_real_subprocess_corrupt_s0')
+
+    def test_real_subprocess_corrupt_standard_body_is_rejected_without_reasking(tmp_path):
+        corrupt = QUESTIONS[0]
+        files = _prepare_root(tmp_path, corrupt_question=corrupt)
+        result = _spawn(tmp_path, _cold_argv(files), stub=True)
+        assert result.returncode == 1, result.stdout[-4000:] + result.stderr[-3000:]
+>       _no_network(tmp_path)
+
+tests\integration\test_qa_c06_02_subprocess_cli.py:393:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/sub-red/test_real_subprocess_corrupt_s0')
+
+    def _no_network(tmp_path: Path) -> None:
+>       assert not (tmp_path / "network-attempts.jsonl").exists()
+E       AssertionError: assert not True
+E        +  where True = exists()
+E        +    where exists = (WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/sub-red/test_real_subprocess_corrupt_s0') / 'network-attempts.jsonl').exists
+
+tests\integration\test_qa_c06_02_subprocess_cli.py:275: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/integration/test_qa_c06_02_subprocess_cli.py::test_real_subprocess_cold_warm_and_seal_with_the_stub_only_at_http
+FAILED tests/integration/test_qa_c06_02_subprocess_cli.py::test_real_subprocess_wrong_template_metadata_is_rejected_before_key_http
+FAILED tests/integration/test_qa_c06_02_subprocess_cli.py::test_real_subprocess_duplicate_authority_json_key_is_rejected_before_key_http
+FAILED tests/integration/test_qa_c06_02_subprocess_cli.py::test_real_subprocess_corrupt_standard_body_is_rejected_without_reasking
+4 failed in 38.67s

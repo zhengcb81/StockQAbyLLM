@@ -1,0 +1,150 @@
+FFFFFFF..                                                                [100%]
+================================== FAILURES ===================================
+_ test_metadata_is_bound_to_real_frozen_manifest[question_definition_sha256-0000000000000000000000000000000000000000000000000000000000000000] _
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/boundaries/test_metadata_is_bound_to_real0')
+field = 'question_definition_sha256'
+value = '0000000000000000000000000000000000000000000000000000000000000000'
+
+    @pytest.mark.parametrize('field,value',[
+        ('question_definition_sha256','0'*64),('question_semantic_sha256','1'*64),('template_version','99.0.0')])
+    def test_metadata_is_bound_to_real_frozen_manifest(tmp_path,field,value):
+        doc=copy.deepcopy(f.AUTHORITY_V2)
+        doc['observation_context']['questions'][f.QID]['metadata'][field]=value
+>       with pytest.raises(AuthorityUnavailable):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE AuthorityUnavailable
+
+..\controller_cases.py:33: Failed
+_ test_metadata_is_bound_to_real_frozen_manifest[question_semantic_sha256-1111111111111111111111111111111111111111111111111111111111111111] _
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/boundaries/test_metadata_is_bound_to_real1')
+field = 'question_semantic_sha256'
+value = '1111111111111111111111111111111111111111111111111111111111111111'
+
+    @pytest.mark.parametrize('field,value',[
+        ('question_definition_sha256','0'*64),('question_semantic_sha256','1'*64),('template_version','99.0.0')])
+    def test_metadata_is_bound_to_real_frozen_manifest(tmp_path,field,value):
+        doc=copy.deepcopy(f.AUTHORITY_V2)
+        doc['observation_context']['questions'][f.QID]['metadata'][field]=value
+>       with pytest.raises(AuthorityUnavailable):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE AuthorityUnavailable
+
+..\controller_cases.py:33: Failed
+___ test_metadata_is_bound_to_real_frozen_manifest[template_version-99.0.0] ___
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/boundaries/test_metadata_is_bound_to_real2')
+field = 'template_version', value = '99.0.0'
+
+    @pytest.mark.parametrize('field,value',[
+        ('question_definition_sha256','0'*64),('question_semantic_sha256','1'*64),('template_version','99.0.0')])
+    def test_metadata_is_bound_to_real_frozen_manifest(tmp_path,field,value):
+        doc=copy.deepcopy(f.AUTHORITY_V2)
+        doc['observation_context']['questions'][f.QID]['metadata'][field]=value
+>       with pytest.raises(AuthorityUnavailable):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE AuthorityUnavailable
+
+..\controller_cases.py:33: Failed
+________________ test_authority_duplicate_json_key_is_rejected ________________
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/boundaries/test_authority_duplicate_json_0')
+
+    def test_authority_duplicate_json_key_is_rejected(tmp_path):
+        path=write(tmp_path,f.AUTHORITY_V2)
+        raw=path.read_text('utf-8')
+        path.write_text(raw.replace('"schema_version": "2.0.0"',
+            '"schema_version": "1.0.0", "schema_version": "2.0.0"',1),encoding='utf-8')
+>       with pytest.raises(AuthorityUnavailable): load_c06_authority(path)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE AuthorityUnavailable
+
+..\controller_cases.py:42: Failed
+_______________ test_standard_body_duplicate_score_is_rejected ________________
+
+    def test_standard_body_duplicate_score_is_rejected():
+        raw=json.dumps(f._standard_body())
+        raw=raw.replace('"score": 8','"score": 1, "score": 8',1)
+        try:
+            parsed=parse_standard_answer(raw)
+        except ValueError:
+            return
+>       assert parsed is None,'Duplicate score silently chose the last value'
+E       AssertionError: Duplicate score silently chose the last value
+E       assert {'question_id': 'IQS_01', 'response_kind': 'score', 'status': 'scored', 'score': 8, ...} is None
+
+..\controller_cases.py:51: AssertionError
+____________ test_foreign_run_and_scan_cannot_seal_this_checkpoint ____________
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/boundaries/test_foreign_run_and_scan_cann0')
+
+    def test_foreign_run_and_scan_cannot_seal_this_checkpoint(tmp_path):
+>       store,item,_,body=f._checkpointed(tmp_path,with_context=False)
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+..\controller_cases.py:54:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\unit\test_quick_scan_c06_complete_seal.py:181: in _checkpointed
+    checkpoint = store.save_answer_checkpoint(
+src\utils\quick_scan_work_store.py:2507: in save_answer_checkpoint
+    side_tables = self._prepare_standard_inputs(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+question_id = 'IQS_01'
+normalized_answer = {'entity_id': 'ENT_CONTEXT_FIXTURE', 'question_id': 'IQS_01', 'status': 'scored', 'score': 8, ...}
+source_urls = ['https://example.invalid/company'], observation_context = None
+standard_answer = {'question_id': 'IQS_01', 'response_kind': 'score', 'status': 'scored', 'score': 8, ...}
+
+    @staticmethod
+    def _prepare_standard_inputs(
+        *,
+        question_id: str,
+        normalized_answer: dict,
+        source_urls: list,
+        observation_context: Optional[dict],
+        standard_answer: Optional[dict],
+    ) -> dict:
+        """Validate the frozen context and (when present) the body BEFORE any write."""
+        if observation_context is None:
+>           raise ValueError("a complete standard answer requires the frozen observation context")
+E           ValueError: a complete standard answer requires the frozen observation context
+
+src\utils\quick_scan_work_store.py:2724: ValueError
+__________ test_supersede_cannot_change_full_claim_or_original_start __________
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/boundaries/test_supersede_cannot_change_f0')
+
+    def test_supersede_cannot_change_full_claim_or_original_start(tmp_path):
+        store,item,_,body=f._checkpointed(tmp_path)
+        wid=item['work_item_id']
+        f.seal_result_delivery(store,wid,authority=f._v2_authority(tmp_path))
+        before=store.get_result_delivery(wid)
+        forged=copy.deepcopy(before['package']);entry=forged['items'][0];obs=entry['observation']
+        obs['answer']['evidence'][0]['claim']='Changed claim not from durable standard body'
+        obs['execution']['started_at']='2026-09-27T10:00:00Z'
+        del obs['observation_id'];obs['observation_id']='obs_'+canonical_sha256(obs)
+        entry['observation_id']=obs['observation_id']
+        entry['payload_sha256']=canonical_sha256(obs)
+        entry['item_id']='itm_'+canonical_sha256({'observation_id':obs['observation_id'],
+            'payload_sha256':entry['payload_sha256']})
+        del forged['package_id'];del forged['package_sha256']
+        digest=canonical_sha256(forged);forged['package_id']='pkg_'+digest;forged['package_sha256']=digest
+>       with pytest.raises(ValueError): store.supersede_result_delivery(wid,forged)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+..\controller_cases.py:78: Failed
+---------------------------- Captured stdout call -----------------------------
+INFO - C06 完整包已封存（WORK_58cc945d5ff541228de6280e2901165c）→ pkg_a6963bdd4d827c57d76f1ab04a979be6a55ba6cc785dfc3c4658e32733719f70
+------------------------------ Captured log call ------------------------------
+INFO     src.utils.quick_scan_delivery_seal:quick_scan_delivery_seal.py:209 C06 完整包已封存（WORK_58cc945d5ff541228de6280e2901165c）→ pkg_a6963bdd4d827c57d76f1ab04a979be6a55ba6cc785dfc3c4658e32733719f70
+=========================== short test summary info ===========================
+FAILED ..\controller_cases.py::test_metadata_is_bound_to_real_frozen_manifest[question_definition_sha256-0000000000000000000000000000000000000000000000000000000000000000]
+FAILED ..\controller_cases.py::test_metadata_is_bound_to_real_frozen_manifest[question_semantic_sha256-1111111111111111111111111111111111111111111111111111111111111111]
+FAILED ..\controller_cases.py::test_metadata_is_bound_to_real_frozen_manifest[template_version-99.0.0]
+FAILED ..\controller_cases.py::test_authority_duplicate_json_key_is_rejected
+FAILED ..\controller_cases.py::test_standard_body_duplicate_score_is_rejected
+FAILED ..\controller_cases.py::test_foreign_run_and_scan_cannot_seal_this_checkpoint
+FAILED ..\controller_cases.py::test_supersede_cannot_change_full_claim_or_original_start
+7 failed, 2 passed in 1.64s

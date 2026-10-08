@@ -832,6 +832,23 @@ def _canonical_bindings(source_binding_ref: str, source_binding_refs: Sequence[s
     return json.dumps(sorted(refs), ensure_ascii=True, separators=(",", ":"))
 
 
+#: The exact field set of the historical COMPACT v1 observation. A package
+#: whose observation carries anything else claims to be a complete C06
+#: Observation and must be rebuilt byte-for-byte from the durable side tables.
+_COMPACT_OBSERVATION_FIELDS = frozenset(
+    {
+        "observation_id",
+        "entity_id",
+        "question_id",
+        "scope",
+        "security_id",
+        "segment_id",
+        "answer",
+        "execution",
+    }
+)
+
+
 class QuickScanWorkStore:
     """SQLite ledger for per-question work, answer checkpoints, and attempts."""
 
@@ -2522,6 +2539,12 @@ class QuickScanWorkStore:
                     now=now,
                     **side_tables,
                 )
+                self._record_frozen_run_refs(
+                    connection,
+                    work_item_id=work_item_id,
+                    context_encoded=side_tables["context_encoded"],
+                    now=now,
+                )
             existing = connection.execute(
                 "SELECT * FROM answer_checkpoint WHERE work_item_id=?", (work_item_id,)
             ).fetchone()
@@ -2709,6 +2732,34 @@ class QuickScanWorkStore:
             )
         elif answer_row["answer_sha256"] != standard_sha256:
             raise WorkConflictError("task already has a different complete standard answer")
+
+    @staticmethod
+    def _record_frozen_run_refs(
+        connection: sqlite3.Connection,
+        *,
+        work_item_id: str,
+        context_encoded: str,
+        now: float,
+    ) -> None:
+        """Persist the frozen context's run/scan labels against THIS work item.
+
+        Written in the SAME transaction as the answer checkpoint, the row is
+        the immutable mapping between the owner's frozen namespace and the
+        dispatch run/attempt that actually produced the answer. Later attach
+        and seal paths only VERIFY this mapping — they never invent one —
+        so a foreign run/scan can never impersonate the real execution.
+        """
+        context = json.loads(context_encoded)
+        pairs = {
+            (question["metadata"]["run_id"], question["metadata"]["scan_id"])
+            for question in context["questions"].values()
+        }
+        for run_id, scan_id in sorted(pairs):
+            connection.execute(
+                "INSERT OR IGNORE INTO work_run_ref (work_item_id,run_id,scan_id,attached_at) "
+                "VALUES (?,?,?,?)",
+                (work_item_id, _safe(run_id, "run_id"), _safe(scan_id, "scan_id"), now),
+            )
 
     @staticmethod
     def _prepare_standard_inputs(
@@ -3102,6 +3153,77 @@ class QuickScanWorkStore:
         )
         return revision
 
+    def _assert_complete_observation_binding(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        work_item_id: str,
+        item: dict,
+        checkpoint: dict,
+        package: dict,
+    ) -> None:
+        """A package that CLAIMS to be a complete Observation must equal a rebuild.
+
+        Envelope and checkpoint bindings alone never prove the full body: the
+        package is re-derived from the IMMUTABLE context side table, the
+        durable standard answer and the ORIGINAL successful attempt's send
+        intent, and must match byte-for-byte. Any single forged claim, typed
+        metric, metadata field or started_at is refused inside the same
+        transaction — a failed check writes no revision and leaves the head
+        untouched. Legacy compact packages, and items without durable complete
+        inputs, keep their historical binding rules.
+        """
+        from .quick_scan_delivery_seal import _send_intent_iso
+        from .quick_scan_observation_context import (
+            bind_context_to_work_item,
+            build_observation,
+        )
+        from .quick_scan_result_outbox import canonical_sha256
+
+        observation = package["items"][0]["observation"]
+        if not isinstance(observation, dict) or set(observation) == _COMPACT_OBSERVATION_FIELDS:
+            return
+        context_row = connection.execute(
+            "SELECT c.context_json FROM quick_scan_work_context w "
+            "JOIN quick_scan_observation_context c USING (context_sha256) "
+            "WHERE w.work_item_id=?",
+            (work_item_id,),
+        ).fetchone()
+        answer_row = connection.execute(
+            "SELECT answer_json FROM quick_scan_standard_answer WHERE work_item_id=?",
+            (work_item_id,),
+        ).fetchone()
+        if context_row is None or answer_row is None:
+            # This item has NO durable complete inputs (pre-v6 or legacy
+            # fixture stores): there is nothing to re-derive, so the
+            # historical checkpoint binding stays the only rule — the same
+            # behaviour those stores have always had.
+            return
+        attempt_row = connection.execute(
+            "SELECT send_intent_at FROM attempt WHERE attempt_id=? AND work_item_id=?",
+            (checkpoint["attempt_id"], work_item_id),
+        ).fetchone()
+        started_at = (
+            _send_intent_iso(attempt_row["send_intent_at"]) if attempt_row is not None else None
+        )
+        if started_at is None:
+            raise WorkConflictError("complete observation requires the original successful attempt")
+        bound = bind_context_to_work_item(
+            json.loads(context_row["context_json"]),
+            work_item=item,
+            question_id=item["question_id"],
+        )
+        expected = build_observation(
+            checkpoint["payload"],
+            context=bound,
+            standard_answer=json.loads(answer_row["answer_json"]),
+            started_at=started_at,
+        )
+        if canonical_sha256(expected) != canonical_sha256(observation):
+            raise WorkConflictError(
+                "complete observation differs from the durable body/context/original attempt"
+            )
+
     def prepare_result_delivery(self, work_item_id: str, package: dict) -> dict:
         """Seal a complete one-item package supplied by a verified C06 adapter."""
         from .quick_scan_result_outbox import (
@@ -3136,6 +3258,13 @@ class QuickScanWorkStore:
                 raise WorkConflictError("result-ready work has no answer checkpoint")
             checkpoint = self._checkpoint_record(connection, checkpoint_row, validate_status=True)
             validate_checkpoint_binding(validated, checkpoint)
+            self._assert_complete_observation_binding(
+                connection,
+                work_item_id=work_item_id,
+                item=dict(item),
+                checkpoint=checkpoint,
+                package=validated,
+            )
             current = self._delivery_row(connection, work_item_id)
             if current is not None and current["package_json"] is not None:
                 existing = self._result_delivery_record(current)
@@ -3279,6 +3408,13 @@ class QuickScanWorkStore:
                 raise WorkConflictError("result-ready work has no answer checkpoint")
             checkpoint = self._checkpoint_record(connection, checkpoint_row, validate_status=True)
             validate_checkpoint_binding(validated, checkpoint)
+            self._assert_complete_observation_binding(
+                connection,
+                work_item_id=work_item_id,
+                item=dict(item),
+                checkpoint=checkpoint,
+                package=validated,
+            )
             current = self._delivery_row(connection, work_item_id)
             if current is None or current["package_json"] is None:
                 raise WorkConflictError("only a sealed delivery can be superseded")

@@ -1,0 +1,943 @@
+..FFFFFFFFFFFFFFF..FFF..............................................FFF. [ 76%]
+F...........FF.FFFFFFF                                                   [100%]
+================================== FAILURES ===================================
+_ test_per_question_metadata_is_bound_to_the_frozen_manifest[0000000000000000] _
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/unit-red/test_per_question_metadata_is_0')
+changes = {'question_definition_sha256': '0000000000000000000000000000000000000000000000000000000000000000'}
+
+    @pytest.mark.parametrize(
+        "changes",
+        [
+            {"question_definition_sha256": "0" * 64},
+            {"question_semantic_sha256": "1" * 64},
+            {"template_version": "99.0.0"},
+            {"field_id": "score.not_the_metric"},
+            {"construct_id": "NOT_THE_CONSTRUCT"},
+            {"question_version": "9.9.9"},
+            {"module_package_id": "pkg_" + "a" * 64},
+            {"module_release_id": "modrel_" + "b" * 64},
+            {"method_id": "module-locked-v1/not-a-module/0000000000000000"},
+            {"information_cutoff": "2001-01-01"},
+            {"entity_id": "ENT_SOMEONE_ELSE"},
+            {"scope": "security", "security_id": "SEC_MISMATCH"},
+            {"cycle_sensitive": False},
+            {
+                "cohort": {
+                    "company_type": "seed",
+                    "industries": ["semiconductors"],
+                    "stage": "seed",
+                    "subtype": "tools",
+                }
+            },
+        ],
+        ids=lambda value: "-".join(str(item)[:16] for item in value.values())[:60],
+    )
+    def test_per_question_metadata_is_bound_to_the_frozen_manifest(tmp_path, changes):
+        document = copy.deepcopy(AUTHORITY)
+        document["observation_context"]["questions"][QID]["metadata"].update(changes)
+>       with pytest.raises(AuthorityUnavailable):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE AuthorityUnavailable
+
+tests\unit\test_quick_scan_c06_authority_binding.py:118: Failed
+_ test_per_question_metadata_is_bound_to_the_frozen_manifest[1111111111111111] _
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/unit-red/test_per_question_metadata_is_1')
+changes = {'question_semantic_sha256': '1111111111111111111111111111111111111111111111111111111111111111'}
+
+    @pytest.mark.parametrize(
+        "changes",
+        [
+            {"question_definition_sha256": "0" * 64},
+            {"question_semantic_sha256": "1" * 64},
+            {"template_version": "99.0.0"},
+            {"field_id": "score.not_the_metric"},
+            {"construct_id": "NOT_THE_CONSTRUCT"},
+            {"question_version": "9.9.9"},
+            {"module_package_id": "pkg_" + "a" * 64},
+            {"module_release_id": "modrel_" + "b" * 64},
+            {"method_id": "module-locked-v1/not-a-module/0000000000000000"},
+            {"information_cutoff": "2001-01-01"},
+            {"entity_id": "ENT_SOMEONE_ELSE"},
+            {"scope": "security", "security_id": "SEC_MISMATCH"},
+            {"cycle_sensitive": False},
+            {
+                "cohort": {
+                    "company_type": "seed",
+                    "industries": ["semiconductors"],
+                    "stage": "seed",
+                    "subtype": "tools",
+                }
+            },
+        ],
+        ids=lambda value: "-".join(str(item)[:16] for item in value.values())[:60],
+    )
+    def test_per_question_metadata_is_bound_to_the_frozen_manifest(tmp_path, changes):
+        document = copy.deepcopy(AUTHORITY)
+        document["observation_context"]["questions"][QID]["metadata"].update(changes)
+>       with pytest.raises(AuthorityUnavailable):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE AuthorityUnavailable
+
+tests\unit\test_quick_scan_c06_authority_binding.py:118: Failed
+_____ test_per_question_metadata_is_bound_to_the_frozen_manifest[99.0.0] ______
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/unit-red/test_per_question_metadata_is_2')
+changes = {'template_version': '99.0.0'}
+
+    @pytest.mark.parametrize(
+        "changes",
+        [
+            {"question_definition_sha256": "0" * 64},
+            {"question_semantic_sha256": "1" * 64},
+            {"template_version": "99.0.0"},
+            {"field_id": "score.not_the_metric"},
+            {"construct_id": "NOT_THE_CONSTRUCT"},
+            {"question_version": "9.9.9"},
+            {"module_package_id": "pkg_" + "a" * 64},
+            {"module_release_id": "modrel_" + "b" * 64},
+            {"method_id": "module-locked-v1/not-a-module/0000000000000000"},
+            {"information_cutoff": "2001-01-01"},
+            {"entity_id": "ENT_SOMEONE_ELSE"},
+            {"scope": "security", "security_id": "SEC_MISMATCH"},
+            {"cycle_sensitive": False},
+            {
+                "cohort": {
+                    "company_type": "seed",
+                    "industries": ["semiconductors"],
+                    "stage": "seed",
+                    "subtype": "tools",
+                }
+            },
+        ],
+        ids=lambda value: "-".join(str(item)[:16] for item in value.values())[:60],
+    )
+    def test_per_question_metadata_is_bound_to_the_frozen_manifest(tmp_path, changes):
+        document = copy.deepcopy(AUTHORITY)
+        document["observation_context"]["questions"][QID]["metadata"].update(changes)
+>       with pytest.raises(AuthorityUnavailable):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE AuthorityUnavailable
+
+tests\unit\test_quick_scan_c06_authority_binding.py:118: Failed
+_ test_per_question_metadata_is_bound_to_the_frozen_manifest[score.not_the_me] _
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/unit-red/test_per_question_metadata_is_3')
+changes = {'field_id': 'score.not_the_metric'}
+
+    @pytest.mark.parametrize(
+        "changes",
+        [
+            {"question_definition_sha256": "0" * 64},
+            {"question_semantic_sha256": "1" * 64},
+            {"template_version": "99.0.0"},
+            {"field_id": "score.not_the_metric"},
+            {"construct_id": "NOT_THE_CONSTRUCT"},
+            {"question_version": "9.9.9"},
+            {"module_package_id": "pkg_" + "a" * 64},
+            {"module_release_id": "modrel_" + "b" * 64},
+            {"method_id": "module-locked-v1/not-a-module/0000000000000000"},
+            {"information_cutoff": "2001-01-01"},
+            {"entity_id": "ENT_SOMEONE_ELSE"},
+            {"scope": "security", "security_id": "SEC_MISMATCH"},
+            {"cycle_sensitive": False},
+            {
+                "cohort": {
+                    "company_type": "seed",
+                    "industries": ["semiconductors"],
+                    "stage": "seed",
+                    "subtype": "tools",
+                }
+            },
+        ],
+        ids=lambda value: "-".join(str(item)[:16] for item in value.values())[:60],
+    )
+    def test_per_question_metadata_is_bound_to_the_frozen_manifest(tmp_path, changes):
+        document = copy.deepcopy(AUTHORITY)
+        document["observation_context"]["questions"][QID]["metadata"].update(changes)
+>       with pytest.raises(AuthorityUnavailable):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE AuthorityUnavailable
+
+tests\unit\test_quick_scan_c06_authority_binding.py:118: Failed
+_ test_per_question_metadata_is_bound_to_the_frozen_manifest[NOT_THE_CONSTRUC] _
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/unit-red/test_per_question_metadata_is_4')
+changes = {'construct_id': 'NOT_THE_CONSTRUCT'}
+
+    @pytest.mark.parametrize(
+        "changes",
+        [
+            {"question_definition_sha256": "0" * 64},
+            {"question_semantic_sha256": "1" * 64},
+            {"template_version": "99.0.0"},
+            {"field_id": "score.not_the_metric"},
+            {"construct_id": "NOT_THE_CONSTRUCT"},
+            {"question_version": "9.9.9"},
+            {"module_package_id": "pkg_" + "a" * 64},
+            {"module_release_id": "modrel_" + "b" * 64},
+            {"method_id": "module-locked-v1/not-a-module/0000000000000000"},
+            {"information_cutoff": "2001-01-01"},
+            {"entity_id": "ENT_SOMEONE_ELSE"},
+            {"scope": "security", "security_id": "SEC_MISMATCH"},
+            {"cycle_sensitive": False},
+            {
+                "cohort": {
+                    "company_type": "seed",
+                    "industries": ["semiconductors"],
+                    "stage": "seed",
+                    "subtype": "tools",
+                }
+            },
+        ],
+        ids=lambda value: "-".join(str(item)[:16] for item in value.values())[:60],
+    )
+    def test_per_question_metadata_is_bound_to_the_frozen_manifest(tmp_path, changes):
+        document = copy.deepcopy(AUTHORITY)
+        document["observation_context"]["questions"][QID]["metadata"].update(changes)
+>       with pytest.raises(AuthorityUnavailable):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE AuthorityUnavailable
+
+tests\unit\test_quick_scan_c06_authority_binding.py:118: Failed
+______ test_per_question_metadata_is_bound_to_the_frozen_manifest[9.9.9] ______
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/unit-red/test_per_question_metadata_is_5')
+changes = {'question_version': '9.9.9'}
+
+    @pytest.mark.parametrize(
+        "changes",
+        [
+            {"question_definition_sha256": "0" * 64},
+            {"question_semantic_sha256": "1" * 64},
+            {"template_version": "99.0.0"},
+            {"field_id": "score.not_the_metric"},
+            {"construct_id": "NOT_THE_CONSTRUCT"},
+            {"question_version": "9.9.9"},
+            {"module_package_id": "pkg_" + "a" * 64},
+            {"module_release_id": "modrel_" + "b" * 64},
+            {"method_id": "module-locked-v1/not-a-module/0000000000000000"},
+            {"information_cutoff": "2001-01-01"},
+            {"entity_id": "ENT_SOMEONE_ELSE"},
+            {"scope": "security", "security_id": "SEC_MISMATCH"},
+            {"cycle_sensitive": False},
+            {
+                "cohort": {
+                    "company_type": "seed",
+                    "industries": ["semiconductors"],
+                    "stage": "seed",
+                    "subtype": "tools",
+                }
+            },
+        ],
+        ids=lambda value: "-".join(str(item)[:16] for item in value.values())[:60],
+    )
+    def test_per_question_metadata_is_bound_to_the_frozen_manifest(tmp_path, changes):
+        document = copy.deepcopy(AUTHORITY)
+        document["observation_context"]["questions"][QID]["metadata"].update(changes)
+>       with pytest.raises(AuthorityUnavailable):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE AuthorityUnavailable
+
+tests\unit\test_quick_scan_c06_authority_binding.py:118: Failed
+_ test_per_question_metadata_is_bound_to_the_frozen_manifest[pkg_aaaaaaaaaaaa] _
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/unit-red/test_per_question_metadata_is_6')
+changes = {'module_package_id': 'pkg_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'}
+
+    @pytest.mark.parametrize(
+        "changes",
+        [
+            {"question_definition_sha256": "0" * 64},
+            {"question_semantic_sha256": "1" * 64},
+            {"template_version": "99.0.0"},
+            {"field_id": "score.not_the_metric"},
+            {"construct_id": "NOT_THE_CONSTRUCT"},
+            {"question_version": "9.9.9"},
+            {"module_package_id": "pkg_" + "a" * 64},
+            {"module_release_id": "modrel_" + "b" * 64},
+            {"method_id": "module-locked-v1/not-a-module/0000000000000000"},
+            {"information_cutoff": "2001-01-01"},
+            {"entity_id": "ENT_SOMEONE_ELSE"},
+            {"scope": "security", "security_id": "SEC_MISMATCH"},
+            {"cycle_sensitive": False},
+            {
+                "cohort": {
+                    "company_type": "seed",
+                    "industries": ["semiconductors"],
+                    "stage": "seed",
+                    "subtype": "tools",
+                }
+            },
+        ],
+        ids=lambda value: "-".join(str(item)[:16] for item in value.values())[:60],
+    )
+    def test_per_question_metadata_is_bound_to_the_frozen_manifest(tmp_path, changes):
+        document = copy.deepcopy(AUTHORITY)
+        document["observation_context"]["questions"][QID]["metadata"].update(changes)
+>       with pytest.raises(AuthorityUnavailable):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE AuthorityUnavailable
+
+tests\unit\test_quick_scan_c06_authority_binding.py:118: Failed
+_ test_per_question_metadata_is_bound_to_the_frozen_manifest[modrel_bbbbbbbbb] _
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/unit-red/test_per_question_metadata_is_7')
+changes = {'module_release_id': 'modrel_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'}
+
+    @pytest.mark.parametrize(
+        "changes",
+        [
+            {"question_definition_sha256": "0" * 64},
+            {"question_semantic_sha256": "1" * 64},
+            {"template_version": "99.0.0"},
+            {"field_id": "score.not_the_metric"},
+            {"construct_id": "NOT_THE_CONSTRUCT"},
+            {"question_version": "9.9.9"},
+            {"module_package_id": "pkg_" + "a" * 64},
+            {"module_release_id": "modrel_" + "b" * 64},
+            {"method_id": "module-locked-v1/not-a-module/0000000000000000"},
+            {"information_cutoff": "2001-01-01"},
+            {"entity_id": "ENT_SOMEONE_ELSE"},
+            {"scope": "security", "security_id": "SEC_MISMATCH"},
+            {"cycle_sensitive": False},
+            {
+                "cohort": {
+                    "company_type": "seed",
+                    "industries": ["semiconductors"],
+                    "stage": "seed",
+                    "subtype": "tools",
+                }
+            },
+        ],
+        ids=lambda value: "-".join(str(item)[:16] for item in value.values())[:60],
+    )
+    def test_per_question_metadata_is_bound_to_the_frozen_manifest(tmp_path, changes):
+        document = copy.deepcopy(AUTHORITY)
+        document["observation_context"]["questions"][QID]["metadata"].update(changes)
+>       with pytest.raises(AuthorityUnavailable):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE AuthorityUnavailable
+
+tests\unit\test_quick_scan_c06_authority_binding.py:118: Failed
+_ test_per_question_metadata_is_bound_to_the_frozen_manifest[module-locked-v1] _
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/unit-red/test_per_question_metadata_is_8')
+changes = {'method_id': 'module-locked-v1/not-a-module/0000000000000000'}
+
+    @pytest.mark.parametrize(
+        "changes",
+        [
+            {"question_definition_sha256": "0" * 64},
+            {"question_semantic_sha256": "1" * 64},
+            {"template_version": "99.0.0"},
+            {"field_id": "score.not_the_metric"},
+            {"construct_id": "NOT_THE_CONSTRUCT"},
+            {"question_version": "9.9.9"},
+            {"module_package_id": "pkg_" + "a" * 64},
+            {"module_release_id": "modrel_" + "b" * 64},
+            {"method_id": "module-locked-v1/not-a-module/0000000000000000"},
+            {"information_cutoff": "2001-01-01"},
+            {"entity_id": "ENT_SOMEONE_ELSE"},
+            {"scope": "security", "security_id": "SEC_MISMATCH"},
+            {"cycle_sensitive": False},
+            {
+                "cohort": {
+                    "company_type": "seed",
+                    "industries": ["semiconductors"],
+                    "stage": "seed",
+                    "subtype": "tools",
+                }
+            },
+        ],
+        ids=lambda value: "-".join(str(item)[:16] for item in value.values())[:60],
+    )
+    def test_per_question_metadata_is_bound_to_the_frozen_manifest(tmp_path, changes):
+        document = copy.deepcopy(AUTHORITY)
+        document["observation_context"]["questions"][QID]["metadata"].update(changes)
+>       with pytest.raises(AuthorityUnavailable):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE AuthorityUnavailable
+
+tests\unit\test_quick_scan_c06_authority_binding.py:118: Failed
+___ test_per_question_metadata_is_bound_to_the_frozen_manifest[2001-01-01] ____
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/unit-red/test_per_question_metadata_is_9')
+changes = {'information_cutoff': '2001-01-01'}
+
+    @pytest.mark.parametrize(
+        "changes",
+        [
+            {"question_definition_sha256": "0" * 64},
+            {"question_semantic_sha256": "1" * 64},
+            {"template_version": "99.0.0"},
+            {"field_id": "score.not_the_metric"},
+            {"construct_id": "NOT_THE_CONSTRUCT"},
+            {"question_version": "9.9.9"},
+            {"module_package_id": "pkg_" + "a" * 64},
+            {"module_release_id": "modrel_" + "b" * 64},
+            {"method_id": "module-locked-v1/not-a-module/0000000000000000"},
+            {"information_cutoff": "2001-01-01"},
+            {"entity_id": "ENT_SOMEONE_ELSE"},
+            {"scope": "security", "security_id": "SEC_MISMATCH"},
+            {"cycle_sensitive": False},
+            {
+                "cohort": {
+                    "company_type": "seed",
+                    "industries": ["semiconductors"],
+                    "stage": "seed",
+                    "subtype": "tools",
+                }
+            },
+        ],
+        ids=lambda value: "-".join(str(item)[:16] for item in value.values())[:60],
+    )
+    def test_per_question_metadata_is_bound_to_the_frozen_manifest(tmp_path, changes):
+        document = copy.deepcopy(AUTHORITY)
+        document["observation_context"]["questions"][QID]["metadata"].update(changes)
+>       with pytest.raises(AuthorityUnavailable):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE AuthorityUnavailable
+
+tests\unit\test_quick_scan_c06_authority_binding.py:118: Failed
+_ test_per_question_metadata_is_bound_to_the_frozen_manifest[ENT_SOMEONE_ELSE] _
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/unit-red/test_per_question_metadata_is_10')
+changes = {'entity_id': 'ENT_SOMEONE_ELSE'}
+
+    @pytest.mark.parametrize(
+        "changes",
+        [
+            {"question_definition_sha256": "0" * 64},
+            {"question_semantic_sha256": "1" * 64},
+            {"template_version": "99.0.0"},
+            {"field_id": "score.not_the_metric"},
+            {"construct_id": "NOT_THE_CONSTRUCT"},
+            {"question_version": "9.9.9"},
+            {"module_package_id": "pkg_" + "a" * 64},
+            {"module_release_id": "modrel_" + "b" * 64},
+            {"method_id": "module-locked-v1/not-a-module/0000000000000000"},
+            {"information_cutoff": "2001-01-01"},
+            {"entity_id": "ENT_SOMEONE_ELSE"},
+            {"scope": "security", "security_id": "SEC_MISMATCH"},
+            {"cycle_sensitive": False},
+            {
+                "cohort": {
+                    "company_type": "seed",
+                    "industries": ["semiconductors"],
+                    "stage": "seed",
+                    "subtype": "tools",
+                }
+            },
+        ],
+        ids=lambda value: "-".join(str(item)[:16] for item in value.values())[:60],
+    )
+    def test_per_question_metadata_is_bound_to_the_frozen_manifest(tmp_path, changes):
+        document = copy.deepcopy(AUTHORITY)
+        document["observation_context"]["questions"][QID]["metadata"].update(changes)
+>       with pytest.raises(AuthorityUnavailable):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE AuthorityUnavailable
+
+tests\unit\test_quick_scan_c06_authority_binding.py:118: Failed
+_ test_per_question_metadata_is_bound_to_the_frozen_manifest[security-SEC_MISMATCH] _
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/unit-red/test_per_question_metadata_is_11')
+changes = {'scope': 'security', 'security_id': 'SEC_MISMATCH'}
+
+    @pytest.mark.parametrize(
+        "changes",
+        [
+            {"question_definition_sha256": "0" * 64},
+            {"question_semantic_sha256": "1" * 64},
+            {"template_version": "99.0.0"},
+            {"field_id": "score.not_the_metric"},
+            {"construct_id": "NOT_THE_CONSTRUCT"},
+            {"question_version": "9.9.9"},
+            {"module_package_id": "pkg_" + "a" * 64},
+            {"module_release_id": "modrel_" + "b" * 64},
+            {"method_id": "module-locked-v1/not-a-module/0000000000000000"},
+            {"information_cutoff": "2001-01-01"},
+            {"entity_id": "ENT_SOMEONE_ELSE"},
+            {"scope": "security", "security_id": "SEC_MISMATCH"},
+            {"cycle_sensitive": False},
+            {
+                "cohort": {
+                    "company_type": "seed",
+                    "industries": ["semiconductors"],
+                    "stage": "seed",
+                    "subtype": "tools",
+                }
+            },
+        ],
+        ids=lambda value: "-".join(str(item)[:16] for item in value.values())[:60],
+    )
+    def test_per_question_metadata_is_bound_to_the_frozen_manifest(tmp_path, changes):
+        document = copy.deepcopy(AUTHORITY)
+        document["observation_context"]["questions"][QID]["metadata"].update(changes)
+>       with pytest.raises(AuthorityUnavailable):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE AuthorityUnavailable
+
+tests\unit\test_quick_scan_c06_authority_binding.py:118: Failed
+______ test_per_question_metadata_is_bound_to_the_frozen_manifest[False] ______
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/unit-red/test_per_question_metadata_is_12')
+changes = {'cycle_sensitive': False}
+
+    @pytest.mark.parametrize(
+        "changes",
+        [
+            {"question_definition_sha256": "0" * 64},
+            {"question_semantic_sha256": "1" * 64},
+            {"template_version": "99.0.0"},
+            {"field_id": "score.not_the_metric"},
+            {"construct_id": "NOT_THE_CONSTRUCT"},
+            {"question_version": "9.9.9"},
+            {"module_package_id": "pkg_" + "a" * 64},
+            {"module_release_id": "modrel_" + "b" * 64},
+            {"method_id": "module-locked-v1/not-a-module/0000000000000000"},
+            {"information_cutoff": "2001-01-01"},
+            {"entity_id": "ENT_SOMEONE_ELSE"},
+            {"scope": "security", "security_id": "SEC_MISMATCH"},
+            {"cycle_sensitive": False},
+            {
+                "cohort": {
+                    "company_type": "seed",
+                    "industries": ["semiconductors"],
+                    "stage": "seed",
+                    "subtype": "tools",
+                }
+            },
+        ],
+        ids=lambda value: "-".join(str(item)[:16] for item in value.values())[:60],
+    )
+    def test_per_question_metadata_is_bound_to_the_frozen_manifest(tmp_path, changes):
+        document = copy.deepcopy(AUTHORITY)
+        document["observation_context"]["questions"][QID]["metadata"].update(changes)
+>       with pytest.raises(AuthorityUnavailable):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE AuthorityUnavailable
+
+tests\unit\test_quick_scan_c06_authority_binding.py:118: Failed
+_ test_per_question_metadata_is_bound_to_the_frozen_manifest[{'company_type':] _
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/unit-red/test_per_question_metadata_is_13')
+changes = {'cohort': {'company_type': 'seed', 'industries': ['semiconductors'], 'stage': 'seed', 'subtype': 'tools'}}
+
+    @pytest.mark.parametrize(
+        "changes",
+        [
+            {"question_definition_sha256": "0" * 64},
+            {"question_semantic_sha256": "1" * 64},
+            {"template_version": "99.0.0"},
+            {"field_id": "score.not_the_metric"},
+            {"construct_id": "NOT_THE_CONSTRUCT"},
+            {"question_version": "9.9.9"},
+            {"module_package_id": "pkg_" + "a" * 64},
+            {"module_release_id": "modrel_" + "b" * 64},
+            {"method_id": "module-locked-v1/not-a-module/0000000000000000"},
+            {"information_cutoff": "2001-01-01"},
+            {"entity_id": "ENT_SOMEONE_ELSE"},
+            {"scope": "security", "security_id": "SEC_MISMATCH"},
+            {"cycle_sensitive": False},
+            {
+                "cohort": {
+                    "company_type": "seed",
+                    "industries": ["semiconductors"],
+                    "stage": "seed",
+                    "subtype": "tools",
+                }
+            },
+        ],
+        ids=lambda value: "-".join(str(item)[:16] for item in value.values())[:60],
+    )
+    def test_per_question_metadata_is_bound_to_the_frozen_manifest(tmp_path, changes):
+        document = copy.deepcopy(AUTHORITY)
+        document["observation_context"]["questions"][QID]["metadata"].update(changes)
+>       with pytest.raises(AuthorityUnavailable):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE AuthorityUnavailable
+
+tests\unit\test_quick_scan_c06_authority_binding.py:118: Failed
+__________ test_a_tampered_question_beyond_the_first_is_also_refused __________
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/unit-red/test_a_tampered_question_beyon0')
+
+    def test_a_tampered_question_beyond_the_first_is_also_refused(tmp_path):
+        document = copy.deepcopy(AUTHORITY)
+        document["observation_context"]["questions"][LAST_QID]["metadata"][
+            "template_version"
+        ] = "99.0.0"
+>       with pytest.raises(AuthorityUnavailable):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE AuthorityUnavailable
+
+tests\unit\test_quick_scan_c06_authority_binding.py:127: Failed
+__________ test_authority_with_a_duplicate_schema_version_is_refused __________
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/unit-red/test_authority_with_a_duplicat0')
+
+    def test_authority_with_a_duplicate_schema_version_is_refused(tmp_path):
+        path = tmp_path / "authority.json"
+        path.write_text(
+            json.dumps(AUTHORITY, ensure_ascii=False).replace(
+                '"schema_version": "2.0.0"',
+                '"schema_version": "1.0.0", "schema_version": "2.0.0"',
+                1,
+            ),
+            encoding="utf-8",
+        )
+>       with pytest.raises(AuthorityUnavailable, match="strict"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE AuthorityUnavailable
+
+tests\unit\test_quick_scan_c06_authority_binding.py:164: Failed
+____________ test_authority_with_a_nested_duplicate_key_is_refused ____________
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/unit-red/test_authority_with_a_nested_d0')
+
+    def test_authority_with_a_nested_duplicate_key_is_refused(tmp_path):
+        raw = json.dumps(_signed(copy.deepcopy(AUTHORITY)), ensure_ascii=False).replace(
+            '"template_version": "3.2.0"',
+            '"template_version": "3.2.0", "template_version": "9.9.9"',
+            1,
+        )
+        path = tmp_path / "authority.json"
+        path.write_text(raw, encoding="utf-8")
+>       with pytest.raises(AuthorityUnavailable, match="strict"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'strict'
+E         Actual message: 'c06 authority observation_context is invalid: observation context hash mismatch'
+
+tests\unit\test_quick_scan_c06_authority_binding.py:176: AssertionError
+_____________ test_authority_with_a_non_finite_number_is_refused ______________
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/unit-red/test_authority_with_a_non_fini0')
+
+    def test_authority_with_a_non_finite_number_is_refused(tmp_path):
+        raw = json.dumps(_signed(copy.deepcopy(AUTHORITY)), ensure_ascii=False).replace(
+            '"identity_schema": "2.1.0"', '"identity_schema": NaN', 1
+        )
+        path = tmp_path / "authority.json"
+        path.write_text(raw, encoding="utf-8")
+>       with pytest.raises(AuthorityUnavailable, match="strict"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE AuthorityUnavailable
+
+tests\unit\test_quick_scan_c06_authority_binding.py:186: Failed
+______________ test_duplicate_score_in_standard_body_is_refused _______________
+
+    def test_duplicate_score_in_standard_body_is_refused():
+        raw = json.dumps(content()).replace('"score": 8', '"score": 1, "score": 8', 1)
+>       with pytest.raises(ValueError, match="strict"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_quick_scan_observation_context.py:499: Failed
+____________ test_nested_duplicate_key_in_standard_body_is_refused ____________
+
+    def test_nested_duplicate_key_in_standard_body_is_refused():
+        raw = json.dumps(content()).replace(
+            '"claim": "Synthetic test claim only."',
+            '"claim": "first", "claim": "second"',
+            1,
+        )
+>       with pytest.raises(ValueError, match="strict"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_quick_scan_observation_context.py:509: Failed
+_____________ test_non_finite_number_in_standard_body_is_refused ______________
+
+    def test_non_finite_number_in_standard_body_is_refused():
+        raw = json.dumps(content()).replace('"score": 8', '"score": NaN', 1)
+>       with pytest.raises(ValueError, match="strict"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_quick_scan_observation_context.py:515: Failed
+___ test_strict_json_loads_rejects_duplicates_and_non_finite_at_every_level ___
+
+    def test_strict_json_loads_rejects_duplicates_and_non_finite_at_every_level():
+>       from src.utils.quick_scan_result_outbox import strict_json_loads
+E       ImportError: cannot import name 'strict_json_loads' from 'src.utils.quick_scan_result_outbox' (C:\Users\郑曾波\Projects\StockQAbyLLM\src\utils\quick_scan_result_outbox.py)
+
+tests\unit\test_quick_scan_observation_context.py:526: ImportError
+_____ test_save_persists_the_frozen_run_scan_mapping_for_the_actual_work ______
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/unit-red/test_save_persists_the_frozen_0')
+
+    def test_save_persists_the_frozen_run_scan_mapping_for_the_actual_work(tmp_path):
+        store, item, _, _ = _checkpointed(tmp_path)
+        refs = _run_refs(store, item["work_item_id"])
+        # BOTH namespaces stay visible: the owner's frozen labels and the run that
+        # actually dispatched the work — an explicit mapping, never a substitution.
+>       assert ("fixture-run", "fixture-scan") in refs
+E       AssertionError: assert ('fixture-run', 'fixture-scan') in {('RUN_COMPLETE', 'SCAN_COMPLETE')}
+
+tests\unit\test_quick_scan_c06_complete_seal.py:455: AssertionError
+________ test_foreign_run_and_scan_context_cannot_seal_this_checkpoint ________
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/unit-red/test_foreign_run_and_scan_cont0')
+
+    def test_foreign_run_and_scan_context_cannot_seal_this_checkpoint(tmp_path):
+        store, item, _, body = _checkpointed(tmp_path, with_context=False)
+        document, authority = _foreign_authority(
+            tmp_path, run_id="FOREIGN_RUN", scan_id="FOREIGN_SCAN"
+        )
+        store.attach_standard_inputs(
+            item["work_item_id"],
+            observation_context=document["observation_context"],
+            standard_answer=body,
+        )
+        # attaching a context never invents the immutable run/attempt mapping
+        assert ("FOREIGN_RUN", "FOREIGN_SCAN") not in _run_refs(store, item["work_item_id"])
+        result = seal_result_delivery(store, item["work_item_id"], authority=authority)
+>       assert result["action"] == "blocked"
+E       AssertionError: assert 'sealed' == 'blocked'
+E
+E         - blocked
+E         + sealed
+
+tests\unit\test_quick_scan_c06_complete_seal.py:472: AssertionError
+---------------------------- Captured stdout call -----------------------------
+INFO - C06 完整包已封存（WORK_977651e824314e11b28c79c70445913b）→ pkg_f485f11796def6b9b434630674d8fe1cea45bfd3ed6fdf3be7c6178392756411
+------------------------------ Captured log call ------------------------------
+INFO     src.utils.quick_scan_delivery_seal:quick_scan_delivery_seal.py:209 C06 完整包已封存（WORK_977651e824314e11b28c79c70445913b）→ pkg_f485f11796def6b9b434630674d8fe1cea45bfd3ed6fdf3be7c6178392756411
+_____ test_independent_runs_and_attempts_keep_distinct_ids_after_mapping ______
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/unit-red/test_independent_runs_and_atte0')
+
+    def test_independent_runs_and_attempts_keep_distinct_ids_after_mapping(tmp_path):
+        store, item, _, _ = _checkpointed(tmp_path)
+        refs = store.list_run_refs(item["work_item_id"])
+>       assert len(refs) == 2
+E       AssertionError: assert 1 == 2
+E        +  where 1 = len([{'work_item_id': 'WORK_b6d79b3f2ce6424092822e6d764c5254', 'run_id': 'RUN_COMPLETE', 'scan_id': 'SCAN_COMPLETE', 'attached_at': 1790506800.0}])
+
+tests\unit\test_quick_scan_c06_complete_seal.py:496: AssertionError
+____ test_supersede_rejects_each_forged_complete_observation_field[claim] _____
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/unit-red/test_supersede_rejects_each_fo0')
+kind = 'claim'
+
+    @pytest.mark.parametrize(
+        "kind", ["claim", "typed_metric", "metadata", "started_at", "claim_and_start"]
+    )
+    def test_supersede_rejects_each_forged_complete_observation_field(tmp_path, kind):
+        store, item, _, body = _checkpointed(tmp_path)
+        work_item_id = item["work_item_id"]
+        assert (
+            seal_result_delivery(store, work_item_id, authority=_v2_authority(tmp_path))[
+                "action"
+            ]
+            == "sealed"
+        )
+        before = store.get_result_delivery(work_item_id)
+        revisions_before = store.list_delivery_revisions(work_item_id)
+        forged = _forged_complete_package(
+            before["package"], lambda observation: _mutate(observation, kind)
+        )
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_quick_scan_c06_complete_seal.py:575: Failed
+---------------------------- Captured stdout call -----------------------------
+INFO - C06 完整包已封存（WORK_5a7b228bbf87485ca6f91d3ef85d8153）→ pkg_a6963bdd4d827c57d76f1ab04a979be6a55ba6cc785dfc3c4658e32733719f70
+------------------------------ Captured log call ------------------------------
+INFO     src.utils.quick_scan_delivery_seal:quick_scan_delivery_seal.py:209 C06 完整包已封存（WORK_5a7b228bbf87485ca6f91d3ef85d8153）→ pkg_a6963bdd4d827c57d76f1ab04a979be6a55ba6cc785dfc3c4658e32733719f70
+_ test_supersede_rejects_each_forged_complete_observation_field[typed_metric] _
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/unit-red/test_supersede_rejects_each_fo1')
+kind = 'typed_metric'
+
+    @pytest.mark.parametrize(
+        "kind", ["claim", "typed_metric", "metadata", "started_at", "claim_and_start"]
+    )
+    def test_supersede_rejects_each_forged_complete_observation_field(tmp_path, kind):
+        store, item, _, body = _checkpointed(tmp_path)
+        work_item_id = item["work_item_id"]
+        assert (
+            seal_result_delivery(store, work_item_id, authority=_v2_authority(tmp_path))[
+                "action"
+            ]
+            == "sealed"
+        )
+        before = store.get_result_delivery(work_item_id)
+        revisions_before = store.list_delivery_revisions(work_item_id)
+        forged = _forged_complete_package(
+            before["package"], lambda observation: _mutate(observation, kind)
+        )
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_quick_scan_c06_complete_seal.py:575: Failed
+---------------------------- Captured stdout call -----------------------------
+INFO - C06 完整包已封存（WORK_edb982fe28b245c9b082107decffb590）→ pkg_a6963bdd4d827c57d76f1ab04a979be6a55ba6cc785dfc3c4658e32733719f70
+------------------------------ Captured log call ------------------------------
+INFO     src.utils.quick_scan_delivery_seal:quick_scan_delivery_seal.py:209 C06 完整包已封存（WORK_edb982fe28b245c9b082107decffb590）→ pkg_a6963bdd4d827c57d76f1ab04a979be6a55ba6cc785dfc3c4658e32733719f70
+___ test_supersede_rejects_each_forged_complete_observation_field[metadata] ___
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/unit-red/test_supersede_rejects_each_fo2')
+kind = 'metadata'
+
+    @pytest.mark.parametrize(
+        "kind", ["claim", "typed_metric", "metadata", "started_at", "claim_and_start"]
+    )
+    def test_supersede_rejects_each_forged_complete_observation_field(tmp_path, kind):
+        store, item, _, body = _checkpointed(tmp_path)
+        work_item_id = item["work_item_id"]
+        assert (
+            seal_result_delivery(store, work_item_id, authority=_v2_authority(tmp_path))[
+                "action"
+            ]
+            == "sealed"
+        )
+        before = store.get_result_delivery(work_item_id)
+        revisions_before = store.list_delivery_revisions(work_item_id)
+        forged = _forged_complete_package(
+            before["package"], lambda observation: _mutate(observation, kind)
+        )
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_quick_scan_c06_complete_seal.py:575: Failed
+---------------------------- Captured stdout call -----------------------------
+INFO - C06 完整包已封存（WORK_5682f16a65f8411f8190a54fa3b27503）→ pkg_a6963bdd4d827c57d76f1ab04a979be6a55ba6cc785dfc3c4658e32733719f70
+------------------------------ Captured log call ------------------------------
+INFO     src.utils.quick_scan_delivery_seal:quick_scan_delivery_seal.py:209 C06 完整包已封存（WORK_5682f16a65f8411f8190a54fa3b27503）→ pkg_a6963bdd4d827c57d76f1ab04a979be6a55ba6cc785dfc3c4658e32733719f70
+__ test_supersede_rejects_each_forged_complete_observation_field[started_at] __
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/unit-red/test_supersede_rejects_each_fo3')
+kind = 'started_at'
+
+    @pytest.mark.parametrize(
+        "kind", ["claim", "typed_metric", "metadata", "started_at", "claim_and_start"]
+    )
+    def test_supersede_rejects_each_forged_complete_observation_field(tmp_path, kind):
+        store, item, _, body = _checkpointed(tmp_path)
+        work_item_id = item["work_item_id"]
+        assert (
+            seal_result_delivery(store, work_item_id, authority=_v2_authority(tmp_path))[
+                "action"
+            ]
+            == "sealed"
+        )
+        before = store.get_result_delivery(work_item_id)
+        revisions_before = store.list_delivery_revisions(work_item_id)
+        forged = _forged_complete_package(
+            before["package"], lambda observation: _mutate(observation, kind)
+        )
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_quick_scan_c06_complete_seal.py:575: Failed
+---------------------------- Captured stdout call -----------------------------
+INFO - C06 完整包已封存（WORK_984b1b576d7c4ce29fca811d9e9c5739）→ pkg_a6963bdd4d827c57d76f1ab04a979be6a55ba6cc785dfc3c4658e32733719f70
+------------------------------ Captured log call ------------------------------
+INFO     src.utils.quick_scan_delivery_seal:quick_scan_delivery_seal.py:209 C06 完整包已封存（WORK_984b1b576d7c4ce29fca811d9e9c5739）→ pkg_a6963bdd4d827c57d76f1ab04a979be6a55ba6cc785dfc3c4658e32733719f70
+_ test_supersede_rejects_each_forged_complete_observation_field[claim_and_start] _
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/unit-red/test_supersede_rejects_each_fo4')
+kind = 'claim_and_start'
+
+    @pytest.mark.parametrize(
+        "kind", ["claim", "typed_metric", "metadata", "started_at", "claim_and_start"]
+    )
+    def test_supersede_rejects_each_forged_complete_observation_field(tmp_path, kind):
+        store, item, _, body = _checkpointed(tmp_path)
+        work_item_id = item["work_item_id"]
+        assert (
+            seal_result_delivery(store, work_item_id, authority=_v2_authority(tmp_path))[
+                "action"
+            ]
+            == "sealed"
+        )
+        before = store.get_result_delivery(work_item_id)
+        revisions_before = store.list_delivery_revisions(work_item_id)
+        forged = _forged_complete_package(
+            before["package"], lambda observation: _mutate(observation, kind)
+        )
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_quick_scan_c06_complete_seal.py:575: Failed
+---------------------------- Captured stdout call -----------------------------
+INFO - C06 完整包已封存（WORK_68db19a30251452db5428195b7e0a87c）→ pkg_a6963bdd4d827c57d76f1ab04a979be6a55ba6cc785dfc3c4658e32733719f70
+------------------------------ Captured log call ------------------------------
+INFO     src.utils.quick_scan_delivery_seal:quick_scan_delivery_seal.py:209 C06 完整包已封存（WORK_68db19a30251452db5428195b7e0a87c）→ pkg_a6963bdd4d827c57d76f1ab04a979be6a55ba6cc785dfc3c4658e32733719f70
+__ test_prepare_refuses_a_forged_complete_observation_before_any_head_exists __
+
+tmp_path = WindowsPath('C:/Users/郑曾波/AppData/Local/Temp/qa-c0602r-58cdae/tmp/unit-red/test_prepare_refuses_a_forged_0')
+
+    def test_prepare_refuses_a_forged_complete_observation_before_any_head_exists(
+        tmp_path,
+    ):
+        from src.utils.quick_scan_delivery_seal import _send_intent_iso
+
+        store, item, checkpoint, body = _checkpointed(tmp_path)
+        work_item_id = item["work_item_id"]
+        authority = _v2_authority(tmp_path)
+        context = store.get_observation_context(work_item_id)["context"]
+        bound = bind_context_to_work_item(
+            context, work_item=store.get_item(work_item_id), question_id=item["question_id"]
+        )
+        transmission = store.get_attempt_transmission(checkpoint["attempt_id"])
+        started_at = _send_intent_iso(transmission["send_intent_at"])
+        assert started_at is not None
+        package = build_complete_c06_package(
+            checkpoint["payload"],
+            authority=authority_adapter_input(authority),
+            context=bound,
+            standard_answer=body,
+            started_at=started_at,
+        )
+        forged = _forged_complete_package(
+            package, lambda observation: _mutate(observation, "started_at")
+        )
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_quick_scan_c06_complete_seal.py:611: Failed
+=========================== short test summary info ===========================
+FAILED tests/unit/test_quick_scan_c06_authority_binding.py::test_per_question_metadata_is_bound_to_the_frozen_manifest[0000000000000000]
+FAILED tests/unit/test_quick_scan_c06_authority_binding.py::test_per_question_metadata_is_bound_to_the_frozen_manifest[1111111111111111]
+FAILED tests/unit/test_quick_scan_c06_authority_binding.py::test_per_question_metadata_is_bound_to_the_frozen_manifest[99.0.0]
+FAILED tests/unit/test_quick_scan_c06_authority_binding.py::test_per_question_metadata_is_bound_to_the_frozen_manifest[score.not_the_me]
+FAILED tests/unit/test_quick_scan_c06_authority_binding.py::test_per_question_metadata_is_bound_to_the_frozen_manifest[NOT_THE_CONSTRUC]
+FAILED tests/unit/test_quick_scan_c06_authority_binding.py::test_per_question_metadata_is_bound_to_the_frozen_manifest[9.9.9]
+FAILED tests/unit/test_quick_scan_c06_authority_binding.py::test_per_question_metadata_is_bound_to_the_frozen_manifest[pkg_aaaaaaaaaaaa]
+FAILED tests/unit/test_quick_scan_c06_authority_binding.py::test_per_question_metadata_is_bound_to_the_frozen_manifest[modrel_bbbbbbbbb]
+FAILED tests/unit/test_quick_scan_c06_authority_binding.py::test_per_question_metadata_is_bound_to_the_frozen_manifest[module-locked-v1]
+FAILED tests/unit/test_quick_scan_c06_authority_binding.py::test_per_question_metadata_is_bound_to_the_frozen_manifest[2001-01-01]
+FAILED tests/unit/test_quick_scan_c06_authority_binding.py::test_per_question_metadata_is_bound_to_the_frozen_manifest[ENT_SOMEONE_ELSE]
+FAILED tests/unit/test_quick_scan_c06_authority_binding.py::test_per_question_metadata_is_bound_to_the_frozen_manifest[security-SEC_MISMATCH]
+FAILED tests/unit/test_quick_scan_c06_authority_binding.py::test_per_question_metadata_is_bound_to_the_frozen_manifest[False]
+FAILED tests/unit/test_quick_scan_c06_authority_binding.py::test_per_question_metadata_is_bound_to_the_frozen_manifest[{'company_type':]
+FAILED tests/unit/test_quick_scan_c06_authority_binding.py::test_a_tampered_question_beyond_the_first_is_also_refused
+FAILED tests/unit/test_quick_scan_c06_authority_binding.py::test_authority_with_a_duplicate_schema_version_is_refused
+FAILED tests/unit/test_quick_scan_c06_authority_binding.py::test_authority_with_a_nested_duplicate_key_is_refused
+FAILED tests/unit/test_quick_scan_c06_authority_binding.py::test_authority_with_a_non_finite_number_is_refused
+FAILED tests/unit/test_quick_scan_observation_context.py::test_duplicate_score_in_standard_body_is_refused
+FAILED tests/unit/test_quick_scan_observation_context.py::test_nested_duplicate_key_in_standard_body_is_refused
+FAILED tests/unit/test_quick_scan_observation_context.py::test_non_finite_number_in_standard_body_is_refused
+FAILED tests/unit/test_quick_scan_observation_context.py::test_strict_json_loads_rejects_duplicates_and_non_finite_at_every_level
+FAILED tests/unit/test_quick_scan_c06_complete_seal.py::test_save_persists_the_frozen_run_scan_mapping_for_the_actual_work
+FAILED tests/unit/test_quick_scan_c06_complete_seal.py::test_foreign_run_and_scan_context_cannot_seal_this_checkpoint
+FAILED tests/unit/test_quick_scan_c06_complete_seal.py::test_independent_runs_and_attempts_keep_distinct_ids_after_mapping
+FAILED tests/unit/test_quick_scan_c06_complete_seal.py::test_supersede_rejects_each_forged_complete_observation_field[claim]
+FAILED tests/unit/test_quick_scan_c06_complete_seal.py::test_supersede_rejects_each_forged_complete_observation_field[typed_metric]
+FAILED tests/unit/test_quick_scan_c06_complete_seal.py::test_supersede_rejects_each_forged_complete_observation_field[metadata]
+FAILED tests/unit/test_quick_scan_c06_complete_seal.py::test_supersede_rejects_each_forged_complete_observation_field[started_at]
+FAILED tests/unit/test_quick_scan_c06_complete_seal.py::test_supersede_rejects_each_forged_complete_observation_field[claim_and_start]
+FAILED tests/unit/test_quick_scan_c06_complete_seal.py::test_prepare_refuses_a_forged_complete_observation_before_any_head_exists
+31 failed, 63 passed in 10.17s

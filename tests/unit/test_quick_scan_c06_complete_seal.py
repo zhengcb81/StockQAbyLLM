@@ -11,6 +11,7 @@ Every identity, prompt and answer here is SYNTHETIC and derived from
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 from contextlib import closing
@@ -18,7 +19,12 @@ from pathlib import Path
 
 import pytest
 
-from src.utils.quick_scan_c06_authority import load_c06_authority
+from src.utils import quick_scan_delivery_seal as seal_api
+from src.utils.quick_scan_c06_adapter import build_complete_c06_package
+from src.utils.quick_scan_c06_authority import (
+    authority_adapter_input,
+    load_c06_authority,
+)
 from src.utils.quick_scan_delivery_seal import (
     BLOCK_CONTEXT,
     BLOCK_STANDARD_ANSWER,
@@ -26,6 +32,7 @@ from src.utils.quick_scan_delivery_seal import (
     seal_pending_deliveries,
     seal_result_delivery,
 )
+from src.utils.quick_scan_observation_context import bind_context_to_work_item
 from src.utils.quick_scan_question_manifest import load_question_manifest
 from src.utils.quick_scan_result_outbox import (
     canonical_bytes,
@@ -116,6 +123,12 @@ def _standard_body() -> dict:
 
 
 def _checkpointed(tmp_path, *, with_context: bool = True, with_answer: bool = True) -> tuple:
+    """Drive one durable checkpoint; the complete inputs are ONE pair.
+
+    ``with_context=False`` means no side tables at all — a complete standard
+    body cannot be stored without its frozen context — so the body is left for
+    ``attach_standard_inputs`` instead of being half-saved.
+    """
     store = _store(tmp_path)
     item = store.create_or_attach(
         entity_id=ENTITY,
@@ -185,7 +198,7 @@ def _checkpointed(tmp_path, *, with_context: bool = True, with_answer: bool = Tr
         answer=answer,
         execution_receipt=receipt,
         observation_context=CONTEXT if with_context else None,
-        standard_answer=body if with_answer else None,
+        standard_answer=body if (with_answer and with_context) else None,
     )
     return store, item, checkpoint, body
 
@@ -386,3 +399,185 @@ def _ack(delivery: dict, *, ack_id: str) -> dict:
             "store_id": "stockwiki-complete-seal-store",
         },
     }
+
+
+# --- QA-C06-02 remediation group 2: run/scan <-> work binding ---------------
+
+
+def _foreign_authority(tmp_path, *, run_id: str, scan_id: str):
+    document = copy.deepcopy(AUTHORITY_V2)
+    for question in document["observation_context"]["questions"].values():
+        question["metadata"]["run_id"] = run_id
+        question["metadata"]["scan_id"] = scan_id
+    document["observation_context_sha256"] = canonical_sha256(document["observation_context"])
+    path = tmp_path / "authority.json"
+    path.write_text(json.dumps(document, ensure_ascii=False), encoding="utf-8")
+    return document, load_c06_authority(path)
+
+
+def _run_refs(store, work_item_id) -> set:
+    return {(row["run_id"], row["scan_id"]) for row in store.list_run_refs(work_item_id)}
+
+
+def test_save_persists_the_frozen_run_scan_mapping_for_the_actual_work(tmp_path):
+    store, item, _, _ = _checkpointed(tmp_path)
+    refs = _run_refs(store, item["work_item_id"])
+    # BOTH namespaces stay visible: the owner's frozen labels and the run that
+    # actually dispatched the work — an explicit mapping, never a substitution.
+    assert ("fixture-run", "fixture-scan") in refs
+    assert ("RUN_COMPLETE", "SCAN_COMPLETE") in refs
+
+
+def test_foreign_run_and_scan_context_cannot_seal_this_checkpoint(tmp_path):
+    store, item, _, body = _checkpointed(tmp_path, with_context=False)
+    document, authority = _foreign_authority(tmp_path, run_id="FOREIGN_RUN", scan_id="FOREIGN_SCAN")
+    store.attach_standard_inputs(
+        item["work_item_id"],
+        observation_context=document["observation_context"],
+        standard_answer=body,
+    )
+    # attaching a context never invents the immutable run/attempt mapping
+    assert ("FOREIGN_RUN", "FOREIGN_SCAN") not in _run_refs(store, item["work_item_id"])
+    result = seal_result_delivery(store, item["work_item_id"], authority=authority)
+    assert result["action"] == "blocked"
+    assert result["block_code"] == seal_api.BLOCK_RUN_SCAN
+    assert store.list_delivery_revisions(item["work_item_id"]) == []
+
+
+def test_context_attached_after_the_checkpoint_seals_when_its_run_is_known(
+    tmp_path,
+):
+    store, item, _, body = _checkpointed(tmp_path, with_context=False)
+    document, authority = _foreign_authority(
+        tmp_path, run_id="RUN_COMPLETE", scan_id="SCAN_COMPLETE"
+    )
+    store.attach_standard_inputs(
+        item["work_item_id"],
+        observation_context=document["observation_context"],
+        standard_answer=body,
+    )
+    result = seal_result_delivery(store, item["work_item_id"], authority=authority)
+    assert result["action"] == "sealed"
+
+
+def test_independent_runs_and_attempts_keep_distinct_ids_after_mapping(tmp_path):
+    store, item, _, _ = _checkpointed(tmp_path)
+    refs = store.list_run_refs(item["work_item_id"])
+    assert len(refs) == 2
+    assert len({(row["run_id"], row["scan_id"]) for row in refs}) == 2
+    attempts = store.list_attempts(item["work_item_id"])
+    assert len(attempts) == 1
+    assert (
+        attempts[0]["attempt_id"] == store.get_answer_checkpoint(item["work_item_id"])["attempt_id"]
+    )
+
+
+# --- QA-C06-02 remediation group 4: persistent full head binding ------------
+
+
+def _forged_complete_package(package: dict, mutate) -> dict:
+    forged = copy.deepcopy(package)
+    entry = forged["items"][0]
+    observation = entry["observation"]
+    mutate(observation)
+    del observation["observation_id"]
+    observation["observation_id"] = "obs_" + canonical_sha256(observation)
+    entry["observation_id"] = observation["observation_id"]
+    entry["payload_sha256"] = canonical_sha256(observation)
+    entry["item_id"] = "itm_" + canonical_sha256(
+        {
+            "observation_id": entry["observation_id"],
+            "payload_sha256": entry["payload_sha256"],
+        }
+    )
+    del forged["package_id"]
+    del forged["package_sha256"]
+    digest = canonical_sha256(forged)
+    forged["package_id"] = "pkg_" + digest
+    forged["package_sha256"] = digest
+    return forged
+
+
+def _mutate(observation: dict, kind: str) -> None:
+    if kind in {"claim", "claim_and_start"}:
+        observation["answer"]["evidence"][0]["claim"] = "Forged claim not from the durable body"
+    if kind == "typed_metric":
+        observation["answer"]["metrics"] = [
+            {
+                "metric_id": "custom.fixture",
+                "value": 12,
+                "unit": "percent",
+                "currency": None,
+                "unit_detail": None,
+                "period_start": None,
+                "period_end": None,
+                "basis": "current",
+                "definition": "Forged metric not in the durable body.",
+                "evidence_ids": ["e1"],
+            }
+        ]
+    if kind == "metadata":
+        observation["information_cutoff"] = "2020-01-01"
+    if kind in {"started_at", "claim_and_start"}:
+        observation["execution"]["started_at"] = "2026-09-27T10:00:00Z"
+
+
+@pytest.mark.parametrize(
+    "kind", ["claim", "typed_metric", "metadata", "started_at", "claim_and_start"]
+)
+def test_supersede_rejects_each_forged_complete_observation_field(tmp_path, kind):
+    store, item, _, body = _checkpointed(tmp_path)
+    work_item_id = item["work_item_id"]
+    assert (
+        seal_result_delivery(store, work_item_id, authority=_v2_authority(tmp_path))["action"]
+        == "sealed"
+    )
+    before = store.get_result_delivery(work_item_id)
+    revisions_before = store.list_delivery_revisions(work_item_id)
+    forged = _forged_complete_package(
+        before["package"], lambda observation: _mutate(observation, kind)
+    )
+    with pytest.raises(ValueError):
+        store.supersede_result_delivery(work_item_id, forged)
+    # the immutable side table, the head bytes and the revision chain all stand
+    assert store.get_standard_answer(work_item_id)["answer"] == body
+    after = store.get_result_delivery(work_item_id)
+    assert after["package_bytes"] == before["package_bytes"]
+    assert [row["revision"] for row in store.list_delivery_revisions(work_item_id)] == [
+        row["revision"] for row in revisions_before
+    ]
+
+
+def test_prepare_refuses_a_forged_complete_observation_before_any_head_exists(
+    tmp_path,
+):
+    from src.utils.quick_scan_delivery_seal import _send_intent_iso
+
+    store, item, checkpoint, body = _checkpointed(tmp_path)
+    work_item_id = item["work_item_id"]
+    authority = _v2_authority(tmp_path)
+    context = store.get_observation_context(work_item_id)["context"]
+    bound = bind_context_to_work_item(
+        context, work_item=store.get_item(work_item_id), question_id=item["question_id"]
+    )
+    transmission = store.get_attempt_transmission(checkpoint["attempt_id"])
+    started_at = _send_intent_iso(transmission["send_intent_at"])
+    assert started_at is not None
+    package = build_complete_c06_package(
+        checkpoint["payload"],
+        authority=authority_adapter_input(authority),
+        context=bound,
+        standard_answer=body,
+        started_at=started_at,
+    )
+    forged = _forged_complete_package(
+        package, lambda observation: _mutate(observation, "started_at")
+    )
+    with pytest.raises(ValueError):
+        store.prepare_result_delivery(work_item_id, forged)
+    assert store.get_result_delivery(work_item_id) is None
+    assert store.list_delivery_revisions(work_item_id) == []
+    # the honest complete package still seals through the same entry
+    record = store.prepare_result_delivery(work_item_id, package)
+    assert record["state"] == "ready"
+    assert store.list_delivery_revisions(work_item_id)[0]["revision"] == 1

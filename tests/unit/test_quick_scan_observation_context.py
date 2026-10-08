@@ -470,3 +470,92 @@ def test_embedded_answer_is_refused_at_the_real_consumption_entry(tmp_path):
     path.write_text(json.dumps(smuggled, ensure_ascii=False), encoding="utf-8")
     with pytest.raises(AuthorityUnavailable):
         load_c06_authority(path)
+
+
+# --- QA-C06-02 remediation group 3: strict JSON at the body entry -----------
+
+
+def test_valid_standard_body_still_parses_to_the_same_object():
+    raw = json.dumps(content())
+    assert api.parse_standard_answer(raw) == content()
+    assert api.parse_standard_answer(raw) is not content()
+
+
+def test_duplicate_score_in_standard_body_is_refused():
+    raw = json.dumps(content()).replace('"score": 8', '"score": 1, "score": 8', 1)
+    with pytest.raises(ValueError, match="strict"):
+        api.parse_standard_answer(raw)
+
+
+def test_nested_duplicate_key_in_standard_body_is_refused():
+    raw = json.dumps(content()).replace(
+        '"claim": "Synthetic test claim only."',
+        '"claim": "first", "claim": "second"',
+        1,
+    )
+    with pytest.raises(ValueError, match="strict"):
+        api.parse_standard_answer(raw)
+
+
+def test_non_finite_number_in_standard_body_is_refused():
+    raw = json.dumps(content()).replace('"score": 8', '"score": NaN', 1)
+    with pytest.raises(ValueError, match="strict"):
+        api.parse_standard_answer(raw)
+
+
+def test_plain_prose_and_identity_free_json_keep_their_legacy_handling():
+    assert api.parse_standard_answer("plain prose answer") is None
+    assert api.parse_standard_answer('{"note": "not an answer"}') is None
+    assert api.parse_standard_answer("{see the attached note}") is None
+
+
+def test_strict_json_loads_rejects_duplicates_and_non_finite_at_every_level():
+    from src.utils.quick_scan_result_outbox import strict_json_loads
+
+    with pytest.raises(ValueError):
+        strict_json_loads('{"a": 1, "a": 2}')
+    with pytest.raises(ValueError):
+        strict_json_loads('{"outer": {"inner": 1, "inner": 2}}')
+    with pytest.raises(ValueError):
+        strict_json_loads('{"score": NaN}')
+    with pytest.raises(ValueError):
+        strict_json_loads('{"score": Infinity}')
+    assert strict_json_loads('{"a": [1, {"b": 2}]}') == {"a": [1, {"b": 2}]}
+    with pytest.raises(json.JSONDecodeError):
+        strict_json_loads("{truncated")
+
+
+# --- QA-C06-02 remediation group 1: bind shares the manifest rule set -------
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"question_definition_sha256": "0" * 64},
+        {"template_version": "99.0.0"},
+        {"entity_id": "ENT_SOMEONE_ELSE"},
+        {
+            "cohort": {
+                "company_type": "seed",
+                "industries": ["chips"],
+                "stage": "seed",
+                "subtype": None,
+            }
+        },
+    ],
+)
+def test_bind_question_context_uses_the_same_manifest_rule_set(changes):
+    """The dispatcher binding and the authority loader must never diverge:
+    metadata that the loader refuses can never bind here either."""
+    tampered = copy.deepcopy(CONTEXT)
+    tampered["questions"][QID]["metadata"].update(changes)
+    with pytest.raises(ValueError):
+        api.bind_question_context(
+            tampered,
+            manifest=MANIFEST,
+            identity_snapshot_sha256=CONTEXT["identity_snapshot_sha256"],
+            entity_id="ENT_CONTEXT_FIXTURE",
+            question_id=QID,
+            scope="entity",
+            scope_id="ENT_CONTEXT_FIXTURE",
+        )

@@ -28,7 +28,7 @@ from src.utils.quick_scan_c06_adapter import MissingC06Fields
 from src.utils.quick_scan_result_outbox import (
     _CAPABILITIES,
     _CONTRACT_VERSION_KEYS,
-    canonical_sha256,
+    strict_json_loads,
 )
 
 __all__ = [
@@ -49,7 +49,6 @@ DEFAULT_AUTHORITY_FILENAME = "quick_scan_c06_authority.json"
 _ROOT = Path(__file__).resolve().parent.parent
 _SCHEMA_PATH = _ROOT / "config" / "quick_scan_c06_authority.schema.json"
 _SCHEMA_V2_PATH = _ROOT / "config" / "quick_scan_c06_authority.v2.schema.json"
-_MANIFEST_EXCLUDED = {"manifest_sha256", "manifest_path", "contract_id"}
 
 
 class AuthorityUnavailable(MissingC06Fields):
@@ -118,37 +117,15 @@ def _validate(document: Any) -> dict[str, Any]:
     return document
 
 
-def _sha256_text(text: str) -> str:
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
-
-
 def _crosscheck_manifest(context: dict[str, Any], manifest: dict[str, Any]) -> None:
-    """Bind both manifest hashes and every frozen/stripped prompt to the file."""
-    if not isinstance(manifest, dict) or manifest.get("answer_format") != "standard-1":
-        raise AuthorityUnavailable("c06 authority context needs a standard-1 manifest")
-    original = {key: value for key, value in manifest.items() if key not in _MANIFEST_EXCLUDED}
-    if context["manifest_file_sha256"] != manifest.get("manifest_sha256") or context[
-        "manifest_content_sha256"
-    ] != canonical_sha256(original):
-        raise AuthorityUnavailable("c06 authority manifest hashes do not match the manifest file")
-    questions = manifest.get("questions")
-    known = (
-        {question.get("id"): question for question in questions}
-        if isinstance(questions, list)
-        else {}
-    )
-    if set(known) != set(context["questions"]):
-        raise AuthorityUnavailable("c06 authority question set differs from the manifest")
-    for question_id, selected in context["questions"].items():
-        question = known[question_id]
-        prompt = question.get("prompt")
-        if (
-            not isinstance(prompt, str)
-            or selected["frozen_prompt_sha256"] != question.get("prompt_sha256")
-            or selected["frozen_prompt_sha256"] != _sha256_text(prompt)
-            or selected["work_prompt_sha256"] != _sha256_text(prompt.strip())
-        ):
-            raise AuthorityUnavailable(f"c06 authority prompt hash mismatch for {question_id}")
+    """Bind both manifest hashes and every frozen question to the manifest file.
+
+    Delegates to the SAME shared rule set ``bind_question_context`` uses —
+    one implementation, never a second omission-prone validation copy.
+    """
+    from src.utils.quick_scan_observation_context import check_context_matches_manifest
+
+    check_context_matches_manifest(context, manifest)
 
 
 def _validate_v2(
@@ -230,9 +207,15 @@ def load_c06_authority(
             f"c06 authority is unreadable: {error.__class__.__name__}"
         ) from error
     try:
-        document = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, ValueError) as error:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as error:
         raise AuthorityUnavailable("c06 authority is not valid UTF-8 JSON") from error
+    try:
+        # strict: unique keys at every level and finite numbers only — an
+        # ambiguous document is refused here, before any key read or HTTP.
+        document = strict_json_loads(text)
+    except ValueError as error:
+        raise AuthorityUnavailable("c06 authority is not strict UTF-8 JSON") from error
 
     version = document.get("schema_version") if isinstance(document, dict) else None
     if version == AUTHORITY_SCHEMA_VERSION:
