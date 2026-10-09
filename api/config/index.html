@@ -940,6 +940,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#src.config.llm_config.LLMConfig.get_quick_scan_model_resolution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_quick_scan_model_resolution
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#src.config.llm_config.LLMConfig.get_timeout" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1739,6 +1750,17 @@
     <span class="md-ellipsis">
       
         get_quick_scan_model_policy
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#src.config.llm_config.LLMConfig.get_quick_scan_model_resolution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_quick_scan_model_resolution
       
     </span>
   </a>
@@ -3372,31 +3394,31 @@
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/config/llm_config.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-618">618</a></span>
-<span class="normal"><a href="#__codelineno-0-619">619</a></span>
-<span class="normal"><a href="#__codelineno-0-620">620</a></span>
-<span class="normal"><a href="#__codelineno-0-621">621</a></span>
-<span class="normal"><a href="#__codelineno-0-622">622</a></span>
-<span class="normal"><a href="#__codelineno-0-623">623</a></span>
-<span class="normal"><a href="#__codelineno-0-624">624</a></span>
-<span class="normal"><a href="#__codelineno-0-625">625</a></span>
-<span class="normal"><a href="#__codelineno-0-626">626</a></span>
-<span class="normal"><a href="#__codelineno-0-627">627</a></span>
-<span class="normal"><a href="#__codelineno-0-628">628</a></span>
-<span class="normal"><a href="#__codelineno-0-629">629</a></span>
-<span class="normal"><a href="#__codelineno-0-630">630</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-618" name="__codelineno-0-618"></a><span class="k">def</span><span class="w"> </span><span class="nf">get_max_retries</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">provider_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-0-619" name="__codelineno-0-619"></a><span class="w">    </span><span class="sd">"""获取指定提供者的最大重试次数。</span>
-<a id="__codelineno-0-620" name="__codelineno-0-620"></a>
-<a id="__codelineno-0-621" name="__codelineno-0-621"></a><span class="sd">    Args:</span>
-<a id="__codelineno-0-622" name="__codelineno-0-622"></a><span class="sd">        provider_name: 提供者名称</span>
-<a id="__codelineno-0-623" name="__codelineno-0-623"></a>
-<a id="__codelineno-0-624" name="__codelineno-0-624"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-625" name="__codelineno-0-625"></a><span class="sd">        最大重试次数</span>
-<a id="__codelineno-0-626" name="__codelineno-0-626"></a><span class="sd">    """</span>
-<a id="__codelineno-0-627" name="__codelineno-0-627"></a>    <span class="n">config</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_provider_config</span><span class="p">(</span><span class="n">provider_name</span><span class="p">)</span>
-<a id="__codelineno-0-628" name="__codelineno-0-628"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">config</span><span class="p">:</span>
-<a id="__codelineno-0-629" name="__codelineno-0-629"></a>        <span class="k">return</span> <span class="n">DEFAULT_MAX_RETRIES</span>
-<a id="__codelineno-0-630" name="__codelineno-0-630"></a>    <span class="k">return</span> <span class="n">cast</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"max_retries"</span><span class="p">,</span> <span class="n">DEFAULT_MAX_RETRIES</span><span class="p">))</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-644">644</a></span>
+<span class="normal"><a href="#__codelineno-0-645">645</a></span>
+<span class="normal"><a href="#__codelineno-0-646">646</a></span>
+<span class="normal"><a href="#__codelineno-0-647">647</a></span>
+<span class="normal"><a href="#__codelineno-0-648">648</a></span>
+<span class="normal"><a href="#__codelineno-0-649">649</a></span>
+<span class="normal"><a href="#__codelineno-0-650">650</a></span>
+<span class="normal"><a href="#__codelineno-0-651">651</a></span>
+<span class="normal"><a href="#__codelineno-0-652">652</a></span>
+<span class="normal"><a href="#__codelineno-0-653">653</a></span>
+<span class="normal"><a href="#__codelineno-0-654">654</a></span>
+<span class="normal"><a href="#__codelineno-0-655">655</a></span>
+<span class="normal"><a href="#__codelineno-0-656">656</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-644" name="__codelineno-0-644"></a><span class="k">def</span><span class="w"> </span><span class="nf">get_max_retries</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">provider_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-0-645" name="__codelineno-0-645"></a><span class="w">    </span><span class="sd">"""获取指定提供者的最大重试次数。</span>
+<a id="__codelineno-0-646" name="__codelineno-0-646"></a>
+<a id="__codelineno-0-647" name="__codelineno-0-647"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-648" name="__codelineno-0-648"></a><span class="sd">        provider_name: 提供者名称</span>
+<a id="__codelineno-0-649" name="__codelineno-0-649"></a>
+<a id="__codelineno-0-650" name="__codelineno-0-650"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-651" name="__codelineno-0-651"></a><span class="sd">        最大重试次数</span>
+<a id="__codelineno-0-652" name="__codelineno-0-652"></a><span class="sd">    """</span>
+<a id="__codelineno-0-653" name="__codelineno-0-653"></a>    <span class="n">config</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_provider_config</span><span class="p">(</span><span class="n">provider_name</span><span class="p">)</span>
+<a id="__codelineno-0-654" name="__codelineno-0-654"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">config</span><span class="p">:</span>
+<a id="__codelineno-0-655" name="__codelineno-0-655"></a>        <span class="k">return</span> <span class="n">DEFAULT_MAX_RETRIES</span>
+<a id="__codelineno-0-656" name="__codelineno-0-656"></a>    <span class="k">return</span> <span class="n">cast</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"max_retries"</span><span class="p">,</span> <span class="n">DEFAULT_MAX_RETRIES</span><span class="p">))</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -3622,15 +3644,7 @@ the route order but reuses the same policy_id.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/config/llm_config.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-137">137</a></span>
-<span class="normal"><a href="#__codelineno-0-138">138</a></span>
-<span class="normal"><a href="#__codelineno-0-139">139</a></span>
-<span class="normal"><a href="#__codelineno-0-140">140</a></span>
-<span class="normal"><a href="#__codelineno-0-141">141</a></span>
-<span class="normal"><a href="#__codelineno-0-142">142</a></span>
-<span class="normal"><a href="#__codelineno-0-143">143</a></span>
-<span class="normal"><a href="#__codelineno-0-144">144</a></span>
-<span class="normal"><a href="#__codelineno-0-145">145</a></span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-145">145</a></span>
 <span class="normal"><a href="#__codelineno-0-146">146</a></span>
 <span class="normal"><a href="#__codelineno-0-147">147</a></span>
 <span class="normal"><a href="#__codelineno-0-148">148</a></span>
@@ -3718,103 +3732,182 @@ the route order but reuses the same policy_id.</p>
 <span class="normal"><a href="#__codelineno-0-230">230</a></span>
 <span class="normal"><a href="#__codelineno-0-231">231</a></span>
 <span class="normal"><a href="#__codelineno-0-232">232</a></span>
-<span class="normal"><a href="#__codelineno-0-233">233</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-137" name="__codelineno-0-137"></a><span class="k">def</span><span class="w"> </span><span class="nf">get_quick_scan_model_policy</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">default_provider</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
-<a id="__codelineno-0-138" name="__codelineno-0-138"></a><span class="w">    </span><span class="sd">"""Return one immutable-at-call-time ordered quick-scan route snapshot.</span>
-<a id="__codelineno-0-139" name="__codelineno-0-139"></a>
-<a id="__codelineno-0-140" name="__codelineno-0-140"></a><span class="sd">    The optional policy lives in this StockQA-owned config file under</span>
-<a id="__codelineno-0-141" name="__codelineno-0-141"></a><span class="sd">    ``quick_scan_model_policy``. An absent or unconfigured policy preserves</span>
-<a id="__codelineno-0-142" name="__codelineno-0-142"></a><span class="sd">    the legacy single-provider behavior. Active routes follow the order in</span>
-<a id="__codelineno-0-143" name="__codelineno-0-143"></a><span class="sd">    the saved policy; the returned fingerprint changes even if a user edits</span>
-<a id="__codelineno-0-144" name="__codelineno-0-144"></a><span class="sd">    the route order but reuses the same policy_id.</span>
-<a id="__codelineno-0-145" name="__codelineno-0-145"></a><span class="sd">    """</span>
-<a id="__codelineno-0-146" name="__codelineno-0-146"></a>    <span class="n">policy</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"quick_scan_model_policy"</span><span class="p">)</span>
-<a id="__codelineno-0-147" name="__codelineno-0-147"></a>    <span class="k">if</span> <span class="n">policy</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">policy</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">and</span> <span class="n">policy</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"configured"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">):</span>
-<a id="__codelineno-0-148" name="__codelineno-0-148"></a>        <span class="n">provider</span> <span class="o">=</span> <span class="n">default_provider</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_default_provider</span><span class="p">()</span>
-<a id="__codelineno-0-149" name="__codelineno-0-149"></a>        <span class="n">provider_config</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_provider_config</span><span class="p">(</span><span class="n">provider</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
-<a id="__codelineno-0-150" name="__codelineno-0-150"></a>        <span class="n">model</span> <span class="o">=</span> <span class="n">provider_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
-<a id="__codelineno-0-151" name="__codelineno-0-151"></a>        <span class="n">has_key</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_has_provider_credential</span><span class="p">(</span><span class="n">provider</span><span class="p">,</span> <span class="n">provider_config</span><span class="p">)</span>
-<a id="__codelineno-0-152" name="__codelineno-0-152"></a>        <span class="n">route</span> <span class="o">=</span> <span class="p">{</span>
-<a id="__codelineno-0-153" name="__codelineno-0-153"></a>            <span class="s2">"id"</span><span class="p">:</span> <span class="s2">"legacy-default"</span><span class="p">,</span>
-<a id="__codelineno-0-154" name="__codelineno-0-154"></a>            <span class="s2">"provider_config_ref"</span><span class="p">:</span> <span class="n">provider</span><span class="p">,</span>
-<a id="__codelineno-0-155" name="__codelineno-0-155"></a>            <span class="s2">"model"</span><span class="p">:</span> <span class="n">model</span><span class="p">,</span>
-<a id="__codelineno-0-156" name="__codelineno-0-156"></a>            <span class="s2">"enabled"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
-<a id="__codelineno-0-157" name="__codelineno-0-157"></a>            <span class="s2">"eligible"</span><span class="p">:</span> <span class="n">has_key</span><span class="p">,</span>
-<a id="__codelineno-0-158" name="__codelineno-0-158"></a>            <span class="s2">"unavailable_reason"</span><span class="p">:</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">has_key</span> <span class="k">else</span> <span class="s2">"provider_credential_missing"</span><span class="p">,</span>
-<a id="__codelineno-0-159" name="__codelineno-0-159"></a>        <span class="p">}</span>
-<a id="__codelineno-0-160" name="__codelineno-0-160"></a>        <span class="n">version_input</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span>
-<a id="__codelineno-0-161" name="__codelineno-0-161"></a>            <span class="p">{</span><span class="s2">"mode"</span><span class="p">:</span> <span class="s2">"legacy-single-provider"</span><span class="p">,</span> <span class="s2">"provider"</span><span class="p">:</span> <span class="n">provider</span><span class="p">,</span> <span class="s2">"model"</span><span class="p">:</span> <span class="n">model</span><span class="p">},</span>
-<a id="__codelineno-0-162" name="__codelineno-0-162"></a>            <span class="n">sort_keys</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-<a id="__codelineno-0-163" name="__codelineno-0-163"></a>            <span class="n">separators</span><span class="o">=</span><span class="p">(</span><span class="s2">","</span><span class="p">,</span> <span class="s2">":"</span><span class="p">),</span>
-<a id="__codelineno-0-164" name="__codelineno-0-164"></a>        <span class="p">)</span>
-<a id="__codelineno-0-165" name="__codelineno-0-165"></a>        <span class="k">return</span> <span class="p">{</span>
-<a id="__codelineno-0-166" name="__codelineno-0-166"></a>            <span class="s2">"configured"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
-<a id="__codelineno-0-167" name="__codelineno-0-167"></a>            <span class="s2">"policy_id"</span><span class="p">:</span> <span class="s2">"legacy-single-provider"</span><span class="p">,</span>
-<a id="__codelineno-0-168" name="__codelineno-0-168"></a>            <span class="s2">"policy_version"</span><span class="p">:</span> <span class="s2">"legacy-single-provider@"</span>
-<a id="__codelineno-0-169" name="__codelineno-0-169"></a>            <span class="o">+</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">(</span><span class="n">version_input</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s2">"utf-8"</span><span class="p">))</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()[:</span><span class="mi">12</span><span class="p">],</span>
-<a id="__codelineno-0-170" name="__codelineno-0-170"></a>            <span class="s2">"routes"</span><span class="p">:</span> <span class="p">[</span><span class="n">route</span><span class="p">],</span>
-<a id="__codelineno-0-171" name="__codelineno-0-171"></a>            <span class="s2">"required_capabilities"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"web_search"</span><span class="p">,</span> <span class="s2">"structured_output"</span><span class="p">],</span>
-<a id="__codelineno-0-172" name="__codelineno-0-172"></a>            <span class="s2">"max_attempts_per_dispatch_round"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
-<a id="__codelineno-0-173" name="__codelineno-0-173"></a>        <span class="p">}</span>
-<a id="__codelineno-0-174" name="__codelineno-0-174"></a>
-<a id="__codelineno-0-175" name="__codelineno-0-175"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">policy</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-<a id="__codelineno-0-176" name="__codelineno-0-176"></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"quick_scan_model_policy必须是对象"</span><span class="p">)</span>
-<a id="__codelineno-0-177" name="__codelineno-0-177"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_validate_quick_scan_policy</span><span class="p">(</span><span class="n">policy</span><span class="p">)</span>
-<a id="__codelineno-0-178" name="__codelineno-0-178"></a>
-<a id="__codelineno-0-179" name="__codelineno-0-179"></a>    <span class="n">routes</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
-<a id="__codelineno-0-180" name="__codelineno-0-180"></a>    <span class="n">providers</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"providers"</span><span class="p">,</span> <span class="p">{})</span>
-<a id="__codelineno-0-181" name="__codelineno-0-181"></a>    <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">policy</span><span class="p">[</span><span class="s2">"models"</span><span class="p">]:</span>
-<a id="__codelineno-0-182" name="__codelineno-0-182"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">entry</span><span class="p">[</span><span class="s2">"enabled"</span><span class="p">]:</span>
-<a id="__codelineno-0-183" name="__codelineno-0-183"></a>            <span class="k">continue</span>
-<a id="__codelineno-0-184" name="__codelineno-0-184"></a>        <span class="n">provider_ref</span> <span class="o">=</span> <span class="n">entry</span><span class="p">[</span><span class="s2">"provider_config_ref"</span><span class="p">]</span>
-<a id="__codelineno-0-185" name="__codelineno-0-185"></a>        <span class="n">provider_config</span> <span class="o">=</span> <span class="n">providers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">provider_ref</span><span class="p">)</span>
-<a id="__codelineno-0-186" name="__codelineno-0-186"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">provider_config</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-<a id="__codelineno-0-187" name="__codelineno-0-187"></a>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"模型策略引用了不存在的StockQA提供商配置: </span><span class="si">{</span><span class="n">provider_ref</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-<a id="__codelineno-0-188" name="__codelineno-0-188"></a>        <span class="n">enabled</span> <span class="o">=</span> <span class="n">provider_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"enabled"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">True</span>
-<a id="__codelineno-0-189" name="__codelineno-0-189"></a>        <span class="n">has_key</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_has_provider_credential</span><span class="p">(</span><span class="n">provider_ref</span><span class="p">,</span> <span class="n">provider_config</span><span class="p">)</span>
-<a id="__codelineno-0-190" name="__codelineno-0-190"></a>        <span class="n">reason</span> <span class="o">=</span> <span class="kc">None</span>
-<a id="__codelineno-0-191" name="__codelineno-0-191"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">enabled</span><span class="p">:</span>
-<a id="__codelineno-0-192" name="__codelineno-0-192"></a>            <span class="n">reason</span> <span class="o">=</span> <span class="s2">"provider_config_disabled"</span>
-<a id="__codelineno-0-193" name="__codelineno-0-193"></a>        <span class="k">elif</span> <span class="ow">not</span> <span class="n">has_key</span><span class="p">:</span>
-<a id="__codelineno-0-194" name="__codelineno-0-194"></a>            <span class="n">reason</span> <span class="o">=</span> <span class="s2">"provider_credential_missing"</span>
-<a id="__codelineno-0-195" name="__codelineno-0-195"></a>        <span class="n">routes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
-<a id="__codelineno-0-196" name="__codelineno-0-196"></a>            <span class="p">{</span>
-<a id="__codelineno-0-197" name="__codelineno-0-197"></a>                <span class="s2">"id"</span><span class="p">:</span> <span class="n">entry</span><span class="p">[</span><span class="s2">"id"</span><span class="p">],</span>
-<a id="__codelineno-0-198" name="__codelineno-0-198"></a>                <span class="s2">"provider_config_ref"</span><span class="p">:</span> <span class="n">provider_ref</span><span class="p">,</span>
-<a id="__codelineno-0-199" name="__codelineno-0-199"></a>                <span class="s2">"model"</span><span class="p">:</span> <span class="n">entry</span><span class="p">[</span><span class="s2">"model"</span><span class="p">],</span>
-<a id="__codelineno-0-200" name="__codelineno-0-200"></a>                <span class="s2">"quota_group"</span><span class="p">:</span> <span class="n">entry</span><span class="p">[</span><span class="s2">"quota_group"</span><span class="p">],</span>
-<a id="__codelineno-0-201" name="__codelineno-0-201"></a>                <span class="s2">"max_in_flight"</span><span class="p">:</span> <span class="n">entry</span><span class="p">[</span><span class="s2">"max_in_flight"</span><span class="p">],</span>
-<a id="__codelineno-0-202" name="__codelineno-0-202"></a>                <span class="s2">"enabled"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
-<a id="__codelineno-0-203" name="__codelineno-0-203"></a>                <span class="s2">"eligible"</span><span class="p">:</span> <span class="n">enabled</span> <span class="ow">and</span> <span class="n">has_key</span><span class="p">,</span>
-<a id="__codelineno-0-204" name="__codelineno-0-204"></a>                <span class="s2">"unavailable_reason"</span><span class="p">:</span> <span class="n">reason</span><span class="p">,</span>
-<a id="__codelineno-0-205" name="__codelineno-0-205"></a>            <span class="p">}</span>
-<a id="__codelineno-0-206" name="__codelineno-0-206"></a>        <span class="p">)</span>
-<a id="__codelineno-0-207" name="__codelineno-0-207"></a>
-<a id="__codelineno-0-208" name="__codelineno-0-208"></a>    <span class="n">canonical</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">policy</span><span class="p">,</span> <span class="n">ensure_ascii</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">sort_keys</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">separators</span><span class="o">=</span><span class="p">(</span><span class="s2">","</span><span class="p">,</span> <span class="s2">":"</span><span class="p">))</span>
-<a id="__codelineno-0-209" name="__codelineno-0-209"></a>    <span class="n">digest</span> <span class="o">=</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">(</span><span class="n">canonical</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s2">"utf-8"</span><span class="p">))</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()[:</span><span class="mi">16</span><span class="p">]</span>
-<a id="__codelineno-0-210" name="__codelineno-0-210"></a>    <span class="k">return</span> <span class="p">{</span>
-<a id="__codelineno-0-211" name="__codelineno-0-211"></a>        <span class="s2">"configured"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
-<a id="__codelineno-0-212" name="__codelineno-0-212"></a>        <span class="s2">"policy_id"</span><span class="p">:</span> <span class="n">policy</span><span class="p">[</span><span class="s2">"policy_id"</span><span class="p">],</span>
-<a id="__codelineno-0-213" name="__codelineno-0-213"></a>        <span class="s2">"policy_version"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">policy</span><span class="p">[</span><span class="s1">'policy_id'</span><span class="p">]</span><span class="si">}</span><span class="s2">@</span><span class="si">{</span><span class="n">digest</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
-<a id="__codelineno-0-214" name="__codelineno-0-214"></a>        <span class="s2">"routes"</span><span class="p">:</span> <span class="n">routes</span><span class="p">,</span>
-<a id="__codelineno-0-215" name="__codelineno-0-215"></a>        <span class="s2">"quota_groups"</span><span class="p">:</span> <span class="p">[</span>
-<a id="__codelineno-0-216" name="__codelineno-0-216"></a>            <span class="p">{</span>
-<a id="__codelineno-0-217" name="__codelineno-0-217"></a>                <span class="s2">"id"</span><span class="p">:</span> <span class="n">group</span><span class="p">[</span><span class="s2">"id"</span><span class="p">],</span>
-<a id="__codelineno-0-218" name="__codelineno-0-218"></a>                <span class="s2">"max_in_flight"</span><span class="p">:</span> <span class="n">group</span><span class="p">[</span><span class="s2">"max_in_flight"</span><span class="p">],</span>
-<a id="__codelineno-0-219" name="__codelineno-0-219"></a>                <span class="s2">"unknown_reset_cooldown_seconds"</span><span class="p">:</span> <span class="n">group</span><span class="p">[</span><span class="s2">"unknown_reset_cooldown_seconds"</span><span class="p">],</span>
-<a id="__codelineno-0-220" name="__codelineno-0-220"></a>                <span class="s2">"half_open_probe_limit"</span><span class="p">:</span> <span class="n">group</span><span class="p">[</span><span class="s2">"half_open_probe_limit"</span><span class="p">],</span>
-<a id="__codelineno-0-221" name="__codelineno-0-221"></a>            <span class="p">}</span>
-<a id="__codelineno-0-222" name="__codelineno-0-222"></a>            <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">policy</span><span class="p">[</span><span class="s2">"quota_groups"</span><span class="p">]</span>
-<a id="__codelineno-0-223" name="__codelineno-0-223"></a>        <span class="p">],</span>
-<a id="__codelineno-0-224" name="__codelineno-0-224"></a>        <span class="s2">"dispatch"</span><span class="p">:</span> <span class="p">{</span>
-<a id="__codelineno-0-225" name="__codelineno-0-225"></a>            <span class="s2">"max_in_flight_total"</span><span class="p">:</span> <span class="n">policy</span><span class="p">[</span><span class="s2">"dispatch"</span><span class="p">][</span><span class="s2">"max_in_flight_total"</span><span class="p">],</span>
-<a id="__codelineno-0-226" name="__codelineno-0-226"></a>        <span class="p">},</span>
-<a id="__codelineno-0-227" name="__codelineno-0-227"></a>        <span class="s2">"budget"</span><span class="p">:</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">policy</span><span class="p">[</span><span class="s2">"budget"</span><span class="p">]),</span>
-<a id="__codelineno-0-228" name="__codelineno-0-228"></a>        <span class="s2">"cost_policy"</span><span class="p">:</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">policy</span><span class="p">[</span><span class="s2">"cost_policy"</span><span class="p">]),</span>
-<a id="__codelineno-0-229" name="__codelineno-0-229"></a>        <span class="s2">"required_capabilities"</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">policy</span><span class="p">[</span><span class="s2">"dispatch"</span><span class="p">][</span><span class="s2">"required_capabilities"</span><span class="p">]),</span>
-<a id="__codelineno-0-230" name="__codelineno-0-230"></a>        <span class="s2">"max_attempts_per_dispatch_round"</span><span class="p">:</span> <span class="n">policy</span><span class="p">[</span><span class="s2">"fallback"</span><span class="p">][</span>
-<a id="__codelineno-0-231" name="__codelineno-0-231"></a>            <span class="s2">"max_attempts_per_dispatch_round"</span>
-<a id="__codelineno-0-232" name="__codelineno-0-232"></a>        <span class="p">],</span>
-<a id="__codelineno-0-233" name="__codelineno-0-233"></a>    <span class="p">}</span>
+<span class="normal"><a href="#__codelineno-0-233">233</a></span>
+<span class="normal"><a href="#__codelineno-0-234">234</a></span>
+<span class="normal"><a href="#__codelineno-0-235">235</a></span>
+<span class="normal"><a href="#__codelineno-0-236">236</a></span>
+<span class="normal"><a href="#__codelineno-0-237">237</a></span>
+<span class="normal"><a href="#__codelineno-0-238">238</a></span>
+<span class="normal"><a href="#__codelineno-0-239">239</a></span>
+<span class="normal"><a href="#__codelineno-0-240">240</a></span>
+<span class="normal"><a href="#__codelineno-0-241">241</a></span>
+<span class="normal"><a href="#__codelineno-0-242">242</a></span>
+<span class="normal"><a href="#__codelineno-0-243">243</a></span>
+<span class="normal"><a href="#__codelineno-0-244">244</a></span>
+<span class="normal"><a href="#__codelineno-0-245">245</a></span>
+<span class="normal"><a href="#__codelineno-0-246">246</a></span>
+<span class="normal"><a href="#__codelineno-0-247">247</a></span>
+<span class="normal"><a href="#__codelineno-0-248">248</a></span>
+<span class="normal"><a href="#__codelineno-0-249">249</a></span>
+<span class="normal"><a href="#__codelineno-0-250">250</a></span>
+<span class="normal"><a href="#__codelineno-0-251">251</a></span>
+<span class="normal"><a href="#__codelineno-0-252">252</a></span>
+<span class="normal"><a href="#__codelineno-0-253">253</a></span>
+<span class="normal"><a href="#__codelineno-0-254">254</a></span>
+<span class="normal"><a href="#__codelineno-0-255">255</a></span>
+<span class="normal"><a href="#__codelineno-0-256">256</a></span>
+<span class="normal"><a href="#__codelineno-0-257">257</a></span>
+<span class="normal"><a href="#__codelineno-0-258">258</a></span>
+<span class="normal"><a href="#__codelineno-0-259">259</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-145" name="__codelineno-0-145"></a><span class="k">def</span><span class="w"> </span><span class="nf">get_quick_scan_model_policy</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">default_provider</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<a id="__codelineno-0-146" name="__codelineno-0-146"></a><span class="w">    </span><span class="sd">"""Return one immutable-at-call-time ordered quick-scan route snapshot.</span>
+<a id="__codelineno-0-147" name="__codelineno-0-147"></a>
+<a id="__codelineno-0-148" name="__codelineno-0-148"></a><span class="sd">    The optional policy lives in this StockQA-owned config file under</span>
+<a id="__codelineno-0-149" name="__codelineno-0-149"></a><span class="sd">    ``quick_scan_model_policy``. An absent or unconfigured policy preserves</span>
+<a id="__codelineno-0-150" name="__codelineno-0-150"></a><span class="sd">    the legacy single-provider behavior. Active routes follow the order in</span>
+<a id="__codelineno-0-151" name="__codelineno-0-151"></a><span class="sd">    the saved policy; the returned fingerprint changes even if a user edits</span>
+<a id="__codelineno-0-152" name="__codelineno-0-152"></a><span class="sd">    the route order but reuses the same policy_id.</span>
+<a id="__codelineno-0-153" name="__codelineno-0-153"></a><span class="sd">    """</span>
+<a id="__codelineno-0-154" name="__codelineno-0-154"></a>    <span class="n">resolution</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_quick_scan_model_resolution</span><span class="p">()</span>
+<a id="__codelineno-0-155" name="__codelineno-0-155"></a>    <span class="n">policy</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"quick_scan_model_policy"</span><span class="p">)</span>
+<a id="__codelineno-0-156" name="__codelineno-0-156"></a>    <span class="k">if</span> <span class="n">policy</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">policy</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">and</span> <span class="n">policy</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"configured"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">):</span>
+<a id="__codelineno-0-157" name="__codelineno-0-157"></a>        <span class="n">provider</span> <span class="o">=</span> <span class="n">default_provider</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_default_provider</span><span class="p">()</span>
+<a id="__codelineno-0-158" name="__codelineno-0-158"></a>        <span class="n">provider_config</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_provider_config</span><span class="p">(</span><span class="n">provider</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
+<a id="__codelineno-0-159" name="__codelineno-0-159"></a>        <span class="n">model</span> <span class="o">=</span> <span class="n">provider_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
+<a id="__codelineno-0-160" name="__codelineno-0-160"></a>        <span class="n">has_key</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_has_provider_credential</span><span class="p">(</span><span class="n">provider</span><span class="p">,</span> <span class="n">provider_config</span><span class="p">)</span>
+<a id="__codelineno-0-161" name="__codelineno-0-161"></a>        <span class="n">route</span> <span class="o">=</span> <span class="p">{</span>
+<a id="__codelineno-0-162" name="__codelineno-0-162"></a>            <span class="s2">"id"</span><span class="p">:</span> <span class="s2">"legacy-default"</span><span class="p">,</span>
+<a id="__codelineno-0-163" name="__codelineno-0-163"></a>            <span class="s2">"provider_config_ref"</span><span class="p">:</span> <span class="n">provider</span><span class="p">,</span>
+<a id="__codelineno-0-164" name="__codelineno-0-164"></a>            <span class="s2">"model"</span><span class="p">:</span> <span class="n">model</span><span class="p">,</span>
+<a id="__codelineno-0-165" name="__codelineno-0-165"></a>            <span class="s2">"enabled"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+<a id="__codelineno-0-166" name="__codelineno-0-166"></a>            <span class="s2">"eligible"</span><span class="p">:</span> <span class="n">has_key</span><span class="p">,</span>
+<a id="__codelineno-0-167" name="__codelineno-0-167"></a>            <span class="s2">"unavailable_reason"</span><span class="p">:</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">has_key</span> <span class="k">else</span> <span class="s2">"provider_credential_missing"</span><span class="p">,</span>
+<a id="__codelineno-0-168" name="__codelineno-0-168"></a>            <span class="s2">"model_resolution"</span><span class="p">:</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">resolution</span><span class="p">),</span>
+<a id="__codelineno-0-169" name="__codelineno-0-169"></a>        <span class="p">}</span>
+<a id="__codelineno-0-170" name="__codelineno-0-170"></a>        <span class="n">version_projection</span> <span class="o">=</span> <span class="p">{</span>
+<a id="__codelineno-0-171" name="__codelineno-0-171"></a>            <span class="s2">"mode"</span><span class="p">:</span> <span class="s2">"legacy-single-provider"</span><span class="p">,</span>
+<a id="__codelineno-0-172" name="__codelineno-0-172"></a>            <span class="s2">"provider"</span><span class="p">:</span> <span class="n">provider</span><span class="p">,</span>
+<a id="__codelineno-0-173" name="__codelineno-0-173"></a>            <span class="s2">"model"</span><span class="p">:</span> <span class="n">model</span><span class="p">,</span>
+<a id="__codelineno-0-174" name="__codelineno-0-174"></a>        <span class="p">}</span>
+<a id="__codelineno-0-175" name="__codelineno-0-175"></a>        <span class="k">if</span> <span class="n">resolution</span><span class="p">[</span><span class="s2">"aliases"</span><span class="p">]:</span>
+<a id="__codelineno-0-176" name="__codelineno-0-176"></a>            <span class="n">version_projection</span><span class="p">[</span><span class="s2">"quick_scan_model_resolution"</span><span class="p">]</span> <span class="o">=</span> <span class="n">resolution</span>
+<a id="__codelineno-0-177" name="__codelineno-0-177"></a>        <span class="n">version_input</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span>
+<a id="__codelineno-0-178" name="__codelineno-0-178"></a>            <span class="n">version_projection</span><span class="p">,</span>
+<a id="__codelineno-0-179" name="__codelineno-0-179"></a>            <span class="n">sort_keys</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<a id="__codelineno-0-180" name="__codelineno-0-180"></a>            <span class="n">separators</span><span class="o">=</span><span class="p">(</span><span class="s2">","</span><span class="p">,</span> <span class="s2">":"</span><span class="p">),</span>
+<a id="__codelineno-0-181" name="__codelineno-0-181"></a>        <span class="p">)</span>
+<a id="__codelineno-0-182" name="__codelineno-0-182"></a>        <span class="k">return</span> <span class="p">{</span>
+<a id="__codelineno-0-183" name="__codelineno-0-183"></a>            <span class="s2">"configured"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+<a id="__codelineno-0-184" name="__codelineno-0-184"></a>            <span class="s2">"policy_id"</span><span class="p">:</span> <span class="s2">"legacy-single-provider"</span><span class="p">,</span>
+<a id="__codelineno-0-185" name="__codelineno-0-185"></a>            <span class="s2">"policy_version"</span><span class="p">:</span> <span class="s2">"legacy-single-provider@"</span>
+<a id="__codelineno-0-186" name="__codelineno-0-186"></a>            <span class="o">+</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">(</span><span class="n">version_input</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s2">"utf-8"</span><span class="p">))</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()[:</span><span class="mi">12</span><span class="p">],</span>
+<a id="__codelineno-0-187" name="__codelineno-0-187"></a>            <span class="s2">"routes"</span><span class="p">:</span> <span class="p">[</span><span class="n">route</span><span class="p">],</span>
+<a id="__codelineno-0-188" name="__codelineno-0-188"></a>            <span class="s2">"required_capabilities"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"web_search"</span><span class="p">,</span> <span class="s2">"structured_output"</span><span class="p">],</span>
+<a id="__codelineno-0-189" name="__codelineno-0-189"></a>            <span class="s2">"max_attempts_per_dispatch_round"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+<a id="__codelineno-0-190" name="__codelineno-0-190"></a>        <span class="p">}</span>
+<a id="__codelineno-0-191" name="__codelineno-0-191"></a>
+<a id="__codelineno-0-192" name="__codelineno-0-192"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">policy</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+<a id="__codelineno-0-193" name="__codelineno-0-193"></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"quick_scan_model_policy必须是对象"</span><span class="p">)</span>
+<a id="__codelineno-0-194" name="__codelineno-0-194"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_validate_quick_scan_policy</span><span class="p">(</span><span class="n">policy</span><span class="p">)</span>
+<a id="__codelineno-0-195" name="__codelineno-0-195"></a>
+<a id="__codelineno-0-196" name="__codelineno-0-196"></a>    <span class="n">routes</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
+<a id="__codelineno-0-197" name="__codelineno-0-197"></a>    <span class="n">providers</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"providers"</span><span class="p">,</span> <span class="p">{})</span>
+<a id="__codelineno-0-198" name="__codelineno-0-198"></a>    <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">policy</span><span class="p">[</span><span class="s2">"models"</span><span class="p">]:</span>
+<a id="__codelineno-0-199" name="__codelineno-0-199"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">entry</span><span class="p">[</span><span class="s2">"enabled"</span><span class="p">]:</span>
+<a id="__codelineno-0-200" name="__codelineno-0-200"></a>            <span class="k">continue</span>
+<a id="__codelineno-0-201" name="__codelineno-0-201"></a>        <span class="n">provider_ref</span> <span class="o">=</span> <span class="n">entry</span><span class="p">[</span><span class="s2">"provider_config_ref"</span><span class="p">]</span>
+<a id="__codelineno-0-202" name="__codelineno-0-202"></a>        <span class="n">provider_config</span> <span class="o">=</span> <span class="n">providers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">provider_ref</span><span class="p">)</span>
+<a id="__codelineno-0-203" name="__codelineno-0-203"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">provider_config</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+<a id="__codelineno-0-204" name="__codelineno-0-204"></a>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"模型策略引用了不存在的StockQA提供商配置: </span><span class="si">{</span><span class="n">provider_ref</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<a id="__codelineno-0-205" name="__codelineno-0-205"></a>        <span class="n">enabled</span> <span class="o">=</span> <span class="n">provider_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"enabled"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">True</span>
+<a id="__codelineno-0-206" name="__codelineno-0-206"></a>        <span class="n">has_key</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_has_provider_credential</span><span class="p">(</span><span class="n">provider_ref</span><span class="p">,</span> <span class="n">provider_config</span><span class="p">)</span>
+<a id="__codelineno-0-207" name="__codelineno-0-207"></a>        <span class="n">reason</span> <span class="o">=</span> <span class="kc">None</span>
+<a id="__codelineno-0-208" name="__codelineno-0-208"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">enabled</span><span class="p">:</span>
+<a id="__codelineno-0-209" name="__codelineno-0-209"></a>            <span class="n">reason</span> <span class="o">=</span> <span class="s2">"provider_config_disabled"</span>
+<a id="__codelineno-0-210" name="__codelineno-0-210"></a>        <span class="k">elif</span> <span class="ow">not</span> <span class="n">has_key</span><span class="p">:</span>
+<a id="__codelineno-0-211" name="__codelineno-0-211"></a>            <span class="n">reason</span> <span class="o">=</span> <span class="s2">"provider_credential_missing"</span>
+<a id="__codelineno-0-212" name="__codelineno-0-212"></a>        <span class="n">routes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+<a id="__codelineno-0-213" name="__codelineno-0-213"></a>            <span class="p">{</span>
+<a id="__codelineno-0-214" name="__codelineno-0-214"></a>                <span class="s2">"id"</span><span class="p">:</span> <span class="n">entry</span><span class="p">[</span><span class="s2">"id"</span><span class="p">],</span>
+<a id="__codelineno-0-215" name="__codelineno-0-215"></a>                <span class="s2">"provider_config_ref"</span><span class="p">:</span> <span class="n">provider_ref</span><span class="p">,</span>
+<a id="__codelineno-0-216" name="__codelineno-0-216"></a>                <span class="s2">"model"</span><span class="p">:</span> <span class="n">entry</span><span class="p">[</span><span class="s2">"model"</span><span class="p">],</span>
+<a id="__codelineno-0-217" name="__codelineno-0-217"></a>                <span class="s2">"quota_group"</span><span class="p">:</span> <span class="n">entry</span><span class="p">[</span><span class="s2">"quota_group"</span><span class="p">],</span>
+<a id="__codelineno-0-218" name="__codelineno-0-218"></a>                <span class="s2">"max_in_flight"</span><span class="p">:</span> <span class="n">entry</span><span class="p">[</span><span class="s2">"max_in_flight"</span><span class="p">],</span>
+<a id="__codelineno-0-219" name="__codelineno-0-219"></a>                <span class="s2">"enabled"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+<a id="__codelineno-0-220" name="__codelineno-0-220"></a>                <span class="s2">"eligible"</span><span class="p">:</span> <span class="n">enabled</span> <span class="ow">and</span> <span class="n">has_key</span><span class="p">,</span>
+<a id="__codelineno-0-221" name="__codelineno-0-221"></a>                <span class="s2">"unavailable_reason"</span><span class="p">:</span> <span class="n">reason</span><span class="p">,</span>
+<a id="__codelineno-0-222" name="__codelineno-0-222"></a>                <span class="s2">"model_resolution"</span><span class="p">:</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">resolution</span><span class="p">),</span>
+<a id="__codelineno-0-223" name="__codelineno-0-223"></a>            <span class="p">}</span>
+<a id="__codelineno-0-224" name="__codelineno-0-224"></a>        <span class="p">)</span>
+<a id="__codelineno-0-225" name="__codelineno-0-225"></a>
+<a id="__codelineno-0-226" name="__codelineno-0-226"></a>    <span class="n">version_projection</span> <span class="o">=</span> <span class="n">policy</span>
+<a id="__codelineno-0-227" name="__codelineno-0-227"></a>    <span class="k">if</span> <span class="n">resolution</span><span class="p">[</span><span class="s2">"aliases"</span><span class="p">]:</span>
+<a id="__codelineno-0-228" name="__codelineno-0-228"></a>        <span class="n">version_projection</span> <span class="o">=</span> <span class="p">{</span>
+<a id="__codelineno-0-229" name="__codelineno-0-229"></a>            <span class="s2">"quick_scan_model_policy"</span><span class="p">:</span> <span class="n">policy</span><span class="p">,</span>
+<a id="__codelineno-0-230" name="__codelineno-0-230"></a>            <span class="s2">"quick_scan_model_resolution"</span><span class="p">:</span> <span class="n">resolution</span><span class="p">,</span>
+<a id="__codelineno-0-231" name="__codelineno-0-231"></a>        <span class="p">}</span>
+<a id="__codelineno-0-232" name="__codelineno-0-232"></a>    <span class="n">canonical</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span>
+<a id="__codelineno-0-233" name="__codelineno-0-233"></a>        <span class="n">version_projection</span><span class="p">,</span> <span class="n">ensure_ascii</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">sort_keys</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">separators</span><span class="o">=</span><span class="p">(</span><span class="s2">","</span><span class="p">,</span> <span class="s2">":"</span><span class="p">)</span>
+<a id="__codelineno-0-234" name="__codelineno-0-234"></a>    <span class="p">)</span>
+<a id="__codelineno-0-235" name="__codelineno-0-235"></a>    <span class="n">digest</span> <span class="o">=</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">(</span><span class="n">canonical</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s2">"utf-8"</span><span class="p">))</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()[:</span><span class="mi">16</span><span class="p">]</span>
+<a id="__codelineno-0-236" name="__codelineno-0-236"></a>    <span class="k">return</span> <span class="p">{</span>
+<a id="__codelineno-0-237" name="__codelineno-0-237"></a>        <span class="s2">"configured"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+<a id="__codelineno-0-238" name="__codelineno-0-238"></a>        <span class="s2">"policy_id"</span><span class="p">:</span> <span class="n">policy</span><span class="p">[</span><span class="s2">"policy_id"</span><span class="p">],</span>
+<a id="__codelineno-0-239" name="__codelineno-0-239"></a>        <span class="s2">"policy_version"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">policy</span><span class="p">[</span><span class="s1">'policy_id'</span><span class="p">]</span><span class="si">}</span><span class="s2">@</span><span class="si">{</span><span class="n">digest</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
+<a id="__codelineno-0-240" name="__codelineno-0-240"></a>        <span class="s2">"routes"</span><span class="p">:</span> <span class="n">routes</span><span class="p">,</span>
+<a id="__codelineno-0-241" name="__codelineno-0-241"></a>        <span class="s2">"quota_groups"</span><span class="p">:</span> <span class="p">[</span>
+<a id="__codelineno-0-242" name="__codelineno-0-242"></a>            <span class="p">{</span>
+<a id="__codelineno-0-243" name="__codelineno-0-243"></a>                <span class="s2">"id"</span><span class="p">:</span> <span class="n">group</span><span class="p">[</span><span class="s2">"id"</span><span class="p">],</span>
+<a id="__codelineno-0-244" name="__codelineno-0-244"></a>                <span class="s2">"max_in_flight"</span><span class="p">:</span> <span class="n">group</span><span class="p">[</span><span class="s2">"max_in_flight"</span><span class="p">],</span>
+<a id="__codelineno-0-245" name="__codelineno-0-245"></a>                <span class="s2">"unknown_reset_cooldown_seconds"</span><span class="p">:</span> <span class="n">group</span><span class="p">[</span><span class="s2">"unknown_reset_cooldown_seconds"</span><span class="p">],</span>
+<a id="__codelineno-0-246" name="__codelineno-0-246"></a>                <span class="s2">"half_open_probe_limit"</span><span class="p">:</span> <span class="n">group</span><span class="p">[</span><span class="s2">"half_open_probe_limit"</span><span class="p">],</span>
+<a id="__codelineno-0-247" name="__codelineno-0-247"></a>            <span class="p">}</span>
+<a id="__codelineno-0-248" name="__codelineno-0-248"></a>            <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">policy</span><span class="p">[</span><span class="s2">"quota_groups"</span><span class="p">]</span>
+<a id="__codelineno-0-249" name="__codelineno-0-249"></a>        <span class="p">],</span>
+<a id="__codelineno-0-250" name="__codelineno-0-250"></a>        <span class="s2">"dispatch"</span><span class="p">:</span> <span class="p">{</span>
+<a id="__codelineno-0-251" name="__codelineno-0-251"></a>            <span class="s2">"max_in_flight_total"</span><span class="p">:</span> <span class="n">policy</span><span class="p">[</span><span class="s2">"dispatch"</span><span class="p">][</span><span class="s2">"max_in_flight_total"</span><span class="p">],</span>
+<a id="__codelineno-0-252" name="__codelineno-0-252"></a>        <span class="p">},</span>
+<a id="__codelineno-0-253" name="__codelineno-0-253"></a>        <span class="s2">"budget"</span><span class="p">:</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">policy</span><span class="p">[</span><span class="s2">"budget"</span><span class="p">]),</span>
+<a id="__codelineno-0-254" name="__codelineno-0-254"></a>        <span class="s2">"cost_policy"</span><span class="p">:</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">policy</span><span class="p">[</span><span class="s2">"cost_policy"</span><span class="p">]),</span>
+<a id="__codelineno-0-255" name="__codelineno-0-255"></a>        <span class="s2">"required_capabilities"</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">policy</span><span class="p">[</span><span class="s2">"dispatch"</span><span class="p">][</span><span class="s2">"required_capabilities"</span><span class="p">]),</span>
+<a id="__codelineno-0-256" name="__codelineno-0-256"></a>        <span class="s2">"max_attempts_per_dispatch_round"</span><span class="p">:</span> <span class="n">policy</span><span class="p">[</span><span class="s2">"fallback"</span><span class="p">][</span>
+<a id="__codelineno-0-257" name="__codelineno-0-257"></a>            <span class="s2">"max_attempts_per_dispatch_round"</span>
+<a id="__codelineno-0-258" name="__codelineno-0-258"></a>        <span class="p">],</span>
+<a id="__codelineno-0-259" name="__codelineno-0-259"></a>    <span class="p">}</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h6 id="src.config.llm_config.LLMConfig.get_quick_scan_model_resolution" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">get_quick_scan_model_resolution</span><span class="p">()</span></code>
+
+<a href="#src.config.llm_config.LLMConfig.get_quick_scan_model_resolution" class="headerlink" title="Permanent link">&para;</a></h6>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Return one validated, detached permission projection for this call.</p>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/config/llm_config.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-137">137</a></span>
+<span class="normal"><a href="#__codelineno-0-138">138</a></span>
+<span class="normal"><a href="#__codelineno-0-139">139</a></span>
+<span class="normal"><a href="#__codelineno-0-140">140</a></span>
+<span class="normal"><a href="#__codelineno-0-141">141</a></span>
+<span class="normal"><a href="#__codelineno-0-142">142</a></span>
+<span class="normal"><a href="#__codelineno-0-143">143</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-137" name="__codelineno-0-137"></a><span class="k">def</span><span class="w"> </span><span class="nf">get_quick_scan_model_resolution</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<a id="__codelineno-0-138" name="__codelineno-0-138"></a><span class="w">    </span><span class="sd">"""Return one validated, detached permission projection for this call."""</span>
+<a id="__codelineno-0-139" name="__codelineno-0-139"></a>    <span class="c1"># The providers package eagerly imports this config; defer its shared</span>
+<a id="__codelineno-0-140" name="__codelineno-0-140"></a>    <span class="c1"># resolution helper until runtime to avoid an import cycle.</span>
+<a id="__codelineno-0-141" name="__codelineno-0-141"></a>    <span class="kn">from</span><span class="w"> </span><span class="nn">src.providers.model_resolution</span><span class="w"> </span><span class="kn">import</span> <span class="n">normalize_model_resolution</span>
+<a id="__codelineno-0-142" name="__codelineno-0-142"></a>
+<a id="__codelineno-0-143" name="__codelineno-0-143"></a>    <span class="k">return</span> <span class="n">normalize_model_resolution</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"quick_scan_model_resolution"</span><span class="p">))</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -3891,31 +3984,31 @@ the route order but reuses the same policy_id.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/config/llm_config.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-604">604</a></span>
-<span class="normal"><a href="#__codelineno-0-605">605</a></span>
-<span class="normal"><a href="#__codelineno-0-606">606</a></span>
-<span class="normal"><a href="#__codelineno-0-607">607</a></span>
-<span class="normal"><a href="#__codelineno-0-608">608</a></span>
-<span class="normal"><a href="#__codelineno-0-609">609</a></span>
-<span class="normal"><a href="#__codelineno-0-610">610</a></span>
-<span class="normal"><a href="#__codelineno-0-611">611</a></span>
-<span class="normal"><a href="#__codelineno-0-612">612</a></span>
-<span class="normal"><a href="#__codelineno-0-613">613</a></span>
-<span class="normal"><a href="#__codelineno-0-614">614</a></span>
-<span class="normal"><a href="#__codelineno-0-615">615</a></span>
-<span class="normal"><a href="#__codelineno-0-616">616</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-604" name="__codelineno-0-604"></a><span class="k">def</span><span class="w"> </span><span class="nf">get_timeout</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">provider_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<a id="__codelineno-0-605" name="__codelineno-0-605"></a><span class="w">    </span><span class="sd">"""获取指定提供者的超时时间。</span>
-<a id="__codelineno-0-606" name="__codelineno-0-606"></a>
-<a id="__codelineno-0-607" name="__codelineno-0-607"></a><span class="sd">    Args:</span>
-<a id="__codelineno-0-608" name="__codelineno-0-608"></a><span class="sd">        provider_name: 提供者名称</span>
-<a id="__codelineno-0-609" name="__codelineno-0-609"></a>
-<a id="__codelineno-0-610" name="__codelineno-0-610"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-611" name="__codelineno-0-611"></a><span class="sd">        超时时间（秒）</span>
-<a id="__codelineno-0-612" name="__codelineno-0-612"></a><span class="sd">    """</span>
-<a id="__codelineno-0-613" name="__codelineno-0-613"></a>    <span class="n">config</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_provider_config</span><span class="p">(</span><span class="n">provider_name</span><span class="p">)</span>
-<a id="__codelineno-0-614" name="__codelineno-0-614"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">config</span><span class="p">:</span>
-<a id="__codelineno-0-615" name="__codelineno-0-615"></a>        <span class="k">return</span> <span class="n">DEFAULT_TIMEOUT</span>
-<a id="__codelineno-0-616" name="__codelineno-0-616"></a>    <span class="k">return</span> <span class="n">cast</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"timeout"</span><span class="p">,</span> <span class="n">DEFAULT_TIMEOUT</span><span class="p">))</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-630">630</a></span>
+<span class="normal"><a href="#__codelineno-0-631">631</a></span>
+<span class="normal"><a href="#__codelineno-0-632">632</a></span>
+<span class="normal"><a href="#__codelineno-0-633">633</a></span>
+<span class="normal"><a href="#__codelineno-0-634">634</a></span>
+<span class="normal"><a href="#__codelineno-0-635">635</a></span>
+<span class="normal"><a href="#__codelineno-0-636">636</a></span>
+<span class="normal"><a href="#__codelineno-0-637">637</a></span>
+<span class="normal"><a href="#__codelineno-0-638">638</a></span>
+<span class="normal"><a href="#__codelineno-0-639">639</a></span>
+<span class="normal"><a href="#__codelineno-0-640">640</a></span>
+<span class="normal"><a href="#__codelineno-0-641">641</a></span>
+<span class="normal"><a href="#__codelineno-0-642">642</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-630" name="__codelineno-0-630"></a><span class="k">def</span><span class="w"> </span><span class="nf">get_timeout</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">provider_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-0-631" name="__codelineno-0-631"></a><span class="w">    </span><span class="sd">"""获取指定提供者的超时时间。</span>
+<a id="__codelineno-0-632" name="__codelineno-0-632"></a>
+<a id="__codelineno-0-633" name="__codelineno-0-633"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-634" name="__codelineno-0-634"></a><span class="sd">        provider_name: 提供者名称</span>
+<a id="__codelineno-0-635" name="__codelineno-0-635"></a>
+<a id="__codelineno-0-636" name="__codelineno-0-636"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-637" name="__codelineno-0-637"></a><span class="sd">        超时时间（秒）</span>
+<a id="__codelineno-0-638" name="__codelineno-0-638"></a><span class="sd">    """</span>
+<a id="__codelineno-0-639" name="__codelineno-0-639"></a>    <span class="n">config</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_provider_config</span><span class="p">(</span><span class="n">provider_name</span><span class="p">)</span>
+<a id="__codelineno-0-640" name="__codelineno-0-640"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">config</span><span class="p">:</span>
+<a id="__codelineno-0-641" name="__codelineno-0-641"></a>        <span class="k">return</span> <span class="n">DEFAULT_TIMEOUT</span>
+<a id="__codelineno-0-642" name="__codelineno-0-642"></a>    <span class="k">return</span> <span class="n">cast</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"timeout"</span><span class="p">,</span> <span class="n">DEFAULT_TIMEOUT</span><span class="p">))</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -3992,31 +4085,31 @@ the route order but reuses the same policy_id.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/config/llm_config.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-632">632</a></span>
-<span class="normal"><a href="#__codelineno-0-633">633</a></span>
-<span class="normal"><a href="#__codelineno-0-634">634</a></span>
-<span class="normal"><a href="#__codelineno-0-635">635</a></span>
-<span class="normal"><a href="#__codelineno-0-636">636</a></span>
-<span class="normal"><a href="#__codelineno-0-637">637</a></span>
-<span class="normal"><a href="#__codelineno-0-638">638</a></span>
-<span class="normal"><a href="#__codelineno-0-639">639</a></span>
-<span class="normal"><a href="#__codelineno-0-640">640</a></span>
-<span class="normal"><a href="#__codelineno-0-641">641</a></span>
-<span class="normal"><a href="#__codelineno-0-642">642</a></span>
-<span class="normal"><a href="#__codelineno-0-643">643</a></span>
-<span class="normal"><a href="#__codelineno-0-644">644</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-632" name="__codelineno-0-632"></a><span class="k">def</span><span class="w"> </span><span class="nf">is_provider_enabled</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">provider_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-<a id="__codelineno-0-633" name="__codelineno-0-633"></a><span class="w">    </span><span class="sd">"""检查提供者是否已启用。</span>
-<a id="__codelineno-0-634" name="__codelineno-0-634"></a>
-<a id="__codelineno-0-635" name="__codelineno-0-635"></a><span class="sd">    Args:</span>
-<a id="__codelineno-0-636" name="__codelineno-0-636"></a><span class="sd">        provider_name: 提供者名称</span>
-<a id="__codelineno-0-637" name="__codelineno-0-637"></a>
-<a id="__codelineno-0-638" name="__codelineno-0-638"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-639" name="__codelineno-0-639"></a><span class="sd">        True 如果已启用，否则 False</span>
-<a id="__codelineno-0-640" name="__codelineno-0-640"></a><span class="sd">    """</span>
-<a id="__codelineno-0-641" name="__codelineno-0-641"></a>    <span class="n">config</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_provider_config</span><span class="p">(</span><span class="n">provider_name</span><span class="p">)</span>
-<a id="__codelineno-0-642" name="__codelineno-0-642"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">config</span><span class="p">:</span>
-<a id="__codelineno-0-643" name="__codelineno-0-643"></a>        <span class="k">return</span> <span class="kc">False</span>
-<a id="__codelineno-0-644" name="__codelineno-0-644"></a>    <span class="k">return</span> <span class="n">cast</span><span class="p">(</span><span class="nb">bool</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"enabled"</span><span class="p">,</span> <span class="kc">False</span><span class="p">))</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-658">658</a></span>
+<span class="normal"><a href="#__codelineno-0-659">659</a></span>
+<span class="normal"><a href="#__codelineno-0-660">660</a></span>
+<span class="normal"><a href="#__codelineno-0-661">661</a></span>
+<span class="normal"><a href="#__codelineno-0-662">662</a></span>
+<span class="normal"><a href="#__codelineno-0-663">663</a></span>
+<span class="normal"><a href="#__codelineno-0-664">664</a></span>
+<span class="normal"><a href="#__codelineno-0-665">665</a></span>
+<span class="normal"><a href="#__codelineno-0-666">666</a></span>
+<span class="normal"><a href="#__codelineno-0-667">667</a></span>
+<span class="normal"><a href="#__codelineno-0-668">668</a></span>
+<span class="normal"><a href="#__codelineno-0-669">669</a></span>
+<span class="normal"><a href="#__codelineno-0-670">670</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-658" name="__codelineno-0-658"></a><span class="k">def</span><span class="w"> </span><span class="nf">is_provider_enabled</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">provider_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<a id="__codelineno-0-659" name="__codelineno-0-659"></a><span class="w">    </span><span class="sd">"""检查提供者是否已启用。</span>
+<a id="__codelineno-0-660" name="__codelineno-0-660"></a>
+<a id="__codelineno-0-661" name="__codelineno-0-661"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-662" name="__codelineno-0-662"></a><span class="sd">        provider_name: 提供者名称</span>
+<a id="__codelineno-0-663" name="__codelineno-0-663"></a>
+<a id="__codelineno-0-664" name="__codelineno-0-664"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-665" name="__codelineno-0-665"></a><span class="sd">        True 如果已启用，否则 False</span>
+<a id="__codelineno-0-666" name="__codelineno-0-666"></a><span class="sd">    """</span>
+<a id="__codelineno-0-667" name="__codelineno-0-667"></a>    <span class="n">config</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_provider_config</span><span class="p">(</span><span class="n">provider_name</span><span class="p">)</span>
+<a id="__codelineno-0-668" name="__codelineno-0-668"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">config</span><span class="p">:</span>
+<a id="__codelineno-0-669" name="__codelineno-0-669"></a>        <span class="k">return</span> <span class="kc">False</span>
+<a id="__codelineno-0-670" name="__codelineno-0-670"></a>    <span class="k">return</span> <span class="n">cast</span><span class="p">(</span><span class="nb">bool</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"enabled"</span><span class="p">,</span> <span class="kc">False</span><span class="p">))</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -4039,13 +4132,13 @@ the route order but reuses the same policy_id.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/config/llm_config.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-646">646</a></span>
-<span class="normal"><a href="#__codelineno-0-647">647</a></span>
-<span class="normal"><a href="#__codelineno-0-648">648</a></span>
-<span class="normal"><a href="#__codelineno-0-649">649</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-646" name="__codelineno-0-646"></a><span class="k">def</span><span class="w"> </span><span class="nf">reload</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-647" name="__codelineno-0-647"></a><span class="w">    </span><span class="sd">"""重新加载配置文件。"""</span>
-<a id="__codelineno-0-648" name="__codelineno-0-648"></a>    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"重新加载 LLM 配置..."</span><span class="p">)</span>
-<a id="__codelineno-0-649" name="__codelineno-0-649"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_load_config</span><span class="p">()</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-672">672</a></span>
+<span class="normal"><a href="#__codelineno-0-673">673</a></span>
+<span class="normal"><a href="#__codelineno-0-674">674</a></span>
+<span class="normal"><a href="#__codelineno-0-675">675</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-672" name="__codelineno-0-672"></a><span class="k">def</span><span class="w"> </span><span class="nf">reload</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-673" name="__codelineno-0-673"></a><span class="w">    </span><span class="sd">"""重新加载配置文件。"""</span>
+<a id="__codelineno-0-674" name="__codelineno-0-674"></a>    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"重新加载 LLM 配置..."</span><span class="p">)</span>
+<a id="__codelineno-0-675" name="__codelineno-0-675"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_load_config</span><span class="p">()</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -4070,33 +4163,7 @@ method never stores provider credentials inside the policy object.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/config/llm_config.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-235">235</a></span>
-<span class="normal"><a href="#__codelineno-0-236">236</a></span>
-<span class="normal"><a href="#__codelineno-0-237">237</a></span>
-<span class="normal"><a href="#__codelineno-0-238">238</a></span>
-<span class="normal"><a href="#__codelineno-0-239">239</a></span>
-<span class="normal"><a href="#__codelineno-0-240">240</a></span>
-<span class="normal"><a href="#__codelineno-0-241">241</a></span>
-<span class="normal"><a href="#__codelineno-0-242">242</a></span>
-<span class="normal"><a href="#__codelineno-0-243">243</a></span>
-<span class="normal"><a href="#__codelineno-0-244">244</a></span>
-<span class="normal"><a href="#__codelineno-0-245">245</a></span>
-<span class="normal"><a href="#__codelineno-0-246">246</a></span>
-<span class="normal"><a href="#__codelineno-0-247">247</a></span>
-<span class="normal"><a href="#__codelineno-0-248">248</a></span>
-<span class="normal"><a href="#__codelineno-0-249">249</a></span>
-<span class="normal"><a href="#__codelineno-0-250">250</a></span>
-<span class="normal"><a href="#__codelineno-0-251">251</a></span>
-<span class="normal"><a href="#__codelineno-0-252">252</a></span>
-<span class="normal"><a href="#__codelineno-0-253">253</a></span>
-<span class="normal"><a href="#__codelineno-0-254">254</a></span>
-<span class="normal"><a href="#__codelineno-0-255">255</a></span>
-<span class="normal"><a href="#__codelineno-0-256">256</a></span>
-<span class="normal"><a href="#__codelineno-0-257">257</a></span>
-<span class="normal"><a href="#__codelineno-0-258">258</a></span>
-<span class="normal"><a href="#__codelineno-0-259">259</a></span>
-<span class="normal"><a href="#__codelineno-0-260">260</a></span>
-<span class="normal"><a href="#__codelineno-0-261">261</a></span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-261">261</a></span>
 <span class="normal"><a href="#__codelineno-0-262">262</a></span>
 <span class="normal"><a href="#__codelineno-0-263">263</a></span>
 <span class="normal"><a href="#__codelineno-0-264">264</a></span>
@@ -4113,50 +4180,76 @@ method never stores provider credentials inside the policy object.</p>
 <span class="normal"><a href="#__codelineno-0-275">275</a></span>
 <span class="normal"><a href="#__codelineno-0-276">276</a></span>
 <span class="normal"><a href="#__codelineno-0-277">277</a></span>
-<span class="normal"><a href="#__codelineno-0-278">278</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-235" name="__codelineno-0-235"></a><span class="k">def</span><span class="w"> </span><span class="nf">save_quick_scan_model_policy</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">policy</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
-<a id="__codelineno-0-236" name="__codelineno-0-236"></a><span class="w">    </span><span class="sd">"""Atomically save a validated policy for the next run.</span>
-<a id="__codelineno-0-237" name="__codelineno-0-237"></a>
-<a id="__codelineno-0-238" name="__codelineno-0-238"></a><span class="sd">    A running LLMRunner retains the snapshot it loaded at run start. This</span>
-<a id="__codelineno-0-239" name="__codelineno-0-239"></a><span class="sd">    method never stores provider credentials inside the policy object.</span>
-<a id="__codelineno-0-240" name="__codelineno-0-240"></a><span class="sd">    """</span>
-<a id="__codelineno-0-241" name="__codelineno-0-241"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_validate_quick_scan_policy</span><span class="p">(</span><span class="n">policy</span><span class="p">)</span>
-<a id="__codelineno-0-242" name="__codelineno-0-242"></a>    <span class="c1"># Validate provider references and model selection before touching disk.</span>
-<a id="__codelineno-0-243" name="__codelineno-0-243"></a>    <span class="n">snapshot_policy</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">)</span>
-<a id="__codelineno-0-244" name="__codelineno-0-244"></a>    <span class="n">snapshot_policy</span><span class="p">[</span><span class="s2">"quick_scan_model_policy"</span><span class="p">]</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">policy</span><span class="p">)</span>
-<a id="__codelineno-0-245" name="__codelineno-0-245"></a>    <span class="n">previous</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span>
-<a id="__codelineno-0-246" name="__codelineno-0-246"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="n">snapshot_policy</span>
-<a id="__codelineno-0-247" name="__codelineno-0-247"></a>    <span class="k">try</span><span class="p">:</span>
-<a id="__codelineno-0-248" name="__codelineno-0-248"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">get_quick_scan_model_policy</span><span class="p">()</span>
-<a id="__codelineno-0-249" name="__codelineno-0-249"></a>    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-<a id="__codelineno-0-250" name="__codelineno-0-250"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="n">previous</span>
-<a id="__codelineno-0-251" name="__codelineno-0-251"></a>        <span class="k">raise</span>
-<a id="__codelineno-0-252" name="__codelineno-0-252"></a>
-<a id="__codelineno-0-253" name="__codelineno-0-253"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="n">previous</span>
-<a id="__codelineno-0-254" name="__codelineno-0-254"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">config_file</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<a id="__codelineno-0-255" name="__codelineno-0-255"></a>    <span class="n">temp_name</span> <span class="o">=</span> <span class="kc">None</span>
-<a id="__codelineno-0-256" name="__codelineno-0-256"></a>    <span class="k">try</span><span class="p">:</span>
-<a id="__codelineno-0-257" name="__codelineno-0-257"></a>        <span class="k">with</span> <span class="n">tempfile</span><span class="o">.</span><span class="n">NamedTemporaryFile</span><span class="p">(</span>
-<a id="__codelineno-0-258" name="__codelineno-0-258"></a>            <span class="n">mode</span><span class="o">=</span><span class="s2">"w"</span><span class="p">,</span>
-<a id="__codelineno-0-259" name="__codelineno-0-259"></a>            <span class="n">encoding</span><span class="o">=</span><span class="s2">"utf-8"</span><span class="p">,</span>
-<a id="__codelineno-0-260" name="__codelineno-0-260"></a>            <span class="n">newline</span><span class="o">=</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">,</span>
-<a id="__codelineno-0-261" name="__codelineno-0-261"></a>            <span class="nb">dir</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">config_file</span><span class="o">.</span><span class="n">parent</span><span class="p">,</span>
-<a id="__codelineno-0-262" name="__codelineno-0-262"></a>            <span class="n">prefix</span><span class="o">=</span><span class="sa">f</span><span class="s2">".</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">config_file</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">."</span><span class="p">,</span>
-<a id="__codelineno-0-263" name="__codelineno-0-263"></a>            <span class="n">suffix</span><span class="o">=</span><span class="s2">".tmp"</span><span class="p">,</span>
-<a id="__codelineno-0-264" name="__codelineno-0-264"></a>            <span class="n">delete</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-<a id="__codelineno-0-265" name="__codelineno-0-265"></a>        <span class="p">)</span> <span class="k">as</span> <span class="n">temp_file</span><span class="p">:</span>
-<a id="__codelineno-0-266" name="__codelineno-0-266"></a>            <span class="n">temp_name</span> <span class="o">=</span> <span class="n">temp_file</span><span class="o">.</span><span class="n">name</span>
-<a id="__codelineno-0-267" name="__codelineno-0-267"></a>            <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">snapshot_policy</span><span class="p">,</span> <span class="n">temp_file</span><span class="p">,</span> <span class="n">ensure_ascii</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
-<a id="__codelineno-0-268" name="__codelineno-0-268"></a>            <span class="n">temp_file</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
-<a id="__codelineno-0-269" name="__codelineno-0-269"></a>            <span class="n">temp_file</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
-<a id="__codelineno-0-270" name="__codelineno-0-270"></a>            <span class="n">os</span><span class="o">.</span><span class="n">fsync</span><span class="p">(</span><span class="n">temp_file</span><span class="o">.</span><span class="n">fileno</span><span class="p">())</span>
-<a id="__codelineno-0-271" name="__codelineno-0-271"></a>        <span class="n">Path</span><span class="p">(</span><span class="n">temp_name</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">config_file</span><span class="p">)</span>
-<a id="__codelineno-0-272" name="__codelineno-0-272"></a>    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-<a id="__codelineno-0-273" name="__codelineno-0-273"></a>        <span class="k">if</span> <span class="n">temp_name</span> <span class="ow">and</span> <span class="n">Path</span><span class="p">(</span><span class="n">temp_name</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
-<a id="__codelineno-0-274" name="__codelineno-0-274"></a>            <span class="n">Path</span><span class="p">(</span><span class="n">temp_name</span><span class="p">)</span><span class="o">.</span><span class="n">unlink</span><span class="p">()</span>
-<a id="__codelineno-0-275" name="__codelineno-0-275"></a>        <span class="k">raise</span>
-<a id="__codelineno-0-276" name="__codelineno-0-276"></a>
-<a id="__codelineno-0-277" name="__codelineno-0-277"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="n">snapshot_policy</span>
-<a id="__codelineno-0-278" name="__codelineno-0-278"></a>    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_quick_scan_model_policy</span><span class="p">()</span>
+<span class="normal"><a href="#__codelineno-0-278">278</a></span>
+<span class="normal"><a href="#__codelineno-0-279">279</a></span>
+<span class="normal"><a href="#__codelineno-0-280">280</a></span>
+<span class="normal"><a href="#__codelineno-0-281">281</a></span>
+<span class="normal"><a href="#__codelineno-0-282">282</a></span>
+<span class="normal"><a href="#__codelineno-0-283">283</a></span>
+<span class="normal"><a href="#__codelineno-0-284">284</a></span>
+<span class="normal"><a href="#__codelineno-0-285">285</a></span>
+<span class="normal"><a href="#__codelineno-0-286">286</a></span>
+<span class="normal"><a href="#__codelineno-0-287">287</a></span>
+<span class="normal"><a href="#__codelineno-0-288">288</a></span>
+<span class="normal"><a href="#__codelineno-0-289">289</a></span>
+<span class="normal"><a href="#__codelineno-0-290">290</a></span>
+<span class="normal"><a href="#__codelineno-0-291">291</a></span>
+<span class="normal"><a href="#__codelineno-0-292">292</a></span>
+<span class="normal"><a href="#__codelineno-0-293">293</a></span>
+<span class="normal"><a href="#__codelineno-0-294">294</a></span>
+<span class="normal"><a href="#__codelineno-0-295">295</a></span>
+<span class="normal"><a href="#__codelineno-0-296">296</a></span>
+<span class="normal"><a href="#__codelineno-0-297">297</a></span>
+<span class="normal"><a href="#__codelineno-0-298">298</a></span>
+<span class="normal"><a href="#__codelineno-0-299">299</a></span>
+<span class="normal"><a href="#__codelineno-0-300">300</a></span>
+<span class="normal"><a href="#__codelineno-0-301">301</a></span>
+<span class="normal"><a href="#__codelineno-0-302">302</a></span>
+<span class="normal"><a href="#__codelineno-0-303">303</a></span>
+<span class="normal"><a href="#__codelineno-0-304">304</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-261" name="__codelineno-0-261"></a><span class="k">def</span><span class="w"> </span><span class="nf">save_quick_scan_model_policy</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">policy</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<a id="__codelineno-0-262" name="__codelineno-0-262"></a><span class="w">    </span><span class="sd">"""Atomically save a validated policy for the next run.</span>
+<a id="__codelineno-0-263" name="__codelineno-0-263"></a>
+<a id="__codelineno-0-264" name="__codelineno-0-264"></a><span class="sd">    A running LLMRunner retains the snapshot it loaded at run start. This</span>
+<a id="__codelineno-0-265" name="__codelineno-0-265"></a><span class="sd">    method never stores provider credentials inside the policy object.</span>
+<a id="__codelineno-0-266" name="__codelineno-0-266"></a><span class="sd">    """</span>
+<a id="__codelineno-0-267" name="__codelineno-0-267"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_validate_quick_scan_policy</span><span class="p">(</span><span class="n">policy</span><span class="p">)</span>
+<a id="__codelineno-0-268" name="__codelineno-0-268"></a>    <span class="c1"># Validate provider references and model selection before touching disk.</span>
+<a id="__codelineno-0-269" name="__codelineno-0-269"></a>    <span class="n">snapshot_policy</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">)</span>
+<a id="__codelineno-0-270" name="__codelineno-0-270"></a>    <span class="n">snapshot_policy</span><span class="p">[</span><span class="s2">"quick_scan_model_policy"</span><span class="p">]</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">policy</span><span class="p">)</span>
+<a id="__codelineno-0-271" name="__codelineno-0-271"></a>    <span class="n">previous</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span>
+<a id="__codelineno-0-272" name="__codelineno-0-272"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="n">snapshot_policy</span>
+<a id="__codelineno-0-273" name="__codelineno-0-273"></a>    <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-0-274" name="__codelineno-0-274"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">get_quick_scan_model_policy</span><span class="p">()</span>
+<a id="__codelineno-0-275" name="__codelineno-0-275"></a>    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+<a id="__codelineno-0-276" name="__codelineno-0-276"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="n">previous</span>
+<a id="__codelineno-0-277" name="__codelineno-0-277"></a>        <span class="k">raise</span>
+<a id="__codelineno-0-278" name="__codelineno-0-278"></a>
+<a id="__codelineno-0-279" name="__codelineno-0-279"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="n">previous</span>
+<a id="__codelineno-0-280" name="__codelineno-0-280"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">config_file</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<a id="__codelineno-0-281" name="__codelineno-0-281"></a>    <span class="n">temp_name</span> <span class="o">=</span> <span class="kc">None</span>
+<a id="__codelineno-0-282" name="__codelineno-0-282"></a>    <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-0-283" name="__codelineno-0-283"></a>        <span class="k">with</span> <span class="n">tempfile</span><span class="o">.</span><span class="n">NamedTemporaryFile</span><span class="p">(</span>
+<a id="__codelineno-0-284" name="__codelineno-0-284"></a>            <span class="n">mode</span><span class="o">=</span><span class="s2">"w"</span><span class="p">,</span>
+<a id="__codelineno-0-285" name="__codelineno-0-285"></a>            <span class="n">encoding</span><span class="o">=</span><span class="s2">"utf-8"</span><span class="p">,</span>
+<a id="__codelineno-0-286" name="__codelineno-0-286"></a>            <span class="n">newline</span><span class="o">=</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">,</span>
+<a id="__codelineno-0-287" name="__codelineno-0-287"></a>            <span class="nb">dir</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">config_file</span><span class="o">.</span><span class="n">parent</span><span class="p">,</span>
+<a id="__codelineno-0-288" name="__codelineno-0-288"></a>            <span class="n">prefix</span><span class="o">=</span><span class="sa">f</span><span class="s2">".</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">config_file</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">."</span><span class="p">,</span>
+<a id="__codelineno-0-289" name="__codelineno-0-289"></a>            <span class="n">suffix</span><span class="o">=</span><span class="s2">".tmp"</span><span class="p">,</span>
+<a id="__codelineno-0-290" name="__codelineno-0-290"></a>            <span class="n">delete</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+<a id="__codelineno-0-291" name="__codelineno-0-291"></a>        <span class="p">)</span> <span class="k">as</span> <span class="n">temp_file</span><span class="p">:</span>
+<a id="__codelineno-0-292" name="__codelineno-0-292"></a>            <span class="n">temp_name</span> <span class="o">=</span> <span class="n">temp_file</span><span class="o">.</span><span class="n">name</span>
+<a id="__codelineno-0-293" name="__codelineno-0-293"></a>            <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">snapshot_policy</span><span class="p">,</span> <span class="n">temp_file</span><span class="p">,</span> <span class="n">ensure_ascii</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<a id="__codelineno-0-294" name="__codelineno-0-294"></a>            <span class="n">temp_file</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
+<a id="__codelineno-0-295" name="__codelineno-0-295"></a>            <span class="n">temp_file</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+<a id="__codelineno-0-296" name="__codelineno-0-296"></a>            <span class="n">os</span><span class="o">.</span><span class="n">fsync</span><span class="p">(</span><span class="n">temp_file</span><span class="o">.</span><span class="n">fileno</span><span class="p">())</span>
+<a id="__codelineno-0-297" name="__codelineno-0-297"></a>        <span class="n">Path</span><span class="p">(</span><span class="n">temp_name</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">config_file</span><span class="p">)</span>
+<a id="__codelineno-0-298" name="__codelineno-0-298"></a>    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+<a id="__codelineno-0-299" name="__codelineno-0-299"></a>        <span class="k">if</span> <span class="n">temp_name</span> <span class="ow">and</span> <span class="n">Path</span><span class="p">(</span><span class="n">temp_name</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+<a id="__codelineno-0-300" name="__codelineno-0-300"></a>            <span class="n">Path</span><span class="p">(</span><span class="n">temp_name</span><span class="p">)</span><span class="o">.</span><span class="n">unlink</span><span class="p">()</span>
+<a id="__codelineno-0-301" name="__codelineno-0-301"></a>        <span class="k">raise</span>
+<a id="__codelineno-0-302" name="__codelineno-0-302"></a>
+<a id="__codelineno-0-303" name="__codelineno-0-303"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="n">snapshot_policy</span>
+<a id="__codelineno-0-304" name="__codelineno-0-304"></a>    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_quick_scan_model_policy</span><span class="p">()</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
