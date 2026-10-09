@@ -183,3 +183,83 @@ def test_model_resolution_length_boundary_matches_schema_and_durable_limit(lengt
         assert list(validator.iter_errors(policy))
         with pytest.raises(ValueError, match="model identifiers"):
             normalize_model_resolution(policy)
+
+
+def test_external_resolution_1_1_adds_scoped_deepseek_without_reinterpreting_old_aliases():
+    from jsonschema import Draft202012Validator
+
+    old_policy = _policy("deepseek", "responses", "requested-alias", "actual-model")
+    with pytest.raises(ValueError, match="unsupported canonical"):
+        normalize_model_resolution(old_policy)
+    policy = {**old_policy, "schema_version": "1.1.0"}
+    normalized = normalize_model_resolution(policy)
+    assert normalized == policy
+    assert model_resolution_allowed(
+        "deepseek", "responses", "requested-alias", "actual-model", policy
+    )
+    assert not model_resolution_allowed(
+        "deepseek", "responses", "requested-alias", "foreign-model", policy
+    )
+    assert not model_resolution_allowed(
+        "openai", "responses", "requested-alias", "actual-model", policy
+    )
+    assert not model_resolution_allowed(
+        "deepseek", "anthropic_messages", "requested-alias", "actual-model", policy
+    )
+    schema = json.loads(
+        (
+            Path(__file__).resolve().parents[2]
+            / "src/config/quick_scan_model_resolution_v1_1.schema.json"
+        ).read_text("utf-8")
+    )
+    Draft202012Validator.check_schema(schema)
+    validator = Draft202012Validator(schema)
+    assert not list(validator.iter_errors(policy))
+    for invalid in (
+        {**policy, "schema_version": "1.0.0"},
+        {**policy, "aliases": [_policy("deepseek", "anthropic_messages")["aliases"][0]]},
+    ):
+        assert list(validator.iter_errors(invalid))
+    assert normalize_model_resolution(None) == {"schema_version": "1.0.0", "aliases": []}
+    assert model_resolution_allowed("deepseek", "responses", "deepseek-flash", "deepseek-flash")
+    assert not model_resolution_allowed("deepseek", "responses", "requested-alias", "actual-model")
+
+
+@pytest.mark.parametrize(
+    "url,provider",
+    [
+        ("http://api.deepseek.com/responses", "deepseek"),
+        ("https://api.deepseek.com.evil.invalid/responses", "deepseek"),
+        ("https://api.deepseek.com:444/responses", "deepseek"),
+        ("https://api.deepseek.com/responses?token=synthetic", "deepseek"),
+        ("https://synthetic@api.deepseek.com/responses", "deepseek"),
+        ("https://api.deepseek.com/anthropic/v1/messages", "deepseek"),
+        ("https://api.deepseek.com/responses", "openai"),
+    ],
+)
+def test_external_text_endpoint_rejects_untrusted_host_path_and_provider(url, provider):
+    from src.providers.llm_client import SearchCapabilityUnavailable, _search_endpoint
+
+    with pytest.raises(SearchCapabilityUnavailable):
+        _search_endpoint(url, "deepseek-flash", provider, external_context_only=True)
+
+
+def test_deepseek_external_text_does_not_claim_native_search_capability():
+    from src.providers.llm_client import (
+        LLMClient,
+        SearchCapabilityUnavailable,
+        _search_endpoint,
+    )
+
+    client = LLMClient(
+        "synthetic-only",
+        "deepseek-flash",
+        "https://api.deepseek.com/responses",
+        provider_name="deepseek",
+    )
+    assert client.supports_web_search is False
+    with pytest.raises(SearchCapabilityUnavailable):
+        _search_endpoint(client.base_url, client.model, client.provider_name)
+    assert _search_endpoint(
+        client.base_url, client.model, client.provider_name, external_context_only=True
+    ) == ("https://api.deepseek.com/responses", "deepseek", "responses")

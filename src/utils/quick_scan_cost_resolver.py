@@ -218,3 +218,81 @@ class QuickScanCostResolver:
             "pricing_ref": self.pricing_ref,
             "source_ref": card["source_ref"],
         }
+
+
+class ExternalSearchCostResolver:
+    """Price observed external HTTP/usage, never inferred retries or free errors.
+
+    The coordinator calls this directly for its linked retrieval operation; it
+    must not masquerade as a native model receipt or reuse native pricing_ref.
+    Verified upper bounds are admission limits, not measured usage. Observed
+    over-bound usage is still priced honestly for the existing budget to pause.
+    """
+
+    def __init__(self, policy: Any) -> None:
+        from src.config.quick_scan_search_policy import execution_query_plans
+
+        execution_query_plans(policy)
+        self.policy = policy
+
+    def __call__(self, receipt: Dict[str, Any]) -> Optional[dict]:
+        from src.config.quick_scan_search_policy import assert_policy_frozen
+
+        assert_policy_frozen(self.policy)
+        if not isinstance(receipt, dict) or receipt.get("origin") != "external":
+            return None
+        route = next(
+            (
+                item
+                for item in self.policy.routes
+                if item["route_id"] == receipt.get("route_id")
+                and item["route_id"] in self.policy.admitted
+            ),
+            None,
+        )
+        if (
+            route is None
+            or route["kind"] != receipt.get("route_kind")
+            or type(receipt.get("http_request_count")) is not int
+            or receipt["http_request_count"] != 1
+        ):
+            return None
+        status, outcome = receipt.get("http_status_code"), receipt.get("outcome")
+        if (
+            type(status) is not int
+            or not 100 <= status <= 599
+            or outcome not in {"response_available", "confirmed_failure", "unknown"}
+        ):
+            return None
+        if (outcome == "response_available" and not 200 <= status < 300) or (
+            outcome == "confirmed_failure" and status not in {401, 403, 404, 429}
+        ):
+            return None
+        metering, pricing = route["metering"], route["pricing"]
+        charge_policy = metering["charge_policy"]
+        micros = None
+        if charge_policy == "all_http_requests":
+            micros = pricing["unit_cost_micros"]
+        elif charge_policy == "successful_search_only":
+            if outcome == "response_available" and receipt.get("parse_status") in {"ok", "empty"}:
+                micros = pricing["unit_cost_micros"]
+            elif outcome == "confirmed_failure":
+                micros = metering["rejected_request_cost_micros"]
+        elif charge_policy == "provider_usage":
+            usage = receipt.get("usage")
+            if (
+                isinstance(usage, dict)
+                and set(usage) == {"schema", "unit", "count"}
+                and usage["schema"] == "stockqa.external_search_usage/1.0.0"
+                and usage["unit"] == metering["usage_unit"]
+                and type(usage["count"]) is int
+                and 0 <= usage["count"] <= 9_223_372_036_854_775_807
+            ):
+                micros = usage["count"] * pricing["unit_cost_micros"]
+        if micros is None or micros > 9_223_372_036_854_775_807:
+            return None
+        return {
+            "actual_cost": _exact_decimal_sum([(micros, -6)]),
+            "pricing_ref": metering["pricing_ref"],
+            "source_ref": metering["source_ref"],
+        }

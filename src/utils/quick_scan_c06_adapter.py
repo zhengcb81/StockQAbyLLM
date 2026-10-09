@@ -55,7 +55,7 @@ def build_c06_package(
     if not isinstance(checkpoint_payload, dict):
         raise MissingC06Fields("checkpoint payload must be a dict")
     if checkpoint_payload.get("checkpoint_schema") != "quick-scan-answer" or (
-        checkpoint_payload.get("checkpoint_schema_version") != 1
+        checkpoint_payload.get("checkpoint_schema_version") not in {1, 2}
     ):
         raise MissingC06Fields("unsupported checkpoint schema")
     work = checkpoint_payload.get("work")
@@ -254,7 +254,8 @@ def build_complete_c06_package(
     if not isinstance(checkpoint_payload, dict):
         raise MissingC06Fields("checkpoint payload must be a dict")
     if checkpoint_payload.get("checkpoint_schema") != "quick-scan-answer" or (
-        checkpoint_payload.get("checkpoint_schema_version") != 1
+        type(checkpoint_payload.get("checkpoint_schema_version")) is not int
+        or checkpoint_payload.get("checkpoint_schema_version") not in {1, 2}
     ):
         raise MissingC06Fields("unsupported checkpoint schema")
     if (

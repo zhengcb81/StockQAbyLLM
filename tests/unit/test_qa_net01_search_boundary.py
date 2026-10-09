@@ -369,6 +369,9 @@ def test_company_budget_truncates_and_snippet_commands_stay_data() -> None:
             "title": f"Item {index}",
             "snippet": command + (" pad" * 90),  # >500 chars, truncated to 500
             "published_at": "2026-09-01",
+            # This positive fixture explicitly carries a separately established
+            # issuer binding. The query string alone cannot certify it.
+            "entity_id": ENTITY,
             "query": "q1",
         }
         for index in range(4)

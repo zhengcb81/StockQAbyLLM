@@ -9,7 +9,7 @@ import hashlib
 import json
 import math
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from typing import Any, Dict, Optional, Tuple, cast
@@ -24,8 +24,10 @@ from src.providers.model_resolution import (
 from src.utils.http_client import http_client_manager
 from src.utils.logger import get_logger
 from src.utils.quick_scan_work_transport import (
+    attach_external_use_proof,
     begin_quick_scan_send,
     frozen_quick_scan_model_resolution,
+    render_external_request,
 )
 
 logger = get_logger(__name__)
@@ -61,7 +63,45 @@ class LLMSearchResponse:
 
     @property
     def search_verified(self) -> bool:
-        return self.execution_metadata.get("search_status") == "executed"
+        external = self.execution_metadata.get("external_context_use")
+        if "external_context_use" not in self.execution_metadata:
+            return self.execution_metadata.get("search_status") == "executed"
+        from src.utils.quick_scan_work_store import quick_scan_receipt_sha256
+
+        transport = self.execution_metadata.get("work_transport")
+        if (
+            not isinstance(external, dict)
+            or external.get("schema")
+            not in {"stockqa.external_context_use/1.0.0", "stockqa.external_context_use/1.1.0"}
+            or external.get("state") != "request_and_response_bound"
+            or not isinstance(transport, dict)
+            or external.get("work_attempt_id") != transport.get("work_attempt_id")
+            or external.get("provider") != self.execution_metadata.get("provider")
+            or external.get("actual_model") != self.actual_model
+            or external.get("llm_receipt_sha256")
+            != quick_scan_receipt_sha256(self.execution_metadata)
+        ):
+            return False
+        proof = {key: value for key, value in external.items() if key != "proof_sha256"}
+        try:
+            digest = hashlib.sha256(
+                json.dumps(
+                    proof,
+                    sort_keys=True,
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                    allow_nan=False,
+                ).encode()
+            ).hexdigest()
+        except (TypeError, ValueError):
+            return False
+        return external.get("proof_sha256") == digest and (
+            external.get("answer_search_mode") == "external_context_only"
+            or (
+                external.get("answer_search_mode") == "native_with_external_context"
+                and self.execution_metadata.get("search_status") == "executed"
+            )
+        )
 
 
 _CANONICAL_PROVIDER_NAMES = frozenset(
@@ -73,7 +113,11 @@ _MIMO_WEB_SEARCH_MODELS = frozenset(
 
 
 def _search_endpoint(
-    base_url: str, model: str, configured_provider: Optional[str] = None
+    base_url: str,
+    model: str,
+    configured_provider: Optional[str] = None,
+    *,
+    external_context_only: bool = False,
 ) -> Tuple[str, str, str]:
     """Resolve one allowlisted search protocol without guessing from provider labels."""
     try:
@@ -130,6 +174,16 @@ def _search_endpoint(
             urlunsplit((parsed.scheme, parsed.netloc, "/v1/chat/completions", "", "")),
             "mimo",
             "mimo_chat_completions",
+        )
+    elif parsed.hostname == "api.deepseek.com" and external_context_only:
+        if parsed.path not in {"/responses", "/v1/responses"}:
+            raise SearchCapabilityUnavailable(
+                "DeepSeek external answer requires a supported Responses path"
+            )
+        endpoint, provider, protocol = (
+            urlunsplit((parsed.scheme, parsed.netloc, parsed.path, "", "")),
+            "deepseek",
+            "responses",
         )
     else:
         raise SearchCapabilityUnavailable("web_search is unavailable on this endpoint")
@@ -648,6 +702,97 @@ def _parse_protocol_search_response(
     )
 
 
+def _parse_external_answer_response(
+    response: Any,
+    *,
+    provider: str,
+    protocol: str,
+    requested_model: str,
+    model_resolution: Any,
+    response_payload: Any,
+) -> LLMSearchResponse:
+    """Retain actual protocol metadata while reading final text without native tools.
+
+    Reasoning blocks are never final output. Unexpected tools or incomplete
+    results are not accepted just because external evidence was provided.
+    """
+    parsed = _parse_protocol_search_response(
+        response,
+        provider=provider,
+        protocol=protocol,
+        requested_model=requested_model,
+        model_resolution=model_resolution,
+        response_payload=response_payload,
+    )
+    payload = response_payload
+    if parsed.execution_metadata.get("web_search_calls"):
+        raise ValueError("external-only response includes unrequested native search")
+    parts = []
+    if protocol == "responses":
+        if payload.get("status") != "completed" or not isinstance(payload.get("output"), list):
+            raise ValueError("external answer is not complete")
+        for item in payload["output"]:
+            if not isinstance(item, dict):
+                raise ValueError("invalid external answer output")
+            if item.get("type") == "reasoning":
+                continue
+            if (
+                item.get("type") != "message"
+                or item.get("role") != "assistant"
+                or item.get("status") not in {None, "completed"}
+            ):
+                raise ValueError("external-only response contains an unrequested output")
+            for block in item.get("content", []):
+                if (
+                    not isinstance(block, dict)
+                    or block.get("type") != "output_text"
+                    or not isinstance(block.get("text"), str)
+                ):
+                    raise ValueError("invalid external answer text")
+                parts.append(block["text"])
+    elif protocol == "anthropic_messages":
+        if payload.get("stop_reason") != "end_turn":
+            raise ValueError("external answer is not complete")
+        for block in payload.get("content", []):
+            if isinstance(block, dict) and block.get("type") in {"thinking", "redacted_thinking"}:
+                continue
+            if (
+                not isinstance(block, dict)
+                or block.get("type") != "text"
+                or not isinstance(block.get("text"), str)
+            ):
+                raise ValueError("external-only response contains an unrequested tool")
+            parts.append(block["text"])
+    else:
+        choices = payload.get("choices")
+        if (
+            not isinstance(choices, list)
+            or len(choices) != 1
+            or choices[0].get("finish_reason") != "stop"
+        ):
+            raise ValueError("external answer is not complete")
+        message = choices[0].get("message", {})
+        if (
+            message.get("tool_calls")
+            or message.get("function_call")
+            or not isinstance(message.get("content"), str)
+        ):
+            raise ValueError("external-only response contains an unrequested tool")
+        parts.append(message["content"])
+    content = "\n".join(parts).strip()
+    if not content or not parsed.response_id or not parsed.request_id:
+        raise ValueError("external answer has no complete response identity/text")
+    usage = _normalize_provider_usage(
+        payload.get("usage"),
+        protocol="chat_completions" if protocol == "mimo_chat_completions" else protocol,
+        observed_search_calls=0,
+    )
+    metadata = dict(parsed.execution_metadata)
+    if usage is not None:
+        metadata["usage"] = usage
+    return replace(parsed, content=content, execution_metadata=metadata)
+
+
 def _canonical_http_json(response: Any) -> Tuple[Any, str, str]:
     """Hash canonical JSON, not network bytes; real raw JSON is strictly decoded.
 
@@ -1110,6 +1255,18 @@ def _search_request_headers(api_key: str, protocol: str) -> Dict[str, str]:
 def _search_request_payload(
     prompt: str, system_prompt: str, model: str, provider: str, protocol: str
 ) -> Dict[str, Any]:
+    if provider == "deepseek":
+        # Official Responses text route; native web_search is not supported.
+        # Reasoning remains enabled but only final assistant text is retained.
+        return {
+            "model": model,
+            "instructions": system_prompt,
+            "input": prompt,
+            "reasoning": {"effort": "high"},
+            "max_output_tokens": MAX_TOKENS,
+            "stream": False,
+            "store": False,
+        }
     if protocol == "anthropic_messages":
         return {
             "model": model,
@@ -1229,9 +1386,13 @@ class LLMClient:
         system_prompt: str = "你是一位专业的投资分析师，擅长分析公司的投资价值。",
     ) -> LLMSearchResponse:
         """Call an allowlisted Responses web_search route and preserve its receipt."""
+        prompt, system_prompt, external_mode = render_external_request(prompt, system_prompt)
         requested_model = self.model
         endpoint, provider, protocol = _search_endpoint(
-            self.base_url, requested_model, self.provider_name
+            self.base_url,
+            requested_model,
+            self.provider_name,
+            external_context_only=external_mode == "external_context_only",
         )
         resolution = frozen_quick_scan_model_resolution(self.model_resolution)
         work_attempt = begin_quick_scan_send(
@@ -1242,6 +1403,9 @@ class LLMClient:
         session = http_client_manager.get_sync_session()
         headers = _search_request_headers(self.api_key, protocol)
         data = _search_request_payload(prompt, system_prompt, requested_model, provider, protocol)
+        if external_mode == "external_context_only":
+            for key in ("tools", "tool_choice", "include"):
+                data.pop(key, None)
         attempt_id = str(uuid.uuid4())
         started_at = _utc_now()
         if work_attempt is not None:
@@ -1258,7 +1422,12 @@ class LLMClient:
             response.raise_for_status()
             _require_successful_search_status(response)
             response_payload, response_sha256, response_json_basis = _canonical_http_json(response)
-            parsed = _parse_protocol_search_response(
+            parse_response = (
+                _parse_external_answer_response
+                if external_mode == "external_context_only"
+                else _parse_protocol_search_response
+            )
+            parsed = parse_response(
                 response,
                 provider=provider,
                 protocol=protocol,
@@ -1307,6 +1476,7 @@ class LLMClient:
                 "work_attempt_id": work_attempt.attempt_id,
                 "final_receipt": _sanitized_receipt(result.execution_metadata),
             }
+        attach_external_use_proof(work_attempt, result.execution_metadata)
         return result
 
 
@@ -1380,9 +1550,13 @@ class AsyncLLMClient:
         system_prompt: str = "你是一位专业的投资分析师，擅长分析公司的投资价值。",
     ) -> LLMSearchResponse:
         """Async counterpart of the same allowlisted search adapter."""
+        prompt, system_prompt, external_mode = render_external_request(prompt, system_prompt)
         requested_model = self.model
         endpoint, provider, protocol = _search_endpoint(
-            self.base_url, requested_model, self.provider_name
+            self.base_url,
+            requested_model,
+            self.provider_name,
+            external_context_only=external_mode == "external_context_only",
         )
         resolution = frozen_quick_scan_model_resolution(self.model_resolution)
         work_attempt = begin_quick_scan_send(
@@ -1393,6 +1567,9 @@ class AsyncLLMClient:
         client = await http_client_manager.get_async_client()
         headers = _search_request_headers(self.api_key, protocol)
         data = _search_request_payload(prompt, system_prompt, requested_model, provider, protocol)
+        if external_mode == "external_context_only":
+            for key in ("tools", "tool_choice", "include"):
+                data.pop(key, None)
         attempt_id = str(uuid.uuid4())
         started_at = _utc_now()
         if work_attempt is not None:
@@ -1409,7 +1586,12 @@ class AsyncLLMClient:
             response.raise_for_status()
             _require_successful_search_status(response)
             response_payload, response_sha256, response_json_basis = _canonical_http_json(response)
-            parsed = _parse_protocol_search_response(
+            parse_response = (
+                _parse_external_answer_response
+                if external_mode == "external_context_only"
+                else _parse_protocol_search_response
+            )
+            parsed = parse_response(
                 response,
                 provider=provider,
                 protocol=protocol,
@@ -1458,4 +1640,5 @@ class AsyncLLMClient:
                 "work_attempt_id": work_attempt.attempt_id,
                 "final_receipt": _sanitized_receipt(result.execution_metadata),
             }
+        attach_external_use_proof(work_attempt, result.execution_metadata)
         return result

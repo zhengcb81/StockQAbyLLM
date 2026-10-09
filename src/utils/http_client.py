@@ -24,6 +24,25 @@ class SyncHTTPClient:
     """
 
     _session: Optional[requests.Session] = None
+    _metered_session: Optional[requests.Session] = None
+
+    @classmethod
+    def get_metered_session(cls) -> requests.Session:
+        """Paid retrieval: exactly one wire request per durable admission.
+
+        Caller must also set allow_redirects=False on each request. Environment
+        proxy/auth configuration cannot silently change the frozen transport.
+        """
+        if cls._metered_session is None:
+            session = requests.Session()
+            session.trust_env = False
+            adapter = HTTPAdapter(
+                max_retries=Retry(total=0, connect=0, read=0, status=0, redirect=0)
+            )
+            session.mount("https://", adapter)
+            session.mount("http://", adapter)
+            cls._metered_session = session
+        return cls._metered_session
 
     @classmethod
     def get_session(cls) -> requests.Session:
@@ -62,6 +81,9 @@ class SyncHTTPClient:
     @classmethod
     def close_session(cls) -> None:
         """关闭共享的 Session 实例。"""
+        if cls._metered_session is not None:
+            cls._metered_session.close()
+            cls._metered_session = None
         if cls._session is not None:
             cls._session.close()
             cls._session = None
@@ -153,6 +175,11 @@ class HTTPClientManager:
     def get_sync_session() -> requests.Session:
         """获取同步 Session。"""
         return SyncHTTPClient.get_session()
+
+    @staticmethod
+    def get_metered_sync_session() -> requests.Session:
+        """Shared connection pool with transport-level paid retries disabled."""
+        return SyncHTTPClient.get_metered_session()
 
     @staticmethod
     async def get_async_client() -> httpx.AsyncClient:

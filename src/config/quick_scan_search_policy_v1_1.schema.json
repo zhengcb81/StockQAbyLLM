@@ -1,0 +1,480 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "stockqa.quick_scan_search_policy/1.1.0",
+  "title": "StockQA frozen external search execution policy",
+  "description": "Explicit identity/question-bound queries and verified route metering. Admission is not a claim that the dispatcher is implemented. Legacy 1.0 remains a separate unchanged artifact.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "policy_id",
+    "selection",
+    "external_routes",
+    "retrieval",
+    "budget",
+    "execution_plan"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.1.0"
+    },
+    "policy_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "source_reference": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 300
+    },
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "external_search_priority"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "external_context",
+            "explicit_hybrid"
+          ]
+        },
+        "external_search_priority": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "route_id"
+            ],
+            "properties": {
+              "route_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              }
+            }
+          }
+        },
+        "answer_model_priority_source": {
+          "const": "existing_stockqa_model_policy"
+        },
+        "hybrid_plan_reference": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 300
+        }
+      }
+    },
+    "external_routes": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "route_id",
+          "kind",
+          "endpoint",
+          "credential_env",
+          "enabled",
+          "cost_bound_verified",
+          "pricing",
+          "storage_rights",
+          "dispatch",
+          "metering"
+        ],
+        "properties": {
+          "route_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "kind": {
+            "enum": [
+              "brave",
+              "tavily",
+              "zai_rest",
+              "zai_mcp_streamable"
+            ]
+          },
+          "endpoint": {
+            "type": "string",
+            "pattern": "^https://"
+          },
+          "credential_env": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]{1,60}$"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "cost_bound_verified": {
+            "type": "boolean"
+          },
+          "pricing": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "basis",
+              "currency"
+            ],
+            "properties": {
+              "basis": {
+                "enum": [
+                  "per_request",
+                  "per_search",
+                  "quota_group"
+                ]
+              },
+              "currency": {
+                "type": "string",
+                "pattern": "^[A-Z]{3}$"
+              },
+              "unit_cost_micros": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              "per_request_cap_micros": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              "quota_group": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 120
+              }
+            }
+          },
+          "storage_rights": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "confirmed",
+              "entitlement_ref"
+            ],
+            "properties": {
+              "confirmed": {
+                "type": "boolean"
+              },
+              "entitlement_ref": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 200
+              }
+            }
+          },
+          "dispatch": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "quota_group",
+              "max_in_flight",
+              "quota_group_max_in_flight"
+            ],
+            "properties": {
+              "quota_group": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$"
+              },
+              "max_in_flight": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 32
+              },
+              "quota_group_max_in_flight": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 32
+              }
+            }
+          },
+          "metering": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "schema_version",
+              "charge_policy",
+              "pricing_ref",
+              "source_ref",
+              "source_checked_at",
+              "rejected_request_cost_micros",
+              "usage_unit",
+              "max_usage_units_per_request"
+            ],
+            "properties": {
+              "schema_version": {
+                "const": "stockqa.external_metering/1.0.0"
+              },
+              "charge_policy": {
+                "enum": [
+                  "all_http_requests",
+                  "successful_search_only",
+                  "provider_usage"
+                ]
+              },
+              "pricing_ref": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "source_ref": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "source_checked_at": {
+                "type": "string",
+                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+              },
+              "rejected_request_cost_micros": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              "usage_unit": {
+                "enum": [
+                  "http_requests",
+                  "search_calls",
+                  "credits"
+                ]
+              },
+              "max_usage_units_per_request": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000000
+              }
+            }
+          }
+        }
+      }
+    },
+    "retrieval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_snippet_unicode_characters",
+        "max_company_evidence_unicode_characters",
+        "max_json_unwrap_layers",
+        "max_in_memory_response_bytes",
+        "raw_response_persistence",
+        "search_ttl_seconds"
+      ],
+      "properties": {
+        "max_snippet_unicode_characters": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500
+        },
+        "max_company_evidence_unicode_characters": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 30000
+        },
+        "max_json_unwrap_layers": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3
+        },
+        "max_in_memory_response_bytes": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 1000000
+        },
+        "raw_response_persistence": {
+          "const": false
+        },
+        "search_ttl_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2592000
+        },
+        "empty_result_cooldown_seconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "include_search_model_repair_probe_and_discovery_requests",
+        "unknown_cost_action",
+        "reset_on_restart"
+      ],
+      "properties": {
+        "source": {
+          "const": "existing_stockqa_shared_budget"
+        },
+        "include_search_model_repair_probe_and_discovery_requests": {
+          "const": true
+        },
+        "unknown_cost_action": {
+          "const": "hold_reservation_and_reconcile"
+        },
+        "reset_on_restart": {
+          "const": false
+        }
+      }
+    },
+    "execution_plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "entity_id",
+        "identity_snapshot_sha256",
+        "question_manifest_sha256",
+        "information_as_of",
+        "locale",
+        "answer_search_mode",
+        "entity_domain_bindings",
+        "queries"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "stockqa.external_execution_plan/1.0.0"
+        },
+        "entity_id": {
+          "type": "string",
+          "pattern": "^ENT_[A-Za-z0-9_-]+$",
+          "maxLength": 160
+        },
+        "identity_snapshot_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "question_manifest_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "information_as_of": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "locale": {
+          "type": "string",
+          "pattern": "^[a-z]{2}-[A-Z]{2}$"
+        },
+        "answer_search_mode": {
+          "enum": [
+            "external_context_only",
+            "native_with_external_context"
+          ]
+        },
+        "entity_domain_bindings": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "host",
+              "path_prefix",
+              "binding_kind",
+              "source_ref",
+              "identity_snapshot_sha256"
+            ],
+            "properties": {
+              "host": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 253
+              },
+              "path_prefix": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              },
+              "binding_kind": {
+                "enum": [
+                  "issuer_owned_domain",
+                  "issuer_specific_path"
+                ]
+              },
+              "source_ref": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "identity_snapshot_sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            }
+          }
+        },
+        "queries": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 200,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "query_id",
+              "query",
+              "question_ids",
+              "top_k"
+            ],
+            "properties": {
+              "query_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$"
+              },
+              "query": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              },
+              "question_ids": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 200,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,159}$"
+                }
+              },
+              "top_k": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -215,6 +215,13 @@ class QAEngine:
                         stored = payload.get("answer") or {}
                         provenance = payload.get("provenance") or {}
                         original_time = _checkpoint_created_at(provenance)
+                        answer_metadata = _provenance_metadata(provenance)
+                        external_execution = checkpoint.get("external_execution_metadata")
+                        if isinstance(external_execution, dict):
+                            answer_metadata["execution"] = external_execution
+                            answer_metadata["attempts"] = [
+                                external_execution["work_transport"]["final_receipt"]
+                            ]
                         created_kwargs = (
                             {"created_at": original_time} if original_time is not None else {}
                         )
@@ -225,7 +232,7 @@ class QAEngine:
                                 score=stored.get("score"),
                                 status=str(stored.get("status") or "scored"),
                                 source="answer_checkpoint",
-                                metadata=_provenance_metadata(provenance),
+                                metadata=answer_metadata,
                                 **created_kwargs,
                             ),
                             metadata={

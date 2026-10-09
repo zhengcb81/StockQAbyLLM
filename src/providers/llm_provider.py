@@ -18,6 +18,7 @@ from src.utils.quick_scan_work_transport import (
     QuickScanWorkPersistenceError,
     QuickScanWorkUncertainError,
     bind_quick_scan_format_repair,
+    external_answer_search_mode,
 )
 
 from .base_llm_provider import BaseLLMProvider
@@ -55,7 +56,12 @@ class LLMProvider(BaseLLMProvider):
             if not isinstance(candidate, dict):
                 continue
             provider = candidate.get("provider")
-            if not isinstance(provider, str) or provider not in {"openai", "minimax", "mimo"}:
+            if not isinstance(provider, str) or provider not in {
+                "openai",
+                "minimax",
+                "mimo",
+                "deepseek",
+            }:
                 continue
             if candidate.get("response_id") or type(candidate.get("http_status_code")) is int:
                 return provider
@@ -93,6 +99,10 @@ class LLMProvider(BaseLLMProvider):
                     for attempt in attempts
                 ]
 
+        from src.utils.quick_scan_work_transport import project_quick_scan_search
+
+        search_projection = project_quick_scan_search(execution_metadata)
+
         result = SearchResult(
             title=f"关于 '{query[:DISPLAY_TITLE_TRUNCATE]}...' 的评估",
             snippet=parsed.description,
@@ -117,8 +127,9 @@ class LLMProvider(BaseLLMProvider):
                 "request_id": execution_metadata.get("request_id"),
                 "response_id": execution_metadata.get("response_id"),
                 "actual_model": execution_metadata.get("actual_model"),
-                "search_status": execution_metadata.get("search_status"),
-                "source_urls": execution_metadata.get("source_urls", []),
+                "search_status": search_projection.get("search_status"),
+                "search_receipt_id": search_projection.get("search_receipt_id"),
+                "source_urls": search_projection.get("source_urls", []),
                 "failure_type": execution_metadata.get("failure_type"),
                 "execution": execution_metadata,
                 "attempts": execution_metadata.get("attempts", []),
@@ -222,7 +233,11 @@ class LLMProvider(BaseLLMProvider):
             logger.warning("LLM API未配置，返回占位符结果")
             return ParsedLLMAnswer(None, "LLM API未配置。请配置 API密钥。", "error"), {}
 
-        if self.require_search and not self.client.supports_web_search:
+        if (
+            self.require_search
+            and not self.client.supports_web_search
+            and external_answer_search_mode() != "external_context_only"
+        ):
             return (
                 ParsedLLMAnswer(
                     None, "当前提供商或端点不支持可验证的联网搜索。", "insufficient_evidence"

@@ -600,10 +600,39 @@ def _q10_reconstruct_old_schema(connection, version):
         )
         hashes[row["work_item_id"]] = digest
     connection.execute(guard)
+    # Reconstruct an actual old schema, including removal of later empty
+    # retrieval tables. Keeping them while lowering user_version is not v7.
+    for table in (
+        "quick_scan_mcp_search_binding",
+        "quick_scan_mcp_result",
+        "quick_scan_mcp_dispatch",
+        "quick_scan_mcp_stage",
+        "quick_scan_native_search_events",
+        "quick_scan_external_use_intent",
+        "quick_scan_external_result",
+        "quick_scan_external_dispatch",
+        "quick_scan_external_operation",
+    ):
+        connection.execute(f"DROP TABLE {table}")
     connection.execute("DROP TABLE quick_scan_attempt_response")
     connection.execute("DROP TABLE quick_scan_attempt_resolution")
+    _q11_reconstruct_legacy_checkpoint_table(connection)
     connection.execute(f"PRAGMA user_version={version}")
     return hashes
+
+
+def _q11_reconstruct_legacy_checkpoint_table(connection):
+    """Older schemas contain the original version=1 CHECK, not the v11 DDL."""
+    from src.utils.quick_scan_work_store import _DDL_V2_ADDITIONS
+
+    connection.execute(
+        "CREATE TEMP TABLE checkpoint_legacy_rows AS SELECT * FROM answer_checkpoint"
+    )
+    connection.execute("DROP TABLE answer_checkpoint")
+    for statement in _DDL_V2_ADDITIONS:
+        connection.execute(statement)
+    connection.execute("INSERT INTO answer_checkpoint SELECT * FROM checkpoint_legacy_rows")
+    connection.execute("DROP TABLE checkpoint_legacy_rows")
 
 
 def test_q10_bare_old_response_available_cannot_create_new_checkpoint(tmp_path):
@@ -1275,7 +1304,7 @@ def test_q10_v7_migration_adds_empty_tables_without_backfilling_bare_attempt(tmp
         before = tuple(connection.execute("SELECT * FROM attempt").fetchone())
     migrated = _store(tmp_path, [1_800_000_000.0])
     with closing(migrated._connect()) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 8
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         for table in ("quick_scan_attempt_resolution", "quick_scan_attempt_response"):
             assert connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 0
         assert tuple(connection.execute("SELECT * FROM attempt").fetchone()) == before

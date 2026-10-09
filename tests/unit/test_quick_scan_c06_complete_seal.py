@@ -388,8 +388,8 @@ def test_legacy_checkpoint_without_inputs_keeps_its_historical_package_read_only
     assert len(store.list_delivery_revisions(work_id)) == 1
 
 
-def test_schema_v8_keeps_v6_v7_side_tables_and_adds_model_resolution(tmp_path):
-    assert SCHEMA_VERSION == 8
+def test_current_schema_keeps_v6_v7_and_model_resolution_side_tables(tmp_path):
+    assert SCHEMA_VERSION >= 8
     store, item, _, _ = _checkpointed(tmp_path)
     with closing(store._connect()) as connection:
         version = connection.execute("PRAGMA user_version").fetchone()[0]

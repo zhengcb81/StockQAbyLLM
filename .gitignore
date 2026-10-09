@@ -149,3 +149,7 @@ desktop.ini
 
 # Non-secret model-resolution contract only
 !src/config/quick_scan_model_resolution.schema.json
+!src/config/quick_scan_model_resolution_v1_1.schema.json
+
+# Versioned external execution contract; contains no credentials
+!src/config/quick_scan_search_policy_v1_1.schema.json

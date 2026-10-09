@@ -258,12 +258,66 @@ def validate_checkpoint_binding(package: dict, checkpoint: dict) -> None:
     observation = package["items"][0]["observation"]
     if (
         payload.get("checkpoint_schema") != "quick-scan-answer"
-        or payload.get("checkpoint_schema_version") != 1
+        or type(payload.get("checkpoint_schema_version")) is not int
+        or payload.get("checkpoint_schema_version") not in {1, 2}
         or not isinstance(work, dict)
         or not isinstance(saved_answer, dict)
         or not isinstance(provenance, dict)
     ):
         raise ValueError("checkpoint binding fields are missing")
+    if payload["checkpoint_schema_version"] == 2:
+        # The store re-reads durable retrieval and answer rows before exposing
+        # this checkpoint. Here bind that projection without rewriting the
+        # original native-search receipt or claiming to authenticate a hash.
+        proof = provenance.get("external_context_use")
+        if (
+            provenance.get("search_binding") != "external-context-use-v1_1"
+            or not isinstance(proof, dict)
+            or proof.get("schema") != "stockqa.external_context_use/1.1.0"
+            or proof.get("state") != "request_and_response_bound"
+            or proof.get("work_item_id") != payload.get("work_item_id")
+            or proof.get("work_attempt_id") != payload.get("attempt_id")
+            or proof.get("provider") != provenance.get("actual_provider")
+            or proof.get("actual_model") != provenance.get("actual_model")
+            or proof.get("llm_receipt_sha256") != provenance.get("receipt_sha256")
+            or proof.get("request_prompt_sha256") != provenance.get("work_prompt_sha256")
+            or proof.get("use_id") != provenance.get("search_receipt_id")
+            or provenance.get("search_status") != "executed"
+            or proof.get("proof_sha256")
+            != canonical_sha256(
+                {key: value for key, value in proof.items() if key != "proof_sha256"}
+            )
+        ):
+            raise ValueError("external checkpoint use projection mismatch")
+        external_urls = proof.get("source_urls")
+        native_urls = provenance.get("native_source_urls") or []
+        if (
+            not isinstance(external_urls, list)
+            or not external_urls
+            or not isinstance(native_urls, list)
+            or any(
+                not isinstance(url, str) or not url.strip() for url in external_urls + native_urls
+            )
+            or provenance.get("source_urls") != list(dict.fromkeys(native_urls + external_urls))
+        ):
+            raise ValueError("external checkpoint source projection mismatch")
+        mode = proof.get("answer_search_mode")
+        if mode == "external_context_only":
+            if (
+                provenance.get("native_search_status") != "unverified"
+                or provenance.get("native_search_receipt_id") is not None
+                or native_urls
+            ):
+                raise ValueError("external-only checkpoint invents native search")
+        elif mode == "native_with_external_context":
+            if (
+                provenance.get("native_search_status") != "executed"
+                or not isinstance(provenance.get("native_search_receipt_id"), str)
+                or not provenance["native_search_receipt_id"].strip()
+            ):
+                raise ValueError("hybrid checkpoint lacks native search binding")
+        else:
+            raise ValueError("unsupported external checkpoint search mode")
     if (
         observation.get("entity_id") != saved_answer.get("entity_id")
         or observation.get("question_id") != work.get("question_id")

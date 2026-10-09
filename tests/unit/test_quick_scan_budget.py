@@ -386,6 +386,10 @@ def test_v3_migration_preserves_settlement_and_marks_legacy_outcome_unverifiable
             "SELECT status,actual_cost_micros,request_counted FROM quick_scan_budget_attempt "
             "WHERE budget_attempt_id='DISPATCH_legacy_settled'"
         ).fetchone()
+        from tests.unit.test_quick_scan_work_store import _q10_reconstruct_old_schema
+
+        _q10_reconstruct_old_schema(connection, 3)
+        connection.execute("DROP TABLE quick_scan_delivery_consumer_binding")
         connection.execute("DROP TRIGGER quick_scan_budget_terminal_no_update")
         connection.execute("DROP TRIGGER quick_scan_budget_terminal_no_delete")
         connection.execute("DROP TABLE quick_scan_budget_terminal")

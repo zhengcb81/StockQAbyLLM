@@ -23,6 +23,7 @@ from src.utils.quick_scan_provider_health import QuickScanProviderHealth
 from src.utils.quick_scan_work_transport import (
     QuickScanBudgetDeferredError,
     bind_quick_scan_route,
+    external_answer_search_mode,
 )
 
 logger = get_logger(__name__)
@@ -1152,7 +1153,11 @@ class OrderedSearchProviderCascade(SearchProvider):
 
             client = getattr(provider, "client", None)
             search_capability = getattr(client, "supports_web_search", None)
-            if self.require_search and search_capability is not True:
+            if (
+                self.require_search
+                and search_capability is not True
+                and external_answer_search_mode() != "external_context_only"
+            ):
                 skip_reason = (
                     "skipped_missing_web_search"
                     if search_capability is False
@@ -1550,7 +1555,7 @@ class OrderedSearchProviderCascade(SearchProvider):
                     candidate["provider"]
                     for candidate in candidates
                     if isinstance(candidate, dict)
-                    and candidate.get("provider") in {"openai", "minimax", "mimo"}
+                    and candidate.get("provider") in {"openai", "minimax", "mimo", "deepseek"}
                     and (
                         candidate.get("response_id")
                         or type(candidate.get("http_status_code")) is int

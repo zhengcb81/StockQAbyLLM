@@ -28,6 +28,26 @@ DEFAULT_MAX_UNWRAP_LAYERS = 3
 DEFAULT_MAX_IN_MEMORY_BYTES = 1_000_000
 
 
+def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate_json_key")
+        result[key] = value
+    return result
+
+
+def _reject_constant(value: str) -> Any:
+    raise ValueError("nonfinite_json_number")
+
+
+def strict_search_json(text: str) -> Any:
+    """Reject ambiguous objects and all nonfinite numbers, including 1e400."""
+    result = json.loads(text, object_pairs_hook=_unique_object, parse_constant=_reject_constant)
+    json.dumps(result, allow_nan=False)
+    return result
+
+
 class ParsedCandidates(dict):
     """``status`` is ``ok`` / ``empty`` / ``business_error`` / ``parse_failure``."""
 
@@ -56,10 +76,14 @@ def unwrap_json_text(
     current: Any = value
     for layer in range(max_layers + 1):
         if isinstance(current, (dict, list)):
+            # Object input is still provider data. It must not bypass either
+            # the wire-size bound or finite JSON representation requirement.
+            encoded = json.dumps(current, ensure_ascii=False, allow_nan=False)
+            _bounded_text(encoded, max_bytes=max_bytes)
             return current
         text = _bounded_text(current, max_bytes=max_bytes)
         try:
-            current = json.loads(text)
+            current = strict_search_json(text)
         except ValueError as error:
             if layer == 0:
                 raise ValueError("response_is_not_json") from error
@@ -168,6 +192,7 @@ def parse_tavily(payload: Any, **limits: Any) -> ParsedCandidates:
 def _zai_entries(document: Mapping) -> list[Mapping[str, Any]] | None:
     data = document.get("data")
     for candidate in (
+        document.get("search_result"),
         data.get("results") if isinstance(data, Mapping) else None,
         data if isinstance(data, list) else None,
         document.get("results"),
@@ -228,6 +253,13 @@ def parse_zai_mcp_streamable(payload: Any, **limits: Any) -> ParsedCandidates:
     if "error" in document and isinstance(document["error"], Mapping):
         return _result("business_error", route="zai_mcp_streamable")
     result = document.get("result")
+    if isinstance(result, Mapping) and "isError" in result:
+        if type(result["isError"]) is not bool:
+            return _result(
+                "parse_failure", route="zai_mcp_streamable", error="invalid_tool_error_state"
+            )
+        if result["isError"]:
+            return _result("business_error", route="zai_mcp_streamable")
     content = result.get("content") if isinstance(result, Mapping) else None
     if not isinstance(content, list):
         return _result("parse_failure", route="zai_mcp_streamable", error="missing_content_key")

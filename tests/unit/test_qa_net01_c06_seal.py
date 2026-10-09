@@ -80,22 +80,23 @@ def _q(qid: str) -> Question:
 
 
 def _metadata() -> dict:
+    from tests.unit.test_quick_scan_work_store import _synthetic_search_receipt
+
+    receipt = _synthetic_search_receipt(
+        provider="mimo",
+        model=MODEL,
+        source_urls=[SOURCE_URL],
+        response_id="resp_net01_01",
+        request_id="req_net01_01",
+        provider_attempt_id="provider_attempt_net01_01",
+    )
     return {
         "search_status": "executed",
         "actual_model": MODEL,
         "response_id": "resp_net01_01",
         "request_id": "req_net01_01",
         "source_urls": [SOURCE_URL],
-        "execution": {
-            "provider": "mimo",
-            "response_id": "resp_net01_01",
-            "attempt_id": "provider_attempt_net01_01",
-            "search_receipt_id": "ws_net01_01",
-            "response_status": "completed",
-            "http_status_code": 200,
-            "completed_at": "2026-10-07T00:00:00Z",
-            "prompt_sha256": "e" * 64,
-        },
+        "execution": receipt,
     }
 
 

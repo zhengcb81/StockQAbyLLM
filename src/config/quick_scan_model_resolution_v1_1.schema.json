@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stockqa.local/schemas/quick_scan_model_resolution_v1_1.schema.json",
+  "title": "Quick Scan Exact Model Resolution Permissions (External Text 1.1)",
+  "description": "Independent non-secret versioned configuration; identifiers are exact and never normalized. Empty aliases preserve exact identity only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "aliases"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.1.0"
+    },
+    "aliases": {
+      "type": "array",
+      "maxItems": 256,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "provider",
+          "protocol",
+          "requested_model",
+          "resolved_model"
+        ],
+        "properties": {
+          "provider": {
+            "enum": [
+              "openai",
+              "minimax",
+              "mimo",
+              "deepseek"
+            ]
+          },
+          "protocol": {
+            "enum": [
+              "responses",
+              "anthropic_messages",
+              "mimo_chat_completions"
+            ]
+          },
+          "requested_model": {
+            "$ref": "#/$defs/exactModel"
+          },
+          "resolved_model": {
+            "$ref": "#/$defs/exactModel"
+          }
+        },
+        "oneOf": [
+          {
+            "properties": {
+              "provider": {
+                "const": "openai"
+              },
+              "protocol": {
+                "const": "responses"
+              }
+            }
+          },
+          {
+            "properties": {
+              "provider": {
+                "const": "minimax"
+              },
+              "protocol": {
+                "enum": [
+                  "responses",
+                  "anthropic_messages"
+                ]
+              }
+            }
+          },
+          {
+            "properties": {
+              "provider": {
+                "const": "mimo"
+              },
+              "protocol": {
+                "const": "mimo_chat_completions"
+              }
+            }
+          },
+          {
+            "properties": {
+              "provider": {
+                "const": "deepseek"
+              },
+              "protocol": {
+                "const": "responses"
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "exactModel": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^(?!\\s)(?![\\s\\S]*[\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u0600-\\u0605\\u061c\\u06dd\\u070f\\u0890-\\u0891\\u08e2\\u180e\\u200b-\\u200f\\u202a-\\u202e\\u2060-\\u2064\\u2066-\\u206f\\ud800-\\udfff\\ufeff\\ufff9-\\ufffb𑂽𑃍𓐰-𓐿𛲠-𛲣𝅳-𝅺󠀁󠀠-󠁿*?\\[\\]])[\\s\\S]*\\S$"
+    }
+  }
+}

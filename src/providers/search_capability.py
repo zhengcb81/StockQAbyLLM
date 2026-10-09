@@ -163,7 +163,11 @@ def verify_evidence_binding(
         if entry.get("entity_id") == entity_id:
             entity_seen = True
         mapped = entry.get("question_ids")
-        if isinstance(mapped, (list, tuple)) and question_set & set(mapped):
+        if (
+            entry.get("entity_id") == entity_id
+            and isinstance(mapped, (list, tuple))
+            and question_set & set(mapped)
+        ):
             question_bound = True
         published_at = entry.get("published_at")
         if as_of is not None and isinstance(published_at, str) and published_at > as_of:

@@ -164,6 +164,7 @@ class QuickScanWorkLifecycle:
         transport_managed: bool = False,
         observation_context: Optional[Dict[str, Any]] = None,
         model_resolution: Optional[Dict[str, Any]] = None,
+        external_retrieval: Optional[Dict[str, Any]] = None,
     ) -> None:
         if (budget_policy is None) != (budget_route is None):
             raise ValueError("budget_policy and budget_route must be supplied together")
@@ -197,6 +198,32 @@ class QuickScanWorkLifecycle:
         self._scope_by_question = dict(scope_by_question or {})
         self._generation_by_question = dict(generation_by_question or {})
         self._routing_fingerprint_by_question = dict(routing_fingerprint_by_question or {})
+        self._external_retrieval: dict[str, Any] | None
+        if external_retrieval is not None:
+            required = {
+                "policy",
+                "model_policy",
+                "question_manifest_sha256",
+                "health_store",
+                "unknown_reset_cooldown_seconds",
+                "rate_limit_cooldown_seconds",
+            }
+            if (
+                not transport_managed
+                or not isinstance(external_retrieval, dict)
+                or set(external_retrieval) != required
+            ):
+                raise ValueError(
+                    "external retrieval requires the complete transport-managed runtime binding"
+                )
+            import copy
+
+            self._external_retrieval = {
+                **external_retrieval,
+                "model_policy": copy.deepcopy(external_retrieval["model_policy"]),
+            }
+        else:
+            self._external_retrieval = None
 
     def _dispatch_binding(self, question_id: str) -> tuple[str, str, int]:
         """Resolve one question's frozen scope and generation (Q13).
@@ -256,6 +283,13 @@ class QuickScanWorkLifecycle:
                 scan_id=self._scan_id,
             )
             work_item_id = row["work_item_id"]
+            if row["status"] == "leased":
+                # Recover only the exact immutable work identity we attached.
+                # The store atomically leaves a live lease untouched and turns
+                # a prior send intent into uncertain, never a replay permit.
+                # External paid/unknown HTTPs are rechecked by their journal
+                # before any later model/search dispatch.
+                self._store.recover_expired(work_item_id)
             lease = self._store.claim(work_item_id, lease_seconds=self._lease_seconds)
         except Exception as exc:  # noqa: BLE001 - store refusals degrade to skip
             logger.warning("work claim 异常（%s: %s），本题不派发", type(exc).__name__, exc)
@@ -382,6 +416,32 @@ class QuickScanWorkLifecycle:
             return None
         if checkpoint:
             logger.info("Q07 水合已存检查点（%s）", question_id)
+            if checkpoint.get("checkpoint_schema_version") == 2:
+                # Restore from the actual response owner, not the compact
+                # generic search fields that deliberately differ from native.
+                import copy
+
+                from src.utils.quick_scan_work_transport import (
+                    project_quick_scan_search,
+                )
+
+                original = self._store.get_attempt_response(checkpoint["attempt_id"])
+                use = self._store.get_external_context_use(checkpoint["attempt_id"])
+                if original is None or use is None:
+                    raise ProcessingError(message="external_checkpoint_runtime_owner_missing")
+                execution = copy.deepcopy(original["receipt"])
+                if "native_search_events" not in original:
+                    raise ProcessingError(message="external_checkpoint_native_events_missing")
+                execution["web_search_calls"] = copy.deepcopy(original["native_search_events"])
+                execution["external_context_use"] = use["proof"]
+                execution["work_transport"] = {
+                    "work_attempt_id": checkpoint["attempt_id"],
+                    "final_receipt": copy.deepcopy(original["receipt"]),
+                }
+                project_quick_scan_search(
+                    execution, work_store=self._store, work_item_id=row["work_item_id"]
+                )
+                checkpoint = {**checkpoint, "external_execution_metadata": execution}
         return checkpoint
 
     def _seal_delivery(self, work_item_id: str) -> None:
@@ -411,18 +471,57 @@ class QuickScanWorkLifecycle:
         if not self._transport_managed:
             return nullcontext()
         context = ExitStack()
-        context.enter_context(
-            bind_quick_scan_work(self._store, handle["work_item_id"], handle["lease"])
-        )
-        context.enter_context(
-            bind_quick_scan_route(
-                route_id=self._route_id,
-                provider=self._provider_name,
-                model_requested=self._model_requested,
-                model_resolution=self._model_resolution,
+        try:
+            context.enter_context(
+                bind_quick_scan_work(self._store, handle["work_item_id"], handle["lease"])
             )
-        )
-        return context
+            context.enter_context(
+                bind_quick_scan_route(
+                    route_id=self._route_id,
+                    provider=self._provider_name,
+                    model_requested=self._model_requested,
+                    model_resolution=self._model_resolution,
+                )
+            )
+            if self._external_retrieval is not None:
+                from src.utils.quick_scan_external_context import (
+                    retrieve_external_question_context,
+                )
+                from src.utils.quick_scan_work_transport import (
+                    bind_external_question_context,
+                )
+
+                runtime = self._external_retrieval
+                retrieved = retrieve_external_question_context(
+                    self._store, handle["work_item_id"], handle["lease"], **runtime
+                )
+                context.enter_context(
+                    bind_external_question_context(
+                        self._store,
+                        handle["work_item_id"],
+                        handle["lease"],
+                        runtime["policy"],
+                        [record["operation_id"] for record in retrieved["retrievals"]],
+                        question_manifest_sha256=runtime["question_manifest_sha256"],
+                    )
+                )
+            return context
+        except Exception as error:
+            # Construction can fail before QAEngine enters the returned stack.
+            # Always restore the work/route context and report a bounded error.
+            context.close()
+            if self._external_retrieval is not None:
+                from src.utils.quick_scan_external_context import (
+                    ExternalRetrievalBlocked,
+                )
+
+                reason = (
+                    error.reason
+                    if isinstance(error, ExternalRetrievalBlocked)
+                    else type(error).__name__
+                )
+                raise ProcessingError(message="external_retrieval_blocked:" + reason) from error
+            raise
 
     def _standard_transport(self, description: str) -> tuple[str, Optional[Dict[str, Any]]]:
         """Split one model description into (compact description, standard body).
@@ -453,6 +552,8 @@ class QuickScanWorkLifecycle:
         payload: Dict[str, Any],
         receipt: Dict[str, Any],
         standard_body: Optional[Dict[str, Any]],
+        *,
+        search_projection: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Run the complete standard-answer contract BEFORE any state is written."""
         if self._observation_context is None:
@@ -476,7 +577,10 @@ class QuickScanWorkLifecycle:
             standard_body,
             metadata=context["questions"][question_id]["metadata"],
             normalized_answer=payload,
-            source_urls=list(receipt.get("source_urls") or []),
+            source_urls=list(
+                (receipt if search_projection is None else search_projection).get("source_urls")
+                or []
+            ),
         )
 
     def _save_transport_checkpoint(self, handle: Dict[str, Any], result: Any) -> None:
@@ -493,9 +597,20 @@ class QuickScanWorkLifecycle:
             if not isinstance(transport, dict):
                 raise ValueError("missing authoritative transport binding")
             attempt_id = transport.get("work_attempt_id")
-            receipt = execution_receipt_for_checkpoint(metadata)
+            receipt = execution_receipt_for_checkpoint(
+                metadata, work_store=self._store, work_item_id=handle["work_item_id"]
+            )
             if not isinstance(attempt_id, str) or receipt is None:
                 raise ValueError("missing final successful transport receipt")
+            search_projection = None
+            if "external_context_use" in execution:
+                from src.utils.quick_scan_work_transport import (
+                    project_quick_scan_search,
+                )
+
+                search_projection = project_quick_scan_search(
+                    execution, work_store=self._store, work_item_id=handle["work_item_id"]
+                )
             description, standard_body = self._standard_transport(getattr(answer, "text", ""))
             payload = {
                 "entity_id": self._entity_id,
@@ -504,8 +619,10 @@ class QuickScanWorkLifecycle:
                 "score": getattr(answer, "score", None),
                 "description": description,
             }
-            _preflight_checkpoint(payload, receipt)
-            self._preflight_standard_answer(payload, receipt, standard_body)
+            _preflight_checkpoint(payload, receipt, search_projection=search_projection)
+            self._preflight_standard_answer(
+                payload, receipt, standard_body, search_projection=search_projection
+            )
             # Store checks same work/lease/model/request/hash and successful
             # phase atomically. A forged final ID or receipt cannot save.
             self._store.save_answer_checkpoint(
@@ -516,6 +633,9 @@ class QuickScanWorkLifecycle:
                 execution_receipt=receipt,
                 observation_context=self._observation_context,
                 standard_answer=standard_body,
+                external_context_use=(
+                    None if search_projection is None else search_projection["external_context_use"]
+                ),
             )
             self._seal_delivery(handle["work_item_id"])
         except Exception as exc:  # noqa: BLE001 - retain authoritative transport state
@@ -689,7 +809,12 @@ class QuickScanWorkLifecycle:
             logger.error("record_attempt_outcome(failed) 失败（%s）", exc)
 
 
-def _preflight_checkpoint(answer_payload: Dict[str, Any], receipt: Dict[str, Any]) -> None:
+def _preflight_checkpoint(
+    answer_payload: Dict[str, Any],
+    receipt: Dict[str, Any],
+    *,
+    search_projection: Optional[Dict[str, Any]] = None,
+) -> None:
     """Run EVERY input validation ``save_answer_checkpoint`` applies BEFORE any
     state is recorded (r1 P1-1), using the store's own validators so the
     pre-flight and the save can never disagree. Raises ValueError when the
@@ -735,21 +860,24 @@ def _preflight_checkpoint(answer_payload: Dict[str, Any], receipt: Dict[str, Any
     sanitized = _sanitized_receipt(receipt)
     if not sanitized:
         raise ValueError("execution receipt is empty")
-    if sanitized.get("search_status") != "executed":
+    search = sanitized if search_projection is None else search_projection
+    if search.get("search_status") != "executed":
         raise ValueError("answer checkpoint requires a verified search")
-    if sanitized.get("provider") not in {"openai", "minimax", "mimo"}:
+    if sanitized.get("provider") not in {"openai", "minimax", "mimo"} and not (
+        sanitized.get("provider") == "deepseek" and search_projection is not None
+    ):
         raise ValueError("execution receipt has no verified provider")
     _safe_text(sanitized.get("actual_model"), "actual_model", maximum=160)
     _safe_text(sanitized.get("response_id"), "response_id", maximum=300)
     _safe_text(sanitized.get("attempt_id"), "attempt_id", maximum=300)
-    _safe_text(sanitized.get("search_receipt_id"), "search_receipt_id", maximum=300)
+    _safe_text(search.get("search_receipt_id"), "search_receipt_id", maximum=300)
     if sanitized.get("response_status") != "completed":
         raise ValueError("execution receipt response is not complete")
     http_status_code = sanitized.get("http_status_code")
     if type(http_status_code) is not int or not 200 <= http_status_code < 300:
         raise ValueError("execution receipt has no successful HTTP status")
     _timestamp(sanitized.get("completed_at"), "response completion timestamp")
-    _canonical_source_urls(sanitized.get("source_urls"))
+    _canonical_source_urls(search.get("source_urls"))
     if sanitized.get("request_id") is not None:
         _safe_text(sanitized.get("request_id"), "request_id", maximum=300)
     quick_scan_receipt_sha256(receipt)
@@ -1292,6 +1420,9 @@ class LLMRunner:
             # Bound on every path below before first read, so no branch can
             # observe an unbound name (explicit over implicit control flow).
             c06_authority: Optional[Dict[str, Any]] = None
+            search_document = None
+            shared_budget_policy = None
+            provider_health = None
             if require_search and config_format != "json":
                 raise ValueError("--require-search要求JSON题目文件中的显式question_id")
             config_manager: ConfigProvider
@@ -1339,14 +1470,16 @@ class LLMRunner:
                     policy_receipt,
                 )
 
-                search_document = load_search_policy(search_policy)
-                print(
-                    json.dumps(
-                        policy_receipt(search_document),
-                        ensure_ascii=False,
-                        sort_keys=True,
+                # A fresh process can verify an owner checkpoint with search
+                # credentials withdrawn. Actual new retrieval still performs
+                # the provider's normal credential gate before any send.
+                search_document = load_search_policy(search_policy, allow_cached_recovery=True)
+                if not search_document.requires_external:
+                    print(
+                        json.dumps(
+                            policy_receipt(search_document), ensure_ascii=False, sort_keys=True
+                        )
                     )
-                )
                 if search_document.requires_external and not search_document.admitted:
                     rejections = ",".join(
                         f"{item['route_id']}:{item['reason']}"
@@ -1354,9 +1487,28 @@ class LLMRunner:
                     )
                     raise ValueError("external_search_routes_unadmitted: " + rejections)
                 if search_document.requires_external:
-                    raise ValueError(
-                        "external_context_not_implemented: admitted routes have no production dispatcher"
+                    from src.config.quick_scan_search_policy import (
+                        execution_query_plans,
                     )
+
+                    execution_query_plans(search_document)
+                    plan = search_document.execution_plan
+                    if plan is None:
+                        raise ValueError("frozen_execution_plan_required")
+                    if identity_payload is None or manifest is None:
+                        raise ValueError("external_context_requires_identity_and_manifest")
+                    if (
+                        plan["entity_id"] != entity_id
+                        or plan["identity_snapshot_sha256"]
+                        != identity_payload["identity_snapshot_sha256"]
+                    ):
+                        raise ValueError("external_policy_identity_mismatch")
+                    if plan["question_manifest_sha256"] != manifest["manifest_sha256"]:
+                        raise ValueError("external_policy_manifest_mismatch")
+                    planned = {qid for query in plan["queries"] for qid in query["question_ids"]}
+                    expected = {question["id"] for question in manifest["questions"]}
+                    if planned != expected:
+                        raise ValueError("external_policy_question_binding_mismatch")
 
             # Q10/DB-07: resolve the C06 delivery authority BEFORE any HTTP.
             # An explicitly supplied but invalid document fails the run closed;
@@ -1406,6 +1558,16 @@ class LLMRunner:
                 llm_config = LLMConfig("llm_apis.json")
                 policy = llm_config.get_quick_scan_model_policy(default_provider=provider)
                 quick_scan_policy = policy
+                if search_document is not None and search_document.requires_external:
+                    if not policy["configured"]:
+                        raise ValueError("external_context_requires_configured_model_budget")
+                    from src.utils.quick_scan_external_context import (
+                        build_shared_external_budget_policy,
+                    )
+
+                    shared_budget_policy = build_shared_external_budget_policy(
+                        policy, search_document
+                    )
                 if policy["configured"]:
                     cost_resolver = QuickScanCostResolver(
                         llm_config.config_file.parent / "quick_scan_rate_cards.json",
@@ -1422,6 +1584,9 @@ class LLMRunner:
                         )
                     budget_store = QuickScanWorkStore(
                         llm_config.config_file.parent / "quick_scan_work.sqlite"
+                    )
+                    provider_health = QuickScanProviderHealth(
+                        llm_config.config_file.parent / "quick_scan_health.sqlite"
                     )
                     route_providers: List[Optional[LLMProvider]] = []
                     for route in policy["routes"]:
@@ -1466,9 +1631,7 @@ class LLMRunner:
                         policy_version=policy["policy_version"],
                         max_attempts_per_dispatch_round=policy["max_attempts_per_dispatch_round"],
                         require_search=True,
-                        health_store=QuickScanProviderHealth(
-                            llm_config.config_file.parent / "quick_scan_health.sqlite"
-                        ),
+                        health_store=provider_health,
                         quota_groups=policy["quota_groups"],
                         policy_source={
                             "policy_provider": policy_provider,
@@ -1606,6 +1769,20 @@ class LLMRunner:
                     generation_by_question=generation_overrides,
                     routing_fingerprint_by_question=routing_overrides,
                     transport_managed=True,
+                    external_retrieval=(
+                        {
+                            "policy": search_document,
+                            "model_policy": quick_scan_policy,
+                            "question_manifest_sha256": cast(dict[str, Any], manifest)[
+                                "manifest_sha256"
+                            ],
+                            "health_store": provider_health,
+                            "unknown_reset_cooldown_seconds": 60,
+                            "rate_limit_cooldown_seconds": 60,
+                        }
+                        if search_document is not None and search_document.requires_external
+                        else None
+                    ),
                 )
             qa_engine = QAEngine(llm_provider, answer_generator, work_item_lifecycle=work_lifecycle)
 
@@ -1617,13 +1794,23 @@ class LLMRunner:
             complete_transport = (
                 isinstance(c06_authority, dict) and c06_authority.get("schema_version") == "2.0.0"
             )
+            if search_document is not None and search_document.requires_external:
+                print(
+                    json.dumps(
+                        policy_receipt(search_document, external_dispatch_enabled=True),
+                        ensure_ascii=False,
+                        sort_keys=True,
+                    )
+                )
             with standard_answer_transport(complete_transport):
                 # 处理问题
                 if quick_scan_policy is not None and quick_scan_policy["configured"]:
                     if budget_store is None:
                         raise RuntimeError("quick-scan budget binding: budget store is not bound")
                     with bind_quick_scan_budget(
-                        budget_store, quick_scan_policy, cost_resolver=cost_resolver
+                        budget_store,
+                        shared_budget_policy or quick_scan_policy,
+                        cost_resolver=cost_resolver,
                     ):
                         batch_result = qa_engine.process_questions(questions)
                 else:
@@ -1667,6 +1854,7 @@ class LLMRunner:
                         # per-question receipt names the route that answered.
                         "provider_name": quick_scan_policy["routes"][0]["provider_config_ref"],
                         "requested_model": quick_scan_policy["routes"][0]["model"],
+                        "work_store": work_lifecycle._store if work_lifecycle is not None else None,
                     },
                 )
             elif require_search:

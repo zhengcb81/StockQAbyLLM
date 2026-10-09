@@ -207,8 +207,15 @@ class BaseLLMProvider(SearchProvider):
             else ""
         )
 
+        from src.utils.quick_scan_work_transport import external_answer_search_mode
+
+        search_rule = (
+            "Use the provided external evidence context for this exact company and question. No native search tool is provided; missing evidence remains unknown."
+            if external_answer_search_mode() == "external_context_only"
+            else "Before answering, you MUST invoke the provided web_search tool at least once for the stated company and question, then base the answer on the retrieved results. Do not skip the search even if you think you already know the answer."
+        )
         return f"""You are a professional investment analyst. Use current public information.
-Before answering, you MUST invoke the provided web_search tool at least once for the stated company and question, then base the answer on the retrieved results. Do not skip the search even if you think you already know the answer.
+{search_rule}
 
 {company_context}{identity_context}{question_identity}Question:
 {question}

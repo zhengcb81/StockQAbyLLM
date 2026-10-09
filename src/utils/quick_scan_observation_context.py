@@ -452,10 +452,9 @@ def build_observation(
     _resource_hashes(context)
     metadata = context["metadata"]
     _metadata(metadata)
-    if (
-        checkpoint_payload.get("checkpoint_schema") != "quick-scan-answer"
-        or checkpoint_payload.get("checkpoint_schema_version") != 1
-    ):
+    if checkpoint_payload.get("checkpoint_schema") != "quick-scan-answer" or checkpoint_payload.get(
+        "checkpoint_schema_version"
+    ) not in {1, 2}:
         raise ValueError("unsupported answer checkpoint")
     work = checkpoint_payload["work"]
     scope_id = (

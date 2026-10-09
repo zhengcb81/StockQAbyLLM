@@ -4,6 +4,7 @@
 使用 dataclasses 以提供类型安全和默认值。
 """
 
+import copy
 import hashlib
 import json
 import re
@@ -315,7 +316,7 @@ def final_transport_provider(*candidates: Any) -> Optional[str]:
     for candidate in candidates:
         if (
             isinstance(candidate, dict)
-            and candidate.get("provider") in {"openai", "minimax", "mimo"}
+            and candidate.get("provider") in {"openai", "minimax", "mimo", "deepseek"}
             and (candidate.get("response_id") or type(candidate.get("http_status_code")) is int)
         ):
             provider = candidate.get("provider")
@@ -323,7 +324,9 @@ def final_transport_provider(*candidates: Any) -> Optional[str]:
     return None
 
 
-def execution_receipt_for_checkpoint(metadata: Any) -> Optional[Dict[str, Any]]:
+def execution_receipt_for_checkpoint(
+    metadata: Any, *, work_store: Any = None, work_item_id: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
     """Q07: build the minimal trustworthy execution receipt for checkpointing.
 
     Returns None unless the answer is checkpoint-quality: verified search,
@@ -340,6 +343,13 @@ def execution_receipt_for_checkpoint(metadata: Any) -> Optional[Dict[str, Any]]:
     execution = execution if isinstance(execution, dict) else {}
     transport = execution.get("work_transport")
     private_receipt = None
+    external_projection = None
+    if "external_context_use" in execution:
+        from src.utils.quick_scan_work_transport import project_quick_scan_search
+
+        external_projection = project_quick_scan_search(
+            execution, work_store=work_store, work_item_id=work_item_id
+        )
     if isinstance(transport, dict) and isinstance(transport.get("final_receipt"), dict):
         # Immutable HTTP receipt includes usage and the exact source set;
         # aggregate repair/fallback metadata must not change its store hash.
@@ -356,7 +366,7 @@ def execution_receipt_for_checkpoint(metadata: Any) -> Optional[Dict[str, Any]]:
     http_status_code = execution.get("http_status_code")
     completed_at = execution.get("completed_at")
     if (
-        search_status != "executed"
+        (search_status != "executed" and external_projection is None)
         or response_status != "completed"
         or type(http_status_code) is not int
         or not 200 <= http_status_code < 300
@@ -369,7 +379,11 @@ def execution_receipt_for_checkpoint(metadata: Any) -> Optional[Dict[str, Any]]:
         "actual_model": metadata.get("actual_model"),
         "response_id": metadata.get("response_id"),
         "attempt_id": execution.get("attempt_id"),
-        "search_receipt_id": execution.get("search_receipt_id"),
+        "search_receipt_id": (
+            execution.get("search_receipt_id")
+            if external_projection is None
+            else external_projection["search_receipt_id"]
+        ),
     }
     if any(not isinstance(value, str) or not value for value in required.values()):
         return None
@@ -394,6 +408,18 @@ def execution_receipt_for_checkpoint(metadata: Any) -> Optional[Dict[str, Any]]:
         "search_receipt_id": required["search_receipt_id"],
         "completed_at": completed_at,
         "source_urls": source_urls,
+        **{
+            key: execution[key]
+            for key in (
+                "search_protocol",
+                "requested_model",
+                "response_sha256",
+                "response_json_basis",
+                "model_resolution_sha256",
+                "usage",
+            )
+            if key in execution
+        },
     }
 
 
@@ -464,12 +490,14 @@ class QABatchResult:
         company_name: str,
         provider_name: Optional[str],
         requested_model: Optional[str],
+        work_store: Any = None,
     ) -> Dict[str, Any]:
         """Serialize a stable, per-question quick-scan envelope with a separate execution receipt."""
         answers: Dict[str, Dict[str, Any]] = {}
         execution_receipts: Dict[str, Dict[str, Any]] = {}
         transport_providers: set[str] = set()
         transport_models: set[str] = set()
+        public_version = "stockqa.quick_scan_result/1.0.0"
         for result in self.results:
             question_id = result.question.question_id
             if not question_id:
@@ -478,7 +506,66 @@ class QABatchResult:
                 raise ValueError(f"quick-scan结果包含重复question_id: {question_id}")
 
             metadata = result.answer.metadata
+            execution = metadata.get("execution", {})
+            execution = execution if isinstance(execution, dict) else {}
+            search_projection = None
+            search_binding = None
+            public_original = None
+            if "external_context_use" in execution:
+                from src.utils.quick_scan_work_store import (
+                    QuickScanWorkStore,
+                    _canonical_native_events,
+                    _sanitized_receipt,
+                )
+                from src.utils.quick_scan_work_transport import (
+                    project_quick_scan_search,
+                )
+
+                try:
+                    if not isinstance(work_store, QuickScanWorkStore):
+                        raise ValueError("external public output requires its actual work store")
+                    proof = execution["external_context_use"]
+                    item = work_store.get_item(proof["work_item_id"])
+                    if item["entity_id"] != entity_id or item["question_id"] != question_id:
+                        raise ValueError(
+                            "external public output identity differs from its actual owner"
+                        )
+                    search_projection = project_quick_scan_search(
+                        execution, work_store=work_store, work_item_id=item["work_item_id"]
+                    )
+                    original = work_store.get_attempt_response(proof["work_attempt_id"])
+                    if original is None:
+                        raise ValueError("external public output has no actual final response")
+                    if _sanitized_receipt(execution) != original["receipt"]:
+                        raise ValueError("external public output original HTTP receipt drifted")
+                    public_original = original["receipt"]
+                    native_events = original.get("native_search_events")
+                    if (
+                        native_events is None
+                        or _canonical_native_events(execution.get("web_search_calls", []))
+                        != native_events
+                    ):
+                        raise ValueError(
+                            "external public output native events differ from their actual owner"
+                        )
+                    search_binding = {
+                        "schema": "stockqa.search_binding/1.1.0",
+                        "entity_id": entity_id,
+                        "question_id": question_id,
+                        "identity_snapshot_sha256": item["identity_snapshot_sha256"],
+                        "external_context_use": copy.deepcopy(
+                            search_projection["external_context_use"]
+                        ),
+                        "native_receipt": copy.deepcopy(original["receipt"]),
+                    }
+                except Exception as error:
+                    raise ValueError(
+                        "external public output could not verify its actual owner"
+                    ) from error
+                public_version = "stockqa.quick_scan_result/1.1.0"
             source_urls = metadata.get("source_urls", [])
+            if search_projection is not None:
+                source_urls = search_projection["source_urls"]
             if not isinstance(source_urls, list):
                 source_urls = []
             source_urls = [url for url in source_urls if isinstance(url, str)]
@@ -509,6 +596,17 @@ class QABatchResult:
             attempts = metadata.get("attempts", [])
             attempts = attempts if isinstance(attempts, list) else []
             final_model = metadata.get("model_requested", requested_model)
+            if public_original is not None:
+                final_model = public_original["requested_model"]
+                # Version 1.1 records durable HTTP provenance on both cold and
+                # hydrated outputs. It must not use a naive local answer clock,
+                # ephemeral cascade decorations or the current run timestamp.
+                execution = public_original
+                attempts = [
+                    saved["receipt"]
+                    for attempt in work_store.list_attempts(item["work_item_id"])
+                    if (saved := work_store.get_attempt_response(attempt["attempt_id"])) is not None
+                ]
             provider_candidates = [execution, metadata, *reversed(attempts)]
             # r1 P2-2: single source of truth with the Q07 checkpoint path —
             # same predicate, output behavior unchanged (guarded by the CLI
@@ -518,7 +616,7 @@ class QABatchResult:
                 attempt
                 for attempt in attempts
                 if isinstance(attempt, dict)
-                and attempt.get("provider") in {"openai", "minimax", "mimo"}
+                and attempt.get("provider") in {"openai", "minimax", "mimo", "deepseek"}
                 and (attempt.get("response_id") or type(attempt.get("http_status_code")) is int)
             ]
             if credible_attempts:
@@ -535,15 +633,33 @@ class QABatchResult:
                     transport_models.add(final_model)
             execution_receipts[question_id] = {
                 "answer_sha256": answer_sha256,
-                "answered_at": _utc_isoformat(result.answer.created_at),
+                "answered_at": (
+                    datetime.fromtimestamp(original["recorded_at"], timezone.utc)
+                    .isoformat()
+                    .replace("+00:00", "Z")
+                    if public_original is not None and original is not None
+                    else _utc_isoformat(result.answer.created_at)
+                ),
                 "input_question_sha256": hashlib.sha256(
                     result.question.text.encode("utf-8")
                 ).hexdigest(),
                 "provider": final_provider,
                 "requested_model": final_model,
-                "actual_model": metadata.get("actual_model"),
-                "request_id": metadata.get("request_id"),
-                "response_id": metadata.get("response_id"),
+                "actual_model": (
+                    public_original["actual_model"]
+                    if public_original is not None
+                    else metadata.get("actual_model")
+                ),
+                "request_id": (
+                    public_original.get("request_id")
+                    if public_original is not None
+                    else metadata.get("request_id")
+                ),
+                "response_id": (
+                    public_original["response_id"]
+                    if public_original is not None
+                    else metadata.get("response_id")
+                ),
                 "response_status": execution.get("response_status"),
                 "http_status_code": execution.get("http_status_code"),
                 "failure_type": metadata.get("failure_type") or execution.get("failure_type"),
@@ -551,24 +667,49 @@ class QABatchResult:
                 "completed_at": execution.get("completed_at"),
                 "attempt_id": execution.get("attempt_id"),
                 "prompt_sha256": execution.get("prompt_sha256"),
-                "search_receipt_id": execution.get("search_receipt_id"),
-                "search_status": metadata.get("search_status") or "not_attempted",
+                "search_receipt_id": (
+                    search_projection["search_receipt_id"]
+                    if search_projection is not None
+                    else execution.get("search_receipt_id")
+                ),
+                "search_status": (
+                    search_projection["search_status"]
+                    if search_projection is not None
+                    else metadata.get("search_status") or "not_attempted"
+                ),
                 "source_urls": source_urls,
-                "web_search_calls": execution.get("web_search_calls", []),
+                "web_search_calls": copy.deepcopy(
+                    native_events
+                    if public_original is not None
+                    else execution.get("web_search_calls", [])
+                ),
                 "attempts": attempts,
-                "format_repair": metadata.get("format_repair"),
-                "dispatch_outcome": execution.get("dispatch_outcome"),
+                "format_repair": metadata.get("format_repair") if public_original is None else None,
+                "dispatch_outcome": (
+                    execution.get("dispatch_outcome") if public_original is None else "answered"
+                ),
             }
+            if search_binding is not None:
+                execution_receipts[question_id]["search_binding"] = search_binding
 
         completed_at = max(
-            _as_utc(value)
+            (
+                value.astimezone(timezone.utc)
+                if public_version == "stockqa.quick_scan_result/1.1.0"
+                else _as_utc(value)
+            )
             for value in [
                 self.created_at,
                 *(result.answer.created_at for result in self.results),
+                *(
+                    datetime.fromisoformat(receipt["answered_at"].replace("Z", "+00:00"))
+                    for receipt in execution_receipts.values()
+                    if "search_binding" in receipt
+                ),
             ]
         )
         return {
-            "schema_version": "stockqa.quick_scan_result/1.0.0",
+            "schema_version": public_version,
             "entity": {"entity_id": entity_id, "name": company_name},
             "observed_at": _utc_isoformat(completed_at),
             "provider": {

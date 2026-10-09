@@ -12,6 +12,7 @@ from collections.abc import Mapping
 from typing import Any, Dict
 
 SCHEMA_VERSION = "1.0.0"
+EXTERNAL_SCHEMA_VERSION = "1.1.0"
 MAX_ALIASES = 256
 MAX_MODEL_LENGTH = 160
 _ALIAS_KEYS = frozenset({"provider", "protocol", "requested_model", "resolved_model"})
@@ -23,6 +24,7 @@ _PROVIDER_PROTOCOLS = frozenset(
         ("mimo", "mimo_chat_completions"),
     }
 )
+_EXTERNAL_PROVIDER_PROTOCOLS = _PROVIDER_PROTOCOLS | {("deepseek", "responses")}
 
 
 def _valid_model_name(value: Any) -> bool:
@@ -48,8 +50,13 @@ def normalize_model_resolution(value: Any = None) -> Dict[str, Any]:
         return {"schema_version": SCHEMA_VERSION, "aliases": []}
     if not isinstance(value, Mapping) or set(value) != {"schema_version", "aliases"}:
         raise ValueError(f"{path} requires exactly schema_version and aliases")
-    if value["schema_version"] != SCHEMA_VERSION:
-        raise ValueError(f"{path}.schema_version must be {SCHEMA_VERSION}")
+    if value["schema_version"] not in {SCHEMA_VERSION, EXTERNAL_SCHEMA_VERSION}:
+        raise ValueError(f"{path}.schema_version must be 1.0.0 or 1.1.0")
+    pairs = (
+        _EXTERNAL_PROVIDER_PROTOCOLS
+        if value["schema_version"] == EXTERNAL_SCHEMA_VERSION
+        else _PROVIDER_PROTOCOLS
+    )
     aliases = value["aliases"]
     if not isinstance(aliases, list) or len(aliases) > MAX_ALIASES:
         raise ValueError(f"{path}.aliases must be an array of at most {MAX_ALIASES} mappings")
@@ -64,7 +71,7 @@ def normalize_model_resolution(value: Any = None) -> Dict[str, Any]:
         if (
             not isinstance(provider, str)
             or not isinstance(protocol, str)
-            or (provider, protocol) not in _PROVIDER_PROTOCOLS
+            or (provider, protocol) not in pairs
         ):
             raise ValueError(f"{alias_path} has an unsupported canonical provider/protocol pair")
         requested, resolved = alias["requested_model"], alias["resolved_model"]
@@ -79,7 +86,7 @@ def normalize_model_resolution(value: Any = None) -> Dict[str, Any]:
         canonical.append(identity)
     canonical.sort()
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": value["schema_version"],
         "aliases": [
             dict(zip(("provider", "protocol", "requested_model", "resolved_model"), identity))
             for identity in canonical
@@ -116,7 +123,7 @@ def model_resolution_allowed(
     if (
         not isinstance(provider, str)
         or not isinstance(protocol, str)
-        or (provider, protocol) not in _PROVIDER_PROTOCOLS
+        or (provider, protocol) not in _EXTERNAL_PROVIDER_PROTOCOLS
         or not _valid_model_name(requested_model)
         or not _valid_model_name(actual_model)
     ):

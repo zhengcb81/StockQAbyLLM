@@ -65,6 +65,8 @@ def build_evidence_package(
     seen_urls: set[str] = set()
     dropped_late = 0
     dropped_entity = 0
+    retained_chars = 0
+    retention_truncated = False
     for candidate in candidates:
         if not isinstance(candidate, Mapping):
             continue
@@ -91,25 +93,36 @@ def build_evidence_package(
         snippet = snippet if isinstance(snippet, str) else ""
         title = candidate.get("title")
         publisher = candidate.get("publisher")
-        entries.append(
-            {
-                "source_id": "src_" + hashlib.sha256(url.encode("utf-8")).hexdigest()[:16],
-                "title": _truncate(title, snippet_limit) if isinstance(title, str) else "",
-                "publisher": publisher if isinstance(publisher, str) else None,
-                "url": url,
-                "published_at": published_at if published_date is not None else None,
-                "retrieved_at": retrieved_at,
-                "short_snippet": _truncate(snippet, snippet_limit),
-                "entity_id": entity_id,
-                "question_ids": bound,
-                # undated material cannot be shown to have been knowable at
-                # the cut-off date, so it never supports a claim
-                "eligible": bool(bound) and published_date is not None,
-                "adapter_version": adapter_version,
-                "request_id": request_id,
-                "query": query if isinstance(query, str) else None,
-            }
-        )
+        entry = {
+            "source_id": "src_" + hashlib.sha256(url.encode("utf-8")).hexdigest()[:16],
+            "title": _truncate(title, snippet_limit) if isinstance(title, str) else "",
+            "publisher": (
+                _truncate(publisher, snippet_limit) if isinstance(publisher, str) else None
+            ),
+            "url": url,
+            "published_at": published_at if published_date is not None else None,
+            "retrieved_at": retrieved_at,
+            "short_snippet": _truncate(snippet, snippet_limit),
+            # A query names its target; it does not certify that returned
+            # material concerns that issuer. Only a separately verified
+            # candidate binding can make this entry eligible.
+            "entity_id": candidate_entity,
+            "question_ids": bound,
+            # undated material cannot be shown to have been knowable at
+            # the cut-off date, so it never supports a claim
+            "eligible": candidate_entity == entity_id
+            and bool(bound)
+            and published_date is not None,
+            "adapter_version": adapter_version,
+            "request_id": request_id,
+            "query": query if isinstance(query, str) else None,
+        }
+        saved_size = len(_canonical(entry))
+        if retained_chars + saved_size > company_limit:
+            retention_truncated = True
+            break
+        entries.append(entry)
+        retained_chars += saved_size
 
     question_context, used_chars, truncated = select_question_context(
         entries, question_ids=question_ids, company_limit=company_limit
@@ -128,7 +141,8 @@ def build_evidence_package(
             "dropped_after_as_of": dropped_late,
             "dropped_entity_mismatch": dropped_entity,
             "context_chars": used_chars,
-            "truncated": truncated,
+            "retained_chars": retained_chars,
+            "truncated": truncated or retention_truncated,
         },
     }
     package["evidence_sha256"] = hashlib.sha256(
