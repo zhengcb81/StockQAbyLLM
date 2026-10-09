@@ -28,8 +28,11 @@ from src.utils.quick_scan_external_journal import (
     DDL_V10_ADDITIONS as _DDL_V10_ADDITIONS,
 )
 from src.utils.quick_scan_mcp_journal import DDL_V13_ADDITIONS as _DDL_V13_ADDITIONS
+from src.utils.quick_scan_owner_refresh_journal import (
+    DDL_V14_ADDITIONS as _DDL_V14_ADDITIONS,
+)
 
-SCHEMA_VERSION = 13
+SCHEMA_VERSION = 14
 _SAFE_ID = re.compile(r"^[A-Za-z0-9_.-]{1,160}$")
 # Hyphens accepted per owner sign-off (2026-10-05 round-51): the W04
 # identity-export package issues ENT_<uuid> entity ids (e.g. the frozen
@@ -651,6 +654,7 @@ _DDL = (
     + _DDL_V10_ADDITIONS
     + _DDL_V12_ADDITIONS
     + _DDL_V13_ADDITIONS
+    + _DDL_V14_ADDITIONS
 )
 
 _RECEIPT_FIELDS = (
@@ -1191,6 +1195,8 @@ class QuickScanWorkStore:
                 cls._validate_schema(connection, schema_version=11)
             elif version == 12:
                 cls._validate_schema(connection, schema_version=12)
+            elif version == 13:
+                cls._validate_schema(connection, schema_version=13)
             elif version != SCHEMA_VERSION:
                 raise ValueError("unsupported quick-scan work database schema version")
             if 1 <= version < 8:
@@ -1214,6 +1220,10 @@ class QuickScanWorkStore:
                 connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             if 1 <= version < 13:
                 for statement in _DDL_V13_ADDITIONS:
+                    connection.execute(statement)
+                connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+            if 1 <= version < 14:
+                for statement in _DDL_V14_ADDITIONS:
                     connection.execute(statement)
                 connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             cls._validate_schema(connection, schema_version=SCHEMA_VERSION)
@@ -1418,27 +1428,38 @@ class QuickScanWorkStore:
         if schema_version >= 8:
             for statement in _DDL_V8_ADDITIONS:
                 match = re.match(r"CREATE (TABLE|TRIGGER) ([A-Za-z_]+)", statement)
-                assert match is not None
+                if match is None:
+                    raise ValueError("quick-scan work database schema mismatch")
                 expected[(match[1].lower(), match[2])] = statement
         if schema_version >= 9:
             for statement in _DDL_V9_ADDITIONS:
                 match = re.match(r"CREATE (TABLE|TRIGGER) ([A-Za-z_]+)", statement)
-                assert match is not None
+                if match is None:
+                    raise ValueError("quick-scan work database schema mismatch")
                 expected[(match[1].lower(), match[2])] = statement
         if schema_version >= 10:
             for statement in _DDL_V10_ADDITIONS:
                 match = re.match(r"CREATE (TABLE|TRIGGER) ([A-Za-z_]+)", statement)
-                assert match is not None
+                if match is None:
+                    raise ValueError("quick-scan work database schema mismatch")
                 expected[(match[1].lower(), match[2])] = statement
         if schema_version >= 12:
             for statement in _DDL_V12_ADDITIONS:
                 match = re.match(r"CREATE (TABLE|TRIGGER) ([A-Za-z_]+)", statement)
-                assert match is not None
+                if match is None:
+                    raise ValueError("quick-scan work database schema mismatch")
                 expected[(match[1].lower(), match[2])] = statement
         if schema_version >= 13:
             for statement in _DDL_V13_ADDITIONS:
                 match = re.match(r"CREATE (TABLE|TRIGGER) ([A-Za-z_]+)", statement)
-                assert match is not None
+                if match is None:
+                    raise ValueError("quick-scan work database schema mismatch")
+                expected[(match[1].lower(), match[2])] = statement
+        if schema_version >= 14:
+            for statement in _DDL_V14_ADDITIONS:
+                match = re.match(r"CREATE (TABLE|TRIGGER) ([A-Za-z_]+)", statement)
+                if match is None:
+                    raise ValueError("quick-scan work database schema mismatch")
                 expected[(match[1].lower(), match[2])] = statement
         if actual.keys() != expected.keys() or any(
             _normalized_sql(actual[key]) != _normalized_sql(statement)
@@ -1498,6 +1519,12 @@ class QuickScanWorkStore:
             )
 
             validate_mcp_tables(connection)
+        if schema_version >= 14:
+            from src.utils.quick_scan_owner_refresh_journal import (
+                validate_tables as validate_refresh_tables,
+            )
+
+            validate_refresh_tables(connection)
         if schema_version >= 10:
             from src.utils.quick_scan_external_journal import read_use
 
@@ -2510,6 +2537,7 @@ class QuickScanWorkStore:
         routing_fingerprint: str,
         run_id: str,
         scan_id: str,
+        owner_refresh_binding: Optional[dict] = None,
     ) -> dict:
         """Atomically attach a run to the one immutable logical work item."""
         if not _ENTITY_ID.fullmatch(_safe(entity_id, "entity_id")):
@@ -2604,6 +2632,17 @@ class QuickScanWorkStore:
                 proposed = locals()
                 if any(row[name] != proposed[name] for name in frozen):
                     raise WorkConflictError("logical work key conflicts with frozen inputs")
+            if owner_refresh_binding is not None:
+                from src.utils.quick_scan_owner_refresh_journal import (
+                    bind as bind_owner_refresh,
+                )
+
+                bind_owner_refresh(
+                    connection,
+                    dict(self._item(connection, work_item_id)),
+                    owner_refresh_binding,
+                    new_item=row is None,
+                )
             added = connection.execute(
                 "INSERT OR IGNORE INTO work_run_ref (work_item_id,run_id,scan_id,attached_at) "
                 "VALUES (?,?,?,?)",
@@ -2804,6 +2843,9 @@ class QuickScanWorkStore:
         with self._transaction() as connection:
             item = self._item(connection, work_item_id)
             self._assert_lease(item, lease, now)
+            from src.utils.quick_scan_owner_refresh_journal import guard_send
+
+            guard_send(connection, dict(item))
             if normalized_policy is not None:
                 if budget_route is None:
                     raise RuntimeError("mark_send_intent: budget_route is None")
@@ -4852,7 +4894,8 @@ class QuickScanWorkStore:
                     return current
                 raise WorkConflictError("terminal result delivery ACK is immutable")
             binding = self._consumer_binding_for_delivery(connection, row, required=True)
-            assert binding is not None
+            if binding is None:
+                raise WorkConflictError("result delivery consumer binding is missing")
             self._result_delivery_record(row, connection=connection)
             validate_import_ack(ack, dict(row), expected_consumer=binding["consumer"])
             if row["state"] not in {"ready", "send_uncertain"}:
@@ -5017,6 +5060,50 @@ class QuickScanWorkStore:
                     (work_item_id,),
                 )
             ]
+
+    def get_owner_refresh_binding(self, work_item_id: str) -> Optional[dict]:
+        from src.utils.quick_scan_owner_refresh_journal import read
+
+        with closing(self._connect()) as connection:
+            return read(connection, work_item_id)
+
+    def owner_refresh_projection(
+        self,
+        *,
+        entity_id: str,
+        question_ids: Sequence[str],
+        scope_bindings: dict[str, dict[str, str]],
+    ) -> dict[str, dict]:
+        """Self-owned complete projection; never trust a caller's generation map."""
+        _safe(entity_id, "entity_id")
+        if (
+            not question_ids
+            or len(question_ids) > 500
+            or len(set(question_ids)) != len(question_ids)
+        ):
+            raise ValueError("owner_refresh_projection_invalid")
+        result = {}
+        with closing(self._connect()) as connection:
+            for qid in question_ids:
+                _safe(qid, "question_id")
+                binding = scope_bindings[qid]
+                rows = connection.execute(
+                    "SELECT * FROM work_item WHERE entity_id=? AND question_id=? AND scope=? AND scope_id=? ORDER BY generation DESC,created_at DESC,work_item_id",
+                    (entity_id, qid, binding["scope"], binding["scope_id"]),
+                ).fetchall()
+                unresolved = [
+                    row
+                    for row in rows
+                    if row["status"] in {"pending", "leased", "uncertain", "result_ready"}
+                ]
+                row = (unresolved or rows or [None])[0]
+                if row is not None:
+                    result[qid] = {
+                        "work_item_id": row["work_item_id"],
+                        "generation": row["generation"],
+                        "status": row["status"],
+                    }
+        return result
 
     def find_work_items(
         self,

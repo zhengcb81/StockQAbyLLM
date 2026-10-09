@@ -379,11 +379,13 @@ def _search_policy(**over) -> dict:
 
 
 def test_cli_e2e_search_policy_admission_gates_before_any_http(
-    monkeypatch, tmp_path, capsys
+    monkeypatch, tmp_path, capsys, caplog
 ) -> None:
-    """An external mode whose routes are not admitted fails closed with zero
-    HTTP; an admitted route prints its admission receipt before dispatch."""
-    import os
+    """Missing credentials and a missing frozen plan both refuse before HTTP.
+
+    Phase111 made the production retrieval chain executable. A credential
+    alone no longer yields the old disabled-stub admission output.
+    """
 
     files = _setup(tmp_path, with_authority=False)
     policy_file = tmp_path / "search_policy.json"
@@ -401,8 +403,8 @@ def test_cli_e2e_search_policy_admission_gates_before_any_http(
     captured = capsys.readouterr()
     assert code == 1
     assert session.post.call_count == 0
-    assert '"external_dispatch_enabled": false' in captured.out
-    assert "no_admitted_external_route" in captured.out
+    assert "external_search_routes_unadmitted" in caplog.text
+    assert "no_admitted_external_route" in caplog.text
 
     monkeypatch.setenv("BRAVE_API_KEY", "offline-fixture-key")
     code, admitted_session = _run(
@@ -416,9 +418,7 @@ def test_cli_e2e_search_policy_admission_gates_before_any_http(
     captured = capsys.readouterr()
     assert code == 1, captured.out
     assert admitted_session.post.call_count == 0
-    assert '"admitted_routes": ["brave-primary"]' in captured.out
-    assert '"external_dispatch_enabled": false' in captured.out
-    assert "external_context_not_implemented" in captured.out
+    assert "frozen_execution_plan_required" in caplog.text
 
 
 def test_cli_e2e_search_policy_template_marker_is_refused(monkeypatch, tmp_path, capsys) -> None:

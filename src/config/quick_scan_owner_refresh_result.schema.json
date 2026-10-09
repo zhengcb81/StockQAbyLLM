@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "subject_key", "decision_id", "anchor_version", "manifest_raw_sha256", "refresh_id", "observation_references", "question_actions", "dispatched_result", "original_observations_resealed"],
+  "properties": {
+    "schema_version": {"const": "stockqa.owner_refresh_result/1.0.0"},
+    "subject_key": {"type": "string", "minLength": 1},
+    "decision_id": {"type": "string", "pattern": "^route_[a-f0-9]{64}$"},
+    "anchor_version": {"type": "integer", "minimum": 1},
+    "manifest_raw_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "refresh_id": {"type": "string", "pattern": "^refresh_[a-f0-9]{64}$"},
+    "observation_references": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["observation_id", "payload_sha256", "original_observation", "original_qualification_status", "new_observation_created"],
+        "properties": {
+          "observation_id": {"type": "string", "pattern": "^obs_[a-f0-9]{64}$"},
+          "payload_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+          "original_observation": {"type": "object"},
+          "original_qualification_status": {"type": ["string", "null"]},
+          "new_observation_created": {"const": false}
+        }
+      }
+    },
+    "question_actions": {"type": "array", "items": {"type": "object", "required": ["field_id", "decision", "generation", "request_identity_key", "reuse_observation_id"]}},
+    "dispatched_result": {"type": ["object", "null"]},
+    "original_observations_resealed": {"const": false}
+  }
+}

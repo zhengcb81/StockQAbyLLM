@@ -165,10 +165,12 @@ class QuickScanWorkLifecycle:
         observation_context: Optional[Dict[str, Any]] = None,
         model_resolution: Optional[Dict[str, Any]] = None,
         external_retrieval: Optional[Dict[str, Any]] = None,
+        owner_refresh_session: Optional[Any] = None,
     ) -> None:
         if (budget_policy is None) != (budget_route is None):
             raise ValueError("budget_policy and budget_route must be supplied together")
         self._store = store
+        self._owner_refresh = owner_refresh_session
         self._transport_managed = transport_managed
         self._entity_id = entity_id
         self._run_id = run_id
@@ -248,6 +250,41 @@ class QuickScanWorkLifecycle:
             raise ValueError("entity scope_id must equal the run entity")
         return scope, scope_id, generation
 
+    def reference_question(self, question: Question):
+        return self._owner_refresh.reference(question) if self._owner_refresh is not None else None
+
+    def _owner_work(self, question_id: str) -> tuple[Optional[dict], Optional[dict], Optional[str]]:
+        """Gate every action BEFORE attach/hydrate/claim, with old work intact."""
+        if self._owner_refresh is None:
+            return None, None, None
+        session = self._owner_refresh
+        session.check()
+        action = session.fields[question_id]["decision"]
+        if action in {"dispatch_new_work", "dispatch_new_generation"}:
+            return None, session.binding(question_id), None
+        if action == "resume_existing_work":
+            old = session.existing_work(question_id)
+            bound = self._store.get_owner_refresh_binding(old["work_item_id"])
+            if (
+                bound is None
+                or bound["binding"]["manifest_raw_sha256"] != session.plan["manifest_raw_sha256"]
+                or bound["binding"]["decision_id"] != session.plan["decision_id"]
+                or bound["binding"]["anchor_version"] != session.plan["anchor_version"]
+                or bound["binding"]["subject_key"] != session.plan["subject_key"]
+                or bound["binding"]["provider"] != session.plan["provider"]
+                or bound["binding"]["model"] != session.plan["model"]
+            ):
+                return old, None, "resume_original_work_context_required"
+            if old["status"] == "leased":
+                # Exact original owner binding only. Unsent expired leases may
+                # become pending; send intent becomes uncertain, never replay.
+                self._store.recover_expired(old["work_item_id"])
+                old = self._store.get_item(old["work_item_id"])
+            if old["status"] != "pending":
+                return old, None, "resume_original_work_delivery_or_reconciliation_required"
+            return old, bound["binding"], None
+        return None, None, "owner_refresh_" + action
+
     def before_question(self, question: Question) -> Dict[str, Any]:
         # Q09 step3: the time cap stops NEW dispatch only — no claim, no
         # request, and the work item stays pending (already-claimed work
@@ -262,7 +299,20 @@ class QuickScanWorkLifecycle:
         )
         fingerprint = hashlib.sha256(text.encode("utf-8")).hexdigest()
         try:
+            owner_old, owner_binding, owner_reason = self._owner_work(question_id)
+            if owner_reason:
+                return {
+                    "claimed": False,
+                    "reason": owner_reason,
+                    **({"work_item_id": owner_old["work_item_id"]} if owner_old else {}),
+                }
             scope, scope_id, generation = self._dispatch_binding(question_id)
+            if owner_old is not None:
+                scope, scope_id, generation = (
+                    owner_old["scope"],
+                    owner_old["scope_id"],
+                    owner_old["generation"],
+                )
             row = self._store.create_or_attach(
                 entity_id=self._entity_id,
                 question_id=question_id,
@@ -276,11 +326,16 @@ class QuickScanWorkLifecycle:
                 source_binding_refs=list(self._identity["source_binding_refs"]),
                 identity_snapshot_sha256=self._identity["identity_snapshot_sha256"],
                 question_fingerprint=fingerprint,
-                routing_fingerprint=self._routing_fingerprint_by_question.get(
-                    question_id, self._routing_fingerprint
+                routing_fingerprint=(
+                    self._routing_fingerprint_by_question.get(
+                        question_id, self._routing_fingerprint
+                    )
+                    if owner_old is None
+                    else owner_old["routing_fingerprint"]
                 ),
                 run_id=self._run_id,
                 scan_id=self._scan_id,
+                owner_refresh_binding=owner_binding,
             )
             work_item_id = row["work_item_id"]
             if row["status"] == "leased":
@@ -390,6 +445,11 @@ class QuickScanWorkLifecycle:
         )
         fingerprint = hashlib.sha256(text.encode("utf-8")).hexdigest()
         try:
+            if self._owner_refresh is not None:
+                # Owner observations are returned through reference_question.
+                # All resumptions preserve the original delivery context and
+                # are explicitly deferred by before_question when not pending.
+                return None
             scope, scope_id, generation = self._dispatch_binding(question_id)
             row = self._store.create_or_attach(
                 entity_id=self._entity_id,
@@ -472,6 +532,11 @@ class QuickScanWorkLifecycle:
             return nullcontext()
         context = ExitStack()
         try:
+            if self._owner_refresh is not None:
+                from src.utils.quick_scan_work_transport import bind_owner_refresh_guard
+
+                self._owner_refresh.check()
+                context.enter_context(bind_owner_refresh_guard(self._owner_refresh.check))
             context.enter_context(
                 bind_quick_scan_work(self._store, handle["work_item_id"], handle["lease"])
             )
@@ -1260,6 +1325,7 @@ class LLMRunner:
         question_manifest: Optional[str] = None,
         security_scope_id: Optional[str] = None,
         search_policy: Optional[str] = None,
+        owner_refresh_config: Optional[str] = None,
     ) -> int:
         """运行LLM模式处理。
 
@@ -1312,6 +1378,12 @@ class LLMRunner:
             raise ValueError("--security-scope-id 只在 --question-manifest 下生效")
         if search_policy is not None and not require_search:
             raise ValueError("--search-policy 需要与 --require-search 同时使用")
+        if owner_refresh_config is not None and (
+            question_manifest is None or not identity_snapshot or batch_file
+        ):
+            raise ValueError(
+                "--quick-scan-owner-config requires one identity-bound question manifest"
+            )
         # B01-a/BENCH-02: the public quick-scan entry fails closed on
         # zero/unknown spend authorization BEFORE creating any dispatchable
         # attempt — an explicit bounded blocked result, a fresh auditable run
@@ -1354,6 +1426,7 @@ class LLMRunner:
                 question_manifest=question_manifest,
                 security_scope_id=security_scope_id,
                 search_policy=search_policy,
+                owner_refresh_config=owner_refresh_config,
             )
         else:
             self.logger.info("批量股票分析模式")
@@ -1403,6 +1476,7 @@ class LLMRunner:
         question_manifest: Optional[str] = None,
         security_scope_id: Optional[str] = None,
         search_policy: Optional[str] = None,
+        owner_refresh_config: Optional[str] = None,
     ) -> int:
         """运行单公司处理模式。
 
@@ -1686,7 +1760,7 @@ class LLMRunner:
                 scope_bindings: Dict[str, Dict[str, str]] = {}
                 generation_overrides: Dict[str, int] = {}
                 routing_overrides: Dict[str, str] = {}
-                if manifest is not None:
+                if manifest is not None and owner_refresh_config is None:
                     from src.utils.quick_scan_question_manifest import (
                         manifest_scope_bindings,
                         plan_manifest_dispatch,
@@ -1740,6 +1814,49 @@ class LLMRunner:
                     lifecycle_model = quick_scan_policy["routes"][0]["model"]
                 else:
                     lifecycle_model = None
+                owner_session = None
+                if owner_refresh_config is not None:
+                    from datetime import datetime, timezone
+
+                    from src.utils.quick_scan_owner_refresh import OwnerRefreshClient
+
+                    if (
+                        primary_route is None
+                        or manifest is None
+                        or not isinstance(c06_authority, dict)
+                        or c06_authority.get("schema_version") != "2.0.0"
+                    ):
+                        raise ValueError(
+                            "owner_refresh_requires_admitted_model_and_complete_c06_authority"
+                        )
+                    owner_session = OwnerRefreshClient(Path(owner_refresh_config)).prepare(
+                        manifest,
+                        work_store,
+                        identity=identity_payload,
+                        provider=primary_route["provider_config_ref"],
+                        model=primary_route["model"],
+                        now=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                        observation_context=c06_authority.get("observation_context"),
+                    )
+                    scope_bindings = owner_session.scope_bindings
+                    generation_overrides = {
+                        qid: row["generation"]
+                        for qid, row in owner_session.fields.items()
+                        if type(row.get("generation")) is int
+                    }
+                    from src.utils.quick_scan_result_outbox import canonical_sha256
+
+                    routing_overrides = {
+                        qid: canonical_sha256(
+                            {
+                                "subject_key": owner_session.plan["subject_key"],
+                                "request_identity_key": row["request_identity_key"],
+                            }
+                        )
+                        for qid, row in owner_session.fields.items()
+                        if row.get("request_identity_key")
+                    }
+                    print(json.dumps(owner_session.plan, ensure_ascii=False, sort_keys=True))
                 work_lifecycle = QuickScanWorkLifecycle(
                     work_store,
                     entity_id=entity_id,
@@ -1769,6 +1886,7 @@ class LLMRunner:
                     generation_by_question=generation_overrides,
                     routing_fingerprint_by_question=routing_overrides,
                     transport_managed=True,
+                    owner_refresh_session=owner_session,
                     external_retrieval=(
                         {
                             "policy": search_document,
@@ -1856,6 +1974,11 @@ class LLMRunner:
                         "requested_model": quick_scan_policy["routes"][0]["model"],
                         "work_store": work_lifecycle._store if work_lifecycle is not None else None,
                     },
+                    **(
+                        {"owner_refresh_session": work_lifecycle._owner_refresh}
+                        if owner_refresh_config is not None and work_lifecycle is not None
+                        else {}
+                    ),
                 )
             elif require_search:
                 raise RuntimeError("quick-scan output binding: model policy is not bound")

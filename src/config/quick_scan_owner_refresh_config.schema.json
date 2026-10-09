@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol", "stockwiki_code_root", "stockwiki_workspace_root", "iqs_code_root", "iqs_release_root", "subject_key", "scope", "scope_id", "ttl_hours", "runs_dir"],
+  "properties": {
+    "protocol": {"const": "stockqa.owner_refresh_config/1.0.0"},
+    "stockwiki_code_root": {"type": "string", "minLength": 1},
+    "stockwiki_workspace_root": {"type": "string", "minLength": 1},
+    "iqs_code_root": {"type": "string", "minLength": 1},
+    "iqs_release_root": {"type": "string", "minLength": 1},
+    "subject_key": {"type": "string", "minLength": 1},
+    "scope": {"enum": ["entity", "segment"]},
+    "scope_id": {"type": "string", "minLength": 1},
+    "ttl_hours": {"type": "integer", "minimum": 1},
+    "runs_dir": {"type": "string", "minLength": 1}
+  }
+}

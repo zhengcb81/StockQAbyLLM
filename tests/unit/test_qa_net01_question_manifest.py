@@ -103,6 +103,7 @@ def _lifecycle(store: QuickScanWorkStore, *, authority: dict | None = None):
         scan_id="SCAN_1",
         identity=dict(IDENTITY),
         model_requested=MODEL,
+        provider_name="mimo",
         c06_authority=_authority() if authority is None else authority,
     )
 
@@ -113,22 +114,21 @@ def _settle(store, lifecycle, question_id: str, prompt: str) -> str:
     question = Question(text=prompt, question_id=question_id)
     handle = lifecycle.before_question(question)
     assert handle["claimed"] is True, handle
+    from tests.unit.test_quick_scan_work_store import _synthetic_search_receipt
+
+    fixture_receipt = _synthetic_search_receipt(
+        model=MODEL,
+        response_id="resp_" + question_id,
+        request_id="req_" + question_id,
+        provider_attempt_id="pa_" + question_id,
+    )
     metadata = {
         "search_status": "executed",
         "actual_model": MODEL,
         "response_id": "resp_" + question_id,
         "request_id": "req_" + question_id,
         "source_urls": ["https://example.com/issuer"],
-        "execution": {
-            "provider": "mimo",
-            "response_id": "resp_" + question_id,
-            "attempt_id": "pa_" + question_id,
-            "search_receipt_id": "ws_" + question_id,
-            "response_status": "completed",
-            "http_status_code": 200,
-            "completed_at": "2026-10-07T00:00:00Z",
-            "prompt_sha256": "e" * 64,
-        },
+        "execution": fixture_receipt,
     }
     result = SimpleNamespace(
         question=question,

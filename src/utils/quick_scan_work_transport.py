@@ -626,6 +626,18 @@ def bind_quick_scan_format_repair() -> Iterator[None]:
         _FORMAT_REPAIR.reset(token)
 
 
+_OWNER_REFRESH_GUARD = contextvars.ContextVar("quick_scan_owner_refresh_guard", default=None)
+
+
+@contextmanager
+def bind_owner_refresh_guard(guard):
+    token = _OWNER_REFRESH_GUARD.set(guard)
+    try:
+        yield
+    finally:
+        _OWNER_REFRESH_GUARD.reset(token)
+
+
 def frozen_quick_scan_model_resolution(model_resolution: Any = None) -> dict:
     """Use the dispatch snapshot even when the legacy path owns admission."""
     from src.providers.model_resolution import normalize_model_resolution
@@ -636,10 +648,21 @@ def frozen_quick_scan_model_resolution(model_resolution: Any = None) -> dict:
     )
 
 
+def _check_owner_refresh_guard() -> None:
+    """Check the current owner anchor again after any capacity wait."""
+    owner_guard = _OWNER_REFRESH_GUARD.get()
+    if owner_guard is not None:
+        try:
+            owner_guard()
+        except ValueError as error:
+            raise QuickScanWorkPersistenceError("owner_refresh_guard_rejected") from error
+
+
 def begin_quick_scan_send(
     prompt: str, system_prompt: str, *, model_requested: Any = None, model_resolution: Any = None
 ) -> Optional[QuickScanSendAttempt]:
     """Commit prepared + send-intent state before permitting the HTTP request."""
+    _check_owner_refresh_guard()
     from src.providers.model_resolution import (
         model_resolution_sha256,
         normalize_model_resolution,
@@ -744,6 +767,7 @@ def begin_quick_scan_send(
                 raise RuntimeError("begin_quick_scan_send: prepared attempt is missing")
             deadline = time.monotonic() + _CAPACITY_WAIT_SECONDS
             while True:
+                _check_owner_refresh_guard()
                 try:
                     permit = work.store.mark_send_intent(
                         work.work_item_id,
@@ -770,6 +794,7 @@ def begin_quick_scan_send(
         budget_attempt_id = "DISPATCH_" + uuid.uuid4().hex
         deadline = time.monotonic() + _CAPACITY_WAIT_SECONDS
         while True:
+            _check_owner_refresh_guard()
             try:
                 budget.store.reserve_budget_attempt(
                     budget.policy,
@@ -796,5 +821,7 @@ def begin_quick_scan_send(
         )
     except BudgetAdmissionError as error:
         raise QuickScanBudgetDeferredError(error.reason) from error
+    except QuickScanWorkPersistenceError:
+        raise
     except Exception as error:
         raise QuickScanWorkPersistenceError("quick-scan durable send admission failed") from error

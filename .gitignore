@@ -153,3 +153,6 @@ desktop.ini
 
 # Versioned external execution contract; contains no credentials
 !src/config/quick_scan_search_policy_v1_1.schema.json
+# W15 non-secret owner transport/result contracts only
+!src/config/quick_scan_owner_refresh_config.schema.json
+!src/config/quick_scan_owner_refresh_result.schema.json

@@ -205,6 +205,11 @@ class QAEngine:
                 except ValueError:
                     hook_question = None
                 if hook_question is not None:
+                    reference = getattr(self.work_item_lifecycle, "reference_question", None)
+                    owner_result = reference(hook_question) if callable(reference) else None
+                    if owner_result is not None:
+                        batch_result.add_result(owner_result)
+                        continue
                     # Q07: hydrate a stored answer checkpoint BEFORE any claim
                     # (JOB-03/PAR-04) — saved questions are never re-dispatched;
                     # hooks without hydrate_question keep the Q06 behavior.
@@ -347,6 +352,7 @@ class QAEngine:
         batch_result: QABatchResult,
         output_file: Optional[str] = None,
         quick_scan_context: Optional[Dict[str, Any]] = None,
+        owner_refresh_session: Optional[Any] = None,
     ) -> None:
         """输出结果。
 
@@ -356,11 +362,20 @@ class QAEngine:
         """
         import json
 
-        result_dict = (
-            batch_result.to_quick_scan_dict(**quick_scan_context)
-            if quick_scan_context is not None
-            else batch_result.to_dict()
-        )
+        if owner_refresh_session is not None:
+            if quick_scan_context is None:
+                raise ValueError("owner refresh output requires its quick-scan run context")
+            from src.utils.quick_scan_owner_refresh import build_refresh_result
+
+            result_dict = build_refresh_result(
+                batch_result, owner_refresh_session, quick_scan_context
+            )
+        else:
+            result_dict = (
+                batch_result.to_quick_scan_dict(**quick_scan_context)
+                if quick_scan_context is not None
+                else batch_result.to_dict()
+            )
         json_output = json.dumps(result_dict, ensure_ascii=False, indent=4)
 
         if output_file:

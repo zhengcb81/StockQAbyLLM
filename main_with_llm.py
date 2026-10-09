@@ -311,6 +311,12 @@ def main():
     )
 
     parser.add_argument("--verbose", "-v", action="store_true", help="启用详细日志输出")
+    parser.add_argument(
+        "--quick-scan-owner-config",
+        type=str,
+        default=None,
+        help="W15：可信 StockWiki 公共 CLI/主体/当前路由配置；增量刷新和原 Observation 复用，不接受外来派发计划",
+    )
 
     args = parser.parse_args()
 
@@ -345,6 +351,7 @@ def main():
             question_manifest=args.question_manifest,
             security_scope_id=args.security_scope_id,
             search_policy=args.search_policy,
+            owner_refresh_config=args.quick_scan_owner_config,
         )
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error("运行失败: %s", e, exc_info=True)

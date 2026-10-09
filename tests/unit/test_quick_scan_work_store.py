@@ -603,6 +603,7 @@ def _q10_reconstruct_old_schema(connection, version):
     # Reconstruct an actual old schema, including removal of later empty
     # retrieval tables. Keeping them while lowering user_version is not v7.
     for table in (
+        "quick_scan_owner_refresh_binding",
         "quick_scan_mcp_search_binding",
         "quick_scan_mcp_result",
         "quick_scan_mcp_dispatch",

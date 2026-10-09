@@ -65,7 +65,12 @@ def _answer(qid: str, score: int = 8) -> dict:
 
 
 def _receipt(**over) -> dict:
+    from tests.unit.test_quick_scan_work_store import _synthetic_search_receipt
+
     receipt = {
+        **_synthetic_search_receipt(
+            model=over.get("actual_model", "mimo-v2.6-flash")
+        ),  # Explicit synthetic HTTP JSON, never a live receipt.
         "search_status": "executed",
         "provider": "mimo",
         "actual_model": "mimo-v2.6-flash",
@@ -98,6 +103,7 @@ def _seed_checkpoint(store, lifecycle, qid: str, score: int = 8, **receipt_over)
         receipt_sha256=quick_scan_receipt_sha256(receipt),
         http_status_code=receipt["http_status_code"],
         request_id=receipt.get("request_id"),
+        execution_receipt=receipt,
     )
     record = store.save_answer_checkpoint(
         handle["work_item_id"],
