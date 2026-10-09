@@ -13,6 +13,12 @@ import httpx
 from src.config.settings import DISPLAY_QUERY_TRUNCATE, DISPLAY_TITLE_TRUNCATE
 from src.core.models import Question, SearchResult
 from src.utils.logger import get_logger
+from src.utils.quick_scan_work_transport import (
+    QuickScanBudgetDeferredError,
+    QuickScanWorkPersistenceError,
+    QuickScanWorkUncertainError,
+    bind_quick_scan_format_repair,
+)
 
 from .base_llm_provider import BaseLLMProvider
 from .llm_client import (
@@ -39,6 +45,7 @@ class AsyncLLMProvider(BaseLLMProvider):
             base_url=self.base_url,
             timeout=self.timeout,
             provider_name=self.provider_name,
+            model_resolution=self.model_resolution,
         )
 
     @staticmethod
@@ -165,7 +172,8 @@ class AsyncLLMProvider(BaseLLMProvider):
         repair_metadata: Dict[str, Any] = {}
         try:
             if self.require_search:
-                response = await self.client.send_search_request_async(repair_prompt)
+                with bind_quick_scan_format_repair():
+                    response = await self.client.send_search_request_async(repair_prompt)
                 repair_metadata = response.execution_metadata
                 if not response.search_verified:
                     metadata = self._merge_format_repair_metadata(
@@ -198,6 +206,15 @@ class AsyncLLMProvider(BaseLLMProvider):
                 )
             return repaired, metadata
         except Exception as error:
+            if isinstance(
+                error,
+                (
+                    QuickScanBudgetDeferredError,
+                    QuickScanWorkPersistenceError,
+                    QuickScanWorkUncertainError,
+                ),
+            ):
+                raise
             logger.warning("异步格式修复失败（%s）", type(error).__name__)
             if isinstance(error, LLMTransportAttemptError):
                 repair_metadata = {
@@ -316,6 +333,12 @@ class AsyncLLMProvider(BaseLLMProvider):
                         execution_metadata,
                     )
 
+            except (
+                QuickScanBudgetDeferredError,
+                QuickScanWorkPersistenceError,
+                QuickScanWorkUncertainError,
+            ):
+                raise
             except LLMTransportAttemptError as error:
                 transport_attempts.append(error.attempt_receipt)
                 if retry < self.max_retries - 1:

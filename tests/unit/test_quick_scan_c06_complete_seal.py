@@ -180,6 +180,22 @@ def _checkpointed(tmp_path, *, with_context: bool = True, with_answer: bool = Tr
         "completed_at": "2026-09-27T12:00:00Z",
         "source_urls": [SOURCE_URL],
     }
+    from src.providers.model_resolution import model_resolution_sha256
+
+    receipt.update(
+        requested_model=MODEL,
+        search_protocol="mimo_chat_completions",
+        response_sha256=hashlib.sha256(
+            json.dumps(
+                {"id": receipt["response_id"], "model": MODEL, "synthetic": True},
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=True,
+            ).encode("utf-8")
+        ).hexdigest(),
+        response_json_basis="parsed_payload",
+        model_resolution_sha256=model_resolution_sha256(None),
+    )
     store.record_attempt_outcome(
         work_id,
         lease,
@@ -188,6 +204,7 @@ def _checkpointed(tmp_path, *, with_context: bool = True, with_answer: bool = Tr
         http_status_code=200,
         receipt_sha256=quick_scan_receipt_sha256(receipt),
         request_id=receipt["request_id"],
+        execution_receipt=receipt,
     )
     body = _standard_body()
     answer = {
@@ -371,8 +388,8 @@ def test_legacy_checkpoint_without_inputs_keeps_its_historical_package_read_only
     assert len(store.list_delivery_revisions(work_id)) == 1
 
 
-def test_schema_v7_keeps_v6_side_tables_and_adds_consumer_binding(tmp_path):
-    assert SCHEMA_VERSION == 7
+def test_schema_v8_keeps_v6_v7_side_tables_and_adds_model_resolution(tmp_path):
+    assert SCHEMA_VERSION == 8
     store, item, _, _ = _checkpointed(tmp_path)
     with closing(store._connect()) as connection:
         version = connection.execute("PRAGMA user_version").fetchone()[0]
@@ -389,6 +406,8 @@ def test_schema_v7_keeps_v6_side_tables_and_adds_consumer_binding(tmp_path):
         "quick_scan_standard_answer",
         "quick_scan_delivery_revision",
         "quick_scan_delivery_consumer_binding",
+        "quick_scan_attempt_resolution",
+        "quick_scan_attempt_response",
     } <= tables
 
 
@@ -526,6 +545,8 @@ def _mutate(observation: dict, kind: str) -> None:
                 "evidence_ids": ["e1"],
             }
         ]
+    if kind == "model_resolved":
+        observation["execution"]["model_resolved"] = "forged-model"
     if kind == "metadata":
         observation["information_cutoff"] = "2020-01-01"
     if kind in {"started_at", "claim_and_start"}:
@@ -533,7 +554,7 @@ def _mutate(observation: dict, kind: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "kind", ["claim", "typed_metric", "metadata", "started_at", "claim_and_start"]
+    "kind", ["claim", "typed_metric", "metadata", "started_at", "claim_and_start", "model_resolved"]
 )
 def test_supersede_rejects_each_forged_complete_observation_field(tmp_path, kind):
     store, item, _, body = _checkpointed(tmp_path)
@@ -558,8 +579,10 @@ def test_supersede_rejects_each_forged_complete_observation_field(tmp_path, kind
     ]
 
 
+@pytest.mark.parametrize("kind", ["started_at", "model_resolved"])
 def test_prepare_refuses_a_forged_complete_observation_before_any_head_exists(
     tmp_path,
+    kind,
 ):
     from src.utils.quick_scan_delivery_seal import _send_intent_iso
 
@@ -580,9 +603,7 @@ def test_prepare_refuses_a_forged_complete_observation_before_any_head_exists(
         standard_answer=body,
         started_at=started_at,
     )
-    forged = _forged_complete_package(
-        package, lambda observation: _mutate(observation, "started_at")
-    )
+    forged = _forged_complete_package(package, lambda observation: _mutate(observation, kind))
     with pytest.raises(ValueError):
         store.prepare_result_delivery(work_item_id, forged)
     assert store.get_result_delivery(work_item_id) is None

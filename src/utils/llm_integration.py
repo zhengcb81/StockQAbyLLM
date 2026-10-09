@@ -5,6 +5,7 @@
 提供 Provider 降级、Token 追踪、请求缓存等 LLM 集成功能。
 """
 
+import copy
 import hashlib
 import json
 import time
@@ -732,7 +733,7 @@ class OrderedSearchProviderCascade(SearchProvider):
             self._validate_static_route_tables(providers, routes)
             self._validate_static_policy_fields(policy_version, max_attempts_per_dispatch_round)
             self.providers = tuple(providers)
-            self.routes = tuple(dict(route) for route in routes)
+            self.routes = tuple(copy.deepcopy(route) for route in routes)
         self.policy_version = policy_version
         self.max_attempts = max_attempts_per_dispatch_round
         self.require_search = require_search
@@ -946,7 +947,7 @@ class OrderedSearchProviderCascade(SearchProvider):
                 candidate_groups = self._validate_static_quota_groups(
                     new_routes, self.health_store, groups
                 )
-                candidate_routes = tuple(dict(route) for route in new_routes)
+                candidate_routes = tuple(copy.deepcopy(route) for route in new_routes)
                 candidate_providers = tuple(new_providers)
                 candidate_name = next(
                     (item.get_provider_name() for item in candidate_providers if item is not None),
@@ -1202,6 +1203,7 @@ class OrderedSearchProviderCascade(SearchProvider):
                         model_requested=route_context["requested_model"]
                         or getattr(provider, "model", None),
                         quota_group=quota_group,
+                        model_resolution=route.get("model_resolution"),
                     ):
                         if callable(provider_search):
                             results = provider_search(question)

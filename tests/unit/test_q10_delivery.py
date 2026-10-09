@@ -11,6 +11,7 @@ original observation.
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import sqlite3
 from pathlib import Path
@@ -18,6 +19,7 @@ from pathlib import Path
 import pytest
 
 from src.core.models import Question
+from src.providers.model_resolution import model_resolution_sha256
 from src.utils import quick_scan_result_outbox as outbox
 from src.utils.quick_scan_work_store import QuickScanWorkStore
 
@@ -69,6 +71,10 @@ def _receipt(**over) -> dict:
         "search_status": "executed",
         "provider": "mimo",
         "actual_model": "mimo-v2.6-flash",
+        "requested_model": "mimo-v2.6-flash",
+        "search_protocol": "mimo_chat_completions",
+        "response_json_basis": "parsed_payload",
+        "model_resolution_sha256": model_resolution_sha256(None),
         "response_id": "resp_q10_01",
         "attempt_id": "provider_attempt_q10_01",
         "search_receipt_id": "ws_q10_01",
@@ -80,6 +86,15 @@ def _receipt(**over) -> dict:
         "prompt_sha256": "e" * 64,
     }
     receipt.update(over)
+    # This fixture represents a synthetic parsed HTTP JSON payload. Its model
+    # is explicit response evidence, independent of the frozen request model.
+    synthetic_http_json = json.dumps(
+        {"id": receipt["response_id"], "model": receipt["actual_model"], "synthetic": True},
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    )
+    receipt["response_sha256"] = hashlib.sha256(synthetic_http_json.encode("utf-8")).hexdigest()
     return receipt
 
 
@@ -97,6 +112,7 @@ def _seed_checkpoint(store: QuickScanWorkStore, lifecycle, qid: str):
         receipt_sha256=quick_scan_receipt_sha256(receipt),
         http_status_code=200,
         request_id=receipt.get("request_id"),
+        execution_receipt=receipt,
     )
     record = store.save_answer_checkpoint(
         handle["work_item_id"],

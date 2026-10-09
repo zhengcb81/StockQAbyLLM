@@ -146,3 +146,6 @@ desktop.ini
 !src/config/quick_scan_c06_authority.v2.schema.json
 !tests/fixtures/quick_scan_c06_authority_v2_fixture.json
 !tests/fixtures/quick_scan_c06_manifest_v2_fixture.json
+
+# Non-secret model-resolution contract only
+!src/config/quick_scan_model_resolution.schema.json

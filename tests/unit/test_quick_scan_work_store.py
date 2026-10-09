@@ -1,6 +1,8 @@
 """Q06 stage-one durable work semantics; every database lives under tmp_path."""
 
+import copy
 import hashlib
+import json
 import os
 import sqlite3
 import subprocess
@@ -11,6 +13,10 @@ from pathlib import Path
 
 import pytest
 
+from src.providers.model_resolution import (
+    model_resolution_sha256,
+    normalize_model_resolution,
+)
 from src.utils.quick_scan_result_outbox import canonical_bytes, canonical_sha256
 from src.utils.quick_scan_work_store import (
     SCHEMA_VERSION,
@@ -70,6 +76,7 @@ def _prepared(
     request_cache_key=None,
     prompt_sha256="e" * 64,
     allow_format_repair=False,
+    model_resolution=None,
 ):
     if request_cache_key is None:
         request_cache_key = (
@@ -84,6 +91,7 @@ def _prepared(
         request_cache_key=request_cache_key,
         prompt_sha256=prompt_sha256,
         allow_format_repair=allow_format_repair,
+        model_resolution=model_resolution,
     )
 
 
@@ -434,26 +442,44 @@ def test_fallback_attempts_share_work_and_response_needs_future_checkpoint(tmp_p
     assert len(store.list_run_refs(work_id)) == 1
 
 
-def _successful_search_attempt(
-    store,
-    work_id,
+def _synthetic_search_receipt(
     *,
     provider="mimo",
     model="mimo-v2.6-flash",
+    actual_model=None,
+    model_resolution=None,
     source_urls=None,
+    response_id="resp_fixture_01",
+    request_id="req_fixture_01",
+    provider_attempt_id="provider_transport_attempt_01",
 ):
-    lease = store.claim(work_id, lease_seconds=60)
-    attempt = _prepared(store, work_id, lease, provider=provider, model=model)
-    store.mark_send_intent(work_id, lease, attempt["attempt_id"])
-    receipt = {
+    """Explicit synthetic HTTP JSON evidence; this is not a live provider receipt."""
+    resolved = model if actual_model is None else actual_model
+    synthetic_http_json = json.dumps(
+        {"fixture": "synthetic-http-json", "id": response_id, "model": resolved},
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    )
+    return {
         "provider": provider,
-        "request_id": "req_fixture_01",
-        "response_id": "resp_fixture_01",
-        "actual_model": model,
+        "request_id": request_id,
+        "response_id": response_id,
+        "actual_model": resolved,
+        "requested_model": model,
+        "search_protocol": {
+            "openai": "responses",
+            "minimax": "responses",
+            "mimo": "mimo_chat_completions",
+        }[provider],
+        "response_sha256": hashlib.sha256(synthetic_http_json.encode("utf-8")).hexdigest(),
+        "response_json_basis": "strict_http_json",
+        "model_resolution_sha256": model_resolution_sha256(model_resolution),
         "search_status": "executed",
         "response_status": "completed",
         "http_status_code": 200,
-        "attempt_id": "provider_transport_attempt_01",
+        "attempt_id": provider_attempt_id,
         "prompt_sha256": hashlib.sha256(b"provider prompt only").hexdigest(),
         "search_receipt_id": "search_call_01",
         "completed_at": "2026-09-27T12:00:00Z",
@@ -461,6 +487,36 @@ def _successful_search_attempt(
             source_urls if source_urls is not None else ["https://example.com/company-source"]
         ),
     }
+
+
+def _successful_search_attempt(
+    store,
+    work_id,
+    *,
+    provider="mimo",
+    model="mimo-v2.6-flash",
+    source_urls=None,
+    actual_model=None,
+    model_resolution=None,
+    durable=True,
+):
+    lease = store.claim(work_id, lease_seconds=60)
+    attempt = _prepared(
+        store,
+        work_id,
+        lease,
+        provider=provider,
+        model=model,
+        model_resolution=model_resolution,
+    )
+    store.mark_send_intent(work_id, lease, attempt["attempt_id"])
+    receipt = _synthetic_search_receipt(
+        provider=provider,
+        model=model,
+        actual_model=actual_model,
+        model_resolution=model_resolution,
+        source_urls=source_urls,
+    )
     store.record_attempt_outcome(
         work_id,
         lease,
@@ -469,6 +525,7 @@ def _successful_search_attempt(
         http_status_code=200,
         receipt_sha256=quick_scan_receipt_sha256(receipt),
         request_id=receipt["request_id"],
+        execution_receipt=receipt if durable else None,
     )
     return lease, attempt, receipt
 
@@ -481,6 +538,828 @@ def _answer_for(item, *, score=8, status="scored", description="具备稳定竞�
         "score": score,
         "description": description,
     }
+
+
+def _q10_alias_policy(requested="model-a", resolved="model-b"):
+    return {
+        "schema_version": "1.0.0",
+        "aliases": [
+            {
+                "provider": "mimo",
+                "protocol": "mimo_chat_completions",
+                "requested_model": requested,
+                "resolved_model": resolved,
+            }
+        ],
+    }
+
+
+def _q10_reconstruct_old_schema(connection, version):
+    """Build only this test's synthetic old contract; never backfill resolution.
+
+    Historical checkpoint actual_model is retained from its explicit HTTP
+    fixture. The new receipt fields/binding marker are removed before storing
+    the old receipt hash, then v8 side tables are removed. No old actual_model
+    is derived from attempt.model_requested.
+    """
+    guard = connection.execute(
+        "SELECT sql FROM sqlite_master WHERE name='answer_checkpoint_no_update'"
+    ).fetchone()[0]
+    connection.execute("DROP TRIGGER answer_checkpoint_no_update")
+    hashes = {}
+    for row in connection.execute("SELECT * FROM answer_checkpoint").fetchall():
+        payload = json.loads(row["payload_json"])
+        provenance = payload["provenance"]
+        response = connection.execute(
+            "SELECT receipt_json FROM quick_scan_attempt_response WHERE attempt_id=?",
+            (row["attempt_id"],),
+        ).fetchone()
+        if response is not None:
+            legacy_receipt = json.loads(response["receipt_json"])
+            for field in (
+                "requested_model",
+                "search_protocol",
+                "response_sha256",
+                "response_json_basis",
+                "model_resolution_sha256",
+            ):
+                legacy_receipt.pop(field, None)
+            legacy_hash = quick_scan_receipt_sha256(legacy_receipt)
+            provenance["receipt_sha256"] = legacy_hash
+            connection.execute(
+                "UPDATE attempt SET receipt_sha256=? WHERE attempt_id=?",
+                (legacy_hash, row["attempt_id"]),
+            )
+        provenance.pop("model_resolution_binding", None)
+        provenance.pop("response_sha256", None)
+        encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+        digest = hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+        connection.execute(
+            "UPDATE answer_checkpoint SET payload_json=?,payload_sha256=? WHERE checkpoint_id=?",
+            (encoded, digest, row["checkpoint_id"]),
+        )
+        hashes[row["work_item_id"]] = digest
+    connection.execute(guard)
+    connection.execute("DROP TABLE quick_scan_attempt_response")
+    connection.execute("DROP TABLE quick_scan_attempt_resolution")
+    connection.execute(f"PRAGMA user_version={version}")
+    return hashes
+
+
+def test_q10_bare_old_response_available_cannot_create_new_checkpoint(tmp_path):
+    store = _store(tmp_path, [1_800_000_000.0])
+    item = _created(store)
+    lease, attempt, receipt = _successful_search_attempt(store, item["work_item_id"], durable=False)
+    with pytest.raises(WorkConflictError, match="durable response"):
+        store.save_answer_checkpoint(
+            item["work_item_id"],
+            lease,
+            attempt["attempt_id"],
+            answer=_answer_for(item),
+            execution_receipt=receipt,
+        )
+    assert store.get_answer_checkpoint(item["work_item_id"]) is None
+    assert store.get_item(item["work_item_id"])["status"] == "leased"
+
+
+def test_q10_registered_alias_binds_durable_response_and_survives_restart(tmp_path):
+    store = _store(tmp_path, [1_800_000_000.0])
+    item = _created(store)
+    policy = _q10_alias_policy()
+    lease, attempt, receipt = _successful_search_attempt(
+        store,
+        item["work_item_id"],
+        model="model-a",
+        actual_model="model-b",
+        model_resolution=policy,
+    )
+    durable = store.get_attempt_response(attempt["attempt_id"])
+    assert durable["model_requested"] == "model-a"
+    assert durable["model_resolved"] == "model-b"
+    assert durable["receipt"] == receipt
+    assert durable["model_resolution"] == normalize_model_resolution(policy)
+    policy["aliases"][0]["resolved_model"] = "changed-after-dispatch"
+    checkpoint = store.save_answer_checkpoint(
+        item["work_item_id"],
+        lease,
+        attempt["attempt_id"],
+        answer=_answer_for(item),
+        execution_receipt=receipt,
+    )
+    assert checkpoint["payload"]["provenance"]["model_requested"] == "model-a"
+    assert checkpoint["payload"]["provenance"]["actual_model"] == "model-b"
+    restarted = _store(tmp_path, [1_800_000_000.0])
+    assert restarted.get_answer_checkpoint(item["work_item_id"]) == checkpoint
+    assert (
+        restarted.get_attempt_response(attempt["attempt_id"])["model_resolution"]
+        == _q10_alias_policy()
+    )
+
+
+@pytest.mark.parametrize("actual_model", ["model-b", "unrelated-model"])
+def test_q10_unregistered_durable_actual_is_preserved_but_cannot_checkpoint(tmp_path, actual_model):
+    store = _store(tmp_path, [1_800_000_000.0])
+    item = _created(store)
+    lease, attempt, receipt = _successful_search_attempt(
+        store,
+        item["work_item_id"],
+        model="model-a",
+        actual_model=actual_model,
+    )
+    assert store.get_attempt_response(attempt["attempt_id"])["model_resolved"] == actual_model
+    with pytest.raises(WorkConflictError, match="model binding"):
+        store.save_answer_checkpoint(
+            item["work_item_id"],
+            lease,
+            attempt["attempt_id"],
+            answer=_answer_for(item),
+            execution_receipt=receipt,
+        )
+    assert store.get_answer_checkpoint(item["work_item_id"]) is None
+    assert store.get_item(item["work_item_id"])["status"] == "leased"
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("actual_model", "unregistered"),
+        ("response_id", "forged-response"),
+        ("request_id", "forged-request-id"),
+        ("requested_model", "forged-request"),
+        ("attempt_id", "forged-provider-attempt"),
+        ("response_sha256", "0" * 64),
+        ("model_resolution_sha256", "0" * 64),
+    ],
+)
+def test_q10_changed_checkpoint_receipt_rolls_back_without_partial_answer(tmp_path, field, value):
+    store = _store(tmp_path, [1_800_000_000.0])
+    item = _created(store)
+    lease, attempt, receipt = _successful_search_attempt(store, item["work_item_id"])
+    original = copy.deepcopy(receipt)
+    with closing(store._connect()) as connection:
+        before = tuple(connection.iterdump())
+    receipt[field] = value
+    with pytest.raises(WorkConflictError):
+        store.save_answer_checkpoint(
+            item["work_item_id"],
+            lease,
+            attempt["attempt_id"],
+            answer=_answer_for(item),
+            execution_receipt=receipt,
+        )
+    with closing(store._connect()) as connection:
+        assert tuple(connection.iterdump()) == before
+    assert store.get_attempt_response(attempt["attempt_id"])["receipt"] == original
+    assert store.get_answer_checkpoint(item["work_item_id"]) is None
+
+
+@pytest.mark.parametrize(
+    "column,value",
+    [
+        ("model_resolved", "summary-only-forgery"),
+        ("receipt_sha256", "0" * 64),
+        ("response_sha256", "0" * 64),
+        ("response_id", "forged-response"),
+    ],
+)
+def test_q10_durable_response_summary_tamper_fails_closed_on_restart(tmp_path, column, value):
+    store = _store(tmp_path, [1_800_000_000.0])
+    item = _created(store)
+    _, attempt, _ = _successful_search_attempt(store, item["work_item_id"])
+    with closing(store._connect()) as connection, connection:
+        guard = connection.execute(
+            "SELECT sql FROM sqlite_master WHERE name='quick_scan_response_no_update'"
+        ).fetchone()[0]
+        connection.execute("DROP TRIGGER quick_scan_response_no_update")
+        connection.execute(
+            f"UPDATE quick_scan_attempt_response SET {column}=? WHERE attempt_id=?",
+            (value, attempt["attempt_id"]),
+        )
+        connection.execute(guard)
+    with pytest.raises(ValueError, match="durable response"):
+        _store(tmp_path, [1_800_000_000.0])
+
+
+def test_q10_attempt_response_and_frozen_permission_are_sql_immutable(tmp_path):
+    store = _store(tmp_path, [1_800_000_000.0])
+    item = _created(store)
+    _, attempt, _ = _successful_search_attempt(store, item["work_item_id"])
+    with closing(store._connect()) as connection, connection:
+        for table in ("quick_scan_attempt_resolution", "quick_scan_attempt_response"):
+            with pytest.raises(sqlite3.DatabaseError, match="immutable"):
+                connection.execute(
+                    f"DELETE FROM {table} WHERE attempt_id=?", (attempt["attempt_id"],)
+                )
+        with pytest.raises(sqlite3.DatabaseError, match="immutable"):
+            connection.execute("UPDATE quick_scan_attempt_resolution SET policy_json='{}'")
+        with pytest.raises(sqlite3.DatabaseError, match="immutable"):
+            connection.execute("UPDATE quick_scan_attempt_response SET model_resolved='forged'")
+
+
+def test_q10_durable_response_stores_only_sanitized_receipt_and_http_json_digest(tmp_path):
+    store = _store(tmp_path, [1_800_000_000.0])
+    item = _created(store)
+    lease = store.claim(item["work_item_id"], lease_seconds=60)
+    attempt = _prepared(store, item["work_item_id"], lease)
+    store.mark_send_intent(item["work_item_id"], lease, attempt["attempt_id"])
+    receipt = _synthetic_search_receipt()
+    original_digest = receipt["response_sha256"]
+    receipt["raw_response"] = "synthetic-raw-body-must-not-be-saved"
+    receipt["answer"] = {"actual_model": "answer-cannot-override-http"}
+    store.record_attempt_outcome(
+        item["work_item_id"],
+        lease,
+        attempt["attempt_id"],
+        outcome="response_available",
+        http_status_code=200,
+        request_id=receipt["request_id"],
+        receipt_sha256=quick_scan_receipt_sha256(receipt),
+        execution_receipt=receipt,
+    )
+    response = store.get_attempt_response(attempt["attempt_id"])
+    assert response["response_sha256"] == original_digest
+    assert response["model_resolved"] == receipt["actual_model"]
+    assert "raw_response" not in response["receipt"]
+    assert "answer" not in response["receipt"]
+    assert "synthetic-raw-body-must-not-be-saved" not in response["receipt_json"]
+
+
+def test_q10_permission_changed_before_response_cannot_authorize_old_dispatch(tmp_path):
+    store = _store(tmp_path, [1_800_000_000.0])
+    item = _created(store)
+    lease = store.claim(item["work_item_id"], lease_seconds=60)
+    empty = normalize_model_resolution(None)
+    attempt = _prepared(store, item["work_item_id"], lease, model="model-a", model_resolution=empty)
+    store.mark_send_intent(item["work_item_id"], lease, attempt["attempt_id"])
+    empty["aliases"] = _q10_alias_policy()["aliases"]
+    receipt = _synthetic_search_receipt(
+        model="model-a", actual_model="model-b", model_resolution=empty
+    )
+    with pytest.raises(WorkConflictError, match="frozen request"):
+        store.record_attempt_outcome(
+            item["work_item_id"],
+            lease,
+            attempt["attempt_id"],
+            outcome="response_available",
+            http_status_code=200,
+            request_id=receipt["request_id"],
+            receipt_sha256=quick_scan_receipt_sha256(receipt),
+            execution_receipt=receipt,
+        )
+    assert store.get_attempt_response(attempt["attempt_id"]) is None
+    assert store.list_attempts(item["work_item_id"])[0]["phase"] == "send_intent"
+    assert store.get_answer_checkpoint(item["work_item_id"]) is None
+
+
+def test_q10_response_insert_and_outcome_transition_are_one_transaction(tmp_path):
+    store = _store(tmp_path, [1_800_000_000.0])
+    item = _created(store)
+    lease = store.claim(item["work_item_id"], lease_seconds=60)
+    attempt = _prepared(store, item["work_item_id"], lease)
+    store.mark_send_intent(item["work_item_id"], lease, attempt["attempt_id"])
+    receipt = _synthetic_search_receipt()
+    with closing(store._connect()) as connection, connection:
+        connection.execute(
+            "CREATE TRIGGER q10_reject_response_outcome BEFORE UPDATE OF phase ON attempt "
+            "WHEN NEW.phase='response_available' BEGIN SELECT RAISE(ABORT,'synthetic outcome failure'); END"
+        )
+        before = tuple(connection.iterdump())
+    with pytest.raises(sqlite3.DatabaseError, match="synthetic outcome failure"):
+        store.record_attempt_outcome(
+            item["work_item_id"],
+            lease,
+            attempt["attempt_id"],
+            outcome="response_available",
+            http_status_code=200,
+            request_id=receipt["request_id"],
+            receipt_sha256=quick_scan_receipt_sha256(receipt),
+            execution_receipt=receipt,
+        )
+    assert store.get_attempt_response(attempt["attempt_id"]) is None
+    assert store.list_attempts(item["work_item_id"])[0]["phase"] == "send_intent"
+    with closing(store._connect()) as connection:
+        assert tuple(connection.iterdump()) == before
+
+
+def test_q10_same_request_key_cannot_change_frozen_permission(tmp_path):
+    store = _store(tmp_path, [1_800_000_000.0])
+    item = _created(store)
+    lease = store.claim(item["work_item_id"], lease_seconds=60)
+    first = _prepared(
+        store, item["work_item_id"], lease, model="model-a", model_resolution=_q10_alias_policy()
+    )
+    store.mark_send_intent(item["work_item_id"], lease, first["attempt_id"])
+    store.record_attempt_outcome(
+        item["work_item_id"],
+        lease,
+        first["attempt_id"],
+        outcome="confirmed_failure",
+        http_status_code=429,
+        receipt_sha256="f" * 64,
+        failure_category="rate_limited",
+        provider_error_code="rate_limit_exceeded",
+    )
+    for changed in (None, _q10_alias_policy(resolved="model-c")):
+        with pytest.raises(WorkConflictError, match="request key.*model resolution"):
+            _prepared(
+                store,
+                item["work_item_id"],
+                lease,
+                model="model-a",
+                request_cache_key=first["request_cache_key"],
+                model_resolution=changed,
+            )
+    assert len(store.list_attempts(item["work_item_id"])) == 1
+
+
+def test_q10_format_repair_cannot_change_frozen_permission(tmp_path):
+    store = _store(tmp_path, [1_800_000_000.0])
+    item = _created(store)
+    lease, first, _ = _successful_search_attempt(store, item["work_item_id"])
+    with pytest.raises(WorkConflictError, match="format repair.*model resolution"):
+        _prepared(
+            store,
+            item["work_item_id"],
+            lease,
+            allow_format_repair=True,
+            request_cache_key="REQ_" + "9" * 64,
+            prompt_sha256="8" * 64,
+            model_resolution=_q10_alias_policy(requested="mimo-v2.6-flash"),
+        )
+    assert len(store.list_attempts(item["work_item_id"])) == 1
+    assert store.list_attempts(item["work_item_id"])[0]["attempt_id"] == first["attempt_id"]
+
+
+def test_q10_new_exact_checkpoint_cannot_strip_durable_marker(tmp_path):
+    store = _store(tmp_path, [1_800_000_000.0])
+    item = _created(store)
+    lease, attempt, receipt = _successful_search_attempt(store, item["work_item_id"])
+    checkpoint = store.save_answer_checkpoint(
+        item["work_item_id"],
+        lease,
+        attempt["attempt_id"],
+        answer=_answer_for(item),
+        execution_receipt=receipt,
+    )
+    forged = copy.deepcopy(checkpoint["payload"])
+    forged["provenance"].pop("model_resolution_binding")
+    forged["provenance"].pop("response_sha256")
+    encoded = json.dumps(forged, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    with closing(store._connect()) as connection, connection:
+        original_guard = connection.execute(
+            "SELECT sql FROM sqlite_master WHERE name='answer_checkpoint_no_update'"
+        ).fetchone()[0]
+        connection.execute("DROP TRIGGER answer_checkpoint_no_update")
+        connection.execute(
+            "UPDATE answer_checkpoint SET payload_json=?,payload_sha256=?",
+            (encoded, hashlib.sha256(encoded.encode("utf-8")).hexdigest()),
+        )
+        connection.execute(original_guard)
+    with pytest.raises(ValueError, match="historical checkpoint"):
+        store.get_answer_checkpoint(item["work_item_id"])
+    with pytest.raises(ValueError, match="historical checkpoint"):
+        _store(tmp_path, [1_800_000_000.0])
+
+
+def _q10_repair_attempt(store, item, lease, *, actual_model="mimo-v2.6-flash"):
+    attempt = _prepared(
+        store,
+        item["work_item_id"],
+        lease,
+        allow_format_repair=True,
+        request_cache_key="REQ_" + "9" * 64,
+        prompt_sha256="8" * 64,
+    )
+    receipt = _synthetic_search_receipt(
+        actual_model=actual_model,
+        response_id="synthetic-repair-response",
+        request_id="synthetic-repair-request",
+        provider_attempt_id="synthetic-repair-attempt",
+    )
+    return attempt, receipt
+
+
+def _q10_record_success(store, item, lease, attempt, receipt):
+    store.record_attempt_outcome(
+        item["work_item_id"],
+        lease,
+        attempt["attempt_id"],
+        outcome="response_available",
+        http_status_code=200,
+        request_id=receipt["request_id"],
+        receipt_sha256=quick_scan_receipt_sha256(receipt),
+        execution_receipt=receipt,
+    )
+
+
+@pytest.mark.parametrize(
+    "latest_phase",
+    [
+        "prepared",
+        "send_intent",
+        "response_available",
+        "confirmed_failure",
+        "unknown",
+        "late_lease",
+    ],
+)
+def test_q10_checkpoint_requires_final_attempt_without_downgrading_after_repair(
+    tmp_path, latest_phase
+):
+    now = [1_800_000_000.0]
+    store = _store(tmp_path, now)
+    item = _created(store)
+    work_id = item["work_item_id"]
+    lease, first, first_receipt = _successful_search_attempt(store, work_id)
+    second, second_receipt = _q10_repair_attempt(store, item, lease)
+    if latest_phase != "prepared":
+        store.mark_send_intent(work_id, lease, second["attempt_id"])
+    if latest_phase == "response_available":
+        _q10_record_success(store, item, lease, second, second_receipt)
+    elif latest_phase == "confirmed_failure":
+        failed = {
+            **second_receipt,
+            "http_status_code": 401,
+            "search_status": "unverified",
+            "response_status": None,
+            "source_urls": [],
+        }
+        store.record_attempt_outcome(
+            work_id,
+            lease,
+            second["attempt_id"],
+            outcome="confirmed_failure",
+            http_status_code=401,
+            failure_category="authentication_rejected",
+            request_id=failed["request_id"],
+            receipt_sha256=quick_scan_receipt_sha256(failed),
+            execution_receipt=failed,
+        )
+    elif latest_phase == "unknown":
+        store.record_attempt_outcome(work_id, lease, second["attempt_id"], outcome="unknown")
+    elif latest_phase == "late_lease":
+        now[0] += 61
+        assert store.recover_expired(work_id) == "uncertain"
+        store.note_late_receipt(
+            work_id,
+            lease,
+            second["attempt_id"],
+            receipt_sha256=quick_scan_receipt_sha256(second_receipt),
+            execution_receipt=second_receipt,
+        )
+    with closing(store._connect()) as connection:
+        before = tuple(connection.iterdump())
+    expected_error = (
+        LeaseFencedError if latest_phase in {"unknown", "late_lease"} else WorkConflictError
+    )
+    with pytest.raises(expected_error):
+        store.save_answer_checkpoint(
+            work_id,
+            lease,
+            first["attempt_id"],
+            answer=_answer_for(item),
+            execution_receipt=first_receipt,
+        )
+    with closing(store._connect()) as connection:
+        assert tuple(connection.iterdump()) == before
+    assert store.get_answer_checkpoint(work_id) is None
+    if latest_phase == "response_available":
+        checkpoint = store.save_answer_checkpoint(
+            work_id,
+            lease,
+            second["attempt_id"],
+            answer=_answer_for(item),
+            execution_receipt=second_receipt,
+        )
+        assert checkpoint["attempt_id"] == second["attempt_id"]
+        assert checkpoint["payload"]["provenance"]["response_id"] == "synthetic-repair-response"
+        assert _store(tmp_path, now).get_answer_checkpoint(work_id) == checkpoint
+    elif latest_phase in {"unknown", "late_lease"}:
+        assert store.get_item(work_id)["status"] == "uncertain"
+        assert store.claim(work_id, lease_seconds=60) is None
+
+
+def test_q10_latest_unregistered_response_cannot_downgrade_to_earlier_success(tmp_path):
+    store = _store(tmp_path, [1_800_000_000.0])
+    item = _created(store)
+    lease, first, first_receipt = _successful_search_attempt(store, item["work_item_id"])
+    second, second_receipt = _q10_repair_attempt(store, item, lease, actual_model="unregistered")
+    store.mark_send_intent(item["work_item_id"], lease, second["attempt_id"])
+    _q10_record_success(store, item, lease, second, second_receipt)
+    with closing(store._connect()) as connection:
+        before = tuple(connection.iterdump())
+    for attempt, receipt in ((first, first_receipt), (second, second_receipt)):
+        with pytest.raises(WorkConflictError):
+            store.save_answer_checkpoint(
+                item["work_item_id"],
+                lease,
+                attempt["attempt_id"],
+                answer=_answer_for(item),
+                execution_receipt=receipt,
+            )
+    with closing(store._connect()) as connection:
+        assert tuple(connection.iterdump()) == before
+    assert store.get_answer_checkpoint(item["work_item_id"]) is None
+
+
+def test_q10_checkpoint_read_cannot_rebind_to_intermediate_attempt(tmp_path):
+    store = _store(tmp_path, [1_800_000_000.0])
+    item = _created(store)
+    work_id = item["work_item_id"]
+    lease, first, first_receipt = _successful_search_attempt(store, work_id)
+    second, second_receipt = _q10_repair_attempt(store, item, lease)
+    store.mark_send_intent(work_id, lease, second["attempt_id"])
+    _q10_record_success(store, item, lease, second, second_receipt)
+    checkpoint = store.save_answer_checkpoint(
+        work_id,
+        lease,
+        second["attempt_id"],
+        answer=_answer_for(item),
+        execution_receipt=second_receipt,
+    )
+    payload = copy.deepcopy(checkpoint["payload"])
+    payload["attempt_id"] = first["attempt_id"]
+    payload["provenance"].update(
+        work_prompt_sha256=first["prompt_sha256"],
+        request_id=first_receipt["request_id"],
+        response_id=first_receipt["response_id"],
+        provider_attempt_id=first_receipt["attempt_id"],
+        response_sha256=first_receipt["response_sha256"],
+        receipt_sha256=quick_scan_receipt_sha256(first_receipt),
+    )
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    with closing(store._connect()) as connection, connection:
+        guard = connection.execute(
+            "SELECT sql FROM sqlite_master WHERE name='answer_checkpoint_no_update'"
+        ).fetchone()[0]
+        connection.execute("DROP TRIGGER answer_checkpoint_no_update")
+        connection.execute(
+            "UPDATE answer_checkpoint SET attempt_id=?,payload_json=?,payload_sha256=?",
+            (first["attempt_id"], encoded, hashlib.sha256(encoded.encode("utf-8")).hexdigest()),
+        )
+        connection.execute(guard)
+    with pytest.raises((ValueError, WorkConflictError), match="final attempt"):
+        store.get_answer_checkpoint(work_id)
+    with pytest.raises((ValueError, WorkConflictError), match="final attempt"):
+        _store(tmp_path, [1_800_000_000.0])
+
+
+def test_q10_latest_registered_repair_response_can_checkpoint(tmp_path):
+    store = _store(tmp_path, [1_800_000_000.0])
+    item = _created(store)
+    policy = _q10_alias_policy(requested="model-a", resolved="model-b")
+    lease, first, first_receipt = _successful_search_attempt(
+        store,
+        item["work_item_id"],
+        model="model-a",
+        model_resolution=policy,
+    )
+    second = _prepared(
+        store,
+        item["work_item_id"],
+        lease,
+        model="model-a",
+        model_resolution=policy,
+        allow_format_repair=True,
+        request_cache_key="REQ_" + "9" * 64,
+        prompt_sha256="8" * 64,
+    )
+    store.mark_send_intent(item["work_item_id"], lease, second["attempt_id"])
+    second_receipt = _synthetic_search_receipt(
+        model="model-a",
+        actual_model="model-b",
+        model_resolution=policy,
+        response_id="synthetic-alias-repair",
+        request_id="synthetic-alias-request",
+        provider_attempt_id="synthetic-alias-attempt",
+    )
+    _q10_record_success(store, item, lease, second, second_receipt)
+    with pytest.raises(WorkConflictError, match="final attempt"):
+        store.save_answer_checkpoint(
+            item["work_item_id"],
+            lease,
+            first["attempt_id"],
+            answer=_answer_for(item),
+            execution_receipt=first_receipt,
+        )
+    checkpoint = store.save_answer_checkpoint(
+        item["work_item_id"],
+        lease,
+        second["attempt_id"],
+        answer=_answer_for(item),
+        execution_receipt=second_receipt,
+    )
+    assert checkpoint["payload"]["provenance"]["model_requested"] == "model-a"
+    assert checkpoint["payload"]["provenance"]["actual_model"] == "model-b"
+    assert checkpoint["attempt_id"] == second["attempt_id"]
+    assert (
+        _store(tmp_path, [1_800_000_000.0]).get_answer_checkpoint(item["work_item_id"])
+        == checkpoint
+    )
+
+
+def test_q10_unsent_repair_after_prior_response_remains_uncertain_without_replay(
+    tmp_path, monkeypatch
+):
+    from unittest.mock import Mock
+
+    from src.providers.llm_client import LLMClient
+    from src.utils.quick_scan_work_transport import (
+        QuickScanWorkPersistenceError,
+        bind_quick_scan_budget,
+        bind_quick_scan_route,
+        bind_quick_scan_work,
+    )
+
+    now = [1_800_000_000.0]
+    store = _store(tmp_path, now)
+    item = _created(store)
+    work_id = item["work_item_id"]
+    model = "mimo-v2.6-flash"
+    policy = {
+        "configured": True,
+        "policy_id": "synthetic-repair-budget",
+        "policy_version": "synthetic-repair-budget@v1",
+        "budget": {"currency": "USD", "max_cost": 20, "max_requests": 5, "max_cost_per_attempt": 2},
+        "cost_policy": {
+            "pricing_basis": "verified_rate_card",
+            "pricing_ref": "synthetic-rates",
+            "reserve_before_dispatch": True,
+            "unknown_actual_cost_action": "retain_reservation_and_pause",
+        },
+        "dispatch": {"max_in_flight_total": 1},
+        "quota_groups": [{"id": "synthetic-account", "max_in_flight": 1}],
+        "routes": [
+            {
+                "id": "route-1",
+                "provider_config_ref": "mimo",
+                "model": model,
+                "quota_group": "synthetic-account",
+                "max_in_flight": 1,
+                "eligible": True,
+            }
+        ],
+    }
+    store.configure_quick_scan_budget(policy)
+    old_lease = store.claim(work_id, lease_seconds=60)
+    assert old_lease is not None
+    first = _prepared(store, work_id, old_lease)
+    store.mark_send_intent(
+        work_id,
+        old_lease,
+        first["attempt_id"],
+        budget_policy=policy,
+        budget_route={
+            "route_id": "route-1",
+            "provider": "mimo",
+            "model_requested": model,
+            "quota_group": "synthetic-account",
+        },
+    )
+    first_receipt = _synthetic_search_receipt()
+    _q10_record_success(store, item, old_lease, first, first_receipt)
+    unsent, _ = _q10_repair_attempt(store, item, old_lease)
+    original_response = store.get_attempt_response(first["attempt_id"])
+    original_budget = store.get_quick_scan_budget_status(policy["policy_id"])
+    assert original_budget["reserved_micros"] == 2_000_000
+    assert original_budget["unreconciled_attempts"] == 1
+    now[0] += 61
+    assert store.recover_expired(work_id) == "uncertain"
+    assert store.get_item(work_id)["status"] == "uncertain"
+    assert store.get_item(work_id)["uncertain_attempt_id"] == first["attempt_id"]
+    assert store.claim(work_id, lease_seconds=60) is None
+    with pytest.raises(LeaseFencedError):
+        store.save_answer_checkpoint(
+            work_id,
+            old_lease,
+            first["attempt_id"],
+            answer=_answer_for(item),
+            execution_receipt=first_receipt,
+        )
+    session = Mock()
+    monkeypatch.setattr(
+        "src.providers.llm_client.http_client_manager.get_sync_session", lambda: session
+    )
+    client = LLMClient(
+        "synthetic", model, "https://api.xiaomimimo.com/v1/chat/completions", provider_name="mimo"
+    )
+    with bind_quick_scan_work(store, work_id, old_lease), bind_quick_scan_budget(store, policy):
+        with bind_quick_scan_route(
+            route_id="route-1",
+            provider="mimo",
+            model_requested=model,
+            quota_group="synthetic-account",
+        ):
+            with pytest.raises(QuickScanWorkPersistenceError):
+                client.send_search_request("synthetic replay must not dispatch")
+    session.post.assert_not_called()
+    assert store.get_answer_checkpoint(work_id) is None
+    assert [attempt["attempt_id"] for attempt in store.list_attempts(work_id)] == [
+        first["attempt_id"],
+        unsent["attempt_id"],
+    ]
+    assert [attempt["phase"] for attempt in store.list_attempts(work_id)] == [
+        "response_available",
+        "prepared",
+    ]
+    assert store.get_attempt_response(first["attempt_id"]) == original_response
+    assert store.get_quick_scan_budget_status(policy["policy_id"]) == original_budget
+
+
+def test_q10_v7_migration_adds_empty_tables_without_backfilling_bare_attempt(tmp_path):
+    store = _store(tmp_path, [1_800_000_000.0])
+    item = _created(store)
+    lease, attempt, receipt = _successful_search_attempt(store, item["work_item_id"], durable=False)
+    with closing(store._connect()) as connection, connection:
+        _q10_reconstruct_old_schema(connection, 7)
+        before = tuple(connection.execute("SELECT * FROM attempt").fetchone())
+    migrated = _store(tmp_path, [1_800_000_000.0])
+    with closing(migrated._connect()) as connection:
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 8
+        for table in ("quick_scan_attempt_resolution", "quick_scan_attempt_response"):
+            assert connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 0
+        assert tuple(connection.execute("SELECT * FROM attempt").fetchone()) == before
+    assert migrated.get_attempt_response(attempt["attempt_id"]) is None
+    with pytest.raises(WorkConflictError, match="durable response"):
+        migrated.save_answer_checkpoint(
+            item["work_item_id"],
+            lease,
+            attempt["attempt_id"],
+            answer=_answer_for(item),
+            execution_receipt=receipt,
+        )
+    assert migrated.get_answer_checkpoint(item["work_item_id"]) is None
+
+
+def test_q10_v7_exact_checkpoint_remains_readable_without_new_response_rows(tmp_path):
+    store = _store(tmp_path, [1_800_000_000.0])
+    item = _created(store)
+    lease, attempt, receipt = _successful_search_attempt(store, item["work_item_id"])
+    store.save_answer_checkpoint(
+        item["work_item_id"],
+        lease,
+        attempt["attempt_id"],
+        answer=_answer_for(item),
+        execution_receipt=receipt,
+    )
+    with closing(store._connect()) as connection, connection:
+        legacy_hash = _q10_reconstruct_old_schema(connection, 7)[item["work_item_id"]]
+    migrated = _store(tmp_path, [1_800_000_000.0])
+    checkpoint = migrated.get_answer_checkpoint(item["work_item_id"])
+    assert checkpoint["payload_sha256"] == legacy_hash
+    assert checkpoint["payload"]["provenance"]["actual_model"] == receipt["actual_model"]
+    assert "model_resolution_binding" not in checkpoint["payload"]["provenance"]
+    assert migrated.get_attempt_response(attempt["attempt_id"]) is None
+
+
+def test_q10_v7_old_request_cannot_be_authorized_by_new_alias_config(tmp_path):
+    store = _store(tmp_path, [1_800_000_000.0])
+    item = _created(store)
+    lease = store.claim(item["work_item_id"], lease_seconds=60)
+    first = _prepared(store, item["work_item_id"], lease, model="model-a")
+    store.mark_send_intent(item["work_item_id"], lease, first["attempt_id"])
+    store.record_attempt_outcome(
+        item["work_item_id"],
+        lease,
+        first["attempt_id"],
+        outcome="confirmed_failure",
+        http_status_code=429,
+        receipt_sha256="f" * 64,
+        failure_category="rate_limited",
+        provider_error_code="rate_limit_exceeded",
+    )
+    with closing(store._connect()) as connection, connection:
+        _q10_reconstruct_old_schema(connection, 7)
+    migrated = _store(tmp_path, [1_800_000_000.0])
+    with pytest.raises(WorkConflictError, match="request key.*model resolution"):
+        _prepared(
+            migrated,
+            item["work_item_id"],
+            lease,
+            model="model-a",
+            request_cache_key=first["request_cache_key"],
+            model_resolution=_q10_alias_policy(),
+        )
+    assert migrated.get_attempt_response(first["attempt_id"]) is None
+    assert len(migrated.list_attempts(item["work_item_id"])) == 1
+
+
+def test_q10_failed_v8_migration_rolls_back_original_v7_schema(tmp_path, monkeypatch):
+    from src.utils import quick_scan_work_store as module
+
+    store = _store(tmp_path, [1_800_000_000.0])
+    _created(store)
+    with closing(store._connect()) as connection, connection:
+        _q10_reconstruct_old_schema(connection, 7)
+        before = tuple(connection.iterdump())
+    monkeypatch.setattr(
+        module, "_DDL_V8_ADDITIONS", (*module._DDL_V8_ADDITIONS, "CREATE TABLE broken(")
+    )
+    with pytest.raises(sqlite3.DatabaseError):
+        _store(tmp_path, [1_800_000_000.0])
+    with closing(sqlite3.connect(store.path)) as connection:
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 7
+        assert tuple(connection.iterdump()) == before
 
 
 def test_checkpoint_is_atomic_immutable_and_idempotent_after_restart(tmp_path):
@@ -587,6 +1466,13 @@ def test_checkpoint_receipt_hash_binds_source_and_completion_metadata_but_not_ra
         "provider": "mimo",
         "response_id": "resp_fixture_01",
         "actual_model": "mimo-v2.6-flash",
+        "requested_model": "mimo-v2.6-flash",
+        "search_protocol": "mimo_chat_completions",
+        "response_sha256": hashlib.sha256(
+            b'{"fixture":"synthetic-http-json","model":"mimo-v2.6-flash"}'
+        ).hexdigest(),
+        "response_json_basis": "strict_http_json",
+        "model_resolution_sha256": model_resolution_sha256(None),
         "search_status": "executed",
         "response_status": "completed",
         "http_status_code": 200,
@@ -615,6 +1501,10 @@ def test_checkpoint_receipt_hash_binds_source_and_completion_metadata_but_not_ra
     assert quick_scan_receipt_sha256(base) != quick_scan_receipt_sha256(
         {**base, "completed_at": "2026-09-27T12:01:00Z"}
     )
+    for field in ("response_sha256", "model_resolution_sha256"):
+        assert quick_scan_receipt_sha256(base) != quick_scan_receipt_sha256(
+            {**base, field: "0" * 64}
+        )
     assert quick_scan_receipt_sha256(base) != quick_scan_receipt_sha256(
         {**base, "usage": {**base["usage"], "output_tokens": 26}}
     )
@@ -765,6 +1655,8 @@ def test_v1_migration_preserves_work_rows_and_adds_empty_checkpoint_table(tmp_pa
     with closing(migrated._connect()) as connection, connection:
         assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         assert connection.execute("SELECT COUNT(*) FROM answer_checkpoint").fetchone()[0] == 0
+        for table in ("quick_scan_attempt_resolution", "quick_scan_attempt_response"):
+            assert connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 0
         after = {
             table: [
                 tuple(row)
@@ -1594,6 +2486,7 @@ def test_result_delivery_package_and_event_ledger_are_database_immutable(tmp_pat
 def test_schema_v4_upgrade_preserves_checkpoint_and_creates_delivery_ledger(tmp_path):
     store, item, checkpoint, clock = _checkpointed_work_item(tmp_path)
     with closing(store._connect()) as connection, connection:
+        legacy_checkpoint_hash = _q10_reconstruct_old_schema(connection, 4)[item["work_item_id"]]
         connection.execute("DROP TABLE quick_scan_delivery_consumer_binding")
         connection.execute("DROP TABLE quick_scan_result_delivery_event")
         connection.execute("DROP TABLE quick_scan_result_delivery")
@@ -1610,7 +2503,7 @@ def test_schema_v4_upgrade_preserves_checkpoint_and_creates_delivery_ledger(tmp_
     assert migrated.get_item(item["work_item_id"])["status"] == "result_ready"
     assert (
         migrated.get_answer_checkpoint(item["work_item_id"])["payload_sha256"]
-        == checkpoint["payload_sha256"]
+        == legacy_checkpoint_hash
     )
     with closing(migrated._connect()) as connection:
         assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
@@ -1632,7 +2525,8 @@ def _jr2_legacy_v6_delivery(tmp_path, state):
             "missing_entity" if state == "rejected" else "immutable_key_hash_conflict"
         )
     with closing(store._connect()) as connection, connection:
-        # Remove only JR2 additions to reconstruct the unchanged v6 schema.
+        # Remove Q10 additions too so the JR2 fixture remains a real v6 schema.
+        _q10_reconstruct_old_schema(connection, 6)
         for name in (
             "quick_scan_consumer_binding_insert_guard",
             "quick_scan_consumer_binding_no_update",

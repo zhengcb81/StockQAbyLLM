@@ -6,6 +6,7 @@
 """
 
 import hashlib
+import json
 import math
 import uuid
 from dataclasses import dataclass
@@ -15,9 +16,17 @@ from typing import Any, Dict, Optional, Tuple, cast
 from urllib.parse import urlsplit, urlunsplit
 
 from src.config.settings import DEFAULT_TIMEOUT, MAX_TOKENS, TEMPERATURE
+from src.providers.model_resolution import (
+    model_resolution_allowed,
+    model_resolution_sha256,
+    normalize_model_resolution,
+)
 from src.utils.http_client import http_client_manager
 from src.utils.logger import get_logger
-from src.utils.quick_scan_work_transport import begin_quick_scan_send
+from src.utils.quick_scan_work_transport import (
+    begin_quick_scan_send,
+    frozen_quick_scan_model_resolution,
+)
 
 logger = get_logger(__name__)
 
@@ -200,10 +209,15 @@ def _response_retry_after_seconds(response: Any) -> Optional[float]:
 
 
 def _parse_search_response(
-    response: Any, *, provider: str, requested_model: str
+    response: Any,
+    *,
+    provider: str,
+    requested_model: str,
+    model_resolution: Any = None,
+    response_payload: Any = None,
 ) -> LLMSearchResponse:
     """Bind completed search events and source URLs to one provider response."""
-    payload = response.json()
+    payload = response.json() if response_payload is None else response_payload
     if not isinstance(payload, dict):
         raise ValueError("Responses API returned a non-object response")
 
@@ -312,7 +326,9 @@ def _parse_search_response(
         search_verified = bool(
             response_status == "completed"
             and response_id
-            and actual_model == requested_model
+            and model_resolution_allowed(
+                provider, "responses", requested_model, actual_model, model_resolution
+            )
             and verified_calls
             and source_urls
             and content
@@ -321,7 +337,13 @@ def _parse_search_response(
         source_urls = tuple(dict.fromkeys(verified_call_urls + annotation_urls))
         content = "\n".join(text_parts).strip()
         search_verified = bool(
-            response_status == "completed" and request_id and response_id and verified_calls
+            response_status == "completed"
+            and request_id
+            and response_id
+            and verified_calls
+            and model_resolution_allowed(
+                provider, "responses", requested_model, actual_model, model_resolution
+            )
         )
     execution_metadata = {
         "provider": provider,
@@ -358,9 +380,15 @@ _ANTHROPIC_SEARCH_ERROR_CODES = frozenset(
 )
 
 
-def _parse_anthropic_search_response(response: Any, *, requested_model: str) -> LLMSearchResponse:
+def _parse_anthropic_search_response(
+    response: Any,
+    *,
+    requested_model: str,
+    model_resolution: Any = None,
+    response_payload: Any = None,
+) -> LLMSearchResponse:
     """Bind Anthropic-style server search results to their exact tool-use IDs."""
-    payload = response.json()
+    payload = response.json() if response_payload is None else response_payload
     if not isinstance(payload, dict):
         raise ValueError("Anthropic Messages API returned a non-object response")
 
@@ -449,7 +477,9 @@ def _parse_anthropic_search_response(response: Any, *, requested_model: str) -> 
     )
     search_verified = bool(
         response_id
-        and actual_model == requested_model
+        and model_resolution_allowed(
+            "minimax", "anthropic_messages", requested_model, actual_model, model_resolution
+        )
         and stop_reason == "end_turn"
         and base_resp_ok
         and len(calls) == 1
@@ -493,9 +523,15 @@ def _parse_anthropic_search_response(response: Any, *, requested_model: str) -> 
     )
 
 
-def _parse_mimo_search_response(response: Any, *, requested_model: str) -> LLMSearchResponse:
+def _parse_mimo_search_response(
+    response: Any,
+    *,
+    requested_model: str,
+    model_resolution: Any = None,
+    response_payload: Any = None,
+) -> LLMSearchResponse:
     """Normalize MiMo Chat Completions citations as response-bound search evidence."""
-    payload = response.json()
+    payload = response.json() if response_payload is None else response_payload
     if not isinstance(payload, dict):
         raise ValueError("MiMo Chat Completions returned a non-object response")
 
@@ -504,9 +540,7 @@ def _parse_mimo_search_response(response: Any, *, requested_model: str) -> LLMSe
         response_id.strip() if isinstance(response_id, str) and response_id.strip() else None
     )
     actual_model = payload.get("model")
-    actual_model = (
-        actual_model.strip() if isinstance(actual_model, str) and actual_model.strip() else None
-    )
+    actual_model = actual_model if isinstance(actual_model, str) and actual_model.strip() else None
     choices = payload.get("choices")
     choice = (
         choices[0]
@@ -532,7 +566,9 @@ def _parse_mimo_search_response(response: Any, *, requested_model: str) -> LLMSe
     request_id = _response_request_id(response)
     verified = bool(
         response_id
-        and actual_model == requested_model
+        and model_resolution_allowed(
+            "mimo", "mimo_chat_completions", requested_model, actual_model, model_resolution
+        )
         and finish_reason == "stop"
         and content.strip()
         and citation_annotations
@@ -581,13 +617,89 @@ def _parse_mimo_search_response(response: Any, *, requested_model: str) -> LLMSe
 
 
 def _parse_protocol_search_response(
-    response: Any, *, provider: str, protocol: str, requested_model: str
+    response: Any,
+    *,
+    provider: str,
+    protocol: str,
+    requested_model: str,
+    model_resolution: Any = None,
+    response_payload: Any = None,
 ) -> LLMSearchResponse:
     if protocol == "anthropic_messages":
-        return _parse_anthropic_search_response(response, requested_model=requested_model)
+        return _parse_anthropic_search_response(
+            response,
+            requested_model=requested_model,
+            model_resolution=model_resolution,
+            response_payload=response_payload,
+        )
     if protocol == "mimo_chat_completions":
-        return _parse_mimo_search_response(response, requested_model=requested_model)
-    return _parse_search_response(response, provider=provider, requested_model=requested_model)
+        return _parse_mimo_search_response(
+            response,
+            requested_model=requested_model,
+            model_resolution=model_resolution,
+            response_payload=response_payload,
+        )
+    return _parse_search_response(
+        response,
+        provider=provider,
+        requested_model=requested_model,
+        model_resolution=model_resolution,
+        response_payload=response_payload,
+    )
+
+
+def _canonical_http_json(response: Any) -> Tuple[Any, str, str]:
+    """Hash canonical JSON, not network bytes; real raw JSON is strictly decoded.
+
+    Synthetic response doubles without text/content use an explicitly labelled
+    parsed payload. That basis makes no claim about duplicate raw JSON keys.
+    """
+
+    def pairs(items: Any) -> Dict[str, Any]:
+        result: Dict[str, Any] = {}
+        for key, value in items:
+            if key in result:
+                raise ValueError("duplicate HTTP JSON key")
+            result[key] = value
+        return result
+
+    raw = getattr(response, "content", None)
+    if not isinstance(raw, (str, bytes)):
+        raw = getattr(response, "text", None)
+    if isinstance(raw, (str, bytes)):
+        payload = json.loads(
+            raw,
+            object_pairs_hook=pairs,
+            parse_constant=lambda value: (_ for _ in ()).throw(ValueError("nonfinite HTTP JSON")),
+        )
+        basis = "strict_http_json"
+    else:
+        payload, basis = response.json(), "parsed_payload"
+
+    def finite_json(value: Any) -> None:
+        if value is None or type(value) in (str, bool, int):
+            return
+        if type(value) is float:
+            if not math.isfinite(value):
+                raise ValueError("nonfinite HTTP JSON")
+            return
+        if type(value) is list:
+            for item in value:
+                finite_json(item)
+            return
+        if type(value) is dict:
+            for key, item in value.items():
+                if type(key) is not str:
+                    raise ValueError("HTTP JSON object key must be a string")
+                finite_json(item)
+            return
+        raise ValueError("HTTP payload is not finite JSON")
+
+    finite_json(payload)
+    encoded = json.dumps(
+        payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False
+    ).encode("utf-8")
+    return payload, hashlib.sha256(encoded).hexdigest(), basis
 
 
 def _usage_count(value: Any) -> Optional[int]:
@@ -754,11 +866,22 @@ def _with_attempt_receipt(
     attempt_id: str,
     started_at: str,
     response: Any,
+    *,
+    requested_model: str,
+    protocol: str,
+    response_sha256: str,
+    response_json_basis: str,
+    model_resolution: Any,
 ) -> LLMSearchResponse:
     metadata = dict(parsed.execution_metadata)
     metadata.update(
         {
             "http_status_code": _response_status_code(response),
+            "requested_model": requested_model,
+            "search_protocol": protocol,
+            "response_sha256": response_sha256,
+            "response_json_basis": response_json_basis,
+            "model_resolution_sha256": model_resolution_sha256(model_resolution),
             "attempt_id": attempt_id,
             "started_at": started_at,
             "completed_at": _utc_now(),
@@ -773,6 +896,11 @@ def _with_attempt_receipt(
                 "request_id",
                 "response_id",
                 "actual_model",
+                "requested_model",
+                "search_protocol",
+                "response_sha256",
+                "response_json_basis",
+                "model_resolution_sha256",
                 "search_status",
                 "response_status",
                 "http_status_code",
@@ -807,6 +935,8 @@ def _failed_attempt_receipt(
     *,
     provider: str,
     protocol: Optional[str] = None,
+    requested_model: Optional[str] = None,
+    model_resolution: Any = None,
 ) -> Dict[str, Any]:
     receipt: Dict[str, Any] = {
         "provider": provider,
@@ -829,8 +959,30 @@ def _failed_attempt_receipt(
     # a rejected request. HTTP status alone proves neither zero cost nor usage.
     if protocol is not None:
         try:
-            payload = response.json()
+            payload, response_sha256, response_json_basis = _canonical_http_json(response)
             reported_model = payload.get("model") if isinstance(payload, dict) else None
+            reported_id = payload.get("id") if isinstance(payload, dict) else None
+            receipt.update(
+                requested_model=requested_model,
+                search_protocol=protocol,
+                response_sha256=response_sha256,
+                response_json_basis=response_json_basis,
+                model_resolution_sha256=model_resolution_sha256(model_resolution),
+            )
+            status_code = receipt["http_status_code"]
+            if type(status_code) is int and 300 <= status_code < 400:
+                # A redirect body is not a protocol response. Keep its digest,
+                # but do not promote its claimed identity or usage.
+                return receipt
+            if isinstance(reported_id, str) and reported_id.strip():
+                receipt["response_id"] = reported_id
+            if (
+                isinstance(reported_model, str)
+                and reported_model.strip()
+                and len(reported_model) <= 160
+                and not any(ord(c) < 32 for c in reported_model)
+            ):
+                receipt["actual_model"] = reported_model
             raw_usage = payload.get("usage") if isinstance(payload, dict) else None
             coherent = isinstance(raw_usage, dict)
             if isinstance(raw_usage, dict):
@@ -884,7 +1036,6 @@ def _failed_attempt_receipt(
                 and not any(ord(c) < 32 for c in reported_model)
                 and usage is not None
             ):
-                receipt["actual_model"] = reported_model.strip()
                 receipt["usage"] = usage
         except Exception:
             receipt.pop("usage", None)  # Unavailable usage remains unpriced; never guess.
@@ -1023,12 +1174,14 @@ class LLMClient:
         base_url: str,
         timeout: float = DEFAULT_TIMEOUT,
         provider_name: Optional[str] = None,
+        model_resolution: Any = None,
     ):
         self.api_key = api_key
         self.model = model
         self.base_url = base_url
         self.timeout = timeout
         self.provider_name = provider_name
+        self.model_resolution = normalize_model_resolution(model_resolution)
 
     @property
     def supports_web_search(self) -> bool:
@@ -1076,15 +1229,21 @@ class LLMClient:
         system_prompt: str = "你是一位专业的投资分析师，擅长分析公司的投资价值。",
     ) -> LLMSearchResponse:
         """Call an allowlisted Responses web_search route and preserve its receipt."""
+        requested_model = self.model
         endpoint, provider, protocol = _search_endpoint(
-            self.base_url, self.model, self.provider_name
+            self.base_url, requested_model, self.provider_name
         )
+        resolution = frozen_quick_scan_model_resolution(self.model_resolution)
+        work_attempt = begin_quick_scan_send(
+            prompt, system_prompt, model_requested=requested_model, model_resolution=resolution
+        )
+        if work_attempt is not None:
+            resolution = normalize_model_resolution(work_attempt.model_resolution)
         session = http_client_manager.get_sync_session()
         headers = _search_request_headers(self.api_key, protocol)
-        data = _search_request_payload(prompt, system_prompt, self.model, provider, protocol)
+        data = _search_request_payload(prompt, system_prompt, requested_model, provider, protocol)
         attempt_id = str(uuid.uuid4())
         started_at = _utc_now()
-        work_attempt = begin_quick_scan_send(prompt, system_prompt)
         if work_attempt is not None:
             work_attempt.consume_for_post()
         response = None
@@ -1098,11 +1257,14 @@ class LLMClient:
             )
             response.raise_for_status()
             _require_successful_search_status(response)
+            response_payload, response_sha256, response_json_basis = _canonical_http_json(response)
             parsed = _parse_protocol_search_response(
                 response,
                 provider=provider,
                 protocol=protocol,
-                requested_model=self.model,
+                requested_model=requested_model,
+                model_resolution=resolution,
+                response_payload=response_payload,
             )
         except Exception as error:
             receipt = _failed_attempt_receipt(
@@ -1113,11 +1275,24 @@ class LLMClient:
                 error,
                 provider=provider,
                 protocol=protocol,
+                requested_model=requested_model,
+                model_resolution=resolution,
             )
             if work_attempt is not None:
                 work_attempt.record_failure(receipt)
             raise LLMTransportAttemptError(type(error).__name__, receipt) from None
-        result = _with_attempt_receipt(parsed, prompt, attempt_id, started_at, response)
+        result = _with_attempt_receipt(
+            parsed,
+            prompt,
+            attempt_id,
+            started_at,
+            response,
+            requested_model=requested_model,
+            protocol=protocol,
+            response_sha256=response_sha256,
+            response_json_basis=response_json_basis,
+            model_resolution=resolution,
+        )
         if work_attempt is not None:
             work_attempt.record_response(
                 http_status_code=_response_status_code(response),
@@ -1145,12 +1320,14 @@ class AsyncLLMClient:
         base_url: str,
         timeout: float = DEFAULT_TIMEOUT,
         provider_name: Optional[str] = None,
+        model_resolution: Any = None,
     ):
         self.api_key = api_key
         self.model = model
         self.base_url = base_url
         self.timeout = timeout
         self.provider_name = provider_name
+        self.model_resolution = normalize_model_resolution(model_resolution)
 
     @property
     def supports_web_search(self) -> bool:
@@ -1203,15 +1380,21 @@ class AsyncLLMClient:
         system_prompt: str = "你是一位专业的投资分析师，擅长分析公司的投资价值。",
     ) -> LLMSearchResponse:
         """Async counterpart of the same allowlisted search adapter."""
+        requested_model = self.model
         endpoint, provider, protocol = _search_endpoint(
-            self.base_url, self.model, self.provider_name
+            self.base_url, requested_model, self.provider_name
         )
+        resolution = frozen_quick_scan_model_resolution(self.model_resolution)
+        work_attempt = begin_quick_scan_send(
+            prompt, system_prompt, model_requested=requested_model, model_resolution=resolution
+        )
+        if work_attempt is not None:
+            resolution = normalize_model_resolution(work_attempt.model_resolution)
         client = await http_client_manager.get_async_client()
         headers = _search_request_headers(self.api_key, protocol)
-        data = _search_request_payload(prompt, system_prompt, self.model, provider, protocol)
+        data = _search_request_payload(prompt, system_prompt, requested_model, provider, protocol)
         attempt_id = str(uuid.uuid4())
         started_at = _utc_now()
-        work_attempt = begin_quick_scan_send(prompt, system_prompt)
         if work_attempt is not None:
             work_attempt.consume_for_post()
         response = None
@@ -1225,11 +1408,14 @@ class AsyncLLMClient:
             )
             response.raise_for_status()
             _require_successful_search_status(response)
+            response_payload, response_sha256, response_json_basis = _canonical_http_json(response)
             parsed = _parse_protocol_search_response(
                 response,
                 provider=provider,
                 protocol=protocol,
-                requested_model=self.model,
+                requested_model=requested_model,
+                model_resolution=resolution,
+                response_payload=response_payload,
             )
         except Exception as error:
             receipt = _failed_attempt_receipt(
@@ -1240,11 +1426,24 @@ class AsyncLLMClient:
                 error,
                 provider=provider,
                 protocol=protocol,
+                requested_model=requested_model,
+                model_resolution=resolution,
             )
             if work_attempt is not None:
                 work_attempt.record_failure(receipt)
             raise LLMTransportAttemptError(type(error).__name__, receipt) from None
-        result = _with_attempt_receipt(parsed, prompt, attempt_id, started_at, response)
+        result = _with_attempt_receipt(
+            parsed,
+            prompt,
+            attempt_id,
+            started_at,
+            response,
+            requested_model=requested_model,
+            protocol=protocol,
+            response_sha256=response_sha256,
+            response_json_basis=response_json_basis,
+            model_resolution=resolution,
+        )
         if work_attempt is not None:
             work_attempt.record_response(
                 http_status_code=_response_status_code(response),

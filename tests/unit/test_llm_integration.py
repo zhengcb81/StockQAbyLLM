@@ -2,13 +2,18 @@
 # -*- coding: utf-8 -*-
 """测试 LLM 集成增强模块。"""
 
+import copy
+import hashlib
 import json
 import time
 from unittest.mock import Mock
 
 import pytest
 
+from src.config.llm_config import LLMConfig
 from src.core.models import Question, SearchResult
+from src.providers.llm_provider import LLMProvider
+from src.providers.model_resolution import model_resolution_sha256
 from src.utils.llm_integration import (
     OrderedSearchProviderCascade,
     ProviderCascade,
@@ -26,6 +31,260 @@ from src.utils.llm_integration import (
     set_request_context,
 )
 from src.utils.quick_scan_provider_health import QuickScanProviderHealth
+from src.utils.quick_scan_work_store import QuickScanWorkStore
+from src.utils.quick_scan_work_transport import bind_quick_scan_work
+
+
+def _q10_integration_resolution(resolved="model-resolved"):
+    return {
+        "schema_version": "1.0.0",
+        "aliases": [
+            {
+                "provider": "openai",
+                "protocol": "responses",
+                "requested_model": "model-a",
+                "resolved_model": resolved,
+            }
+        ],
+    }
+
+
+def _q10_integration_response(question_id, actual_model):
+    response = Mock()
+    response.status_code = 200
+    response.headers = {"x-request-id": f"request-{question_id}"}
+    response.json.return_value = {
+        "id": f"response-{question_id}",
+        "status": "completed",
+        "model": actual_model,
+        "output": [
+            {
+                "type": "web_search_call",
+                "id": f"search-{question_id}",
+                "status": "completed",
+                "action": {
+                    "type": "search",
+                    "sources": [{"type": "url", "url": "https://example.org/source"}],
+                },
+            },
+            {
+                "type": "message",
+                "status": "completed",
+                "content": [
+                    {
+                        "type": "output_text",
+                        "text": json.dumps(
+                            {
+                                "question_id": question_id,
+                                "entity_id": "ENT_SYNTHETIC",
+                                "company_name": "Synthetic Co",
+                                "status": "scored",
+                                "score": 8,
+                                "description": "Synthetic answer",
+                                "actual_model": "forged-answer-model",
+                            }
+                        ),
+                    }
+                ],
+            },
+        ],
+    }
+    return response
+
+
+def _q10_integration_item(store, question_id, policy_version):
+    item = store.create_or_attach(
+        entity_id="ENT_SYNTHETIC",
+        question_id=question_id,
+        generation=1,
+        scope="entity",
+        scope_id="ENT_SYNTHETIC",
+        identity_revision=1,
+        source_binding_version=1,
+        identity_state="verified",
+        source_binding_ref="BND_SYNTHETIC",
+        source_binding_refs=["BND_SYNTHETIC"],
+        identity_snapshot_sha256=hashlib.sha256(b"synthetic-identity").hexdigest(),
+        question_fingerprint=hashlib.sha256(question_id.encode("utf-8")).hexdigest(),
+        routing_fingerprint=hashlib.sha256(policy_version.encode("utf-8")).hexdigest(),
+        run_id="run-q10-integration",
+        scan_id="scan-q10-integration",
+    )
+    lease = store.claim(item["work_item_id"], lease_seconds=60)
+    assert lease is not None
+    return item, lease
+
+
+def _q10_integration_config(tmp_path, *, aliases=True):
+    path = tmp_path / "synthetic-llm.json"
+    policy = _ordered_policy()
+    policy["models"][1]["enabled"] = False
+    content = {
+        "providers": {
+            "primary": {
+                "enabled": True,
+                "api_key": "synthetic-key",
+                "model": "model-a",
+                "base_url": "https://api.openai.com/v1/responses",
+                "max_retries": 1,
+                "format_repair_budget": 0,
+            }
+        },
+        "quick_scan_model_policy": policy,
+        "quick_scan_model_resolution": (
+            _q10_integration_resolution() if aliases else {"schema_version": "1.0.0", "aliases": []}
+        ),
+    }
+    path.write_text(json.dumps(content), encoding="utf-8")
+    return path, LLMConfig(str(path))
+
+
+def test_q10_next_run_alias_snapshot_stays_frozen_through_factory_and_http(tmp_path, monkeypatch):
+    path, config = _q10_integration_config(tmp_path)
+    snapshot = config.get_quick_scan_model_policy()
+    frozen_resolution = copy.deepcopy(snapshot["routes"][0]["model_resolution"])
+    config.config["quick_scan_model_resolution"] = _q10_integration_resolution(
+        "current-config-model"
+    )
+    path.write_text(json.dumps(config.config), encoding="utf-8")
+    calls, providers = [], []
+
+    def factory(frozen_snapshot):
+        calls.append(frozen_snapshot["policy_version"])
+        provider = LLMProvider(
+            provider_name="primary",
+            api_key="synthetic-key",
+            model="model-a",
+            config_file=str(path),
+            require_search=True,
+            entity_id="ENT_SYNTHETIC",
+            company_name="Synthetic Co",
+            model_resolution=frozen_snapshot["routes"][0]["model_resolution"],
+        )
+        assert provider.client.model_resolution == frozen_resolution
+        providers.append(provider)
+        return [provider]
+
+    policy_reads = []
+
+    def policy_source():
+        policy_reads.append(True)
+        return snapshot
+
+    cascade = OrderedSearchProviderCascade(
+        providers=[],
+        routes=[],
+        policy_version=snapshot["policy_version"],
+        max_attempts_per_dispatch_round=1,
+        policy_source={
+            "policy_provider": policy_source,
+            "provider_factory": factory,
+            "effective_mode": "next_run",
+        },
+    )
+    store = QuickScanWorkStore(tmp_path / "q10-integration.sqlite")
+    session = Mock()
+    posts = []
+
+    def post(_url, **kwargs):
+        posts.append(kwargs["json"]["model"])
+        if len(posts) == 1:
+            # This happens after the first POST's durable intent was frozen.
+            config.config["quick_scan_model_resolution"] = _q10_integration_resolution(
+                "changed-during-http"
+            )
+            path.write_text(json.dumps(config.config), encoding="utf-8")
+            snapshot["routes"][0]["model_resolution"]["aliases"][0][
+                "resolved_model"
+            ] = "mutated-source-snapshot"
+            providers[0].client.model_resolution = _q10_integration_resolution("mutated-client")
+        return _q10_integration_response(f"CORE_{len(posts):02d}", "model-resolved")
+
+    session.post.side_effect = post
+    monkeypatch.setattr(
+        "src.providers.llm_client.http_client_manager.get_sync_session", lambda: session
+    )
+    checkpoints = []
+    for question_id in ("CORE_01", "CORE_02"):
+        item, lease = _q10_integration_item(store, question_id, snapshot["policy_version"])
+        with bind_quick_scan_work(store, item["work_item_id"], lease):
+            result = cascade.search_question(
+                Question("Synthetic question", question_id=question_id)
+            )[0]
+        assert result.status == "scored"
+        final = result.metadata["execution"]["work_transport"]
+        assert final["final_receipt"]["actual_model"] == "model-resolved"
+        assert final["final_receipt"]["requested_model"] == "model-a"
+        assert final["final_receipt"]["model_resolution_sha256"] == model_resolution_sha256(
+            frozen_resolution
+        )
+        durable = store.get_attempt_response(final["work_attempt_id"])
+        assert durable["model_resolution"] == frozen_resolution
+        checkpoints.append(
+            store.save_answer_checkpoint(
+                item["work_item_id"],
+                lease,
+                final["work_attempt_id"],
+                answer={
+                    "entity_id": item["entity_id"],
+                    "question_id": question_id,
+                    "status": result.status,
+                    "score": result.score,
+                    "description": result.snippet,
+                },
+                execution_receipt=final["final_receipt"],
+            )
+        )
+    assert calls == [snapshot["policy_version"]]
+    assert len(policy_reads) == 1
+    assert posts == ["model-a", "model-a"]
+    assert all(
+        checkpoint["payload"]["provenance"]["actual_model"] == "model-resolved"
+        for checkpoint in checkpoints
+    )
+
+
+def test_q10_current_factory_config_cannot_register_alias_for_frozen_empty_route(
+    tmp_path, monkeypatch
+):
+    path, config = _q10_integration_config(tmp_path, aliases=False)
+    snapshot = config.get_quick_scan_model_policy()
+    config.config["quick_scan_model_resolution"] = _q10_integration_resolution()
+    path.write_text(json.dumps(config.config), encoding="utf-8")
+    provider = LLMProvider(
+        provider_name="primary",
+        api_key="synthetic-key",
+        model="model-a",
+        config_file=str(path),
+        require_search=True,
+        entity_id="ENT_SYNTHETIC",
+        company_name="Synthetic Co",
+        model_resolution=snapshot["routes"][0]["model_resolution"],
+    )
+    assert provider.client.model_resolution["aliases"] == []
+    cascade = OrderedSearchProviderCascade(
+        providers=[provider],
+        routes=snapshot["routes"],
+        policy_version=snapshot["policy_version"],
+        max_attempts_per_dispatch_round=1,
+    )
+    session = Mock()
+    session.post.return_value = _q10_integration_response("CORE_01", "model-resolved")
+    monkeypatch.setattr(
+        "src.providers.llm_client.http_client_manager.get_sync_session", lambda: session
+    )
+    store = QuickScanWorkStore(tmp_path / "q10-empty-snapshot.sqlite")
+    item, lease = _q10_integration_item(store, "CORE_01", snapshot["policy_version"])
+    with bind_quick_scan_work(store, item["work_item_id"], lease):
+        result = cascade.search_question(Question("Synthetic question", question_id="CORE_01"))[0]
+    assert result.status != "scored"
+    assert result.score is None
+    final = result.metadata["execution"]["work_transport"]
+    response = store.get_attempt_response(final["work_attempt_id"])
+    assert response["model_resolved"] == "model-resolved"
+    assert response["model_resolution"]["aliases"] == []
+    assert store.get_answer_checkpoint(item["work_item_id"]) is None
+    session.post.assert_called_once()
 
 
 class TestTokenUsage:

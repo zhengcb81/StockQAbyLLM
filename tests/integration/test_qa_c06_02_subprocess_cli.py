@@ -148,7 +148,7 @@ if os.environ.get("QA100_STUB_HTTP") == "1":
         question_id = match.group(1)
         _append(
             OWNED / "http-stub-sends.jsonl",
-            json.dumps({"question_id": question_id, "synthetic_only": True}),
+            json.dumps({"question_id": question_id, "model_requested": kwargs["json"]["model"], "synthetic_only": True}),
         )
         return _StubResponse(json.loads(responses[question_id]), question_id)
 
@@ -307,6 +307,7 @@ def test_real_subprocess_cold_warm_and_seal_with_the_stub_only_at_http(tmp_path)
     assert all(entry["synthetic_only"] for entry in sends)
     assert (tmp_path / "key-opens.jsonl").exists()
     _no_network(tmp_path)
+
     cold_plans = _plans(cold.stdout)
     assert cold_plans[-1]["counts"] == {"dispatch": len(QUESTIONS)}
     assert cold_plans[-1]["model_calls_planned"] == len(QUESTIONS)
@@ -420,3 +421,61 @@ def test_real_subprocess_corrupt_standard_body_is_rejected_without_reasking(tmp_
         assert store.get_item(work_item_id)["status"] == "result_ready"
         healthy_delivery = store.get_result_delivery(work_item_id)
         assert healthy_delivery is not None and healthy_delivery["state"] == "ready"
+
+
+def test_q10_real_subprocess_alias_cold_then_independent_warm_and_seal(tmp_path):
+    files = _prepare_root(tmp_path)
+    config_path = tmp_path / "llm_apis.json"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    resolved = "synthetic-resolved-v1"
+    config["quick_scan_model_resolution"] = {
+        "schema_version": "1.0.0",
+        "aliases": [
+            {
+                "provider": "openai",
+                "protocol": "responses",
+                "requested_model": base.MODEL,
+                "resolved_model": resolved,
+            }
+        ],
+    }
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    response_path = tmp_path / "stub-responses.json"
+    responses = json.loads(response_path.read_text(encoding="utf-8"))
+    for question_id, raw in list(responses.items()):
+        payload = json.loads(raw)
+        payload["model"] = resolved
+        responses[question_id] = json.dumps(payload)
+    response_path.write_text(json.dumps(responses), encoding="utf-8")
+    cold = _spawn(tmp_path, _cold_argv(files), stub=True)
+    assert cold.returncode == 0, cold.stdout[-4000:] + cold.stderr[-3000:]
+    store = QuickScanWorkStore(tmp_path / "quick_scan_work.sqlite")
+    work_ids = base._work_ids(store)
+    assert len(work_ids) == len(QUESTIONS)
+    packages = {}
+    for work_id in work_ids:
+        checkpoint = store.get_answer_checkpoint(work_id)
+        receipt = store.get_attempt_response(checkpoint["attempt_id"])
+        assert receipt["model_requested"] == base.MODEL
+        assert receipt["model_resolved"] == resolved
+        delivery = store.get_result_delivery(work_id)
+        execution = delivery["package"]["items"][0]["observation"]["execution"]
+        assert execution["model_requested"] == base.MODEL
+        assert execution["model_resolved"] == resolved
+        packages[work_id] = delivery["package_bytes"]
+    before = (tmp_path / "http-stub-sends.jsonl").read_bytes()
+    assert all(item["model_requested"] == base.MODEL for item in _sends(tmp_path))
+    warm = _spawn(tmp_path, _cold_argv(files), stub=False)
+    assert warm.returncode == 0, warm.stdout[-4000:] + warm.stderr[-3000:]
+    assert _plans(warm.stdout)[-1]["model_calls_planned"] == 0
+    # Seal reconstructs the original response without reading current aliases.
+    config.pop("quick_scan_model_resolution")
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    seal = _spawn(
+        tmp_path, ["--seal-deliveries", "--c06-authority", str(files["authority"])], stub=False
+    )
+    assert seal.returncode == 0, seal.stdout[-4000:] + seal.stderr[-3000:]
+    assert (tmp_path / "http-stub-sends.jsonl").read_bytes() == before
+    for work_id in work_ids:
+        assert store.get_result_delivery(work_id)["package_bytes"] == packages[work_id]
+    _no_network(tmp_path)

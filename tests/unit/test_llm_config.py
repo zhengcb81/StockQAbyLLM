@@ -3,12 +3,27 @@
 该模块测试 LLMConfig 类的配置管理功能。
 """
 
+import hashlib
 import json
 from pathlib import Path
 
 import pytest
 
 from src.config.llm_config import LLMConfig
+
+
+def _resolution_config():
+    return {
+        "schema_version": "1.0.0",
+        "aliases": [
+            {
+                "provider": "minimax",
+                "protocol": "responses",
+                "requested_model": "model-a",
+                "resolved_model": "model-a-resolved",
+            }
+        ],
+    }
 
 
 def _quick_scan_policy(order=("primary", "backup"), *, policy_id="test-policy"):
@@ -729,6 +744,118 @@ class TestQuickScanModelPolicy:
                 manager.save_quick_scan_model_policy(policy)
 
         assert path.read_bytes() == before
+
+
+class TestQuickScanModelResolutionConfig:
+    @pytest.mark.parametrize("active", [False, True])
+    def test_absent_and_empty_aliases_preserve_the_original_policy_fingerprint(
+        self, tmp_path, active
+    ):
+        policy = _quick_scan_policy() if active else None
+        content = _llm_config_content(policy)
+        path = tmp_path / "llm_apis.json"
+        path.write_text(json.dumps(content), encoding="utf-8")
+        original = LLMConfig(str(path)).get_quick_scan_model_policy()
+        if active:
+            raw = json.dumps(policy, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+            expected = "test-policy@" + hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+        else:
+            raw = json.dumps(
+                {"mode": "legacy-single-provider", "provider": "primary", "model": "legacy-a"},
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            expected = (
+                "legacy-single-provider@" + hashlib.sha256(raw.encode("utf-8")).hexdigest()[:12]
+            )
+        assert original["policy_version"] == expected
+
+        content["quick_scan_model_resolution"] = {"schema_version": "1.0.0", "aliases": []}
+        path.write_text(json.dumps(content), encoding="utf-8")
+        manager = LLMConfig(str(path))
+        empty = manager.get_quick_scan_model_policy()
+        assert empty["policy_version"] == original["policy_version"]
+        assert manager.get_quick_scan_model_resolution() == content["quick_scan_model_resolution"]
+        assert all(route["model_resolution"]["aliases"] == [] for route in empty["routes"])
+
+    @pytest.mark.parametrize("active", [False, True])
+    def test_alias_change_updates_fingerprint_and_snapshot_cannot_change_after_config_edit(
+        self, tmp_path, active
+    ):
+        content = _llm_config_content(_quick_scan_policy() if active else None)
+        path = tmp_path / "llm_apis.json"
+        path.write_text(json.dumps(content), encoding="utf-8")
+        manager = LLMConfig(str(path))
+        baseline_version = manager.get_quick_scan_model_policy()["policy_version"]
+        manager.config["quick_scan_model_resolution"] = _resolution_config()
+        frozen = manager.get_quick_scan_model_policy()
+        assert frozen["policy_version"] != baseline_version
+        for route in frozen["routes"]:
+            assert route["model_resolution"] == _resolution_config()
+
+        manager.config["quick_scan_model_resolution"]["aliases"][0][
+            "resolved_model"
+        ] = "changed-later"
+        changed = manager.get_quick_scan_model_policy()
+        assert changed["policy_version"] != frozen["policy_version"]
+        assert frozen["routes"][0]["model_resolution"] == _resolution_config()
+        if active:
+            frozen["routes"][0]["model_resolution"]["aliases"][0][
+                "resolved_model"
+            ] = "route-local-edit"
+            assert frozen["routes"][1]["model_resolution"] == _resolution_config()
+            assert (
+                changed["routes"][0]["model_resolution"]["aliases"][0]["resolved_model"]
+                == "changed-later"
+            )
+
+    def test_alias_order_does_not_change_run_fingerprint(self, tmp_path):
+        content = _llm_config_content(_quick_scan_policy())
+        resolution = _resolution_config()
+        resolution["aliases"].append(
+            dict(resolution["aliases"][0], provider="openai", resolved_model="other-resolved")
+        )
+        content["quick_scan_model_resolution"] = resolution
+        path = tmp_path / "llm_apis.json"
+        path.write_text(json.dumps(content), encoding="utf-8")
+        manager = LLMConfig(str(path))
+        before = manager.get_quick_scan_model_policy()
+        manager.config["quick_scan_model_resolution"]["aliases"].reverse()
+        after = manager.get_quick_scan_model_policy()
+        assert before["policy_version"] == after["policy_version"]
+        assert before["routes"] == after["routes"]
+
+    def test_save_route_policy_preserves_independent_alias_config(self, tmp_path):
+        content = _llm_config_content()
+        content["quick_scan_model_resolution"] = _resolution_config()
+        path = tmp_path / "llm_apis.json"
+        path.write_text(json.dumps(content), encoding="utf-8")
+        saved = LLMConfig(str(path)).save_quick_scan_model_policy(_quick_scan_policy())
+        reopened = LLMConfig(str(path))
+        assert reopened.config["quick_scan_model_resolution"] == _resolution_config()
+        assert reopened.get_quick_scan_model_policy() == saved
+        assert "model_resolution" not in reopened.config["quick_scan_model_policy"]["models"][0]
+
+    @pytest.mark.parametrize("active", [False, True])
+    @pytest.mark.parametrize("operation", ["load", "save"])
+    def test_invalid_alias_config_fails_closed_before_policy_save(
+        self, tmp_path, active, operation
+    ):
+        content = _llm_config_content(_quick_scan_policy() if active else None)
+        content["quick_scan_model_resolution"] = dict(
+            _resolution_config(), api_key="must-not-persist"
+        )
+        path = tmp_path / "llm_apis.json"
+        path.write_text(json.dumps(content), encoding="utf-8")
+        before = path.read_bytes()
+        manager = LLMConfig(str(path))
+        with pytest.raises(ValueError, match="quick_scan_model_resolution"):
+            if operation == "load":
+                manager.get_quick_scan_model_policy()
+            else:
+                manager.save_quick_scan_model_policy(_quick_scan_policy())
+        assert path.read_bytes() == before
+        assert list(path.parent.glob(".*.tmp")) == []
 
 
 class TestLLMConfigGetAPIKey:

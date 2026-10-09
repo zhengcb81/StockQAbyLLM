@@ -76,6 +76,7 @@ class QuickScanRouteBinding:
     provider: Any
     model_requested: Any
     quota_group: Any = None
+    model_resolution: Any = None
 
 
 @dataclass(frozen=True)
@@ -92,6 +93,7 @@ class QuickScanSendAttempt:
     binding: Optional[QuickScanWorkBinding]
     attempt_id: str
     permit: SendPermit
+    model_resolution: Optional[dict] = None
     budget_binding: Optional[QuickScanBudgetBinding] = None
     budget_attempt_id: Optional[str] = None
     _consumed: bool = False
@@ -142,6 +144,7 @@ class QuickScanSendAttempt:
                     request_id=request_id,
                     actual_cost=actual_cost,
                     cost_source_ref=cost_source_ref,
+                    execution_receipt=_sanitized_receipt(receipt),
                 )
             elif self.budget_binding is not None and self.budget_attempt_id is not None:
                 self.budget_binding.store.record_budget_outcome(
@@ -150,6 +153,7 @@ class QuickScanSendAttempt:
                     http_status_code=http_status_code,
                     actual_cost=actual_cost,
                     cost_source_ref=cost_source_ref,
+                    execution_receipt=_sanitized_receipt(receipt),
                 )
         except LeaseFencedError as error:
             if self.binding is None:
@@ -160,6 +164,7 @@ class QuickScanSendAttempt:
                     self.binding.lease,
                     self.attempt_id,
                     receipt_sha256=receipt_sha256,
+                    execution_receipt=_sanitized_receipt(receipt),
                     **self._late_budget_details(
                         outcome="response_available",
                         http_status_code=http_status_code,
@@ -230,6 +235,7 @@ class QuickScanSendAttempt:
                     ),
                     actual_cost=actual_cost,
                     cost_source_ref=cost_source_ref,
+                    execution_receipt=safe,
                 )
             elif self.budget_binding is not None and self.budget_attempt_id is not None:
                 self.budget_binding.store.record_budget_outcome(
@@ -238,6 +244,7 @@ class QuickScanSendAttempt:
                     http_status_code=status if type(status) is int else None,
                     actual_cost=actual_cost,
                     cost_source_ref=cost_source_ref,
+                    execution_receipt=safe,
                 )
         except LeaseFencedError as error:
             if self.binding is None:
@@ -248,6 +255,7 @@ class QuickScanSendAttempt:
                     self.binding.lease,
                     self.attempt_id,
                     receipt_sha256=receipt_sha256,
+                    execution_receipt=safe,
                     **self._late_budget_details(
                         outcome=outcome,
                         http_status_code=status if type(status) is int else None,
@@ -326,10 +334,23 @@ def bind_quick_scan_work(
 
 @contextmanager
 def bind_quick_scan_route(
-    *, route_id: Any, provider: Any, model_requested: Any, quota_group: Any = None
+    *,
+    route_id: Any,
+    provider: Any,
+    model_requested: Any,
+    quota_group: Any = None,
+    model_resolution: Any = None,
 ) -> Iterator[None]:
     """Bind the actual model route used by one ordered-cascade dispatch."""
-    route = QuickScanRouteBinding(route_id, provider, model_requested, quota_group)
+    from src.providers.model_resolution import normalize_model_resolution
+
+    route = QuickScanRouteBinding(
+        route_id,
+        provider,
+        model_requested,
+        quota_group,
+        normalize_model_resolution(model_resolution),
+    )
     token = _ROUTE_BINDING.set(route)
     try:
         yield
@@ -401,9 +422,34 @@ def bind_quick_scan_format_repair() -> Iterator[None]:
         _FORMAT_REPAIR.reset(token)
 
 
-def begin_quick_scan_send(prompt: str, system_prompt: str) -> Optional[QuickScanSendAttempt]:
+def frozen_quick_scan_model_resolution(model_resolution: Any = None) -> dict:
+    """Use the dispatch snapshot even when the legacy path owns admission."""
+    from src.providers.model_resolution import normalize_model_resolution
+
+    route = _ROUTE_BINDING.get()
+    return normalize_model_resolution(
+        route.model_resolution if route is not None else model_resolution
+    )
+
+
+def begin_quick_scan_send(
+    prompt: str, system_prompt: str, *, model_requested: Any = None, model_resolution: Any = None
+) -> Optional[QuickScanSendAttempt]:
     """Commit prepared + send-intent state before permitting the HTTP request."""
+    from src.providers.model_resolution import (
+        model_resolution_sha256,
+        normalize_model_resolution,
+    )
+
     work = _WORK_BINDING.get()
+    route = _ROUTE_BINDING.get()
+    if (
+        route is not None
+        and model_requested is not None
+        and route.model_requested != model_requested
+    ):
+        raise QuickScanWorkPersistenceError("HTTP requested model does not match frozen route")
+    resolution = frozen_quick_scan_model_resolution(model_resolution)
     if own_reservation_held() and work is None:
         # Q09: THIS question's send was already admitted atomically at the
         # lifecycle's mark-time reserve (one send = one reserve); re-admitting
@@ -445,6 +491,8 @@ def begin_quick_scan_send(prompt: str, system_prompt: str) -> Optional[QuickScan
                 sort_keys=True,
                 separators=(",", ":"),
             )
+            if resolution["aliases"]:
+                request_identity += "|resolution:" + model_resolution_sha256(resolution)
             request_cache_key = (
                 "REQ_" + hashlib.sha256(request_identity.encode("utf-8")).hexdigest()
             )
@@ -457,6 +505,7 @@ def begin_quick_scan_send(prompt: str, system_prompt: str) -> Optional[QuickScan
                 request_cache_key=request_cache_key,
                 prompt_sha256=prompt_sha256,
                 allow_format_repair=_FORMAT_REPAIR.get(),
+                model_resolution=resolution,
             )
         budget_route = (
             None
@@ -490,6 +539,7 @@ def begin_quick_scan_send(prompt: str, system_prompt: str) -> Optional[QuickScan
                 work,
                 prepared["attempt_id"],
                 permit,
+                model_resolution=resolution,
                 budget_binding=budget,
                 budget_attempt_id=prepared["attempt_id"] if budget is not None else None,
             )
@@ -506,6 +556,7 @@ def begin_quick_scan_send(prompt: str, system_prompt: str) -> Optional[QuickScan
                     provider=route.provider,
                     model_requested=route.model_requested,
                     quota_group=route.quota_group,
+                    model_resolution=resolution,
                 )
                 break
             except BudgetAdmissionError as error:
@@ -517,6 +568,7 @@ def begin_quick_scan_send(prompt: str, system_prompt: str) -> Optional[QuickScan
             None,
             budget_attempt_id,
             permit,
+            model_resolution=resolution,
             budget_binding=budget,
             budget_attempt_id=budget_attempt_id,
         )

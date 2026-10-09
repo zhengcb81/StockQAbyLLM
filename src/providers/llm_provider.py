@@ -41,6 +41,7 @@ class LLMProvider(BaseLLMProvider):
             base_url=self.base_url,
             timeout=self.timeout,
             provider_name=self.provider_name,
+            model_resolution=self.model_resolution,
         )
 
     @staticmethod
@@ -313,22 +314,11 @@ class LLMProvider(BaseLLMProvider):
                         execution_metadata,
                     )
 
-            except QuickScanWorkUncertainError as error:
-                attempt_receipt = error.attempt_receipt
-                return (
-                    ParsedLLMAnswer(
-                        None,
-                        "联网请求的提供商结果不确定，必须先核对同一请求回执。",
-                        "error",
-                    ),
-                    {
-                        "provider": attempt_receipt.get("provider"),
-                        "search_status": "unverified",
-                        "attempts": [attempt_receipt] if attempt_receipt else [],
-                        "failure_type": "outcome_uncertain",
-                    },
-                )
-            except (QuickScanBudgetDeferredError, QuickScanWorkPersistenceError):
+            except (
+                QuickScanBudgetDeferredError,
+                QuickScanWorkPersistenceError,
+                QuickScanWorkUncertainError,
+            ):
                 raise
             except LLMTransportAttemptError as error:
                 transport_attempts.append(error.attempt_receipt)

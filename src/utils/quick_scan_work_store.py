@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Callable, Iterator, Optional, Sequence, cast
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 _SAFE_ID = re.compile(r"^[A-Za-z0-9_.-]{1,160}$")
 # Hyphens accepted per owner sign-off (2026-10-05 round-51): the W04
 # identity-export package issues ENT_<uuid> entity ids (e.g. the frozen
@@ -550,6 +550,63 @@ _DDL_V7_ADDITIONS = (
         END""",
 )
 
+_DDL_V8_ADDITIONS = (
+    """CREATE TABLE quick_scan_attempt_resolution (
+        attempt_id TEXT PRIMARY KEY,
+        work_attempt_id TEXT UNIQUE REFERENCES attempt(attempt_id),
+        budget_attempt_id TEXT UNIQUE REFERENCES quick_scan_budget_attempt(budget_attempt_id),
+        model_requested TEXT NOT NULL,
+        policy_json TEXT NOT NULL,
+        policy_sha256 TEXT NOT NULL CHECK(length(policy_sha256)=64),
+        prepared_at REAL NOT NULL,
+        CHECK ((work_attempt_id IS NOT NULL AND budget_attempt_id IS NULL)
+            OR (work_attempt_id IS NULL AND budget_attempt_id IS NOT NULL))
+    )""",
+    """CREATE TRIGGER quick_scan_resolution_insert_guard
+        BEFORE INSERT ON quick_scan_attempt_resolution
+        BEGIN
+            SELECT RAISE(ABORT,'invalid frozen model resolution') WHERE NOT (
+                (NEW.work_attempt_id=NEW.attempt_id AND EXISTS (
+                    SELECT 1 FROM attempt WHERE attempt_id=NEW.work_attempt_id
+                    AND model_requested=NEW.model_requested AND phase='prepared'))
+                OR (NEW.budget_attempt_id=NEW.attempt_id AND EXISTS (
+                    SELECT 1 FROM quick_scan_budget_attempt WHERE budget_attempt_id=NEW.budget_attempt_id
+                    AND model_requested=NEW.model_requested AND work_attempt_id IS NULL
+                    AND status='in_flight')));
+        END""",
+    """CREATE TRIGGER quick_scan_resolution_no_update BEFORE UPDATE ON quick_scan_attempt_resolution
+        BEGIN SELECT RAISE(ABORT,'model resolutions are immutable'); END""",
+    """CREATE TRIGGER quick_scan_resolution_no_delete BEFORE DELETE ON quick_scan_attempt_resolution
+        BEGIN SELECT RAISE(ABORT,'model resolutions are immutable'); END""",
+    """CREATE TABLE quick_scan_attempt_response (
+        attempt_id TEXT PRIMARY KEY REFERENCES quick_scan_attempt_resolution(attempt_id),
+        receipt_json TEXT NOT NULL,
+        receipt_sha256 TEXT NOT NULL CHECK(length(receipt_sha256)=64),
+        response_sha256 TEXT NOT NULL CHECK(length(response_sha256)=64),
+        provider TEXT NOT NULL,
+        protocol TEXT NOT NULL,
+        model_requested TEXT NOT NULL,
+        model_resolved TEXT,
+        response_id TEXT,
+        provider_attempt_id TEXT NOT NULL,
+        recorded_at REAL NOT NULL
+    )""",
+    """CREATE TRIGGER quick_scan_response_insert_guard BEFORE INSERT ON quick_scan_attempt_response
+        BEGIN SELECT RAISE(ABORT,'invalid durable model response') WHERE NOT EXISTS (
+            SELECT 1 FROM quick_scan_attempt_resolution r
+            WHERE r.attempt_id=NEW.attempt_id AND r.model_requested=NEW.model_requested
+            AND ((r.work_attempt_id IS NOT NULL AND EXISTS (
+                SELECT 1 FROM attempt a WHERE a.attempt_id=r.work_attempt_id
+                AND (a.phase='send_intent' OR (a.phase='uncertain' AND a.late_receipt_sha256=NEW.receipt_sha256))))
+                OR (r.budget_attempt_id IS NOT NULL AND EXISTS (
+                SELECT 1 FROM quick_scan_budget_attempt b WHERE b.budget_attempt_id=r.budget_attempt_id
+                AND b.status='in_flight')))); END""",
+    """CREATE TRIGGER quick_scan_response_no_update BEFORE UPDATE ON quick_scan_attempt_response
+        BEGIN SELECT RAISE(ABORT,'model responses are immutable'); END""",
+    """CREATE TRIGGER quick_scan_response_no_delete BEFORE DELETE ON quick_scan_attempt_response
+        BEGIN SELECT RAISE(ABORT,'model responses are immutable'); END""",
+)
+
 _DDL = (
     _DDL_V1
     + _DDL_V2_ADDITIONS
@@ -558,6 +615,7 @@ _DDL = (
     + _DDL_V5_ADDITIONS
     + _DDL_V6_ADDITIONS
     + _DDL_V7_ADDITIONS
+    + _DDL_V8_ADDITIONS
 )
 
 _RECEIPT_FIELDS = (
@@ -565,6 +623,11 @@ _RECEIPT_FIELDS = (
     "request_id",
     "response_id",
     "actual_model",
+    "requested_model",
+    "search_protocol",
+    "response_sha256",
+    "response_json_basis",
+    "model_resolution_sha256",
     "search_status",
     "response_status",
     "http_status_code",
@@ -1032,8 +1095,14 @@ class QuickScanWorkStore:
                 cls._validate_schema(connection, schema_version=6)
                 cls._apply_v7_migration(connection)
                 connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+            elif version == 7:
+                cls._validate_schema(connection, schema_version=7)
             elif version != SCHEMA_VERSION:
                 raise ValueError("unsupported quick-scan work database schema version")
+            if 1 <= version < 8:
+                for statement in _DDL_V8_ADDITIONS:
+                    connection.execute(statement)
+                connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             cls._validate_schema(connection, schema_version=SCHEMA_VERSION)
             connection.execute("COMMIT")
         except Exception:
@@ -1218,6 +1287,11 @@ class QuickScanWorkStore:
                     ("trigger", "quick_scan_delivery_consumer_guard"): _DDL_V7_ADDITIONS[4],
                 }
             )
+        if schema_version >= 8:
+            for statement in _DDL_V8_ADDITIONS:
+                match = re.match(r"CREATE (TABLE|TRIGGER) ([A-Za-z_]+)", statement)
+                assert match is not None
+                expected[(match[1].lower(), match[2])] = statement
         if actual.keys() != expected.keys() or any(
             _normalized_sql(actual[key]) != _normalized_sql(statement)
             for key, statement in expected.items()
@@ -1261,6 +1335,11 @@ class QuickScanWorkStore:
             # New bindings, when present, must agree with the immutable terminal ACK.
             for row in connection.execute("SELECT * FROM quick_scan_result_delivery"):
                 cls._result_delivery_record(row, connection=connection)
+        if schema_version >= 8:
+            for row in connection.execute("SELECT * FROM quick_scan_attempt_resolution"):
+                cls._resolution_record(row)
+            for row in connection.execute("SELECT * FROM quick_scan_attempt_response"):
+                cls._response_record(connection, row)
         if schema_version >= 2:
             inconsistent = connection.execute(
                 "SELECT COUNT(*) FROM work_item w LEFT JOIN answer_checkpoint c "
@@ -1404,6 +1483,178 @@ class QuickScanWorkStore:
         ):
             raise LeaseFencedError("quick-scan work lease is stale")
 
+    @staticmethod
+    def _resolution_record(row: sqlite3.Row) -> dict:
+        from src.providers.model_resolution import (
+            model_resolution_sha256,
+            normalize_model_resolution,
+        )
+
+        policy = normalize_model_resolution(json.loads(row["policy_json"]))
+        encoded = json.dumps(policy, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+        if encoded != row["policy_json"] or model_resolution_sha256(policy) != row["policy_sha256"]:
+            raise ValueError("frozen model resolution hash mismatch")
+        return {**dict(row), "policy": policy}
+
+    @staticmethod
+    def _freeze_resolution_tx(
+        connection: sqlite3.Connection,
+        attempt_id: str,
+        requested: str,
+        policy: object,
+        *,
+        budget_only: bool,
+        now: float,
+    ) -> None:
+        from src.providers.model_resolution import (
+            model_resolution_sha256,
+            normalize_model_resolution,
+        )
+
+        normalized = normalize_model_resolution(policy)
+        encoded = json.dumps(normalized, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+        connection.execute(
+            "INSERT INTO quick_scan_attempt_resolution "
+            "(attempt_id,work_attempt_id,budget_attempt_id,model_requested,policy_json,policy_sha256,prepared_at) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (
+                attempt_id,
+                None if budget_only else attempt_id,
+                attempt_id if budget_only else None,
+                requested,
+                encoded,
+                model_resolution_sha256(normalized),
+                now,
+            ),
+        )
+
+    @classmethod
+    def _response_record(cls, connection: sqlite3.Connection, row: sqlite3.Row) -> dict:
+        receipt = json.loads(row["receipt_json"])
+        encoded = json.dumps(
+            _sanitized_receipt(receipt), sort_keys=True, separators=(",", ":"), ensure_ascii=True
+        )
+        resolution = connection.execute(
+            "SELECT * FROM quick_scan_attempt_resolution WHERE attempt_id=?", (row["attempt_id"],)
+        ).fetchone()
+        if resolution is None:
+            raise ValueError("durable response has no frozen resolution")
+        frozen = cls._resolution_record(resolution)
+        mapping = {
+            "provider": "provider",
+            "protocol": "search_protocol",
+            "model_requested": "requested_model",
+            "model_resolved": "actual_model",
+            "response_id": "response_id",
+            "provider_attempt_id": "attempt_id",
+            "response_sha256": "response_sha256",
+        }
+        if (
+            encoded != row["receipt_json"]
+            or quick_scan_receipt_sha256(receipt) != row["receipt_sha256"]
+            or any(row[field] != receipt.get(key) for field, key in mapping.items())
+            or receipt.get("model_resolution_sha256") != frozen["policy_sha256"]
+            or row["model_requested"] != frozen["model_requested"]
+            or receipt.get("response_json_basis") not in {"strict_http_json", "parsed_payload"}
+        ):
+            raise ValueError("durable response provenance mismatch")
+        _sha256(row["response_sha256"], "HTTP canonical JSON hash")
+        _safe_text(row["provider_attempt_id"], "provider attempt", maximum=300)
+        return {**dict(row), "receipt": receipt, "model_resolution": frozen["policy"]}
+
+    @classmethod
+    def _persist_response_tx(
+        cls,
+        connection: sqlite3.Connection,
+        attempt_id: str,
+        receipt: object,
+        *,
+        receipt_sha256: Optional[str],
+        now: float,
+    ) -> None:
+        safe = _sanitized_receipt(receipt)
+        if safe.get("response_sha256") is None:
+            return  # No decodable HTTP JSON, not a fabricated response.
+        resolution = connection.execute(
+            "SELECT * FROM quick_scan_attempt_resolution WHERE attempt_id=?", (attempt_id,)
+        ).fetchone()
+        if resolution is None:
+            raise WorkConflictError("durable response requires a frozen dispatch")
+        frozen = cls._resolution_record(resolution)
+        actual_hash = quick_scan_receipt_sha256(safe)
+        if receipt_sha256 is not None and receipt_sha256 != actual_hash:
+            raise WorkConflictError("durable response receipt hash mismatch")
+        if (
+            safe.get("requested_model") != frozen["model_requested"]
+            or safe.get("model_resolution_sha256") != frozen["policy_sha256"]
+        ):
+            raise WorkConflictError("durable response does not match frozen request")
+        _sha256(safe.get("response_sha256"), "HTTP canonical JSON hash")
+        encoded = json.dumps(safe, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+        previous = connection.execute(
+            "SELECT * FROM quick_scan_attempt_response WHERE attempt_id=?", (attempt_id,)
+        ).fetchone()
+        if previous is not None:
+            if previous["receipt_json"] != encoded:
+                raise WorkConflictError("durable model response is immutable")
+            cls._response_record(connection, previous)
+            return
+        connection.execute(
+            "INSERT INTO quick_scan_attempt_response (attempt_id,receipt_json,receipt_sha256,response_sha256,provider,protocol,model_requested,model_resolved,response_id,provider_attempt_id,recorded_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                attempt_id,
+                encoded,
+                actual_hash,
+                safe["response_sha256"],
+                safe.get("provider"),
+                safe.get("search_protocol"),
+                safe.get("requested_model"),
+                safe.get("actual_model"),
+                safe.get("response_id"),
+                safe.get("attempt_id"),
+                now,
+            ),
+        )
+        row = connection.execute(
+            "SELECT * FROM quick_scan_attempt_response WHERE attempt_id=?", (attempt_id,)
+        ).fetchone()
+        cls._response_record(connection, row)
+
+    @classmethod
+    def _response_for_checkpoint(
+        cls, connection: sqlite3.Connection, attempt: sqlite3.Row, receipt_sha256: str
+    ) -> dict:
+        from src.providers.model_resolution import model_resolution_allowed
+
+        final_attempt = connection.execute(
+            "SELECT attempt_id FROM attempt WHERE work_item_id=? ORDER BY ordinal DESC LIMIT 1",
+            (attempt["work_item_id"],),
+        ).fetchone()
+        if final_attempt is None or final_attempt["attempt_id"] != attempt["attempt_id"]:
+            raise WorkConflictError("checkpoint requires the final attempt")
+        row = connection.execute(
+            "SELECT * FROM quick_scan_attempt_response WHERE attempt_id=?", (attempt["attempt_id"],)
+        ).fetchone()
+        if row is None:
+            raise WorkConflictError("checkpoint requires the durable response")
+        response = cls._response_record(connection, row)
+        if response["receipt_sha256"] != receipt_sha256 or not model_resolution_allowed(
+            response["provider"],
+            response["protocol"],
+            attempt["model_requested"],
+            response["model_resolved"],
+            response["model_resolution"],
+        ):
+            raise WorkConflictError("checkpoint durable response model binding mismatch")
+        return response
+
+    def get_attempt_response(self, attempt_id: str) -> Optional[dict]:
+        with closing(self._connect()) as connection:
+            row = connection.execute(
+                "SELECT * FROM quick_scan_attempt_response WHERE attempt_id=?", (attempt_id,)
+            ).fetchone()
+            return None if row is None else self._response_record(connection, row)
+
     def configure_quick_scan_budget(self, policy: dict) -> dict:
         """Persist a secret-free budget/dispatch snapshot without resetting spend."""
         normalized = _budget_policy_projection(policy)
@@ -1481,6 +1732,7 @@ class QuickScanWorkStore:
         model_requested: str,
         quota_group: str,
         now: float,
+        model_resolution: Optional[dict] = None,
     ) -> dict:
         _safe(budget_attempt_id, "budget_attempt_id")
         if work_attempt_id is not None:
@@ -1575,6 +1827,15 @@ class QuickScanWorkStore:
                 now,
             ),
         )
+        if work_attempt_id is None:
+            QuickScanWorkStore._freeze_resolution_tx(
+                connection,
+                budget_attempt_id,
+                model_requested,
+                model_resolution,
+                budget_only=True,
+                now=now,
+            )
         return dict(
             connection.execute(
                 "SELECT * FROM quick_scan_budget_attempt WHERE budget_attempt_id=?",
@@ -1591,6 +1852,7 @@ class QuickScanWorkStore:
         provider: str,
         model_requested: str,
         quota_group: str,
+        model_resolution: Optional[dict] = None,
     ) -> dict:
         """Atomically reserve cost, request count, and global/group/route slots."""
         normalized = self.configure_quick_scan_budget(policy)
@@ -1605,6 +1867,7 @@ class QuickScanWorkStore:
                 model_requested=model_requested,
                 quota_group=quota_group,
                 now=self._now(),
+                model_resolution=model_resolution,
             )
 
     @staticmethod
@@ -1731,6 +1994,7 @@ class QuickScanWorkStore:
         http_status_code: Optional[int],
         actual_cost: Optional[object] = None,
         cost_source_ref: Optional[str] = None,
+        execution_receipt: Optional[dict] = None,
     ) -> dict:
         """Record transport completion; unknown charges remain reserved and pause admission."""
         actual_micros = (
@@ -1740,6 +2004,10 @@ class QuickScanWorkStore:
         )
         now = self._now()
         with self._transaction() as connection:
+            if execution_receipt is not None:
+                self._persist_response_tx(
+                    connection, budget_attempt_id, execution_receipt, receipt_sha256=None, now=now
+                )
             return self._record_budget_outcome_tx(
                 connection,
                 budget_attempt_id,
@@ -2012,6 +2280,7 @@ class QuickScanWorkStore:
         request_cache_key: str,
         prompt_sha256: str,
         allow_format_repair: bool = False,
+        model_resolution: Optional[dict] = None,
     ) -> dict:
         """Freeze one transport attempt under a current lease, before POST."""
         if type(allow_format_repair) is not bool:
@@ -2056,8 +2325,18 @@ class QuickScanWorkStore:
                 )
                 if not is_explicit_format_repair:
                     raise WorkConflictError("previous attempt is unresolved")
+                from src.providers.model_resolution import model_resolution_sha256
+
+                frozen = connection.execute(
+                    "SELECT * FROM quick_scan_attempt_resolution WHERE attempt_id=?",
+                    (previous["attempt_id"],),
+                ).fetchone()
+                if frozen is None or frozen["policy_sha256"] != model_resolution_sha256(
+                    model_resolution
+                ):
+                    raise WorkConflictError("format repair conflicts with frozen model resolution")
             same_key = connection.execute(
-                "SELECT work_item_id,provider,model_requested,route_id,prompt_sha256 "
+                "SELECT attempt_id,work_item_id,provider,model_requested,route_id,prompt_sha256 "
                 "FROM attempt WHERE request_cache_key=? LIMIT 1",
                 (request_cache_key,),
             ).fetchone()
@@ -2072,6 +2351,22 @@ class QuickScanWorkStore:
                 or any(same_key[name] != value for name, value in exact_request.items())
             ):
                 raise WorkConflictError("request key conflicts with frozen attempt inputs")
+            if same_key is not None:
+                from src.providers.model_resolution import (
+                    model_resolution_sha256,
+                    normalize_model_resolution,
+                )
+
+                frozen = connection.execute(
+                    "SELECT * FROM quick_scan_attempt_resolution WHERE attempt_id=?",
+                    (same_key["attempt_id"],),
+                ).fetchone()
+                requested_policy = normalize_model_resolution(model_resolution)
+                if (frozen is None and requested_policy["aliases"]) or (
+                    frozen is not None
+                    and frozen["policy_sha256"] != model_resolution_sha256(requested_policy)
+                ):
+                    raise WorkConflictError("request key conflicts with frozen model resolution")
             attempt_id = "ATTEMPT_" + uuid.uuid4().hex
             ordinal = 1 if previous is None else previous["ordinal"] + 1
             connection.execute(
@@ -2091,6 +2386,14 @@ class QuickScanWorkStore:
                     prompt_sha256,
                     now,
                 ),
+            )
+            self._freeze_resolution_tx(
+                connection,
+                attempt_id,
+                model_requested,
+                model_resolution,
+                budget_only=False,
+                now=now,
             )
             self._event(
                 connection,
@@ -2183,6 +2486,7 @@ class QuickScanWorkStore:
         request_id: Optional[str] = None,
         actual_cost: Optional[object] = None,
         cost_source_ref: Optional[str] = None,
+        execution_receipt: Optional[dict] = None,
     ) -> None:
         """Record a sanitized transport outcome; answer checkpoint is Q07."""
         if outcome not in {"confirmed_failure", "response_available", "unknown"}:
@@ -2253,6 +2557,14 @@ class QuickScanWorkStore:
         with self._transaction() as connection:
             item = self._item(connection, work_item_id)
             self._assert_lease(item, lease, now)
+            if execution_receipt is not None:
+                self._persist_response_tx(
+                    connection,
+                    attempt_id,
+                    execution_receipt,
+                    receipt_sha256=receipt_sha256,
+                    now=now,
+                )
             changed = connection.execute(
                 "UPDATE attempt SET phase=?,completed_at=?,http_status_code=?,request_id=?,"
                 "receipt_sha256=?,failure_category=?,provider_error_code=? "
@@ -2370,6 +2682,7 @@ class QuickScanWorkStore:
         http_status_code: Optional[int] = None,
         actual_cost: Optional[object] = None,
         cost_source_ref: Optional[str] = None,
+        execution_receipt: Optional[dict] = None,
     ) -> None:
         """Keep a late receipt and close its budget transport slot atomically."""
         _sha256(receipt_sha256, "receipt_sha256")
@@ -2426,6 +2739,14 @@ class QuickScanWorkStore:
                     lease.lease_epoch,
                     now,
                     attempt_id=attempt_id,
+                )
+            if execution_receipt is not None:
+                self._persist_response_tx(
+                    connection,
+                    attempt_id,
+                    execution_receipt,
+                    receipt_sha256=receipt_sha256,
+                    now=now,
                 )
             if budget_outcome is not None:
                 budget_attempt = connection.execute(
@@ -2535,7 +2856,6 @@ class QuickScanWorkStore:
             or provenance.get("work_prompt_sha256") != attempt["prompt_sha256"]
             or provenance.get("receipt_sha256") != attempt["receipt_sha256"]
             or provenance.get("attempt_lease_epoch") != attempt["lease_epoch"]
-            or provenance.get("actual_model") != attempt["model_requested"]
             or not isinstance(actual_provider, str)
             or actual_provider not in {"openai", "minimax", "mimo"}
             or provenance.get("search_status") != "executed"
@@ -2546,6 +2866,46 @@ class QuickScanWorkStore:
             or not 200 <= attempt["http_status_code"] < 300
         ):
             raise ValueError("answer checkpoint attempt binding mismatch")
+        if provenance.get("model_resolution_binding") == "durable-response-v1":
+            response = QuickScanWorkStore._response_for_checkpoint(
+                connection, attempt, provenance["receipt_sha256"]
+            )
+            original = response["receipt"]
+            expected = {
+                "actual_provider": original.get("provider"),
+                "actual_model": original.get("actual_model"),
+                "request_id": original.get("request_id"),
+                "response_id": original.get("response_id"),
+                "provider_attempt_id": original.get("attempt_id"),
+                "provider_prompt_sha256": original.get("prompt_sha256"),
+                "search_receipt_id": original.get("search_receipt_id"),
+                "search_status": original.get("search_status"),
+                "response_status": original.get("response_status"),
+                "http_status_code": original.get("http_status_code"),
+                "source_urls": original.get("source_urls"),
+                "response_completed_at": original.get("completed_at"),
+            }
+            if (
+                provenance.get("actual_model") != response["model_resolved"]
+                or provenance.get("response_sha256") != response["response_sha256"]
+                or provenance.get("response_id") != response["response_id"]
+                or provenance.get("provider_attempt_id") != response["provider_attempt_id"]
+                or any(provenance.get(key) != value for key, value in expected.items())
+            ):
+                raise ValueError("answer checkpoint durable response binding mismatch")
+        else:
+            frozen = None
+            if connection.execute("PRAGMA user_version").fetchone()[0] >= 8:
+                frozen = connection.execute(
+                    "SELECT 1 FROM quick_scan_attempt_resolution WHERE attempt_id=?",
+                    (attempt["attempt_id"],),
+                ).fetchone()
+            if (
+                frozen is not None
+                or provenance.get("model_resolution_binding") is not None
+                or provenance.get("actual_model") != attempt["model_requested"]
+            ):
+                raise ValueError("historical checkpoint exact model binding mismatch")
         try:
             _sha256(provenance.get("receipt_sha256"), "checkpoint receipt hash")
             _sha256(provenance.get("provider_prompt_sha256"), "provider prompt hash")
@@ -2716,9 +3076,11 @@ class QuickScanWorkStore:
                 or attempt["http_status_code"] != receipt["http_status_code"]
                 or attempt["receipt_sha256"] != receipt_sha256
                 or attempt["request_id"] != request_id
-                or attempt["model_requested"] != actual_model
             ):
                 raise WorkConflictError("execution receipt does not match successful attempt")
+            response = self._response_for_checkpoint(connection, attempt, receipt_sha256)
+            if response["receipt"] != receipt or response["model_resolved"] != actual_model:
+                raise WorkConflictError("checkpoint receipt differs from durable response")
             work = {
                 key: item[key]
                 for key in (
@@ -2751,6 +3113,8 @@ class QuickScanWorkStore:
                     "actual_provider": actual_provider,
                     "model_requested": attempt["model_requested"],
                     "actual_model": actual_model,
+                    "model_resolution_binding": "durable-response-v1",
+                    "response_sha256": response["response_sha256"],
                     "work_prompt_sha256": attempt["prompt_sha256"],
                     "provider_prompt_sha256": receipt.get("prompt_sha256"),
                     "request_id": request_id,

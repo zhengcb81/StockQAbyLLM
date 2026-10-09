@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 """测试 LLM 客户端。"""
 
+import asyncio
 import io
 import json
 from unittest.mock import AsyncMock, Mock, patch
@@ -10,6 +11,304 @@ import httpx
 import pytest
 import requests
 from urllib3.response import HTTPResponse
+
+
+def _q10_response(model):
+    response = Mock(status_code=200)
+    response.headers = {"x-request-id": "q10-request"}
+    response.json.return_value = {
+        "id": "q10-response",
+        "status": "completed",
+        "model": model,
+        "output": [
+            {
+                "type": "web_search_call",
+                "id": "q10-search",
+                "status": "completed",
+                "action": {"type": "search", "sources": [{"url": "https://example.org/source"}]},
+            },
+            {
+                "type": "message",
+                "status": "completed",
+                "content": [{"type": "output_text", "text": "synthetic answer"}],
+            },
+        ],
+    }
+    return response
+
+
+def test_q10_unregistered_openai_model_does_not_verify(monkeypatch):
+    session = Mock()
+    session.post.return_value = _q10_response("fixture-resolved")
+    monkeypatch.setattr(
+        "src.providers.llm_client.http_client_manager.get_sync_session", lambda: session
+    )
+    result = LLMClient(
+        "synthetic", "fixture-requested", "https://api.openai.com/v1/responses"
+    ).send_search_request("synthetic")
+    assert result.actual_model == "fixture-resolved"
+    assert result.search_verified is False
+
+
+def test_q10_registered_openai_alias_preserves_both_models(monkeypatch):
+    session = Mock()
+    session.post.return_value = _q10_response("fixture-resolved")
+    monkeypatch.setattr(
+        "src.providers.llm_client.http_client_manager.get_sync_session", lambda: session
+    )
+    policy = {
+        "schema_version": "1.0.0",
+        "aliases": [
+            {
+                "provider": "openai",
+                "protocol": "responses",
+                "requested_model": "fixture-requested",
+                "resolved_model": "fixture-resolved",
+            }
+        ],
+    }
+    client = LLMClient(
+        "synthetic",
+        "fixture-requested",
+        "https://api.openai.com/v1/responses",
+        model_resolution=policy,
+    )
+    result = client.send_search_request("synthetic")
+    assert result.search_verified is True
+    assert session.post.call_args.kwargs["json"]["model"] == "fixture-requested"
+    assert result.execution_metadata["actual_model"] == "fixture-resolved"
+    assert len(result.execution_metadata["response_sha256"]) == 64
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+@pytest.mark.parametrize(
+    "provider,protocol,requested,url",
+    [
+        ("openai", "responses", "synthetic-requested", "https://api.openai.com/v1/responses"),
+        ("minimax", "responses", "MiniMax-M3", "https://api.minimax.io/v1/responses"),
+        (
+            "minimax",
+            "anthropic_messages",
+            "MiniMax-M3",
+            "https://api.minimax.io/anthropic/v1/messages",
+        ),
+        (
+            "mimo",
+            "mimo_chat_completions",
+            "mimo-v2.6-flash",
+            "https://api.xiaomimimo.com/v1/chat/completions",
+        ),
+    ],
+)
+@pytest.mark.parametrize("case", ["exact", "registered", "unregistered", "wrong_scope"])
+def test_q10_native_protocols_share_exact_or_registered_resolution(
+    monkeypatch, asynchronous, provider, protocol, requested, url, case
+):
+    resolved = requested if case == "exact" else "synthetic-resolved"
+    response = _q10_response(resolved)
+    if protocol == "anthropic_messages":
+        response.json.return_value = {
+            "id": "q10-response",
+            "model": resolved,
+            "stop_reason": "end_turn",
+            "content": [
+                {"type": "server_tool_use", "id": "q10-search", "name": "web_search"},
+                {
+                    "type": "web_search_tool_result",
+                    "tool_use_id": "q10-search",
+                    "content": [{"type": "web_search_result", "url": "https://example.org/source"}],
+                },
+                {"type": "text", "text": "synthetic answer"},
+            ],
+        }
+    elif protocol == "mimo_chat_completions":
+        response.json.return_value = {
+            "id": "q10-response",
+            "model": resolved,
+            "choices": [
+                {
+                    "finish_reason": "stop",
+                    "message": {
+                        "content": "synthetic answer",
+                        "annotations": [
+                            {"type": "url_citation", "url": "https://example.org/source"}
+                        ],
+                    },
+                }
+            ],
+        }
+    aliases = []
+    if case in {"registered", "wrong_scope"}:
+        mapped_provider, mapped_protocol = provider, protocol
+        if case == "wrong_scope":
+            mapped_provider, mapped_protocol = (
+                ("minimax", "anthropic_messages")
+                if provider != "minimax"
+                else (
+                    "minimax",
+                    "responses" if protocol == "anthropic_messages" else "anthropic_messages",
+                )
+            )
+        aliases = [
+            {
+                "provider": mapped_provider,
+                "protocol": mapped_protocol,
+                "requested_model": requested,
+                "resolved_model": resolved,
+            }
+        ]
+    policy = {"schema_version": "1.0.0", "aliases": aliases}
+    session = Mock()
+    if asynchronous:
+        session.post = AsyncMock(return_value=response)
+        monkeypatch.setattr(
+            "src.providers.llm_client.http_client_manager.get_async_client",
+            AsyncMock(return_value=session),
+        )
+        client = AsyncLLMClient(
+            "synthetic", requested, url, provider_name=provider, model_resolution=policy
+        )
+        result = asyncio.run(client.send_search_request_async("synthetic"))
+        assert session.post.await_count == 1
+    else:
+        session.post.return_value = response
+        monkeypatch.setattr(
+            "src.providers.llm_client.http_client_manager.get_sync_session", lambda: session
+        )
+        client = LLMClient(
+            "synthetic", requested, url, provider_name=provider, model_resolution=policy
+        )
+        result = client.send_search_request("synthetic")
+        assert session.post.call_count == 1
+    assert result.search_verified is (case in {"exact", "registered"})
+    assert result.actual_model == resolved
+    assert result.execution_metadata["requested_model"] == requested
+    assert len(result.execution_metadata["response_sha256"]) == 64
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [b'{"model":"a","model":"b"}', b'{"model":"a","number":NaN}', b'{"model":"a","number":1e999}'],
+)
+def test_q10_raw_duplicate_or_nonfinite_json_cannot_be_success(monkeypatch, raw):
+    response = _q10_response("fixture-requested")
+    response.content = raw
+    session = Mock()
+    session.post.return_value = response
+    monkeypatch.setattr(
+        "src.providers.llm_client.http_client_manager.get_sync_session", lambda: session
+    )
+    with pytest.raises(LLMTransportAttemptError):
+        LLMClient(
+            "synthetic", "fixture-requested", "https://api.openai.com/v1/responses"
+        ).send_search_request("synthetic")
+
+
+def test_q10_strict_raw_json_is_the_model_source_even_if_json_method_disagrees(monkeypatch):
+    response = _q10_response("forged-json-method-model")
+    payload = dict(response.json.return_value)
+    payload["model"] = "fixture-requested"
+    response.content = json.dumps(payload).encode("utf-8")
+    session = Mock()
+    session.post.return_value = response
+    monkeypatch.setattr(
+        "src.providers.llm_client.http_client_manager.get_sync_session", lambda: session
+    )
+    result = LLMClient(
+        "synthetic", "fixture-requested", "https://api.openai.com/v1/responses"
+    ).send_search_request("synthetic")
+    assert result.search_verified is True
+    assert result.actual_model == "fixture-requested"
+    assert result.execution_metadata["response_json_basis"] == "strict_http_json"
+
+
+def test_q10_async_model_mutation_after_begin_cannot_change_frozen_http_request(
+    tmp_path, monkeypatch
+):
+    from src.utils.quick_scan_work_store import QuickScanWorkStore
+    from src.utils.quick_scan_work_transport import (
+        bind_quick_scan_budget,
+        bind_quick_scan_route,
+        bind_quick_scan_work,
+    )
+
+    requested = "fixture-requested"
+    store = QuickScanWorkStore(tmp_path / "synthetic-model-mutation.sqlite")
+    item = store.create_or_attach(
+        entity_id="ENT_SYNTHETIC",
+        question_id="CORE_01",
+        generation=1,
+        scope="entity",
+        scope_id="ENT_SYNTHETIC",
+        identity_revision=1,
+        source_binding_version=1,
+        identity_state="verified",
+        source_binding_ref="BND_SYNTHETIC",
+        source_binding_refs=["BND_SYNTHETIC"],
+        identity_snapshot_sha256="a" * 64,
+        question_fingerprint="b" * 64,
+        routing_fingerprint="c" * 64,
+        run_id="RUN_SYNTHETIC",
+        scan_id="SCAN_SYNTHETIC",
+    )
+    work_id = item["work_item_id"]
+    lease = store.claim(work_id, lease_seconds=60)
+    assert lease is not None
+    route = {
+        "id": "mutation-route",
+        "provider_config_ref": "openai",
+        "model": requested,
+        "quota_group": "synthetic-account",
+        "max_in_flight": 1,
+        "eligible": True,
+    }
+    policy = {
+        "configured": True,
+        "policy_id": "synthetic-mutation-budget",
+        "policy_version": "synthetic-mutation-budget@v1",
+        "budget": {"currency": "USD", "max_cost": 20, "max_requests": 5, "max_cost_per_attempt": 2},
+        "cost_policy": {
+            "pricing_basis": "verified_rate_card",
+            "pricing_ref": "synthetic-rates",
+            "reserve_before_dispatch": True,
+            "unknown_actual_cost_action": "retain_reservation_and_pause",
+        },
+        "dispatch": {"max_in_flight_total": 1},
+        "quota_groups": [{"id": "synthetic-account", "max_in_flight": 1}],
+        "routes": [route],
+    }
+    client = AsyncLLMClient("synthetic", requested, "https://api.openai.com/v1/responses")
+    session = Mock()
+    session.post = AsyncMock(return_value=_q10_response(requested))
+
+    async def get_client():
+        attempt = store.list_attempts(work_id)[0]
+        assert attempt["phase"] == "send_intent"
+        assert attempt["model_requested"] == requested
+        assert store.get_quick_scan_budget_status(policy["policy_id"])["requests"] == 1
+        client.model = "mutated-after-durable-intent"
+        return session
+
+    monkeypatch.setattr("src.providers.llm_client.http_client_manager.get_async_client", get_client)
+    try:
+        with bind_quick_scan_work(store, work_id, lease), bind_quick_scan_budget(store, policy):
+            with bind_quick_scan_route(
+                route_id=route["id"],
+                provider="openai",
+                model_requested=requested,
+                quota_group="synthetic-account",
+            ):
+                result = asyncio.run(client.send_search_request_async("synthetic prompt"))
+    finally:
+        assert session.post.await_count == 1
+        assert session.post.call_args.kwargs["json"]["model"] == requested
+    assert result.search_verified
+    assert result.execution_metadata["requested_model"] == requested
+    attempt = store.list_attempts(work_id)[0]
+    response = store.get_attempt_response(attempt["attempt_id"])
+    assert response["model_requested"] == requested
+    assert response["model_resolved"] == requested
+
 
 from src.providers.llm_client import (
     AsyncLLMClient,
@@ -144,7 +443,7 @@ class TestLLMClient:
         response.json.return_value = {
             "id": "resp_fixture_01",
             "status": "completed",
-            "model": "fixture-search-model",
+            "model": "fixture-model",
             "usage": {
                 "input_tokens": 15,
                 "input_tokens_details": {"cached_tokens": 5},
@@ -652,7 +951,7 @@ class TestAsyncLLMClient:
         response.json.return_value = {
             "id": "resp_async_01",
             "status": "completed",
-            "model": "fixture-search-model",
+            "model": "fixture-model",
             "output": [
                 {
                     "type": "web_search_call",

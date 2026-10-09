@@ -72,9 +72,17 @@ class BaseLLMProvider(SearchProvider):
         config_file: str = "llm_apis.json",
         require_search: bool = False,
         entity_id: Optional[str] = None,
+        model_resolution: Optional[Dict[str, Any]] = None,
     ):
         """初始化。"""
         self.config_manager = LLMConfig(config_file)
+        from .model_resolution import normalize_model_resolution
+
+        self.model_resolution = normalize_model_resolution(
+            self.config_manager.get_quick_scan_model_resolution()
+            if model_resolution is None
+            else model_resolution
+        )
         self.company_name = company_name
         self.entity_id = entity_id
         self.require_search = require_search

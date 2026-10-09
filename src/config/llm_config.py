@@ -134,6 +134,14 @@ class LLMConfig:
             return ""
         return cast(str, config.get("model", ""))
 
+    def get_quick_scan_model_resolution(self) -> Dict[str, Any]:
+        """Return one validated, detached permission projection for this call."""
+        # The providers package eagerly imports this config; defer its shared
+        # resolution helper until runtime to avoid an import cycle.
+        from src.providers.model_resolution import normalize_model_resolution
+
+        return normalize_model_resolution(self.config.get("quick_scan_model_resolution"))
+
     def get_quick_scan_model_policy(self, default_provider: Optional[str] = None) -> Dict[str, Any]:
         """Return one immutable-at-call-time ordered quick-scan route snapshot.
 
@@ -143,6 +151,7 @@ class LLMConfig:
         the saved policy; the returned fingerprint changes even if a user edits
         the route order but reuses the same policy_id.
         """
+        resolution = self.get_quick_scan_model_resolution()
         policy = self.config.get("quick_scan_model_policy")
         if policy is None or (isinstance(policy, dict) and policy.get("configured") is False):
             provider = default_provider or self.get_default_provider()
@@ -156,9 +165,17 @@ class LLMConfig:
                 "enabled": True,
                 "eligible": has_key,
                 "unavailable_reason": None if has_key else "provider_credential_missing",
+                "model_resolution": copy.deepcopy(resolution),
             }
+            version_projection = {
+                "mode": "legacy-single-provider",
+                "provider": provider,
+                "model": model,
+            }
+            if resolution["aliases"]:
+                version_projection["quick_scan_model_resolution"] = resolution
             version_input = json.dumps(
-                {"mode": "legacy-single-provider", "provider": provider, "model": model},
+                version_projection,
                 sort_keys=True,
                 separators=(",", ":"),
             )
@@ -202,10 +219,19 @@ class LLMConfig:
                     "enabled": True,
                     "eligible": enabled and has_key,
                     "unavailable_reason": reason,
+                    "model_resolution": copy.deepcopy(resolution),
                 }
             )
 
-        canonical = json.dumps(policy, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        version_projection = policy
+        if resolution["aliases"]:
+            version_projection = {
+                "quick_scan_model_policy": policy,
+                "quick_scan_model_resolution": resolution,
+            }
+        canonical = json.dumps(
+            version_projection, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        )
         digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
         return {
             "configured": True,

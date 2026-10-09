@@ -1,10 +1,165 @@
 import json
 from decimal import Decimal
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
+from src.providers.llm_client import LLMClient
 from src.utils.quick_scan_cost_resolver import QuickScanCostResolver
+from src.utils.quick_scan_work_store import QuickScanWorkStore
+from src.utils.quick_scan_work_transport import (
+    QuickScanBudgetDeferredError,
+    bind_quick_scan_budget,
+    bind_quick_scan_route,
+)
+
+
+@pytest.mark.parametrize("actual", [None, "", "unpriced-resolved-model"])
+def test_q10_missing_actual_rate_card_never_uses_requested_price_or_zero(tmp_path, actual):
+    path = tmp_path / "synthetic-rates.json"
+    _write_cards(path, [_card(model="requested-model")])
+    receipt = {
+        "provider": "openai",
+        "requested_model": "requested-model",
+        "actual_model": actual,
+        "usage": _usage(),
+        "answer": {"actual_model": "requested-model"},
+        "execution": {"actual_model": "requested-model"},
+    }
+    assert QuickScanCostResolver(path, _policy())(receipt) is None
+
+
+def test_q10_resolved_rate_card_wins_when_requested_and_actual_have_different_prices(tmp_path):
+    path = tmp_path / "synthetic-rates.json"
+    requested = _card(model="requested-model")
+    resolved = _card(model="resolved-model", source_ref="https://provider.example/pricing#resolved")
+    resolved["rates"]["input_per_million_tokens"] = 7
+    _write_cards(path, [requested, resolved])
+    receipt = {
+        "provider": "openai",
+        "requested_model": "requested-model",
+        "actual_model": "resolved-model",
+        "usage": _usage(
+            input_tokens=1_000_000,
+            cached_input_tokens=0,
+            cache_creation_input_tokens=0,
+            output_tokens=0,
+            reasoning_output_tokens=0,
+            search_tool_calls=0,
+        ),
+        "answer": {"actual_model": "requested-model"},
+    }
+    priced = QuickScanCostResolver(path, _policy())(receipt)
+    assert priced["actual_cost"] == Decimal("7")
+    assert priced["source_ref"] == "https://provider.example/pricing#resolved"
+
+
+def test_q10_unpriced_alias_actual_retains_budget_reservation_and_pauses_dispatch(
+    tmp_path, monkeypatch
+):
+    path = tmp_path / "synthetic-rates.json"
+    _write_cards(path, [_card(model="requested-model")])
+    resolution = {
+        "schema_version": "1.0.0",
+        "aliases": [
+            {
+                "provider": "openai",
+                "protocol": "responses",
+                "requested_model": "requested-model",
+                "resolved_model": "unpriced-resolved-model",
+            }
+        ],
+    }
+    route = {
+        "id": "q10-cost-route",
+        "provider_config_ref": "openai",
+        "model": "requested-model",
+        "quota_group": "q10-cost-account",
+        "max_in_flight": 1,
+        "eligible": True,
+        "unavailable_reason": None,
+        "model_resolution": resolution,
+    }
+    policy = {
+        "configured": True,
+        "policy_id": "q10-unpriced",
+        "policy_version": "q10-unpriced@alias-v1",
+        "budget": {"currency": "USD", "max_cost": 20, "max_requests": 5, "max_cost_per_attempt": 2},
+        "cost_policy": {
+            "pricing_basis": "verified_rate_card",
+            "pricing_ref": "fixture-rates-v1",
+            "reserve_before_dispatch": True,
+            "unknown_actual_cost_action": "retain_reservation_and_pause",
+        },
+        "dispatch": {"max_in_flight_total": 1},
+        "quota_groups": [{"id": "q10-cost-account", "max_in_flight": 1}],
+        "routes": [route],
+    }
+    resolver = QuickScanCostResolver(path, policy)
+    store = QuickScanWorkStore(tmp_path / "q10-cost.sqlite")
+    response = Mock()
+    response.status_code = 200
+    response.headers = {"x-request-id": "synthetic-cost-request"}
+    response.json.return_value = {
+        "id": "synthetic-cost-response",
+        "status": "completed",
+        "model": "unpriced-resolved-model",
+        "usage": {
+            "input_tokens": 1_000_000,
+            "output_tokens": 0,
+            "input_tokens_details": {"cached_tokens": 0},
+        },
+        "output": [
+            {
+                "type": "web_search_call",
+                "id": "synthetic-cost-search",
+                "status": "completed",
+                "action": {
+                    "type": "search",
+                    "sources": [{"type": "url", "url": "https://example.org/source"}],
+                },
+            },
+            {
+                "type": "message",
+                "status": "completed",
+                "content": [
+                    {"type": "output_text", "text": '{"score":8,"description":"synthetic"}'}
+                ],
+            },
+        ],
+    }
+    session = Mock()
+    session.post.return_value = response
+    monkeypatch.setattr(
+        "src.providers.llm_client.http_client_manager.get_sync_session", lambda: session
+    )
+    client = LLMClient(
+        api_key="synthetic-key",
+        model="requested-model",
+        base_url="https://api.openai.com/v1/responses",
+        provider_name="openai",
+        model_resolution=resolution,
+    )
+    with bind_quick_scan_budget(store, policy, cost_resolver=resolver), bind_quick_scan_route(
+        route_id=route["id"],
+        provider="openai",
+        model_requested="requested-model",
+        quota_group=route["quota_group"],
+        model_resolution=resolution,
+    ):
+        received = client.send_search_request("Synthetic initial cost question")
+        assert received.search_verified
+        assert received.actual_model == "unpriced-resolved-model"
+        assert resolver(received.execution_metadata) is None
+        status = store.get_quick_scan_budget_status(policy["policy_id"])
+        assert status["reserved_micros"] == 2_000_000
+        assert status["spent_micros"] == 0
+        assert status["requests"] == 1
+        assert status["unreconciled_attempts"] == 1
+        with pytest.raises(QuickScanBudgetDeferredError):
+            client.send_search_request("Synthetic later cost question")
+    session.post.assert_called_once()
 
 
 def _policy(*, pricing_ref="fixture-rates-v1", currency="USD"):

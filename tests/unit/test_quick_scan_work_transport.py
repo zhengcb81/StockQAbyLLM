@@ -609,7 +609,7 @@ def test_explicit_format_repair_uses_second_durable_attempt_on_same_route(tmp_pa
                     "openai": {
                         "enabled": True,
                         "api_key": "",
-                        "model": "gpt-4.1-mini",
+                        "model": "fixture-model",
                         "base_url": "https://api.openai.com/v1/responses",
                         "max_retries": 1,
                         "format_repair_budget": 1,
@@ -636,7 +636,7 @@ def test_explicit_format_repair_uses_second_durable_attempt_on_same_route(tmp_pa
     provider = LLMProvider(
         provider_name="openai",
         api_key="fixture-key",
-        model="gpt-4.1-mini",
+        model="fixture-model",
         config_file=str(config_file),
         require_search=True,
         company_name="Fixture Co",
@@ -694,3 +694,169 @@ def test_provider_route_without_work_binding_preserves_legacy_behavior(monkeypat
 
     assert result[0].score == 8
     session.post.assert_called_once()
+
+
+def _q10_alias_policy(actual="fixture-resolved"):
+    return {
+        "schema_version": "1.0.0",
+        "aliases": [
+            {
+                "provider": "openai",
+                "protocol": "responses",
+                "requested_model": "fixture-model",
+                "resolved_model": actual,
+            }
+        ],
+    }
+
+
+@pytest.mark.parametrize("work_bound", [False, True])
+def test_q10_route_model_mismatch_precedes_budget_reservation_and_post(
+    tmp_path, monkeypatch, work_bound
+):
+    from contextlib import nullcontext
+
+    store, work_id, lease = _create_claimed_item(tmp_path)
+    session = Mock()
+    monkeypatch.setattr(
+        "src.providers.llm_client.http_client_manager.get_sync_session", lambda: session
+    )
+    client = LLMClient("fixture-key", "wrong-request", "https://api.openai.com/v1/responses")
+    policy = _budget_policy()
+    with bind_quick_scan_work(store, work_id, lease) if work_bound else nullcontext():
+        with bind_quick_scan_budget(store, policy), bind_quick_scan_route(
+            route_id="primary-route",
+            provider="primary",
+            model_requested="fixture-model",
+            quota_group="A",
+            model_resolution=_q10_alias_policy(),
+        ):
+            with pytest.raises(QuickScanWorkPersistenceError, match="requested model"):
+                client.send_search_request("synthetic prompt")
+    session.post.assert_not_called()
+    assert store.list_attempts(work_id) == []
+    budget = store.get_quick_scan_budget_status(policy["policy_id"])
+    assert budget["requests"] == 0
+    assert budget["reserved_micros"] == 0
+
+
+@pytest.mark.parametrize("work_bound", [False, True])
+@pytest.mark.parametrize("status", [200, 401])
+def test_q10_http_source_is_durable_with_or_without_work_and_without_usage(
+    tmp_path, monkeypatch, work_bound, status
+):
+    from contextlib import nullcontext
+
+    store, work_id, lease = _create_claimed_item(tmp_path)
+    response = _http_response(status)
+    response.json.return_value.update({"id": "synthetic-http-id", "model": "fixture-resolved"})
+    session = Mock()
+    session.post.return_value = response
+    monkeypatch.setattr(
+        "src.providers.llm_client.http_client_manager.get_sync_session", lambda: session
+    )
+    client = LLMClient("fixture-key", "fixture-model", "https://api.openai.com/v1/responses")
+    policy = _budget_policy()
+    resolution = _q10_alias_policy()
+    with bind_quick_scan_work(store, work_id, lease) if work_bound else nullcontext():
+        with bind_quick_scan_budget(store, policy), bind_quick_scan_route(
+            route_id="primary-route",
+            provider="primary",
+            model_requested="fixture-model",
+            quota_group="A",
+            model_resolution=resolution,
+        ):
+            # Changes to a caller-owned dictionary cannot authorize this dispatch anew.
+            resolution["aliases"].clear()
+            if status == 200:
+                result = client.send_search_request("synthetic prompt")
+                assert result.search_verified is True
+            else:
+                with pytest.raises(LLMTransportAttemptError):
+                    client.send_search_request("synthetic prompt")
+    with sqlite3.connect(store.path) as connection:
+        (attempt_id,) = connection.execute(
+            "SELECT attempt_id FROM quick_scan_attempt_response"
+        ).fetchone()
+        work_fk, budget_fk = connection.execute(
+            "SELECT work_attempt_id,budget_attempt_id FROM quick_scan_attempt_resolution"
+        ).fetchone()
+    original = store.get_attempt_response(attempt_id)
+    assert original["model_requested"] == "fixture-model"
+    assert original["model_resolved"] == "fixture-resolved"
+    assert original["response_id"] == "synthetic-http-id"
+    assert (
+        original["response_sha256"]
+        == hashlib.sha256(
+            json.dumps(
+                response.json.return_value, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+            ).encode("utf-8")
+        ).hexdigest()
+    )
+    assert original["receipt"]["response_json_basis"] == "parsed_payload"
+    assert "usage" not in original["receipt"]
+    assert original["model_resolution"]["aliases"]
+    assert (work_fk is not None, budget_fk is not None) == (work_bound, not work_bound)
+    restarted = QuickScanWorkStore(store.path)
+    assert restarted.get_attempt_response(attempt_id) == original
+    budget = restarted.get_quick_scan_budget_status(policy["policy_id"])
+    assert budget["spent_micros"] == 0
+    assert budget["reserved_micros"] == 2_000_000
+    assert budget["unreconciled_attempts"] == 1
+    assert budget["in_flight"] == 0
+
+
+@pytest.mark.parametrize("distinct_requested", [False, True])
+def test_q10_refused_primary_then_registered_backup_uses_final_attempt(
+    tmp_path, monkeypatch, distinct_requested
+):
+    store, work_id, lease = _create_claimed_item(tmp_path)
+    backup_response = _http_response(200)
+    backup_response.json.return_value["model"] = "fixture-resolved"
+    # A body-generated model has no authority over the HTTP model.
+    backup_response.json.return_value["output"][1]["content"][0]["text"] = (
+        '{"actual_model":"forged-model","question_id":"CORE_01",'
+        '"entity_id":"ENT_FIXTURE_CO","score":8,"description":"synthetic"}'
+    )
+    session = Mock()
+    session.post.side_effect = [_http_response(401), backup_response]
+    monkeypatch.setattr(
+        "src.providers.llm_client.http_client_manager.get_sync_session", lambda: session
+    )
+    primary_requested = "synthetic-primary-requested" if distinct_requested else "fixture-model"
+    backup_requested = "synthetic-backup-requested" if distinct_requested else "fixture-model"
+    cascade = _cascade(
+        _PostingProvider("primary", primary_requested), _PostingProvider("backup", backup_requested)
+    )
+    cascade.routes[0]["model"] = primary_requested
+    cascade.routes[1]["model"] = backup_requested
+    resolution = _q10_alias_policy()
+    resolution["aliases"][0]["requested_model"] = backup_requested
+    cascade.routes[1]["model_resolution"] = resolution
+    with bind_quick_scan_work(store, work_id, lease):
+        result = cascade.search_question(Question("synthetic", question_id="CORE_01"))
+    attempts = store.list_attempts(work_id)
+    assert [attempt["phase"] for attempt in attempts] == ["confirmed_failure", "response_available"]
+    receipt = result[0].metadata["execution"]["work_transport"]["final_receipt"]
+    checkpoint = store.save_answer_checkpoint(
+        work_id,
+        lease,
+        attempts[-1]["attempt_id"],
+        answer={
+            "entity_id": "ENT_FIXTURE_CO",
+            "question_id": "CORE_01",
+            "status": "scored",
+            "score": 8,
+            "description": "synthetic",
+        },
+        execution_receipt=receipt,
+    )
+    assert checkpoint["payload"]["provenance"]["route_id"] == "backup-route"
+    assert checkpoint["payload"]["provenance"]["actual_model"] == "fixture-resolved"
+    assert checkpoint["payload"]["provenance"]["model_requested"] == backup_requested
+    assert attempts[0]["model_requested"] == primary_requested
+    assert [call.kwargs["json"]["model"] for call in session.post.call_args_list] == [
+        primary_requested,
+        backup_requested,
+    ]
+    assert session.post.call_count == 2

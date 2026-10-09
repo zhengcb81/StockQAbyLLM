@@ -163,6 +163,7 @@ class QuickScanWorkLifecycle:
         routing_fingerprint_by_question: Optional[Dict[str, str]] = None,
         transport_managed: bool = False,
         observation_context: Optional[Dict[str, Any]] = None,
+        model_resolution: Optional[Dict[str, Any]] = None,
     ) -> None:
         if (budget_policy is None) != (budget_route is None):
             raise ValueError("budget_policy and budget_route must be supplied together")
@@ -178,6 +179,9 @@ class QuickScanWorkLifecycle:
         self._route_id = route_id
         self._provider_name = provider_name
         self._model_requested = model_requested
+        from src.providers.model_resolution import normalize_model_resolution
+
+        self._model_resolution = normalize_model_resolution(model_resolution)
         self._scope = scope
         self._scope_id = scope_id or entity_id
         self._budget_policy = budget_policy
@@ -305,6 +309,7 @@ class QuickScanWorkLifecycle:
                 model_requested=self._model_requested,
                 request_cache_key=request_cache_key,
                 prompt_sha256=prompt_sha,
+                model_resolution=self._model_resolution,
             )
             # P0-3: commit send intent before dispatch (transport semantics:
             # prepare -> mark_send_intent -> record outcome). Budget policy and
@@ -414,6 +419,7 @@ class QuickScanWorkLifecycle:
                 route_id=self._route_id,
                 provider=self._provider_name,
                 model_requested=self._model_requested,
+                model_resolution=self._model_resolution,
             )
         )
         return context
@@ -542,6 +548,7 @@ class QuickScanWorkLifecycle:
             standard_body: Optional[Dict[str, Any]] = None
             try:
                 from src.core.models import execution_receipt_for_checkpoint
+                from src.providers.model_resolution import model_resolution_allowed
 
                 receipt = execution_receipt_for_checkpoint(
                     getattr(getattr(result, "answer", None), "metadata", None)
@@ -551,6 +558,9 @@ class QuickScanWorkLifecycle:
                 if receipt is not None and question_id and answer is not None:
                     status = getattr(answer, "status", None)
                     score = getattr(answer, "score", None)
+                    receipt_provider = receipt.get("provider")
+                    receipt_protocol = receipt.get("search_protocol")
+                    receipt_requested = receipt.get("requested_model")
                     shape_ok = (
                         status
                         in {
@@ -564,7 +574,16 @@ class QuickScanWorkLifecycle:
                             if status == "scored"
                             else score is None
                         )
-                        and receipt.get("actual_model") == self._model_requested
+                        and isinstance(receipt_provider, str)
+                        and isinstance(receipt_protocol, str)
+                        and isinstance(receipt_requested, str)
+                        and model_resolution_allowed(
+                            receipt_provider,
+                            receipt_protocol,
+                            receipt_requested,
+                            receipt.get("actual_model"),
+                            self._model_resolution,
+                        )
                     )
                     if shape_ok:
                         description, standard_body = self._standard_transport(
@@ -606,6 +625,7 @@ class QuickScanWorkLifecycle:
                         receipt_sha256=receipt_sha256,
                         http_status_code=receipt["http_status_code"],
                         request_id=receipt.get("request_id"),
+                        execution_receipt=receipt,
                     )
                     recorded = True
                     self._store.save_answer_checkpoint(
@@ -1081,6 +1101,7 @@ class LLMRunner:
                 config_file=str(config_file),
                 require_search=True,
                 entity_id=entity_id,
+                model_resolution=route.get("model_resolution"),
             )
             # A quota-rejected route should advance promptly instead
             # of retrying the same exhausted account. Later quota
@@ -1414,6 +1435,7 @@ class LLMRunner:
                             config_file=str(llm_config.config_file),
                             require_search=True,
                             entity_id=entity_id,
+                            model_resolution=route.get("model_resolution"),
                         )
                         # A quota-rejected route should advance promptly instead
                         # of retrying the same exhausted account. Later quota
@@ -1471,6 +1493,7 @@ class LLMRunner:
                         config_file=str(llm_config.config_file),
                         require_search=True,
                         entity_id=entity_id,
+                        model_resolution=policy["routes"][0].get("model_resolution"),
                     )
             else:
                 llm_provider = LLMProvider(
@@ -1564,6 +1587,9 @@ class LLMRunner:
                     budget_policy=budget_pair_policy,
                     budget_route=budget_pair_route,
                     model_requested=lifecycle_model or "quick-scan",
+                    model_resolution=(
+                        primary_route or (quick_scan_policy or {}).get("routes", [{}])[0]
+                    ).get("model_resolution"),
                     route_id=(
                         primary_route or (quick_scan_policy or {}).get("routes", [{}])[0]
                     ).get("id", "cli"),
