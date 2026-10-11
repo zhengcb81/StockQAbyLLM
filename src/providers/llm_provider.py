@@ -5,8 +5,10 @@
 使用 LLM API 分析公司并返回评分和描述。
 """
 
+import re
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 import requests
 
@@ -22,17 +24,45 @@ from src.utils.quick_scan_work_transport import (
 )
 
 from .base_llm_provider import BaseLLMProvider
-from .llm_client import LLMClient, LLMTransportAttemptError, SearchCapabilityUnavailable
+from .llm_client import (
+    LLMClient,
+    LLMTransportAttemptError,
+    SearchCapabilityUnavailable,
+    _validate_search_generation_controls,
+)
 from .llm_response_parser import ParsedLLMAnswer
 
 logger = get_logger(__name__)
 
 
+@dataclass(frozen=True)
+class QuestionPackSearchResult:
+    """One physical response and its independently parsed logical answers."""
+
+    results: Tuple[SearchResult, ...]
+    missing_question_ids: Tuple[str, ...]
+    invalid_question_ids: Tuple[str, ...]
+    execution_metadata: Dict[str, Any]
+
+
 class LLMProvider(BaseLLMProvider):
     """同步 LLM 提供者类。"""
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        *args: Any,
+        thinking_enabled: Optional[bool] = None,
+        max_output_tokens: Optional[int] = None,
+        **kwargs: Any,
+    ) -> None:
+        _validate_search_generation_controls(thinking_enabled, max_output_tokens)
         super().__init__(*args, **kwargs)
+        if not self.require_search and (
+            thinking_enabled is not None or max_output_tokens is not None
+        ):
+            raise ValueError("explicit generation controls require the verified search client")
+        self.thinking_enabled = thinking_enabled
+        self.max_output_tokens = max_output_tokens
         # 确保api_key和model不为None
         api_key = self.api_key or ""
         model = self.model or ""
@@ -99,11 +129,19 @@ class LLMProvider(BaseLLMProvider):
                     for attempt in attempts
                 ]
 
+        result = self._result_from_parsed(query, parsed, execution_metadata)
+
+        logger.info("LLM答案生成完成 (状态: %s)", parsed.status)
+        return [result]
+
+    def _result_from_parsed(
+        self, query: str, parsed: ParsedLLMAnswer, execution_metadata: Dict[str, Any]
+    ) -> SearchResult:
         from src.utils.quick_scan_work_transport import project_quick_scan_search
 
         search_projection = project_quick_scan_search(execution_metadata)
 
-        result = SearchResult(
+        return SearchResult(
             title=f"关于 '{query[:DISPLAY_TITLE_TRUNCATE]}...' 的评估",
             snippet=parsed.description,
             source="llm_api",
@@ -137,8 +175,183 @@ class LLMProvider(BaseLLMProvider):
             },
         )
 
-        logger.info("LLM答案生成完成 (状态: %s)", parsed.status)
-        return [result]
+    def _search_generation_options(self) -> Dict[str, Any]:
+        options: Dict[str, Any] = {}
+        if self.thinking_enabled is not None:
+            options["thinking_enabled"] = self.thinking_enabled
+        if self.max_output_tokens is not None:
+            options["max_output_tokens"] = self.max_output_tokens
+        return options
+
+    def search_question_pack(
+        self,
+        questions: List[Question],
+        *,
+        thinking_enabled: bool = True,
+        max_output_tokens: int = 8192,
+    ) -> QuestionPackSearchResult:
+        """Send one registered native-search pack, with no retries or format repair.
+
+        This parser/provider step does not attest financial correctness or an
+        import ACK. Each returned member retains the one physical usage receipt;
+        missing and invalid members are diagnostics, never synthetic answers.
+        """
+        if not self.require_search:
+            raise ValueError("question packs require verified search")
+        if type(thinking_enabled) is not bool or type(max_output_tokens) is not int:
+            raise ValueError("question pack generation controls must be explicit bool/int")
+        _validate_search_generation_controls(thinking_enabled, max_output_tokens)
+        if (
+            not isinstance(self.entity_id, str)
+            or not self.entity_id.strip()
+            or self.entity_id != self.entity_id.strip()
+            or not isinstance(self.company_name, str)
+            or not self.company_name.strip()
+            or self.company_name != self.company_name.strip()
+        ):
+            raise ValueError("question pack requires exact entity and company identity")
+        if not isinstance(questions, list) or not 1 <= len(questions) <= 30:
+            raise ValueError("questions must be a list of 1..30 identified questions")
+        if any(
+            not isinstance(question, Question)
+            or not isinstance(question.text, str)
+            or not question.text.strip()
+            or not isinstance(question.question_id, str)
+            or not 1 <= len(question.question_id) <= 160
+            or re.fullmatch(r"[A-Z0-9_]+", question.question_id) is None
+            for question in questions
+        ):
+            raise ValueError("question pack members need stable uppercase question IDs")
+        question_ids = tuple(cast(str, question.question_id) for question in questions)
+        if len(set(question_ids)) != len(question_ids):
+            raise ValueError("question pack IDs must be unique")
+        if external_answer_search_mode() is not None:
+            raise QuickScanWorkPersistenceError(
+                "question packs currently require native search; external evidence needs independent member proofs"
+            )
+        from src.utils.quick_scan_work_transport import (
+            assert_question_pack_binding,
+            project_question_pack_transport,
+        )
+
+        assert_question_pack_binding(question_ids, self.entity_id)
+        prompt = self._build_prompt("", question_pack=questions)
+
+        def reply(
+            metadata: Dict[str, Any],
+            status: str,
+            results: Tuple[SearchResult, ...] = (),
+            missing: Tuple[str, ...] = (),
+            invalid: Tuple[str, ...] = (),
+        ) -> QuestionPackSearchResult:
+            returned = dict(metadata)
+            returned["question_pack"] = {
+                "status": status,
+                "answer_status": "unknown" if not results else "independent_member_statuses",
+                "question_ids": list(question_ids),
+                "missing_question_ids": list(missing),
+                "invalid_question_ids": list(invalid),
+                "format_repair_attempted": False,
+            }
+            return QuestionPackSearchResult(results, missing, invalid, returned)
+
+        if not self.api_key:
+            return reply(
+                {"search_status": "unavailable", "failure_type": "missing_api_key"},
+                "unavailable",
+                missing=question_ids,
+            )
+        if not self.client.supports_web_search:
+            return reply(
+                {"search_status": "unavailable", "failure_type": "unsupported_search"},
+                "unavailable",
+                missing=question_ids,
+            )
+        try:
+            response = self.client.send_search_request(
+                prompt,
+                thinking_enabled=thinking_enabled,
+                max_output_tokens=max_output_tokens,
+            )
+        except SearchCapabilityUnavailable as error:
+            return reply(
+                {"search_status": "unavailable", "failure_type": type(error).__name__},
+                "unavailable",
+                missing=question_ids,
+            )
+        except LLMTransportAttemptError as error:
+            return reply(
+                {
+                    **error.attempt_receipt,
+                    "attempts": [error.attempt_receipt],
+                    "search_status": "unverified",
+                    "failure_type": error.failure_type,
+                },
+                "transport_failed",
+                missing=question_ids,
+            )
+
+        # Never accept the model/provider response's member map as authority.
+        # The projector re-reads the active immutable group and final owner receipt.
+        trusted = project_question_pack_transport(response.execution_metadata)
+        members = trusted.get("members")
+        if not isinstance(members, list) or [
+            member.get("question_id") for member in members
+        ] != list(question_ids):
+            raise QuickScanWorkPersistenceError(
+                "question pack owner membership differs from supplied order"
+            )
+        metadata = dict(response.execution_metadata)
+        metadata["provider_config_ref"] = self.provider_name
+        if not response.search_verified:
+            return reply(metadata, "search_unverified", missing=question_ids)
+        parsed = self.parser.parse_question_pack_response(
+            response.content,
+            question_ids,
+            expected_entity_id=self.entity_id,
+            expected_company_name=self.company_name,
+        )
+        if parsed is None:
+            return reply(metadata, "rejected", invalid=question_ids)
+        by_id = {member["question_id"]: member for member in members}
+        questions_by_id = {question.question_id: question for question in questions}
+        physical = metadata.get("work_transport")
+        if not isinstance(physical, dict):
+            raise QuickScanWorkPersistenceError("question pack has no actual physical transport")
+        results = []
+        for answer in parsed.answers:
+            member = by_id[answer.question_id]
+            execution = dict(metadata)
+            execution["work_transport"] = {
+                **physical,
+                "work_attempt_id": member["work_attempt_id"],
+                "work_item_id": member["work_item_id"],
+                "physical_budget_attempt_id": trusted["budget_attempt_id"],
+                "question_pack_id": trusted["pack_id"],
+            }
+            execution["question_pack_member"] = {
+                "pack_id": trusted["pack_id"],
+                "question_id": answer.question_id,
+                "work_item_id": member["work_item_id"],
+                "work_attempt_id": member["work_attempt_id"],
+                "execution_attempt_id": trusted["execution_attempt_id"],
+                "usage_basis": "shared_physical_request_not_apportioned",
+            }
+            results.append(
+                self._result_from_parsed(
+                    questions_by_id[answer.question_id].text, answer, execution
+                )
+            )
+        status = (
+            "partial" if parsed.missing_question_ids or parsed.invalid_question_ids else "complete"
+        )
+        return reply(
+            metadata,
+            status,
+            tuple(results),
+            parsed.missing_question_ids,
+            parsed.invalid_question_ids,
+        )
 
     def _repair_invalid_answer(
         self,
@@ -161,7 +374,9 @@ class LLMProvider(BaseLLMProvider):
         try:
             if self.require_search:
                 with bind_quick_scan_format_repair():
-                    response = self.client.send_search_request(repair_prompt)
+                    response = self.client.send_search_request(
+                        repair_prompt, **self._search_generation_options()
+                    )
                 repair_metadata = response.execution_metadata
                 if not response.search_verified:
                     metadata = self._merge_format_repair_metadata(
@@ -260,7 +475,9 @@ class LLMProvider(BaseLLMProvider):
 
                 execution_metadata: Dict[str, Any] = {}
                 if self.require_search:
-                    search_response = self.client.send_search_request(prompt)
+                    search_response = self.client.send_search_request(
+                        prompt, **self._search_generation_options()
+                    )
                     execution_metadata = search_response.execution_metadata
                     if transport_attempts:
                         execution_metadata = self._prepend_attempt_history(

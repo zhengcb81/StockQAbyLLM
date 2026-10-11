@@ -359,3 +359,213 @@ def test_duplicate_outer_keys_cannot_fall_back_to_nested_metadata_answer(content
     parser = LLMResponseParser()
 
     assert parser.parse_structured_response(content, expected_question_id="IQS_05") is None
+
+
+# Question-pack parsing is a bounded parser primitive, not a dispatch/ACK claim.
+def _question_pack_item(qid, **changes):
+    item = {
+        "question_id": qid,
+        "entity_id": "issuer:pack-fixture",
+        "company_name": "Pack Fixture Corp",
+        "status": "scored",
+        "score": 8,
+        "description": "independent synthetic evidence",
+    }
+    item.update(changes)
+    return item
+
+
+def _parse_question_pack(content, expected_ids=("IQS_01", "IQS_02", "IQS_03")):
+    return LLMResponseParser().parse_question_pack_response(
+        content,
+        expected_ids,
+        expected_entity_id="issuer:pack-fixture",
+        expected_company_name="Pack Fixture Corp",
+    )
+
+
+@pytest.mark.parametrize("count", [1, 3, 30])
+def test_question_pack_preserves_all_answers_in_frozen_expected_order(count):
+    from dataclasses import FrozenInstanceError
+
+    ids = tuple(f"IQS_{i:02d}" for i in range(1, count + 1))
+    content = json.dumps({"answers": [_question_pack_item(qid) for qid in reversed(ids)]})
+    result = _parse_question_pack(content, ids)
+    assert result is not None
+    assert tuple(answer.question_id for answer in result.answers) == ids
+    assert tuple(answer.score for answer in result.answers) == (8,) * count
+    assert result.missing_question_ids == ()
+    assert result.invalid_question_ids == ()
+    assert isinstance(result.answers, tuple)
+    with pytest.raises(FrozenInstanceError):
+        result.answers = ()
+    with pytest.raises(FrozenInstanceError):
+        result.answers[0].score = 5
+
+
+def test_question_pack_retains_valid_answers_without_filling_missing_or_invalid_members():
+    content = json.dumps(
+        {
+            "answers": [
+                _question_pack_item("IQS_01"),
+                _question_pack_item("IQS_02", status="unknown", score=5),
+            ]
+        }
+    )
+    result = _parse_question_pack(content)
+    assert result is not None
+    assert tuple(answer.question_id for answer in result.answers) == ("IQS_01",)
+    assert result.invalid_question_ids == ("IQS_02",)
+    assert result.missing_question_ids == ("IQS_03",)
+
+
+@pytest.mark.parametrize("status", ["unknown", "insufficient_evidence", "not_applicable"])
+def test_question_pack_preserves_nullable_non_scored_members(status):
+    content = json.dumps({"answers": [_question_pack_item("IQS_01", status=status, score=None)]})
+    result = _parse_question_pack(content)
+    assert result is not None
+    assert result.answers[0].status == status
+    assert result.answers[0].score is None
+    assert result.missing_question_ids == ("IQS_02", "IQS_03")
+
+
+def test_question_pack_distinguishes_empty_partial_response_from_structural_rejection():
+    result = _parse_question_pack('{"answers":[]}')
+    assert result is not None
+    assert result.answers == ()
+    assert result.missing_question_ids == ("IQS_01", "IQS_02", "IQS_03")
+    assert result.invalid_question_ids == ()
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"score": True},
+        {"score": 1.5},
+        {"description": ""},
+        {"description": json.dumps({"id": "IQS_02", "status": "scored", "score": 3})},
+        {"description": json.dumps({"id": "IQS_03", "status": "scored", "score": 8})},
+        {"description": '{"id":"IQS_02","id":"IQS_02","status":"scored","score":8}'},
+    ],
+)
+def test_question_pack_reuses_single_answer_rejections_per_identified_member(changes):
+    content = json.dumps(
+        {
+            "answers": [
+                _question_pack_item("IQS_01"),
+                _question_pack_item("IQS_02", **changes),
+            ]
+        }
+    )
+    result = _parse_question_pack(content)
+    assert result is not None
+    assert tuple(answer.question_id for answer in result.answers) == ("IQS_01",)
+    assert result.invalid_question_ids == ("IQS_02",)
+    assert result.missing_question_ids == ("IQS_03",)
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        "null",
+        "[]",
+        "{}",
+        '{"answers":{}}',
+        '{"answers":[],"reasoning":"hidden"}',
+        '{"answers":[],"answers":[]}',
+        '{"answers":[{"question_id":"IQS_01","question_id":"IQS_01","score":8,"description":"x"}]}',
+        '{"answers":[{"question_id":"IQS_01","score":8,"description":"x","metadata":{"x":1,"x":2}}]}',
+        '{"answers":[{"question_id":"IQS_01","score":8,"description":"x","metadata":{"value":NaN}}]}',
+        '{"answers":[null]}',
+        '{"answers":[{"score":8,"description":"missing ID"}]}',
+        '<think>private analysis</think>{"answers":[]}',
+        '```json\n{"answers":[]}\n```',
+        '{"answers":[]} trailing text',
+        '{"answers":[]} {"answers":[]}',
+        '{"answers":[' + "[" * 1200 + "0" + "]" * 1200 + "]}",
+    ],
+)
+def test_question_pack_rejects_whole_root_ambiguity_or_thinking_pollution(content):
+    assert _parse_question_pack(content) is None
+
+
+@pytest.mark.parametrize(
+    "bad_member",
+    [
+        _question_pack_item("EXTRA_01"),
+        _question_pack_item("IQS_01"),
+        _question_pack_item("IQS_02", entity_id="issuer:other"),
+        _question_pack_item("IQS_02", company_name="Other Corp"),
+        _question_pack_item("IQS_02", company_name=["Other Corp"]),
+    ],
+)
+def test_question_pack_rejects_entire_response_for_extra_duplicate_or_wrong_company(bad_member):
+    content = json.dumps({"answers": [_question_pack_item("IQS_01"), bad_member]})
+    assert _parse_question_pack(content) is None
+
+
+@pytest.mark.parametrize(
+    "expected_ids",
+    [
+        None,
+        "IQS_01",
+        [],
+        ["IQS_01", "IQS_01"],
+        [""],
+        [" IQS_01"],
+        [None],
+        [True],
+        [[]],
+        {"IQS_01"},
+        ["IQS_" + "1" * 160],
+        [f"IQS_{i:02d}" for i in range(31)],
+    ],
+)
+def test_question_pack_rejects_invalid_or_unbounded_expected_ids(expected_ids):
+    with pytest.raises(ValueError, match="expected_question_ids"):
+        _parse_question_pack('{"answers":[]}', expected_ids)
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        None,
+        b'{"answers":[]}',
+        "x" * (1024 * 1024 + 1),
+        json.dumps(
+            {"answers": [_question_pack_item("IQS_01", description="中" * 400000)]},
+            ensure_ascii=False,
+        ),
+    ],
+    ids=["not-text", "bytes", "ascii-over-limit", "utf8-over-limit"],
+)
+def test_question_pack_rejects_invalid_or_oversized_content(content):
+    assert _parse_question_pack(content) is None
+
+
+def test_question_pack_optional_identity_binding_reuses_single_answer_interface():
+    content = '{"answers":[{"question_id":"IQS_01","status":"scored","score":8,"description":"x"}]}'
+    result = LLMResponseParser().parse_question_pack_response(content, ["IQS_01"])
+    assert result is not None
+    assert result.answers[0].question_id == "IQS_01"
+    assert result.answers[0].entity_id is None
+
+
+@pytest.mark.parametrize(
+    "field,value", [("entity_id", "issuer:other"), ("company_name", "Other Corp")]
+)
+def test_question_pack_cannot_mix_declared_identities_without_a_caller_binding(field, value):
+    content = json.dumps(
+        {
+            "answers": [
+                _question_pack_item("IQS_01"),
+                _question_pack_item("IQS_02", **{field: value}),
+            ]
+        }
+    )
+    assert LLMResponseParser().parse_question_pack_response(content, ["IQS_01", "IQS_02"]) is None
+
+
+def test_question_pack_rejects_overflowed_json_number_without_raising():
+    content = '{"answers":[{"question_id":"IQS_01","score":8,"description":"x","metadata":{"value":1e999}}]}'
+    assert _parse_question_pack(content) is None

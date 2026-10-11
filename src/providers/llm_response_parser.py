@@ -6,6 +6,7 @@
 """
 
 import json
+import math
 import re
 from dataclasses import dataclass
 from datetime import date
@@ -114,6 +115,19 @@ class ParsedLLMAnswer:
     information_as_of: Optional[str] = None
 
 
+@dataclass(frozen=True)
+class ParsedQuestionPack:
+    """Independent immutable members of one structurally valid HTTP answer pack.
+
+    Missing/invalid IDs are diagnostics, never synthetic answers or retry orders.
+    The parser does not attest dispatch, search, cost, or an import ACK.
+    """
+
+    answers: Tuple[ParsedLLMAnswer, ...]
+    missing_question_ids: Tuple[str, ...]
+    invalid_question_ids: Tuple[str, ...]
+
+
 def information_date(value: Any) -> Optional[str]:
     """Accept only a real YYYY-MM-DD date; anything else becomes null (never guessed).
 
@@ -156,6 +170,122 @@ class LLMResponseParser:
         if result is None:
             return None
         return result.score, result.description
+
+    def parse_question_pack_response(
+        self,
+        content: str,
+        expected_question_ids: Tuple[str, ...],
+        expected_entity_id: Optional[str] = None,
+        expected_company_name: Optional[str] = None,
+    ) -> Optional[ParsedQuestionPack]:
+        """Parse an exact JSON ``{"answers": [...]}`` root, bounded to 1 MiB.
+
+        Expected IDs must be an ordered list/tuple of 1..30 unique stable IDs;
+        invalid caller inputs raise ValueError. Root ambiguity, extra/duplicate
+        IDs, or another company's answer reject the entire pack (None). A known
+        member that fails the existing single-answer rules remains invalid;
+        valid members and missing IDs are returned in expected order. In
+        particular, a partial known HTTP response never fills a missing score.
+
+        Unlike the legacy single-answer vendor-preamble extraction, the pack
+        root must contain JSON only. Each member is then checked by the same
+        public strict single-answer parser, preserving its existing semantics.
+        """
+        if (
+            not isinstance(expected_question_ids, (list, tuple))
+            or not 1 <= len(expected_question_ids) <= 30
+            or any(
+                not isinstance(qid, str)
+                or not 1 <= len(qid) <= 160
+                or re.fullmatch(r"[A-Z0-9_]+", qid) is None
+                for qid in expected_question_ids
+            )
+            or len(set(expected_question_ids)) != len(expected_question_ids)
+        ):
+            raise ValueError("expected_question_ids must be 1..30 unique stable ordered IDs")
+        expected = tuple(expected_question_ids)
+        if not isinstance(content, str) or len(content) > 1024 * 1024:
+            return None
+        try:
+            if len(content.encode("utf-8")) > 1024 * 1024:
+                return None
+
+            def reject_constant(value):
+                raise ValueError("nonfinite JSON constant")
+
+            def finite_float(value):
+                number = float(value)
+                if not math.isfinite(number):
+                    raise ValueError("nonfinite JSON number")
+                return number
+
+            root = json.loads(
+                content,
+                object_pairs_hook=_reject_duplicate_json_keys,
+                parse_constant=reject_constant,
+                parse_float=finite_float,
+            )
+        except (ValueError, RecursionError, UnicodeEncodeError):
+            return None
+        if (
+            not isinstance(root, dict)
+            or set(root) != {"answers"}
+            or not isinstance(root["answers"], list)
+            or len(root["answers"]) > len(expected)
+        ):
+            return None
+
+        members = {}
+        for member in root["answers"]:
+            if not isinstance(member, dict):
+                return None
+            qid = member.get("question_id")
+            if not isinstance(qid, str) or qid not in expected or qid in members:
+                return None
+            # An explicit foreign identity invalidates the WHOLE response,
+            # including otherwise valid members. Missing identity stays an
+            # independently invalid item under the existing single-item rules.
+            if expected_entity_id is not None and "entity_id" in member:
+                if member["entity_id"] != expected_entity_id:
+                    return None
+            if expected_company_name is not None and "company_name" in member:
+                name = member["company_name"]
+                if not isinstance(name, str) or name.strip() != expected_company_name:
+                    return None
+            members[qid] = member
+
+        # Without an explicit caller binding, an answer pack still cannot mix
+        # two declared company identities. Invalid scalar types remain the
+        # responsibility of the reused single-answer validator below.
+        for field in ("entity_id", "company_name"):
+            identities = {
+                member[field].strip() if field == "company_name" else member[field]
+                for member in members.values()
+                if isinstance(member.get(field), str)
+            }
+            if len(identities) > 1:
+                return None
+
+        answers = []
+        missing = []
+        invalid = []
+        for qid in expected:
+            if qid not in members:
+                missing.append(qid)
+                continue
+            member_content = json.dumps(members[qid], ensure_ascii=False, allow_nan=False)
+            answer = self.parse_structured_response(
+                member_content,
+                expected_question_id=qid,
+                expected_entity_id=expected_entity_id,
+                expected_company_name=expected_company_name,
+                strict_json_only=True,
+            )
+            if answer is None:
+                invalid.append(qid)
+            else:
+                answers.append(answer)
+        return ParsedQuestionPack(tuple(answers), tuple(missing), tuple(invalid))
 
     def parse_structured_response(
         self,

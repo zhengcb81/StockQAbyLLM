@@ -13,6 +13,7 @@ import json
 import math
 import re
 import sqlite3
+import threading
 import time
 import uuid
 from contextlib import closing, contextmanager
@@ -31,12 +32,15 @@ from src.utils.quick_scan_mcp_journal import DDL_V13_ADDITIONS as _DDL_V13_ADDIT
 from src.utils.quick_scan_owner_refresh_journal import (
     DDL_V14_ADDITIONS as _DDL_V14_ADDITIONS,
 )
+from src.utils.quick_scan_question_pack_journal import (
+    DDL_V17_ADDITIONS as _DDL_V17_ADDITIONS,
+)
 from src.utils.quick_scan_refresh_admission_journal import (
     DDL_V16_ADDITIONS as _DDL_V16_ADDITIONS,
 )
 from src.utils.quick_scan_subject_journal import DDL_V15_ADDITIONS as _DDL_V15_ADDITIONS
 
-SCHEMA_VERSION = 16
+SCHEMA_VERSION = 17
 _SAFE_ID = re.compile(r"^[A-Za-z0-9_.-]{1,160}$")
 # Hyphens accepted per owner sign-off (2026-10-05 round-51): the W04
 # identity-export package issues ENT_<uuid> entity ids (e.g. the frozen
@@ -661,9 +665,11 @@ _DDL = (
     + _DDL_V14_ADDITIONS
     + _DDL_V15_ADDITIONS
     + _DDL_V16_ADDITIONS
+    + _DDL_V17_ADDITIONS
 )
 
 _RECEIPT_FIELDS = (
+    "request_payload_sha256",
     "provider",
     "request_id",
     "response_id",
@@ -702,6 +708,9 @@ def _sanitized_receipt(receipt: object) -> dict:
                 result[key] = _canonical_source_urls(value)
             except ValueError:
                 continue
+        elif key == "request_payload_sha256":
+            if isinstance(value, str) and _HEX_SHA256.fullmatch(value):
+                result[key] = value
         elif key == "usage":
             usage = _canonical_usage(value)
             if usage is not None:
@@ -1117,6 +1126,7 @@ class QuickScanWorkStore:
     def __init__(self, path: Path, *, clock: Callable[[], float] = time.time) -> None:
         self.path = Path(path)
         self.clock = clock
+        self._transaction_state = threading.local()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with closing(self._connect()) as connection:
             self._initialize(connection)
@@ -1207,6 +1217,8 @@ class QuickScanWorkStore:
                 cls._validate_schema(connection, schema_version=14)
             elif version == 15:
                 cls._validate_schema(connection, schema_version=15)
+            elif version == 16:
+                cls._validate_schema(connection, schema_version=16)
             elif version != SCHEMA_VERSION:
                 raise ValueError("unsupported quick-scan work database schema version")
             if 1 <= version < 8:
@@ -1242,6 +1254,10 @@ class QuickScanWorkStore:
                 connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             if 1 <= version < 16:
                 for statement in _DDL_V16_ADDITIONS:
+                    connection.execute(statement)
+                connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+            if 1 <= version < 17:
+                for statement in _DDL_V17_ADDITIONS:
                     connection.execute(statement)
                 connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             cls._validate_schema(connection, schema_version=SCHEMA_VERSION)
@@ -1491,6 +1507,12 @@ class QuickScanWorkStore:
                 if match is None:
                     raise ValueError("quick-scan work database schema mismatch")
                 expected[(match[1].lower(), match[2])] = statement
+        if schema_version >= 17:
+            for statement in _DDL_V17_ADDITIONS:
+                match = re.match(r"CREATE (TABLE|TRIGGER) ([A-Za-z_]+)", statement)
+                if match is None:
+                    raise ValueError("quick-scan work database schema mismatch")
+                expected[(match[1].lower(), match[2])] = statement
         if actual.keys() != expected.keys() or any(
             _normalized_sql(actual[key]) != _normalized_sql(statement)
             for key, statement in expected.items()
@@ -1567,6 +1589,12 @@ class QuickScanWorkStore:
             )
 
             validate_admission_tables(connection)
+        if schema_version >= 17:
+            from src.utils.quick_scan_question_pack_journal import (
+                validate_tables as validate_pack_tables,
+            )
+
+            validate_pack_tables(connection)
         if schema_version >= 10:
             from src.utils.quick_scan_external_journal import read_use
 
@@ -1664,14 +1692,31 @@ class QuickScanWorkStore:
 
     @contextmanager
     def _transaction(self) -> Iterator[sqlite3.Connection]:
+        # Pack operations call the released logical/budget methods atomically.
+        # A thread-local connection preserves each method's rollback boundary.
+        active = getattr(self._transaction_state, "connection", None)
+        if active is not None:
+            savepoint = "nested_" + uuid.uuid4().hex
+            active.execute(f"SAVEPOINT {savepoint}")
+            try:
+                yield active
+                active.execute(f"RELEASE SAVEPOINT {savepoint}")
+            except BaseException:
+                active.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+                active.execute(f"RELEASE SAVEPOINT {savepoint}")
+                raise
+            return
         with closing(self._connect()) as connection:
             connection.execute("BEGIN IMMEDIATE")
+            self._transaction_state.connection = connection
             try:
                 yield connection
                 connection.execute("COMMIT")
-            except Exception:
+            except BaseException:
                 connection.execute("ROLLBACK")
                 raise
+            finally:
+                self._transaction_state.connection = None
 
     def _now(self) -> float:
         return _positive_number(self.clock(), "clock", maximum=10**12)
@@ -2762,6 +2807,13 @@ class QuickScanWorkStore:
                 "confirmed_failure",
                 "abandoned_unsent",
             }:
+                if connection.execute(
+                    "SELECT 1 FROM quick_scan_question_pack_member WHERE attempt_id=?",
+                    (previous["attempt_id"],),
+                ).fetchone():
+                    raise WorkConflictError(
+                        "previous question pack attempt is unresolved; cannot be automatically reasked as a single format repair"
+                    )
                 is_explicit_format_repair = (
                     allow_format_repair
                     and previous["phase"] == "response_available"
@@ -2883,6 +2935,9 @@ class QuickScanWorkStore:
         )
         now = self._now()
         with self._transaction() as connection:
+            from src.utils.quick_scan_question_pack_journal import guard_individual
+
+            guard_individual(connection, self, attempt_id)
             item = self._item(connection, work_item_id)
             self._assert_lease(item, lease, now)
             from src.utils.quick_scan_owner_refresh_journal import guard_send
@@ -3019,6 +3074,9 @@ class QuickScanWorkStore:
             raise ValueError("response requires successful HTTP status and receipt hash")
         now = self._now()
         with self._transaction() as connection:
+            from src.utils.quick_scan_question_pack_journal import guard_individual
+
+            guard_individual(connection, self, attempt_id)
             item = self._item(connection, work_item_id)
             self._assert_lease(item, lease, now)
             if execution_receipt is not None:
@@ -5315,3 +5373,91 @@ class QuickScanWorkStore:
         for row in rows:
             grouped[row["question_id"]].append(dict(row))
         return grouped
+
+    def prepare_question_pack(
+        self,
+        members: Sequence[dict],
+        *,
+        route_id: str,
+        provider: str,
+        model_requested: str,
+        execution_attempt_id: str,
+        prompt_sha256: str,
+        provider_prompt_sha256: str,
+        request_payload_sha256: str,
+        model_resolution: Optional[dict] = None,
+        search_mode: str = "native_search",
+    ) -> dict:
+        """Freeze native physical request membership; never dispatch or charge here."""
+        from src.utils.quick_scan_question_pack_journal import prepare
+
+        return cast(
+            dict,
+            prepare(
+                self,
+                members,
+                route_id=route_id,
+                provider=provider,
+                model_requested=model_requested,
+                execution_attempt_id=execution_attempt_id,
+                prompt_sha256=prompt_sha256,
+                provider_prompt_sha256=provider_prompt_sha256,
+                request_payload_sha256=request_payload_sha256,
+                model_resolution=model_resolution,
+                search_mode=search_mode,
+            ),
+        )
+
+    def mark_question_pack_send_intent(
+        self, pack_id: str, *, budget_policy: dict, budget_route: dict
+    ) -> dict:
+        """Atomically mark every member and reserve exactly one physical budget."""
+        from src.utils.quick_scan_question_pack_journal import mark
+
+        return cast(
+            dict, mark(self, pack_id, budget_policy=budget_policy, budget_route=budget_route)
+        )
+
+    def validate_question_pack_for_post(self, pack_id: str) -> dict:
+        """Re-read all current leases, owner refreshes and subject receipts at POST."""
+        from src.utils.quick_scan_question_pack_journal import validate_for_post
+
+        return cast(dict, validate_for_post(self, pack_id))
+
+    def record_question_pack_outcome(
+        self,
+        pack_id: str,
+        *,
+        outcome: str,
+        execution_receipt: dict,
+        http_status_code: Optional[int] = None,
+        request_id: Optional[str] = None,
+        failure_category: Optional[str] = None,
+        provider_error_code: Optional[str] = None,
+        actual_cost: Optional[object] = None,
+        cost_source_ref: Optional[str] = None,
+    ) -> dict:
+        """Preserve the physical original once and update independent logical attempts."""
+        from src.utils.quick_scan_question_pack_journal import record
+
+        return cast(
+            dict,
+            record(
+                self,
+                pack_id,
+                outcome=outcome,
+                execution_receipt=execution_receipt,
+                http_status_code=http_status_code,
+                request_id=request_id,
+                failure_category=failure_category,
+                provider_error_code=provider_error_code,
+                actual_cost=actual_cost,
+                cost_source_ref=cost_source_ref,
+            ),
+        )
+
+    def get_question_pack(self, pack_id: str) -> Optional[dict]:
+        """Read immutable membership plus the physical send/outcome projection."""
+        from src.utils.quick_scan_question_pack_journal import get
+
+        return cast(Optional[dict], get(self, pack_id))

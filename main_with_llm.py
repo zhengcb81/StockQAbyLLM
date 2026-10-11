@@ -328,6 +328,33 @@ def main():
         help="原native owner confirmation ID；仅消费耐久登记的题目/主体范围",
     )
 
+    def bounded_integer(raw: str, maximum: int) -> int:
+        try:
+            value = int(raw)
+        except ValueError as error:
+            raise argparse.ArgumentTypeError("必须为整数") from error
+        if not 1 <= value <= maximum:
+            raise argparse.ArgumentTypeError(f"必须介于1和{maximum}之间")
+        return value
+
+    parser.add_argument(
+        "--question-pack-size",
+        type=lambda raw: bounded_integer(raw, 30),
+        default=1,
+        help="显式题包大小（1保留逐题模式，2-30仅原生搜索且可信owner完整绑定）",
+    )
+    parser.add_argument(
+        "--thinking-enabled",
+        choices=("true", "false"),
+        default=None,
+        help="显式开启/关闭思考；省略保留逐题原配置，题包省略时开启",
+    )
+    parser.add_argument(
+        "--max-output-tokens",
+        type=lambda raw: bounded_integer(raw, 32768),
+        default=None,
+        help="显式输出token上限；题包省略时8192（应用上限32768）",
+    )
     args = parser.parse_args()
 
     # 验证参数互斥性
@@ -364,6 +391,21 @@ def main():
             owner_refresh_config=args.quick_scan_owner_config,
             refresh_admission_config=args.refresh_admission_config,
             refresh_confirmation_id=args.refresh_confirmation_id,
+            **(
+                {"question_pack_size": args.question_pack_size}
+                if args.question_pack_size != 1
+                else {}
+            ),
+            **(
+                {"thinking_enabled": args.thinking_enabled == "true"}
+                if args.thinking_enabled is not None
+                else {}
+            ),
+            **(
+                {"max_output_tokens": args.max_output_tokens}
+                if args.max_output_tokens is not None
+                else {}
+            ),
         )
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error("运行失败: %s", e, exc_info=True)

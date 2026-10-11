@@ -1924,3 +1924,350 @@ async def test_async_mimo_search_uses_same_citation_contract(mock_manager):
     assert http_client.post.call_args.args[0] == "https://api.xiaomimimo.com/v1/chat/completions"
     assert http_client.post.call_args.kwargs["json"]["tools"][0]["force_search"] is True
     assert http_client.post.call_args.kwargs["follow_redirects"] is False
+
+
+def _b01_thinking_response(protocol, model, *, external=False, final='{"answers":[]}'):
+    response = Mock(status_code=200)
+    response.headers = {"x-request-id": "b01-thinking-request"}
+    usage = {"input_tokens": 100, "output_tokens": 300}
+    if protocol == "anthropic_messages":
+        content = [{"type": "thinking", "thinking": "private synthetic reasoning"}]
+        if not external:
+            content.extend(
+                [
+                    {"type": "server_tool_use", "name": "web_search", "id": "b01-search"},
+                    {
+                        "type": "web_search_tool_result",
+                        "tool_use_id": "b01-search",
+                        "content": [
+                            {"type": "web_search_result", "url": "https://example.org/source"}
+                        ],
+                    },
+                ]
+            )
+        content.extend(
+            [
+                {"type": "redacted_thinking", "data": "private redacted reasoning"},
+                {"type": "text", "text": final},
+            ]
+        )
+        payload = {
+            "id": "b01-response",
+            "model": model,
+            "stop_reason": "end_turn",
+            "content": content,
+            "usage": usage,
+        }
+    elif protocol == "mimo_chat_completions":
+        message = {
+            "role": "assistant",
+            "content": final,
+            "reasoning_content": "private synthetic reasoning",
+        }
+        if not external:
+            message["annotations"] = [{"type": "url_citation", "url": "https://example.org/source"}]
+        payload = {
+            "id": "b01-response",
+            "model": model,
+            "choices": [{"finish_reason": "stop", "message": message}],
+            "usage": {
+                "prompt_tokens": 100,
+                "completion_tokens": 300,
+                "completion_tokens_details": {"reasoning_tokens": 220},
+                "web_search_usage": {"tool_usage": 0 if external else 1},
+            },
+        }
+    else:
+        output = [{"type": "reasoning", "summary": "private synthetic reasoning"}]
+        if not external:
+            output.append(
+                {
+                    "type": "web_search_call",
+                    "id": "b01-search",
+                    "status": "completed",
+                    "action": {
+                        "type": "search",
+                        "sources": [{"url": "https://example.org/source"}],
+                    },
+                }
+            )
+        output.append(
+            {
+                "type": "message",
+                "role": "assistant",
+                "status": "completed",
+                "content": [{"type": "output_text", "text": final}],
+            }
+        )
+        payload = {
+            "id": "b01-response",
+            "model": model,
+            "status": "completed",
+            "output": output,
+            "usage": usage,
+        }
+    response.json.return_value = payload
+    return response
+
+
+_B01_THINKING_ROUTES = [
+    ("mimo", "mimo_chat_completions", "mimo-v2.6-flash", "https://api.xiaomimimo.com/v1"),
+    ("mimo", "mimo_chat_completions", "mimo-v2.6-pro", "https://token-plan-cn.xiaomimimo.com/v1"),
+    ("minimax", "anthropic_messages", "MiniMax-M3", "https://api.minimax.io/anthropic/v1/messages"),
+]
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+@pytest.mark.parametrize("provider,protocol,model,url", _B01_THINKING_ROUTES)
+@pytest.mark.parametrize("external", [False, True])
+def test_b01_thinking_enabled_public_search_keeps_final_only(
+    monkeypatch, asynchronous, provider, protocol, model, url, external
+):
+    response = _b01_thinking_response(protocol, model, external=external)
+    session = AsyncMock() if asynchronous else Mock()
+    session.post.return_value = response
+    monkeypatch.setattr(
+        "src.providers.llm_client.http_client_manager.get_sync_session", lambda: session
+    )
+    monkeypatch.setattr(
+        "src.providers.llm_client.http_client_manager.get_async_client",
+        AsyncMock(return_value=session),
+    )
+    if external:
+        monkeypatch.setattr(
+            "src.providers.llm_client.render_external_request",
+            lambda prompt, system: (prompt, system, "external_context_only"),
+        )
+    client_type = AsyncLLMClient if asynchronous else LLMClient
+    client = client_type("synthetic", model, url, provider_name=provider)
+    if asynchronous:
+        result = asyncio.run(
+            client.send_search_request_async(
+                "synthetic", thinking_enabled=True, max_output_tokens=8192
+            )
+        )
+    else:
+        result = client.send_search_request(
+            "synthetic", thinking_enabled=True, max_output_tokens=8192
+        )
+    sent = session.post.call_args.kwargs["json"]
+    assert sent["thinking"] == {"type": "adaptive" if provider == "minimax" else "enabled"}
+    assert sent["max_tokens" if provider == "minimax" else "max_completion_tokens"] == 8192
+    assert result.content == '{"answers":[]}'
+    assert "private" not in str(result.execution_metadata)
+    assert result.execution_metadata["usage"]["output_tokens"] == 300
+    assert result.execution_metadata["request_generation"]["thinking"] == sent["thinking"]
+    assert result.execution_metadata["request_generation"]["max_output_tokens"] == 8192
+    if external:
+        assert not ({"tools", "tool_choice", "include"} & sent.keys())
+    else:
+        assert result.search_verified
+        assert sent["tools"]
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"thinking_enabled": "true"},
+        {"thinking_enabled": 1},
+        {"thinking_enabled": {}},
+        {"max_output_tokens": 0},
+        {"max_output_tokens": -1},
+        {"max_output_tokens": True},
+        {"max_output_tokens": 1.5},
+        {"max_output_tokens": 32769},
+        {"max_output_tokens": "8192"},
+    ],
+)
+def test_b01_thinking_invalid_controls_reject_before_budget(monkeypatch, asynchronous, kwargs):
+    begin = Mock()
+    sync_session = Mock()
+    async_session = AsyncMock()
+    render = Mock(return_value=("synthetic", "system", None))
+    monkeypatch.setattr("src.providers.llm_client.begin_quick_scan_send", begin)
+    monkeypatch.setattr("src.providers.llm_client.render_external_request", render)
+    monkeypatch.setattr(
+        "src.providers.llm_client.http_client_manager.get_sync_session", sync_session
+    )
+    monkeypatch.setattr(
+        "src.providers.llm_client.http_client_manager.get_async_client", async_session
+    )
+    cls = AsyncLLMClient if asynchronous else LLMClient
+    client = cls("synthetic", "mimo-v2.6-pro", "https://api.xiaomimimo.com/v1")
+    with pytest.raises(ValueError):
+        if asynchronous:
+            asyncio.run(client.send_search_request_async("synthetic", **kwargs))
+        else:
+            client.send_search_request("synthetic", **kwargs)
+    begin.assert_not_called()
+    sync_session.assert_not_called()
+    async_session.assert_not_called()
+    render.assert_not_called()
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_b01_thinking_unsupported_responses_reject_before_budget(monkeypatch, asynchronous):
+    begin = Mock()
+    sync_session = Mock()
+    async_session = AsyncMock()
+    monkeypatch.setattr("src.providers.llm_client.begin_quick_scan_send", begin)
+    monkeypatch.setattr(
+        "src.providers.llm_client.http_client_manager.get_sync_session", sync_session
+    )
+    monkeypatch.setattr(
+        "src.providers.llm_client.http_client_manager.get_async_client", async_session
+    )
+    cls = AsyncLLMClient if asynchronous else LLMClient
+    client = cls("synthetic", "MiniMax-M3", "https://api.minimax.io/v1/responses")
+    with pytest.raises(SearchCapabilityUnavailable, match="thinking"):
+        if asynchronous:
+            asyncio.run(client.send_search_request_async("synthetic", thinking_enabled=True))
+        else:
+            client.send_search_request("synthetic", thinking_enabled=True)
+    begin.assert_not_called()
+    sync_session.assert_not_called()
+    async_session.assert_not_called()
+
+
+@pytest.mark.parametrize("provider,protocol,model,url", _B01_THINKING_ROUTES)
+@pytest.mark.parametrize(
+    "final",
+    [
+        '<think>private synthetic reasoning</think>{"answers":[]}',
+        "<THINK>private synthetic reasoning",
+        '{"answers":[]}<thinking>private synthetic reasoning</thinking>',
+    ],
+)
+def test_b01_thinking_polluted_final_rejects_without_persisting_reasoning(
+    monkeypatch, provider, protocol, model, url, final
+):
+    session = Mock()
+    session.post.return_value = _b01_thinking_response(protocol, model, final=final)
+    monkeypatch.setattr(
+        "src.providers.llm_client.http_client_manager.get_sync_session", lambda: session
+    )
+    client = LLMClient("synthetic", model, url, provider_name=provider)
+    with pytest.raises(LLMTransportAttemptError) as error:
+        client.send_search_request("synthetic", thinking_enabled=True, max_output_tokens=8192)
+    assert error.value.failure_type == "ValueError"
+    assert "private" not in str(error.value.attempt_receipt)
+    assert "private" not in str(error.value)
+    assert session.post.call_count == 1
+
+
+@pytest.mark.parametrize("limit", [1, 32768])
+def test_b01_thinking_output_application_boundaries(monkeypatch, limit):
+    session = Mock()
+    session.post.return_value = _b01_thinking_response("mimo_chat_completions", "mimo-v2.6-pro")
+    monkeypatch.setattr(
+        "src.providers.llm_client.http_client_manager.get_sync_session", lambda: session
+    )
+    LLMClient("synthetic", "mimo-v2.6-pro", "https://api.xiaomimimo.com/v1").send_search_request(
+        "synthetic", thinking_enabled=True, max_output_tokens=limit
+    )
+    assert session.post.call_args.kwargs["json"]["max_completion_tokens"] == limit
+
+
+def test_b01_thinking_deepseek_external_response_keeps_reasoning_high(monkeypatch):
+    session = Mock()
+    session.post.return_value = _b01_thinking_response("responses", "deepseek-flash", external=True)
+    monkeypatch.setattr(
+        "src.providers.llm_client.http_client_manager.get_sync_session", lambda: session
+    )
+    monkeypatch.setattr(
+        "src.providers.llm_client.render_external_request",
+        lambda prompt, system: (prompt, system, "external_context_only"),
+    )
+    result = LLMClient(
+        "synthetic", "deepseek-flash", "https://api.deepseek.com/v1/responses"
+    ).send_search_request("synthetic", thinking_enabled=True, max_output_tokens=8192)
+    sent = session.post.call_args.kwargs["json"]
+    assert sent["reasoning"] == {"effort": "high"}
+    assert sent["max_output_tokens"] == 8192
+    assert result.content == '{"answers":[]}'
+    assert "private" not in str(result.execution_metadata)
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+@pytest.mark.parametrize("failure", [False, True])
+def test_b01_thinking_payload_digest_binds_actual_generation_before_send(
+    monkeypatch, asynchronous, failure
+):
+    import hashlib
+
+    session = AsyncMock() if asynchronous else Mock()
+    response = _b01_thinking_response("mimo_chat_completions", "mimo-v2.6-pro")
+    if failure:
+        response.raise_for_status.side_effect = requests.HTTPError("private synthetic body")
+    session.post.return_value = response
+    begin = Mock(return_value=None)
+    monkeypatch.setattr("src.providers.llm_client.begin_quick_scan_send", begin)
+    monkeypatch.setattr(
+        "src.providers.llm_client.http_client_manager.get_sync_session", lambda: session
+    )
+    monkeypatch.setattr(
+        "src.providers.llm_client.http_client_manager.get_async_client",
+        AsyncMock(return_value=session),
+    )
+    cls = AsyncLLMClient if asynchronous else LLMClient
+    client = cls("synthetic", "mimo-v2.6-pro", "https://api.xiaomimimo.com/v1")
+
+    def invoke():
+        if asynchronous:
+            return asyncio.run(
+                client.send_search_request_async(
+                    "synthetic", thinking_enabled=True, max_output_tokens=8192
+                )
+            )
+        return client.send_search_request(
+            "synthetic", thinking_enabled=True, max_output_tokens=8192
+        )
+
+    if failure:
+        with pytest.raises(LLMTransportAttemptError) as error:
+            invoke()
+        receipt = error.value.attempt_receipt
+    else:
+        receipt = invoke().execution_metadata
+    data = session.post.call_args.kwargs["json"]
+    actual_sha = hashlib.sha256(
+        json.dumps(
+            data, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
+        ).encode("utf-8")
+    ).hexdigest()
+    assert begin.call_args.kwargs["request_payload_sha256"] == actual_sha
+    assert receipt["request_payload_sha256"] == actual_sha
+    assert receipt["request_generation"]["max_output_tokens"] == 8192
+    assert "private" not in str(receipt)
+
+
+@pytest.mark.parametrize("provider,protocol,model,url", _B01_THINKING_ROUTES)
+def test_b01_thinking_explicit_off_is_not_ignored(monkeypatch, provider, protocol, model, url):
+    session = Mock()
+    session.post.return_value = _b01_thinking_response(protocol, model)
+    monkeypatch.setattr(
+        "src.providers.llm_client.http_client_manager.get_sync_session", lambda: session
+    )
+    result = LLMClient("synthetic", model, url).send_search_request(
+        "synthetic", thinking_enabled=False
+    )
+    assert session.post.call_args.kwargs["json"]["thinking"] == {"type": "disabled"}
+    assert result.execution_metadata["request_generation"]["thinking"] == {"type": "disabled"}
+
+
+def test_b01_thinking_default_does_not_change_legacy_request_or_receipt(monkeypatch):
+    session = Mock()
+    session.post.return_value = _b01_thinking_response("mimo_chat_completions", "mimo-v2.6-pro")
+    begin = Mock(return_value=None)
+    monkeypatch.setattr("src.providers.llm_client.begin_quick_scan_send", begin)
+    monkeypatch.setattr(
+        "src.providers.llm_client.http_client_manager.get_sync_session", lambda: session
+    )
+    result = LLMClient(
+        "synthetic", "mimo-v2.6-pro", "https://api.xiaomimimo.com/v1"
+    ).send_search_request("synthetic")
+    assert "request_payload_sha256" not in begin.call_args.kwargs
+    assert "request_payload_sha256" not in result.execution_metadata
+    assert "request_generation" not in result.execution_metadata
+    assert session.post.call_args.kwargs["json"]["thinking"] == {"type": "disabled"}

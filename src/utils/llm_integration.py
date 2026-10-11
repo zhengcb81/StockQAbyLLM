@@ -1059,6 +1059,89 @@ class OrderedSearchProviderCascade(SearchProvider):
 
     def search_question(self, question: Question) -> List[SearchResult]:
         """Try eligible ordered providers for one question, stopping on an answer."""
+        return cast(List[SearchResult], self._search_ordered(question))
+
+    def search_question_pack(
+        self,
+        questions: List[Question],
+        *,
+        thinking_enabled: bool = True,
+        max_output_tokens: int = 8192,
+    ):
+        """Use the same ordered policy for one native physical question pack."""
+        import re
+
+        from src.providers.llm_client import _validate_search_generation_controls
+
+        if not self.require_search or external_answer_search_mode() is not None:
+            raise ValueError("question packs require the native verified-search dispatcher")
+        if type(thinking_enabled) is not bool or type(max_output_tokens) is not int:
+            raise ValueError("question pack generation controls must be explicit bool/int")
+        _validate_search_generation_controls(thinking_enabled, max_output_tokens)
+        if not isinstance(questions, list) or not 1 <= len(questions) <= 30:
+            raise ValueError("question pack must contain 1..30 identified questions")
+        if any(
+            not isinstance(item, Question)
+            or not isinstance(item.question_id, str)
+            or not 1 <= len(item.question_id) <= 160
+            or re.fullmatch(r"[A-Z0-9_]+", item.question_id) is None
+            for item in questions
+        ):
+            raise ValueError("question pack members require stable question IDs")
+        ids = tuple(item.question_id for item in questions)
+        if len(set(ids)) != len(ids):
+            raise ValueError("question pack IDs must be unique")
+        return self._search_ordered(
+            questions[0],
+            question_pack=questions,
+            thinking_enabled=thinking_enabled,
+            max_output_tokens=max_output_tokens,
+        )
+
+    def _search_ordered(
+        self,
+        question: Question,
+        *,
+        question_pack=None,
+        thinking_enabled=True,
+        max_output_tokens=8192,
+    ):
+        """One policy engine; pack diagnostics never become financial answers."""
+        from src.providers.llm_provider import QuestionPackSearchResult
+
+        pack_result = None
+        last_failure_pack = None
+        expected_ids = tuple(item.question_id for item in (question_pack or ()))
+
+        def finish(results, route, provider, route_trace, sent_attempts):
+            annotated = self._annotate(results, route, provider, route_trace, sent_attempts)
+            if question_pack is None:
+                return annotated
+            execution: Dict[str, Any] = (
+                dict(pack_result.execution_metadata) if pack_result is not None else {}
+            )
+            if annotated:
+                execution.update(annotated[0].metadata.get("execution") or {})
+                execution["attempts"] = annotated[0].metadata.get("attempts") or []
+            if pack_result is None:
+                execution["question_pack"] = {
+                    "status": "not_completed",
+                    "question_ids": list(expected_ids),
+                    "missing_question_ids": list(expected_ids),
+                    "invalid_question_ids": [],
+                    "format_repair_attempted": False,
+                }
+                return QuestionPackSearchResult((), expected_ids, (), execution)
+            # A diagnostic sentinel drives the shared refusal/health policy only.
+            # It is never exposed as a synthetic answer to a member question.
+            valid = tuple(annotated) if pack_result.results else ()
+            return QuestionPackSearchResult(
+                valid,
+                pack_result.missing_question_ids,
+                pack_result.invalid_question_ids,
+                execution,
+            )
+
         self._refresh_policy_revision()
         route_trace: List[Dict[str, Any]] = []
         sent_attempts: List[Dict[str, Any]] = []
@@ -1067,7 +1150,7 @@ class OrderedSearchProviderCascade(SearchProvider):
         last_failure_route: Optional[Dict[str, Any]] = None
         last_failure_provider: Optional[SearchProvider] = None
         if self._policy_source is not None and not self.routes:
-            return self._annotate(
+            return finish(
                 [
                     SearchResult(
                         title="Quick-scan policy unavailable",
@@ -1100,7 +1183,7 @@ class OrderedSearchProviderCascade(SearchProvider):
                         "requested_model": preferred.get("model"),
                     }
                 )
-                return self._annotate(
+                return finish(
                     [
                         SearchResult(
                             title="Quick-scan dispatch deferred",
@@ -1166,7 +1249,14 @@ class OrderedSearchProviderCascade(SearchProvider):
                 route_trace.append({**route_context, "decision": skip_reason})
                 continue
 
-            provider_search = getattr(provider, "search_question", None)
+            provider_search = getattr(
+                provider,
+                "search_question_pack" if question_pack is not None else "search_question",
+                None,
+            )
+            if question_pack is not None and not callable(provider_search):
+                route_trace.append({**route_context, "decision": "skipped_missing_question_pack"})
+                continue
             if request_count >= self.max_attempts:
                 route_trace.append({**route_context, "decision": "skipped_attempt_budget"})
                 continue
@@ -1210,14 +1300,38 @@ class OrderedSearchProviderCascade(SearchProvider):
                         quota_group=quota_group,
                         model_resolution=route.get("model_resolution"),
                     ):
-                        if callable(provider_search):
+                        if question_pack is not None:
+                            provider_search = cast(
+                                Callable[..., QuestionPackSearchResult], provider_search
+                            )
+                            pack_result = None
+                            pack_result = provider_search(
+                                question_pack,
+                                thinking_enabled=thinking_enabled,
+                                max_output_tokens=max_output_tokens,
+                            )
+                            if not isinstance(pack_result, QuestionPackSearchResult):
+                                raise ValueError("provider returned a non-pack response")
+                            results = list(pack_result.results)
+                            if not results:
+                                details = dict(pack_result.execution_metadata)
+                                results = [
+                                    SearchResult(
+                                        title="Question pack dispatch diagnostic",
+                                        snippet="No valid member answer",
+                                        source="question_pack_diagnostic",
+                                        status="error",
+                                        metadata={**details, "execution": dict(details)},
+                                    )
+                                ]
+                        elif callable(provider_search):
                             results = provider_search(question)
                         else:
                             results = provider.search(question.text)
                 except QuickScanBudgetDeferredError as error:
                     route_trace[-1]["decision"] = "budget_deferred"
                     route_trace[-1]["budget_reason"] = error.reason
-                    return self._annotate(
+                    return finish(
                         [
                             SearchResult(
                                 title="Quick-scan budget deferred",
@@ -1247,7 +1361,7 @@ class OrderedSearchProviderCascade(SearchProvider):
                     route_trace[-1]["decision"] = "answered_without_results"
                     if self.health_store is not None:
                         self.health_store.probe_succeeded(quota_group, probe_token)
-                    return self._annotate(
+                    return finish(
                         [
                             SearchResult(
                                 title="No model result",
@@ -1304,13 +1418,14 @@ class OrderedSearchProviderCascade(SearchProvider):
                             )
                         else:
                             self.health_store.probe_succeeded(quota_group, probe_token)
-                    return self._annotate(results, route, provider, route_trace, sent_attempts)
+                    return finish(results, route, provider, route_trace, sent_attempts)
 
                 route_trace[-1]["decision"] = "provider_failure"
                 route_trace[-1]["failure_category"] = failure_category
                 last_failure = results
                 last_failure_route = route
                 last_failure_provider = provider
+                last_failure_pack = pack_result
                 if len(sent_attempts) > attempt_start:
                     sent_attempts[-1]["failure_category"] = failure_category
 
@@ -1408,7 +1523,8 @@ class OrderedSearchProviderCascade(SearchProvider):
                 break
 
         if last_failure is not None and last_failure_route is not None:
-            return self._annotate(
+            pack_result = last_failure_pack
+            return finish(
                 last_failure,
                 last_failure_route,
                 last_failure_provider,
@@ -1417,7 +1533,7 @@ class OrderedSearchProviderCascade(SearchProvider):
             )
 
         route = next((item for item in self.routes if item.get("eligible", True)), self.routes[0])
-        return self._annotate(
+        return finish(
             [
                 SearchResult(
                     title="No eligible quick-scan provider",

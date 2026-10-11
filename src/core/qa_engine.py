@@ -197,7 +197,14 @@ class QAEngine:
 
         return result
 
-    def process_questions(self, question_texts: List[Any]) -> QABatchResult:
+    def process_questions(
+        self,
+        question_texts: List[Any],
+        *,
+        question_pack_size: int = 1,
+        thinking_enabled: Optional[bool] = None,
+        max_output_tokens: Optional[int] = None,
+    ) -> QABatchResult:
         """批量处理问题。
 
         Args:
@@ -209,8 +216,20 @@ class QAEngine:
         Raises:
             ValidationError: 问题列表验证失败
         """
+        from src.providers.llm_client import _validate_search_generation_controls
+
+        if type(question_pack_size) is not int or not 1 <= question_pack_size <= 30:
+            raise ValueError("question_pack_size must be an integer from 1 to 30")
+        _validate_search_generation_controls(thinking_enabled, max_output_tokens)
         if not question_texts:
             raise ValidationError(message="问题列表不能为空")
+        if question_pack_size > 1:
+            return self._process_question_packs(
+                question_texts,
+                question_pack_size=question_pack_size,
+                thinking_enabled=True if thinking_enabled is None else thinking_enabled,
+                max_output_tokens=8192 if max_output_tokens is None else max_output_tokens,
+            )
 
         batch_result = QABatchResult(total_questions=len(question_texts))
         logger.info("开始批量处理 %d 个问题", len(question_texts))
@@ -384,6 +403,219 @@ class QAEngine:
             summary += f"（work拒绝未派发 {refused_count}）"
         self.progress_reporter.finish_batch(summary)
         return batch_result
+
+    @staticmethod
+    def _hydrate_pack_checkpoint(question: Question, checkpoint: Dict[str, Any]) -> QAResult:
+        # Same original checkpoint projection as the single path; no new timestamp.
+        payload = checkpoint.get("payload") or {}
+        stored = payload.get("answer") or {}
+        provenance = payload.get("provenance") or {}
+        original_time = _checkpoint_created_at(provenance)
+        metadata = _provenance_metadata(provenance)
+        external_execution = checkpoint.get("external_execution_metadata")
+        if isinstance(external_execution, dict):
+            metadata["execution"] = external_execution
+            metadata["attempts"] = [external_execution["work_transport"]["final_receipt"]]
+        return QAResult(
+            question=question,
+            answer=Answer(
+                text=str(stored.get("description") or ""),
+                score=stored.get("score"),
+                status=str(stored.get("status") or "scored"),
+                source="answer_checkpoint",
+                metadata=metadata,
+                **({"created_at": original_time} if original_time else {}),
+            ),
+            metadata={
+                "answer_checkpoint": {
+                    "hydrated": True,
+                    "provenance": payload.get("provenance"),
+                    "attempt_id": checkpoint.get("attempt_id"),
+                    "work_item_id": checkpoint.get("work_item_id"),
+                    "checkpointed_at": checkpoint.get("checkpointed_at"),
+                }
+            },
+        )
+
+    def _process_question_packs(
+        self,
+        questions: List[Any],
+        *,
+        question_pack_size: int,
+        thinking_enabled: bool,
+        max_output_tokens: int,
+    ) -> QABatchResult:
+        from src.providers.llm_provider import QuestionPackSearchResult
+
+        lifecycle = self.work_item_lifecycle
+        search_pack = getattr(self.search_provider, "search_question_pack", None)
+        ready = getattr(lifecycle, "assert_question_pack_ready", None)
+        group_key = getattr(lifecycle, "question_pack_group_key", None)
+        context_factory = getattr(lifecycle, "dispatch_question_pack_context", None)
+        if (
+            lifecycle is None
+            or getattr(self.search_provider, "require_search", False) is not True
+            or not callable(search_pack)
+            or not callable(ready)
+            or not callable(group_key)
+            or not callable(context_factory)
+        ):
+            raise ValueError("question packs require a native owner-bound transport lifecycle")
+        if any(not isinstance(q, Question) or not q.question_id for q in questions):
+            raise ValueError("question packs require explicit stable Question IDs")
+        ids = [q.question_id for q in questions]
+        if len(ids) != len(set(ids)):
+            raise ValueError("question pack IDs must be unique across the batch")
+        ready(questions)  # No claim, reservation or HTTP before complete admission.
+        keys = [group_key(q) for q in questions]
+        batch = QABatchResult(total_questions=len(questions))
+        output: Dict[int, QAResult] = {}
+        pending: list[tuple[int, Question, dict]] = []
+        self.progress_reporter.start_batch(len(questions))
+
+        def failed(
+            index: int,
+            question: Question,
+            handle: dict,
+            error: BaseException,
+            execution: Optional[dict] = None,
+            reason: Optional[str] = None,
+        ) -> None:
+            lifecycle.after_question_failed(handle, reason or type(error).__name__)
+            metadata = _uncertain_transport_metadata(error)
+            if not metadata and isinstance(execution, dict):
+                metadata = {"execution": execution}
+            output[index] = QAResult(
+                question=question,
+                answer=Answer(
+                    text="题包本题未形成可保存答案: " + (reason or type(error).__name__),
+                    score=None,
+                    status="error",
+                    source="error",
+                    metadata=metadata,
+                ),
+                metadata={"question_pack_error": reason or type(error).__name__},
+            )
+
+        def flush() -> None:
+            if not pending:
+                return
+            members = list(pending)
+            pending.clear()
+            pack_questions = [q for _, q, _ in members]
+            handles = [h for _, _, h in members]
+            try:
+                with context_factory(handles):
+                    response = search_pack(
+                        pack_questions,
+                        thinking_enabled=thinking_enabled,
+                        max_output_tokens=max_output_tokens,
+                    )
+                if not isinstance(response, QuestionPackSearchResult):
+                    raise ValueError("invalid question-pack provider result contract")
+                expected = {q.question_id for q in pack_questions}
+                valid_ids = [r.metadata.get("question_id") for r in response.results]
+                missing = list(response.missing_question_ids)
+                invalid = list(response.invalid_question_ids)
+                all_ids = valid_ids + missing + invalid
+                if len(all_ids) != len(set(all_ids)) or set(all_ids) != expected:
+                    raise ValueError("question-pack result membership is inconsistent")
+                by_id = dict(zip(valid_ids, response.results))
+            except Exception as error:
+                for index, question, handle in members:
+                    failed(index, question, handle, error)
+                return
+            for index, question, handle in members:
+                search_result = by_id.get(question.question_id)
+                if search_result is None:
+                    reason = (
+                        "missing_question"
+                        if question.question_id in missing
+                        else "invalid_question"
+                    )
+                    failed(
+                        index,
+                        question,
+                        handle,
+                        ValueError(reason),
+                        response.execution_metadata,
+                        reason,
+                    )
+                    continue
+                try:
+                    answer = self.answer_generator.generate_answer(question, [search_result])
+                    if answer.status == "error":
+                        raise ValueError("answer_generator_rejected_member")
+                    result = QAResult(question=question, answer=answer)
+                    lifecycle.after_question(handle, result)
+                    output[index] = result
+                except Exception as error:
+                    failed(index, question, handle, error, response.execution_metadata)
+
+        previous_key = None
+        for index, (question, key) in enumerate(zip(questions, keys)):
+            self.progress_reporter.update_progress(
+                index + 1, len(questions), "正在处理题包: " + question.question_id
+            )
+            if pending and (key != previous_key or key[2] == "security"):
+                flush()
+            previous_key = key
+            try:
+                original = lifecycle.reference_question(question)
+                if original is not None:
+                    flush()
+                    output[index] = original
+                    continue
+                checkpoint = lifecycle.hydrate_question(question)
+                if checkpoint is not None:
+                    flush()
+                    output[index] = self._hydrate_pack_checkpoint(question, checkpoint)
+                    continue
+                handle = lifecycle.before_question(question)
+                if not isinstance(handle, dict) or not handle.get("claimed"):
+                    flush()
+                    reason = (handle or {}).get("reason") or "lifecycle_refused"
+                    output[index] = QAResult(
+                        question=question,
+                        answer=Answer(
+                            text="work claim 拒绝（" + reason + "），本题未派发",
+                            score=None,
+                            status="error",
+                            source="work_store",
+                        ),
+                        metadata={
+                            "work_claim_refused": True,
+                            "work_claim_reason": reason,
+                            **(
+                                {"work_item_id": handle["work_item_id"]}
+                                if handle and handle.get("work_item_id")
+                                else {}
+                            ),
+                        },
+                    )
+                    continue
+                pending.append((index, question, handle))
+                if len(pending) == question_pack_size or key[2] == "security":
+                    flush()
+            except Exception as error:
+                flush()
+                output[index] = QAResult(
+                    question=question,
+                    answer=Answer(
+                        text="题包准入失败: " + type(error).__name__,
+                        score=None,
+                        status="error",
+                        source="error",
+                        metadata=_uncertain_transport_metadata(error),
+                    ),
+                    metadata={"question_pack_error": type(error).__name__},
+                )
+        flush()
+        for index in range(len(questions)):
+            batch.add_result(output[index])
+        success = sum(x.answer.status != "error" for x in batch.results)
+        self.progress_reporter.finish_batch(f"批量处理完成，成功: {success}/{len(questions)}")
+        return batch
 
     def output_results(
         self,

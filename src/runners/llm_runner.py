@@ -13,7 +13,7 @@ import sys
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, TypedDict, cast
 
 from src.cli.batch_processor import (
     calculate_questions_to_process,
@@ -38,6 +38,20 @@ from src.utils.quick_scan_cost_resolver import QuickScanCostResolver
 from src.utils.quick_scan_provider_health import QuickScanProviderHealth
 from src.utils.quick_scan_work_store import QuickScanWorkStore
 from src.utils.quick_scan_work_transport import bind_quick_scan_budget
+
+if TYPE_CHECKING:
+    from src.utils.quick_scan_owner_refresh import OwnerRefreshSession
+    from src.utils.quick_scan_refresh_execution import ApprovedRefreshSession
+
+
+class _SearchGenerationOptions(TypedDict, total=False):
+    thinking_enabled: bool
+    max_output_tokens: int
+
+
+class _QuestionProcessingOptions(_SearchGenerationOptions, total=False):
+    question_pack_size: int
+
 
 logger = get_logger(__name__)
 
@@ -603,6 +617,124 @@ class QuickScanWorkLifecycle:
                     else type(error).__name__
                 )
                 raise ProcessingError(message="external_retrieval_blocked:" + reason) from error
+            raise
+
+    def assert_question_pack_ready(self, questions: List[Question]) -> None:
+        """Admit original native session or its existing approved-action composition."""
+        from src.utils.quick_scan_owner_refresh import OwnerRefreshSession
+        from src.utils.quick_scan_refresh_execution import ApprovedRefreshSession
+        from src.utils.quick_scan_result_outbox import canonical_sha256
+
+        owner = self._owner_refresh
+        context = self._observation_context
+        native = owner.native if isinstance(owner, ApprovedRefreshSession) else owner
+        same_store = (
+            owner.service.store is self._store
+            if isinstance(owner, ApprovedRefreshSession)
+            else True
+        )
+        if (
+            not self._transport_managed
+            or not isinstance(self._store, QuickScanWorkStore)
+            or not isinstance(owner, (OwnerRefreshSession, ApprovedRefreshSession))
+            or not isinstance(native, OwnerRefreshSession)
+            or not same_store
+            or native.store is not self._store
+            or not isinstance(context, dict)
+            or context.get("schema") != "stockqa.quick_scan_observation_context/2.0.0"
+            or not isinstance(native.observation_context, dict)
+            or canonical_sha256(context) != canonical_sha256(native.observation_context)
+            or self._external_retrieval is not None
+        ):
+            raise ValueError("question_pack_native_owner_transport_required")
+        # Keep outer approved-action scope/input/permission checks, not only native freshness.
+        owner.check()
+        for question in questions:
+            self.question_pack_group_key(question)
+
+    def question_pack_group_key(self, question: Question) -> tuple:
+        """Use frozen original subject identity; never infer scope from the company name."""
+        if not isinstance(question, Question) or not question.question_id:
+            raise ValueError("question_pack_stable_question_required")
+        context = self._observation_context or {}
+        row = context.get("questions", {}).get(question.question_id) or {}
+        binding = row.get("subject_binding") or {}
+        subject = binding.get("subject_ref") or {}
+        scope, scope_id, _ = self._dispatch_binding(question.question_id)
+        perimeter = subject.get("perimeter_sha256")
+        if (
+            binding.get("protocol") != "stockqa.subject_context/1.0.0"
+            or subject.get("entity_id") != self._entity_id
+            or subject.get("scope") != scope
+            or subject.get("scope_id") != scope_id
+            or not isinstance(perimeter, str)
+            or re.fullmatch(r"[0-9a-f]{64}", perimeter) is None
+            or self._owner_refresh is None
+            or perimeter != self._owner_refresh.plan.get("perimeter_sha256")
+            or question.question_id not in self._owner_refresh.fields
+            or hashlib.sha256(question.text.strip().encode("utf-8")).hexdigest()
+            != row.get("work_prompt_sha256")
+        ):
+            raise ValueError("question_pack_frozen_subject_mismatch")
+        return (self._entity_id, question.metadata.get("company_name"), scope, scope_id, perimeter)
+
+    def dispatch_question_pack_context(self, handles: List[Dict[str, Any]]):
+        """Freeze every original question, then bind one group with no single-work binding."""
+        from contextlib import ExitStack
+
+        from src.utils.quick_scan_work_transport import (
+            bind_owner_refresh_guard,
+            bind_quick_scan_question_pack,
+            bind_quick_scan_route,
+            bind_subject_dispatch_registrar,
+        )
+
+        if not isinstance(handles, list) or not 1 <= len(handles) <= 30:
+            raise ValueError("question_pack_handles_count_invalid")
+        if any(not isinstance(h, dict) or h.get("claimed") is not True for h in handles):
+            raise ValueError("question_pack_claimed_handles_required")
+        questions = []
+        for handle in handles:
+            item = self._store.get_item(handle["work_item_id"])
+            qid = item["question_id"]
+            row = (self._observation_context or {}).get("questions", {}).get(qid) or {}
+            contract = (row.get("subject_binding") or {}).get("question_contract") or {}
+            questions.append(Question(text=contract.get("prompt") or "", question_id=qid))
+        self.assert_question_pack_ready(questions)
+        keys = [self.question_pack_group_key(q) for q in questions]
+        if len(set(keys)) != 1 or (keys[0][2] == "security" and len(keys) > 1):
+            raise ValueError("question_pack_subject_scope_mismatch")
+        # assert_question_pack_ready above verifies these exact owner/context values.
+        observation_context = cast(Dict[str, Any], self._observation_context)
+        owner_refresh = cast("OwnerRefreshSession | ApprovedRefreshSession", self._owner_refresh)
+        context = ExitStack()
+        try:
+            for handle in handles:
+                self._store.freeze_observation_context_before_send(
+                    handle["work_item_id"], handle["lease"], observation_context
+                )
+            owner_refresh.check()
+            context.enter_context(bind_owner_refresh_guard(owner_refresh.check))
+            context.enter_context(
+                bind_subject_dispatch_registrar(owner_refresh.register_subject_dispatch)
+            )
+            context.enter_context(
+                bind_quick_scan_question_pack(
+                    self._store, tuple((h["work_item_id"], h["lease"]) for h in handles)
+                )
+            )
+            context.enter_context(
+                bind_quick_scan_route(
+                    route_id=self._route_id,
+                    provider=self._provider_name,
+                    model_requested=self._model_requested,
+                    model_resolution=self._model_resolution,
+                    quota_group=(self._budget_route or {}).get("quota_group"),
+                )
+            )
+            return context
+        except Exception:
+            context.close()
             raise
 
     def _standard_transport(self, description: str) -> tuple[str, Optional[Dict[str, Any]]]:
@@ -1297,8 +1429,18 @@ class LLMRunner:
         company: str,
         entity_id: Optional[str],
         config_file: Path,
+        thinking_enabled: Optional[bool] = None,
+        max_output_tokens: Optional[int] = None,
     ) -> List[Optional[LLMProvider]]:
         """Materialize one provider instance per eligible ordered route."""
+        from src.providers.llm_client import _validate_search_generation_controls
+
+        _validate_search_generation_controls(thinking_enabled, max_output_tokens)
+        generation_options: _SearchGenerationOptions = {}
+        if thinking_enabled is not None:
+            generation_options["thinking_enabled"] = thinking_enabled
+        if max_output_tokens is not None:
+            generation_options["max_output_tokens"] = max_output_tokens
         route_providers: List[Optional[LLMProvider]] = []
         for route in policy_snapshot["routes"]:
             if not route["eligible"]:
@@ -1312,6 +1454,7 @@ class LLMRunner:
                 require_search=True,
                 entity_id=entity_id,
                 model_resolution=route.get("model_resolution"),
+                **generation_options,
             )
             # A quota-rejected route should advance promptly instead
             # of retrying the same exhausted account. Later quota
@@ -1345,6 +1488,9 @@ class LLMRunner:
         owner_refresh_config: Optional[str] = None,
         refresh_admission_config: Optional[str] = None,
         refresh_confirmation_id: Optional[str] = None,
+        question_pack_size: int = 1,
+        thinking_enabled: Optional[bool] = None,
+        max_output_tokens: Optional[int] = None,
     ) -> int:
         """运行LLM模式处理。
 
@@ -1367,6 +1513,26 @@ class LLMRunner:
         Returns:
             退出码（0 表示成功，1 表示失败）
         """
+        from src.providers.llm_client import _validate_search_generation_controls
+
+        if type(question_pack_size) is not int or not 1 <= question_pack_size <= 30:
+            raise ValueError("question_pack_size must be an integer from 1 to 30")
+        _validate_search_generation_controls(thinking_enabled, max_output_tokens)
+        if (thinking_enabled is not None or max_output_tokens is not None) and (
+            not require_search or batch_file or seal_deliveries
+        ):
+            raise ValueError("explicit generation controls require one search-enabled company")
+        if question_pack_size > 1 and (
+            not require_search
+            or not company
+            or batch_file
+            or seal_deliveries
+            or not identity_snapshot
+            or not question_manifest
+            or not c06_authority
+            or not owner_refresh_config
+        ):
+            raise ValueError("question packs require one complete native owner-bound company")
         # 验证参数互斥性
         approved_refresh = (
             refresh_admission_config is not None or refresh_confirmation_id is not None
@@ -1448,6 +1614,13 @@ class LLMRunner:
 
         self.logger.info("=" * 70)
         if company:
+            single_options: _QuestionProcessingOptions = {}
+            if question_pack_size != 1:
+                single_options["question_pack_size"] = question_pack_size
+            if thinking_enabled is not None:
+                single_options["thinking_enabled"] = thinking_enabled
+            if max_output_tokens is not None:
+                single_options["max_output_tokens"] = max_output_tokens
             self.logger.info("公司分析 - %s", company)
             self.logger.info("=" * 70)
             return self._run_single_company(
@@ -1468,6 +1641,7 @@ class LLMRunner:
                 refresh_confirmation_id=refresh_confirmation_id,
                 identity_snapshot_path=identity_snapshot,
                 spend_authorization=spend_authorization,
+                **single_options,
             )
         else:
             self.logger.info("批量股票分析模式")
@@ -1522,6 +1696,9 @@ class LLMRunner:
         refresh_confirmation_id: Optional[str] = None,
         identity_snapshot_path: Optional[str] = None,
         spend_authorization: Optional[str] = None,
+        question_pack_size: int = 1,
+        thinking_enabled: Optional[bool] = None,
+        max_output_tokens: Optional[int] = None,
     ) -> int:
         """运行单公司处理模式。
 
@@ -1543,6 +1720,17 @@ class LLMRunner:
             shared_budget_policy = None
             provider_health = None
             approved_session = None
+            from src.providers.llm_client import _validate_search_generation_controls
+
+            _validate_search_generation_controls(thinking_enabled, max_output_tokens)
+            generation_options: _SearchGenerationOptions = {}
+            if thinking_enabled is not None:
+                generation_options["thinking_enabled"] = thinking_enabled
+            if max_output_tokens is not None:
+                generation_options["max_output_tokens"] = max_output_tokens
+            if question_pack_size > 1:
+                generation_options.setdefault("thinking_enabled", True)
+                generation_options.setdefault("max_output_tokens", 8192)
             if require_search and config_format != "json":
                 raise ValueError("--require-search要求JSON题目文件中的显式question_id")
             config_manager: ConfigProvider
@@ -1672,6 +1860,14 @@ class LLMRunner:
                     if planned != expected:
                         raise ValueError("external_policy_question_binding_mismatch")
 
+            if (
+                question_pack_size > 1
+                and search_document is not None
+                and search_document.requires_external
+            ):
+                raise ValueError(
+                    "question packs currently require native search; external proof is per question"
+                )
             # Q10/DB-07: resolve the C06 delivery authority BEFORE any HTTP.
             # An explicitly supplied but invalid document fails the run closed;
             # an absent conventional document means every checkpoint settles as
@@ -1743,6 +1939,8 @@ class LLMRunner:
                 llm_config = LLMConfig("llm_apis.json")
                 policy = llm_config.get_quick_scan_model_policy(default_provider=provider)
                 quick_scan_policy = policy
+                if question_pack_size > 1 and not policy["configured"]:
+                    raise ValueError("question_pack_configured_model_budget_required")
                 if search_document is not None and search_document.requires_external:
                     if not policy["configured"]:
                         raise ValueError("external_context_requires_configured_model_budget")
@@ -1790,6 +1988,7 @@ class LLMRunner:
                             require_search=True,
                             entity_id=entity_id,
                             model_resolution=route.get("model_resolution"),
+                            **generation_options,
                         )
                         # A quota-rejected route should advance promptly instead
                         # of retrying the same exhausted account. Later quota
@@ -1845,6 +2044,7 @@ class LLMRunner:
                                 company=company,
                                 entity_id=entity_id,
                                 config_file=llm_config.config_file,
+                                **generation_options,
                             ),
                             "effective_mode": lambda: self._read_policy_effective_mode(
                                 llm_config.config_file
@@ -1862,6 +2062,7 @@ class LLMRunner:
                         require_search=True,
                         entity_id=entity_id,
                         model_resolution=policy["routes"][0].get("model_resolution"),
+                        **generation_options,
                     )
             else:
                 llm_provider = LLMProvider(
@@ -2056,7 +2257,17 @@ class LLMRunner:
                         else None
                     ),
                 )
+            if question_pack_size > 1:
+                if work_lifecycle is None:
+                    raise ValueError("question_pack_owner_lifecycle_required")
+                # question_pack_size > 1 requires the frozen explicit Question manifest.
+                work_lifecycle.assert_question_pack_ready(cast(List[Question], questions))
             qa_engine = QAEngine(llm_provider, answer_generator, work_item_lifecycle=work_lifecycle)
+            processing_options: _QuestionProcessingOptions = (
+                {"question_pack_size": question_pack_size, **generation_options}
+                if question_pack_size > 1
+                else {}
+            )
 
             # Q10 complete path: EXPLICITLY turn the standard-answer transport
             # on for this run only when the loaded authority carries the frozen
@@ -2084,9 +2295,9 @@ class LLMRunner:
                         shared_budget_policy or quick_scan_policy,
                         cost_resolver=cost_resolver,
                     ):
-                        batch_result = qa_engine.process_questions(questions)
+                        batch_result = qa_engine.process_questions(questions, **processing_options)
                 else:
-                    batch_result = qa_engine.process_questions(questions)
+                    batch_result = qa_engine.process_questions(questions, **processing_options)
 
             # 显示结果摘要
             print("\n" + "=" * 70)

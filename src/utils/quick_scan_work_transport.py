@@ -34,6 +34,10 @@ from src.utils.quick_scan_work_store import quick_scan_receipt_sha256 as _receip
 class QuickScanWorkPersistenceError(RuntimeError):
     """Durable work state could not be written; no fallback dispatch is allowed."""
 
+    def __init__(self, message: str, attempt_receipt: Any = None):
+        self.attempt_receipt = _sanitized_receipt(attempt_receipt)
+        super().__init__(message)
+
 
 class QuickScanWorkUncertainError(RuntimeError):
     """A request may have reached the provider; do not retry or fail over blindly."""
@@ -71,6 +75,12 @@ class QuickScanWorkBinding:
 
 
 @dataclass(frozen=True)
+class QuickScanQuestionPackBinding:
+    store: QuickScanWorkStore
+    members: tuple[tuple[str, Lease], ...]
+
+
+@dataclass(frozen=True)
 class QuickScanRouteBinding:
     route_id: Any
     provider: Any
@@ -98,6 +108,8 @@ class QuickScanSendAttempt:
     budget_attempt_id: Optional[str] = None
     external_operation_id: Optional[str] = None
     mcp_stage_id: Optional[str] = None
+    question_pack_binding: Optional[QuickScanQuestionPackBinding] = None
+    question_pack_id: Optional[str] = None
     _consumed: bool = False
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
@@ -106,6 +118,27 @@ class QuickScanSendAttempt:
         with self._lock:
             if self._consumed:
                 raise QuickScanWorkPersistenceError("send permit already consumed")
+            if self.question_pack_binding is not None:
+                _check_owner_refresh_guard()
+                _check_question_pack_environment()
+                if (
+                    self.binding is not None
+                    or self.budget_binding is None
+                    or self.budget_attempt_id != self.attempt_id
+                    or self.question_pack_id is None
+                ):
+                    raise QuickScanWorkPersistenceError("question pack permit binding is invalid")
+                try:
+                    pack = self.question_pack_binding.store.validate_question_pack_for_post(
+                        self.question_pack_id
+                    )
+                    _check_pack_members(pack, self.question_pack_binding)
+                    if pack["budget_attempt_id"] != self.attempt_id:
+                        raise ValueError("question pack physical budget binding mismatch")
+                except Exception as error:
+                    raise QuickScanWorkPersistenceError(
+                        "question pack authority changed before POST"
+                    ) from error
             if self.binding is not None:
                 _check_owner_refresh_guard()
                 frozen = self.binding.store.get_observation_context(self.binding.work_item_id)
@@ -184,7 +217,23 @@ class QuickScanSendAttempt:
 
             retained["web_search_calls"] = _canonical_native_events(receipt["web_search_calls"])
         try:
-            if self.binding is not None:
+            if self.question_pack_binding is not None:
+                if not isinstance(receipt, dict) or self.question_pack_id is None:
+                    raise ValueError("question pack response requires original metadata")
+                pack = self.question_pack_binding.store.record_question_pack_outcome(
+                    self.question_pack_id,
+                    outcome="response_available",
+                    http_status_code=http_status_code,
+                    request_id=request_id,
+                    actual_cost=actual_cost,
+                    cost_source_ref=cost_source_ref,
+                    execution_receipt=retained,
+                )
+                if pack["phase"] == "uncertain":
+                    raise QuickScanWorkUncertainError(self.attempt_id, retained)
+                _check_pack_members(pack, self.question_pack_binding)
+                receipt["question_pack_transport"] = _question_pack_mapping(pack)
+            elif self.binding is not None:
                 self.binding.store.record_attempt_outcome(
                     self.binding.work_item_id,
                     self.binding.lease,
@@ -207,6 +256,8 @@ class QuickScanSendAttempt:
                     execution_receipt=retained,
                 )
         except LeaseFencedError as error:
+            if self.question_pack_binding is not None:
+                raise QuickScanWorkUncertainError(self.attempt_id, retained) from error
             if self.binding is None:
                 raise RuntimeError("record_response: work binding is not bound")
             try:
@@ -230,9 +281,11 @@ class QuickScanSendAttempt:
             raise QuickScanWorkUncertainError(
                 self.attempt_id, _sanitized_receipt(receipt)
             ) from error
+        except QuickScanWorkUncertainError:
+            raise
         except Exception as error:
             raise QuickScanWorkPersistenceError(
-                "could not persist quick-scan response receipt"
+                "could not persist quick-scan response receipt", retained
             ) from error
 
     def record_failure(self, receipt: Any) -> None:
@@ -241,37 +294,30 @@ class QuickScanSendAttempt:
         safe = _sanitized_receipt(receipt)
         status = safe.get("http_status_code")
         provider_code = safe.get("provider_error_code")
-        failure_category: Optional[str] = None
-        outcome = "unknown"
-
-        if status in (401, 403):
-            outcome = "confirmed_failure"
-            failure_category = "authentication_rejected"
-        elif status == 404:
-            outcome = "confirmed_failure"
-            failure_category = "model_or_endpoint_unavailable"
-        elif status == 429:
-            if provider_code in {
-                "insufficient_quota",
-                "quota_exceeded",
-                "billing_hard_limit_reached",
-                "account_quota_exceeded",
-                "insufficient_funds",
-            }:
-                outcome = "confirmed_failure"
-                failure_category = "quota_exhausted"
-            elif provider_code in {
-                "rate_limit_exceeded",
-                "too_many_requests",
-                "rate_limited",
-            }:
-                outcome = "confirmed_failure"
-                failure_category = "rate_limited"
+        outcome, failure_category = _classify_transport_failure(safe)
 
         receipt_sha256 = _receipt_sha256(safe)
         actual_cost, cost_source_ref = _resolved_cost(self.budget_binding, safe)
         try:
-            if self.binding is not None:
+            if self.question_pack_binding is not None:
+                if self.question_pack_id is None:
+                    raise ValueError("question pack identity is missing")
+                pack = self.question_pack_binding.store.record_question_pack_outcome(
+                    self.question_pack_id,
+                    outcome=outcome,
+                    http_status_code=status if type(status) is int else None,
+                    failure_category=failure_category,
+                    provider_error_code=(provider_code if isinstance(provider_code, str) else None),
+                    request_id=(
+                        safe.get("request_id") if isinstance(safe.get("request_id"), str) else None
+                    ),
+                    actual_cost=actual_cost,
+                    cost_source_ref=cost_source_ref,
+                    execution_receipt=safe,
+                )
+                if pack["phase"] == "uncertain":
+                    raise QuickScanWorkUncertainError(self.attempt_id, safe)
+            elif self.binding is not None:
                 self.binding.store.record_attempt_outcome(
                     self.binding.work_item_id,
                     self.binding.lease,
@@ -280,7 +326,7 @@ class QuickScanSendAttempt:
                     http_status_code=status if type(status) is int else None,
                     receipt_sha256=receipt_sha256,
                     failure_category=failure_category,
-                    provider_error_code=provider_code if isinstance(provider_code, str) else None,
+                    provider_error_code=(provider_code if isinstance(provider_code, str) else None),
                     request_id=(
                         safe.get("request_id") if isinstance(safe.get("request_id"), str) else None
                     ),
@@ -298,6 +344,8 @@ class QuickScanSendAttempt:
                     execution_receipt=safe,
                 )
         except LeaseFencedError as error:
+            if self.question_pack_binding is not None:
+                raise QuickScanWorkUncertainError(self.attempt_id, safe) from error
             if self.binding is None:
                 raise RuntimeError("record_failure: work binding is not bound")
             try:
@@ -319,9 +367,11 @@ class QuickScanSendAttempt:
                     "could not retain late quick-scan failure receipt"
                 ) from late_error
             raise QuickScanWorkUncertainError(self.attempt_id, safe) from error
+        except QuickScanWorkUncertainError:
+            raise
         except Exception as error:
             raise QuickScanWorkPersistenceError(
-                "could not persist quick-scan transport failure"
+                "could not persist quick-scan transport failure", safe
             ) from error
         if outcome == "unknown":
             raise QuickScanWorkUncertainError(self.attempt_id, safe)
@@ -346,6 +396,9 @@ class QuickScanSendAttempt:
 
 _WORK_BINDING: contextvars.ContextVar[Optional[QuickScanWorkBinding]] = contextvars.ContextVar(
     "quick_scan_work_binding", default=None
+)
+_QUESTION_PACK_BINDING: contextvars.ContextVar[Optional[QuickScanQuestionPackBinding]] = (
+    contextvars.ContextVar("quick_scan_question_pack_binding", default=None)
 )
 _ROUTE_BINDING: contextvars.ContextVar[Optional[QuickScanRouteBinding]] = contextvars.ContextVar(
     "quick_scan_route_binding", default=None
@@ -387,6 +440,8 @@ def bind_external_question_context(
     *,
     question_manifest_sha256: str,
 ) -> Iterator[dict]:
+    if _QUESTION_PACK_BINDING.get() is not None:
+        raise QuickScanWorkPersistenceError("question packs require native search")
     from src.utils.quick_scan_external_context import build_external_question_context
 
     context = build_external_question_context(
@@ -398,7 +453,11 @@ def bind_external_question_context(
         question_manifest_sha256=question_manifest_sha256,
     )
     encoded = json.dumps(
-        context, sort_keys=True, ensure_ascii=False, separators=(",", ":"), allow_nan=False
+        context,
+        sort_keys=True,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        allow_nan=False,
     )
     binding = {
         "store": store,
@@ -449,7 +508,11 @@ def _validate_external_binding() -> Optional[dict]:
     )
     if (
         json.dumps(
-            context, sort_keys=True, ensure_ascii=False, separators=(",", ":"), allow_nan=False
+            context,
+            sort_keys=True,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            allow_nan=False,
         )
         != binding["encoded"]
     ):
@@ -541,6 +604,8 @@ def bind_quick_scan_work(
     store: QuickScanWorkStore, work_item_id: str, lease: Lease
 ) -> Iterator[None]:
     """Bind a trusted, already-created and claimed logical question to this context."""
+    if _QUESTION_PACK_BINDING.get() is not None:
+        raise QuickScanWorkPersistenceError("single work cannot shadow a question pack")
     token = _WORK_BINDING.set(QuickScanWorkBinding(store, work_item_id, lease))
     try:
         yield
@@ -631,6 +696,8 @@ def _resolved_cost(
 @contextmanager
 def bind_quick_scan_format_repair() -> Iterator[None]:
     """Authorize exactly the provider's explicit, budgeted format-repair request."""
+    if _QUESTION_PACK_BINDING.get() is not None:
+        raise QuickScanWorkPersistenceError("question packs do not permit automatic format repair")
     token = _FORMAT_REPAIR.set(True)
     try:
         yield
@@ -685,6 +752,319 @@ def _check_owner_refresh_guard() -> None:
             raise QuickScanWorkPersistenceError("owner_refresh_guard_rejected") from error
 
 
+def _classify_transport_failure(receipt: dict) -> tuple[str, Optional[str]]:
+    """The existing single and pack boundaries share one refusal policy."""
+    status = receipt.get("http_status_code")
+    code = receipt.get("provider_error_code")
+    if status in (401, 403):
+        return "confirmed_failure", "authentication_rejected"
+    if status == 404:
+        return "confirmed_failure", "model_or_endpoint_unavailable"
+    if status == 429 and code in {
+        "insufficient_quota",
+        "quota_exceeded",
+        "billing_hard_limit_reached",
+        "account_quota_exceeded",
+        "insufficient_funds",
+    }:
+        return "confirmed_failure", "quota_exhausted"
+    if status == 429 and code in {
+        "rate_limit_exceeded",
+        "too_many_requests",
+        "rate_limited",
+    }:
+        return "confirmed_failure", "rate_limited"
+    return "unknown", None
+
+
+def _check_question_pack_environment() -> None:
+    if (
+        _WORK_BINDING.get() is not None
+        or own_reservation_held()
+        or _EXTERNAL_CONTEXT.get() is not None
+        or _FORMAT_REPAIR.get()
+    ):
+        raise QuickScanWorkPersistenceError(
+            "question pack has conflicting single or external authority"
+        )
+
+
+@contextmanager
+def bind_quick_scan_question_pack(
+    store: QuickScanWorkStore, members: tuple[tuple[str, Lease], ...]
+) -> Iterator[None]:
+    """Bind the exact ordered native members, never one representative question."""
+    _check_question_pack_environment()
+    if (
+        _QUESTION_PACK_BINDING.get() is not None
+        or not isinstance(store, QuickScanWorkStore)
+        or type(members) is not tuple
+        or not 1 <= len(members) <= 30
+        or any(
+            type(member) is not tuple
+            or len(member) != 2
+            or not isinstance(member[0], str)
+            or not member[0]
+            or not isinstance(member[1], Lease)
+            for member in members
+        )
+        or len({member[0] for member in members}) != len(members)
+    ):
+        raise QuickScanWorkPersistenceError("question pack requires exact unique leased members")
+    token = _QUESTION_PACK_BINDING.set(QuickScanQuestionPackBinding(store, members))
+    try:
+        yield
+    finally:
+        _QUESTION_PACK_BINDING.reset(token)
+
+
+def _question_pack_bound_rows(
+    binding: QuickScanQuestionPackBinding,
+) -> list[tuple[dict, dict]]:
+    from src.utils.quick_scan_observation_context import bind_context_to_work_item
+
+    rows = []
+    subject = None
+    for work_id, lease in binding.members:
+        item = binding.store.get_item(work_id)
+        binding.store._assert_lease(item, lease, binding.store._now())
+        frozen = binding.store.get_observation_context(work_id)
+        if (
+            item["identity_state"] != "verified"
+            or frozen is None
+            or frozen["context"].get("schema") != "stockqa.quick_scan_observation_context/2.0.0"
+        ):
+            raise ValueError("question pack requires each original verified context v2")
+        context = bind_context_to_work_item(
+            frozen["context"], work_item=item, question_id=item["question_id"]
+        )
+        current_subject = context["subject_binding"]["subject_ref"]
+        if subject is not None and current_subject != subject:
+            raise ValueError("question pack members have different issuer or subject scope")
+        subject = current_subject
+        rows.append((item, context))
+    return rows
+
+
+def assert_question_pack_binding(expected_question_ids: tuple[str, ...], entity_id: str) -> None:
+    """Pre-HTTP exact identity/order check using each actual frozen work owner."""
+    try:
+        _check_question_pack_environment()
+        binding = _QUESTION_PACK_BINDING.get()
+        if binding is None or type(expected_question_ids) is not tuple or not expected_question_ids:
+            raise ValueError("question pack binding is missing")
+        rows = _question_pack_bound_rows(binding)
+        if tuple(item["question_id"] for item, _ in rows) != expected_question_ids or any(
+            item["entity_id"] != entity_id for item, _ in rows
+        ):
+            raise ValueError("question pack question order or entity mismatch")
+    except Exception as error:
+        raise QuickScanWorkPersistenceError(
+            "question pack binding does not match this request"
+        ) from error
+
+
+def _check_pack_members(pack: dict, binding: QuickScanQuestionPackBinding) -> None:
+    actual = tuple(
+        (member["work_item_id"], Lease(member["lease_token"], member["lease_epoch"]))
+        for member in pack["members"]
+    )
+    if actual != binding.members:
+        raise ValueError("question pack members differ from the active authority")
+
+
+def _question_pack_mapping(pack: dict) -> dict:
+    return {
+        "pack_id": pack["pack_id"],
+        "budget_attempt_id": pack["budget_attempt_id"],
+        "execution_attempt_id": pack["execution_attempt_id"],
+        "members": [
+            {
+                "question_id": member["question_id"],
+                "work_item_id": member["work_item_id"],
+                "work_attempt_id": member["attempt_id"],
+            }
+            for member in pack["members"]
+        ],
+    }
+
+
+def project_question_pack_transport(execution_metadata: dict) -> dict:
+    """Return per-question transport only after re-reading the physical owner."""
+    try:
+        _check_question_pack_environment()
+        binding = _QUESTION_PACK_BINDING.get()
+        if binding is None or not isinstance(execution_metadata, dict):
+            raise ValueError("question pack projection requires its active owner")
+        claimed = execution_metadata.get("question_pack_transport")
+        if not isinstance(claimed, dict):
+            raise ValueError("question pack projection is missing")
+        pack_id = claimed.get("pack_id")
+        if not isinstance(pack_id, str):
+            raise ValueError("question pack projection has invalid pack id")
+        pack = binding.store.get_question_pack(pack_id)
+        if pack is None or pack["phase"] != "response_available":
+            raise ValueError("question pack has no successful original response")
+        _check_pack_members(pack, binding)
+        if claimed != _question_pack_mapping(pack):
+            raise ValueError("question pack projection differs from the original membership")
+        original = pack["execution_receipt"]
+        transport = execution_metadata.get("work_transport")
+        if (
+            not isinstance(original, dict)
+            or _sanitized_receipt(execution_metadata) != _sanitized_receipt(original)
+            or _receipt_sha256(execution_metadata) != pack["receipt_sha256"]
+            or not isinstance(transport, dict)
+            or transport.get("work_attempt_id") != pack["budget_attempt_id"]
+            or transport.get("final_receipt") != _sanitized_receipt(original)
+            or execution_metadata.get("attempt_id") != pack["execution_attempt_id"]
+            or execution_metadata.get("prompt_sha256") != pack["provider_prompt_sha256"]
+            or execution_metadata.get("request_payload_sha256") != pack["request_payload_sha256"]
+            or execution_metadata.get("requested_model") != pack["model_requested"]
+        ):
+            raise ValueError("question pack metadata differs from its actual physical response")
+        if "web_search_calls" in execution_metadata or "web_search_calls" in original:
+            from src.utils.quick_scan_work_store import _canonical_native_events
+
+            if _canonical_native_events(
+                execution_metadata.get("web_search_calls", [])
+            ) != _canonical_native_events(original.get("web_search_calls", [])):
+                raise ValueError("question pack native events differ from their actual response")
+        rows = _question_pack_bound_rows(binding)
+        for member, (item, _) in zip(pack["members"], rows):
+            registered = binding.store.get_subject_dispatch_receipt(member["attempt_id"])
+            if (
+                item["question_id"] != member["question_id"]
+                or registered is None
+                or registered["receipt"]["dispatch_request"]["provider"] != original.get("provider")
+            ):
+                raise ValueError("question pack original owner receipt mismatch")
+        return _question_pack_mapping(pack)
+    except Exception as error:
+        raise QuickScanWorkPersistenceError(
+            "question pack response projection could not verify its owner"
+        ) from error
+
+
+def _begin_question_pack_send(
+    binding,
+    prompt,
+    system_prompt,
+    *,
+    route,
+    budget,
+    resolution,
+    execution_attempt_id,
+    provider_actual,
+    request_payload_sha256,
+) -> QuickScanSendAttempt:
+    try:
+        _check_question_pack_environment()
+        if budget is None or budget.store.path.resolve() != binding.store.path.resolve():
+            raise ValueError("question pack requires its own explicit same-store budget")
+        if route is None or not all(
+            isinstance(value, str) and value.strip()
+            for value in (
+                route.route_id,
+                route.provider,
+                route.model_requested,
+                route.quota_group,
+            )
+        ):
+            raise ValueError("question pack route is incomplete")
+        if (
+            not isinstance(execution_attempt_id, str)
+            or str(uuid.UUID(execution_attempt_id)) != execution_attempt_id
+        ):
+            raise ValueError("question pack requires the actual execution UUID")
+        if request_payload_sha256 is None or provider_actual not in {
+            "mimo",
+            "minimax",
+            "openai",
+        }:
+            raise ValueError("question pack requires the actual native payload and provider")
+        rows = _question_pack_bound_rows(binding)
+        pack = binding.store.prepare_question_pack(
+            [{"work_item_id": work_id, "lease": lease} for work_id, lease in binding.members],
+            route_id=route.route_id,
+            provider=route.provider,
+            model_requested=route.model_requested,
+            execution_attempt_id=execution_attempt_id,
+            prompt_sha256=hashlib.sha256(
+                (system_prompt + "\0" + prompt).encode("utf-8")
+            ).hexdigest(),
+            provider_prompt_sha256=hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+            request_payload_sha256=request_payload_sha256,
+            model_resolution=resolution,
+            search_mode="native_search",
+        )
+        _check_pack_members(pack, binding)
+        registrar = _SUBJECT_DISPATCH_REGISTRAR.get()
+        if registrar is None:
+            raise ValueError("subject_dispatch_registrar_missing")
+        from src.utils.quick_scan_subject_journal import dispatch_request
+
+        for member, (item, context) in zip(pack["members"], rows):
+            attempt = next(
+                a
+                for a in binding.store.list_attempts(item["work_item_id"])
+                if a["attempt_id"] == member["attempt_id"]
+            )
+            request = dispatch_request(
+                item,
+                attempt,
+                context,
+                execution_attempt_id=execution_attempt_id,
+                provider_actual=provider_actual,
+                provider_prompt_sha256=pack["provider_prompt_sha256"],
+            )
+            binding.store.persist_subject_dispatch_receipt(
+                item["work_item_id"],
+                Lease(member["lease_token"], member["lease_epoch"]),
+                member["attempt_id"],
+                registrar(request),
+                expected_request=request,
+            )
+        deadline = time.monotonic() + _CAPACITY_WAIT_SECONDS
+        while True:
+            _check_owner_refresh_guard()
+            try:
+                intent = binding.store.mark_question_pack_send_intent(
+                    pack["pack_id"],
+                    budget_policy=budget.policy,
+                    budget_route={
+                        "route_id": route.route_id,
+                        "provider": route.provider,
+                        "model_requested": route.model_requested,
+                        "quota_group": route.quota_group,
+                    },
+                )
+                break
+            except BudgetAdmissionError as error:
+                if error.reason not in _CAPACITY_FULL_REASONS or time.monotonic() >= deadline:
+                    raise
+                time.sleep(_CAPACITY_POLL_SECONDS)
+        physical_id = intent["budget_attempt_id"]
+        return QuickScanSendAttempt(
+            None,
+            physical_id,
+            SendPermit(physical_id, intent["intent_time"], 0),
+            model_resolution=resolution,
+            budget_binding=budget,
+            budget_attempt_id=physical_id,
+            question_pack_binding=binding,
+            question_pack_id=pack["pack_id"],
+        )
+    except BudgetAdmissionError as error:
+        raise QuickScanBudgetDeferredError(error.reason) from error
+    except QuickScanWorkPersistenceError:
+        raise
+    except Exception as error:
+        raise QuickScanWorkPersistenceError(
+            "question pack durable send admission failed"
+        ) from error
+
+
 def begin_quick_scan_send(
     prompt: str,
     system_prompt: str,
@@ -693,8 +1073,15 @@ def begin_quick_scan_send(
     model_resolution: Any = None,
     execution_attempt_id: Any = None,
     provider_actual: Any = None,
+    request_payload_sha256: Optional[str] = None,
 ) -> Optional[QuickScanSendAttempt]:
-    """Commit prepared + send-intent state before permitting the HTTP request."""
+    """Commit intent; explicit generation controls bind the actual payload hash."""
+    if request_payload_sha256 is not None and (
+        not isinstance(request_payload_sha256, str)
+        or len(request_payload_sha256) != 64
+        or any(character not in "0123456789abcdef" for character in request_payload_sha256)
+    ):
+        raise ValueError("invalid request_payload_sha256")
     _check_owner_refresh_guard()
     from src.providers.model_resolution import (
         model_resolution_sha256,
@@ -716,6 +1103,19 @@ def begin_quick_scan_send(
     ):
         raise QuickScanWorkPersistenceError("HTTP requested model does not match frozen route")
     resolution = frozen_quick_scan_model_resolution(model_resolution)
+    pack_binding = _QUESTION_PACK_BINDING.get()
+    if pack_binding is not None:
+        return _begin_question_pack_send(
+            pack_binding,
+            prompt,
+            system_prompt,
+            route=route,
+            budget=_BUDGET_BINDING.get(),
+            resolution=resolution,
+            execution_attempt_id=execution_attempt_id,
+            provider_actual=provider_actual,
+            request_payload_sha256=request_payload_sha256,
+        )
     if own_reservation_held() and work is None:
         # Q09: THIS question's send was already admitted atomically at the
         # lifecycle's mark-time reserve (one send = one reserve); re-admitting
@@ -757,6 +1157,8 @@ def begin_quick_scan_send(
                 sort_keys=True,
                 separators=(",", ":"),
             )
+            if request_payload_sha256 is not None:
+                request_identity += "|payload:" + request_payload_sha256
             if resolution["aliases"]:
                 request_identity += "|resolution:" + model_resolution_sha256(resolution)
             request_cache_key = (
@@ -854,7 +1256,7 @@ def begin_quick_scan_send(
                 permit,
                 model_resolution=resolution,
                 budget_binding=budget,
-                budget_attempt_id=prepared["attempt_id"] if budget is not None else None,
+                budget_attempt_id=(prepared["attempt_id"] if budget is not None else None),
             )
         if budget is None:
             raise RuntimeError("begin_quick_scan_send: budget ledger is not bound")

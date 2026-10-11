@@ -8,6 +8,7 @@
 import hashlib
 import json
 import math
+import re
 import uuid
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
@@ -262,6 +263,13 @@ def _response_retry_after_seconds(response: Any) -> Optional[float]:
         return None
 
 
+def _final_answer_text(content: str) -> str:
+    """Reject reasoning mixed into final text; do not strip it into a plausible answer."""
+    if re.search(r"<\s*/?\s*think(?:ing)?\b", content, flags=re.IGNORECASE):
+        raise ValueError("reasoning marker present in final answer text")
+    return content
+
+
 def _parse_search_response(
     response: Any,
     *,
@@ -376,7 +384,7 @@ def _parse_search_response(
         # MiniMax's documented Responses example places URLs in the final message
         # after web_search_call, while action.sources may be absent.
         source_urls = tuple(dict.fromkeys(verified_call_urls))
-        content = "\n".join(post_search_text_parts).strip()
+        content = _final_answer_text("\n".join(post_search_text_parts).strip())
         search_verified = bool(
             response_status == "completed"
             and response_id
@@ -389,7 +397,7 @@ def _parse_search_response(
         )
     else:
         source_urls = tuple(dict.fromkeys(verified_call_urls + annotation_urls))
-        content = "\n".join(text_parts).strip()
+        content = _final_answer_text("\n".join(text_parts).strip())
         search_verified = bool(
             response_status == "completed"
             and request_id
@@ -522,7 +530,7 @@ def _parse_anthropic_search_response(
 
     request_id = _response_request_id(response)
     source_urls = tuple(dict.fromkeys(url for call in calls for url in call["source_urls"]))
-    content = "\n".join(answer_parts).strip()
+    content = _final_answer_text("\n".join(answer_parts).strip())
     base_resp_present = "base_resp" in payload
     base_resp = payload.get("base_resp")
     base_resp_status = base_resp.get("status_code") if isinstance(base_resp, dict) else None
@@ -604,7 +612,7 @@ def _parse_mimo_search_response(
     raw_message = choice.get("message")
     message: Dict[str, Any] = raw_message if isinstance(raw_message, dict) else {}
     raw_content = message.get("content")
-    content: str = raw_content if isinstance(raw_content, str) else ""
+    content: str = _final_answer_text(raw_content) if isinstance(raw_content, str) else ""
     finish_reason = (
         choice.get("finish_reason") if isinstance(choice.get("finish_reason"), str) else None
     )
@@ -779,7 +787,7 @@ def _parse_external_answer_response(
         ):
             raise ValueError("external-only response contains an unrequested tool")
         parts.append(message["content"])
-    content = "\n".join(parts).strip()
+    content = _final_answer_text("\n".join(parts).strip())
     if not content or not parsed.response_id or not parsed.request_id:
         raise ValueError("external answer has no complete response identity/text")
     usage = _normalize_provider_usage(
@@ -1257,9 +1265,65 @@ def _search_request_headers(api_key: str, protocol: str) -> Dict[str, str]:
     return {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
 
 
+# This is an application-side bound for an explicit experimental request, not
+# a claimed provider maximum. Callers must reserve the corresponding budget.
+_SEARCH_MAX_OUTPUT_TOKENS = 32768
+
+
+def _validate_search_generation_controls(
+    thinking_enabled: Optional[bool], max_output_tokens: Optional[int]
+) -> None:
+    if thinking_enabled is not None and type(thinking_enabled) is not bool:
+        raise ValueError("thinking_enabled must be a boolean or None")
+    if max_output_tokens is not None and (
+        type(max_output_tokens) is not int
+        or not 1 <= max_output_tokens <= _SEARCH_MAX_OUTPUT_TOKENS
+    ):
+        raise ValueError("max_output_tokens must be an integer from 1 through 32768 or None")
+
+
+def _request_generation_metadata(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Read the actual adapter payload; never accept model-reported controls."""
+    return {
+        "schema": "stockqa.request_generation/1.0.0",
+        "thinking": data.get("thinking"),
+        "reasoning": data.get("reasoning"),
+        "max_output_tokens": next(
+            (
+                data[key]
+                for key in ("max_output_tokens", "max_completion_tokens", "max_tokens")
+                if key in data
+            ),
+            None,
+        ),
+    }
+
+
 def _search_request_payload(
-    prompt: str, system_prompt: str, model: str, provider: str, protocol: str
+    prompt: str,
+    system_prompt: str,
+    model: str,
+    provider: str,
+    protocol: str,
+    *,
+    thinking_enabled: Optional[bool] = None,
+    max_output_tokens: Optional[int] = None,
 ) -> Dict[str, Any]:
+    """Preserve legacy defaults unless explicit, protocol-verified controls are set."""
+    _validate_search_generation_controls(thinking_enabled, max_output_tokens)
+    if thinking_enabled is not None and not (
+        protocol in {"anthropic_messages", "mimo_chat_completions"}
+        or (provider == "deepseek" and thinking_enabled is True)
+    ):
+        raise SearchCapabilityUnavailable(
+            "explicit thinking control is not verified for this provider/protocol; "
+            "MiniMax-M3 thinking requires its Anthropic Messages route"
+        )
+    if provider == "minimax" and protocol == "responses" and max_output_tokens is not None:
+        raise SearchCapabilityUnavailable(
+            "explicit output token control is not verified for MiniMax Responses; "
+            "use its Anthropic Messages route"
+        )
     if provider == "deepseek":
         # Official Responses text route; native web_search is not supported.
         # Reasoning remains enabled but only final assistant text is retained.
@@ -1268,14 +1332,14 @@ def _search_request_payload(
             "instructions": system_prompt,
             "input": prompt,
             "reasoning": {"effort": "high"},
-            "max_output_tokens": MAX_TOKENS,
+            "max_output_tokens": MAX_TOKENS if max_output_tokens is None else max_output_tokens,
             "stream": False,
             "store": False,
         }
     if protocol == "anthropic_messages":
-        return {
+        payload = {
             "model": model,
-            "max_tokens": 2048,
+            "max_tokens": 2048 if max_output_tokens is None else max_output_tokens,
             "system": system_prompt,
             "messages": [{"role": "user", "content": prompt}],
             "tools": [{"type": "web_search_20250305", "name": "web_search", "max_uses": 1}],
@@ -1283,6 +1347,9 @@ def _search_request_payload(
             # named tool is not part of the contract (Q02 official-API conformance).
             "tool_choice": {"type": "auto"},
         }
+        if thinking_enabled is not None:
+            payload["thinking"] = {"type": "adaptive" if thinking_enabled else "disabled"}
+        return payload
     if protocol == "mimo_chat_completions":
         return {
             "model": model,
@@ -1300,8 +1367,8 @@ def _search_request_payload(
             ],
             "tool_choice": "auto",
             "stream": False,
-            "max_completion_tokens": 2048,
-            "thinking": {"type": "disabled"},
+            "max_completion_tokens": 2048 if max_output_tokens is None else max_output_tokens,
+            "thinking": {"type": "enabled" if thinking_enabled else "disabled"},
         }
     if provider == "minimax":
         # Server Tools Responses shape plus the official `instructions` field for
@@ -1321,7 +1388,7 @@ def _search_request_payload(
         "tools": [{"type": "web_search"}],
         "tool_choice": "required",
         "include": ["web_search_call.action.sources"],
-        "max_output_tokens": MAX_TOKENS,
+        "max_output_tokens": MAX_TOKENS if max_output_tokens is None else max_output_tokens,
         "store": False,
     }
 
@@ -1389,8 +1456,12 @@ class LLMClient:
         self,
         prompt: str,
         system_prompt: str = "你是一位专业的投资分析师，擅长分析公司的投资价值。",
+        *,
+        thinking_enabled: Optional[bool] = None,
+        max_output_tokens: Optional[int] = None,
     ) -> LLMSearchResponse:
         """Call an allowlisted Responses web_search route and preserve its receipt."""
+        _validate_search_generation_controls(thinking_enabled, max_output_tokens)
         prompt, system_prompt, external_mode = render_external_request(prompt, system_prompt)
         requested_model = self.model
         endpoint, provider, protocol = _search_endpoint(
@@ -1399,6 +1470,31 @@ class LLMClient:
             self.provider_name,
             external_context_only=external_mode == "external_context_only",
         )
+        data = _search_request_payload(
+            prompt,
+            system_prompt,
+            requested_model,
+            provider,
+            protocol,
+            thinking_enabled=thinking_enabled,
+            max_output_tokens=max_output_tokens,
+        )
+        if external_mode == "external_context_only":
+            for key in ("tools", "tool_choice", "include"):
+                data.pop(key, None)
+        request_payload_sha256 = None
+        send_generation_options = {}
+        if thinking_enabled is not None or max_output_tokens is not None:
+            request_payload_sha256 = hashlib.sha256(
+                json.dumps(
+                    data,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    allow_nan=False,
+                ).encode("utf-8")
+            ).hexdigest()
+            send_generation_options["request_payload_sha256"] = request_payload_sha256
         resolution = frozen_quick_scan_model_resolution(self.model_resolution)
         attempt_id = str(uuid.uuid4())
         work_attempt = begin_quick_scan_send(
@@ -1408,15 +1504,12 @@ class LLMClient:
             model_resolution=resolution,
             execution_attempt_id=attempt_id,
             provider_actual=provider,
+            **send_generation_options,
         )
         if work_attempt is not None:
             resolution = normalize_model_resolution(work_attempt.model_resolution)
         session = http_client_manager.get_sync_session()
         headers = _search_request_headers(self.api_key, protocol)
-        data = _search_request_payload(prompt, system_prompt, requested_model, provider, protocol)
-        if external_mode == "external_context_only":
-            for key in ("tools", "tool_choice", "include"):
-                data.pop(key, None)
         started_at = _utc_now()
         if work_attempt is not None:
             work_attempt.consume_for_post()
@@ -1457,6 +1550,9 @@ class LLMClient:
                 requested_model=requested_model,
                 model_resolution=resolution,
             )
+            if request_payload_sha256 is not None:
+                receipt["request_payload_sha256"] = request_payload_sha256
+                receipt["request_generation"] = _request_generation_metadata(data)
             if work_attempt is not None:
                 work_attempt.record_failure(receipt)
             raise LLMTransportAttemptError(type(error).__name__, receipt) from None
@@ -1472,6 +1568,9 @@ class LLMClient:
             response_json_basis=response_json_basis,
             model_resolution=resolution,
         )
+        if thinking_enabled is not None or max_output_tokens is not None:
+            result.execution_metadata["request_generation"] = _request_generation_metadata(data)
+            result.execution_metadata["request_payload_sha256"] = request_payload_sha256
         if work_attempt is not None:
             work_attempt.record_response(
                 http_status_code=_response_status_code(response),
@@ -1558,8 +1657,12 @@ class AsyncLLMClient:
         self,
         prompt: str,
         system_prompt: str = "你是一位专业的投资分析师，擅长分析公司的投资价值。",
+        *,
+        thinking_enabled: Optional[bool] = None,
+        max_output_tokens: Optional[int] = None,
     ) -> LLMSearchResponse:
         """Async counterpart of the same allowlisted search adapter."""
+        _validate_search_generation_controls(thinking_enabled, max_output_tokens)
         prompt, system_prompt, external_mode = render_external_request(prompt, system_prompt)
         requested_model = self.model
         endpoint, provider, protocol = _search_endpoint(
@@ -1568,6 +1671,31 @@ class AsyncLLMClient:
             self.provider_name,
             external_context_only=external_mode == "external_context_only",
         )
+        data = _search_request_payload(
+            prompt,
+            system_prompt,
+            requested_model,
+            provider,
+            protocol,
+            thinking_enabled=thinking_enabled,
+            max_output_tokens=max_output_tokens,
+        )
+        if external_mode == "external_context_only":
+            for key in ("tools", "tool_choice", "include"):
+                data.pop(key, None)
+        request_payload_sha256 = None
+        send_generation_options = {}
+        if thinking_enabled is not None or max_output_tokens is not None:
+            request_payload_sha256 = hashlib.sha256(
+                json.dumps(
+                    data,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    allow_nan=False,
+                ).encode("utf-8")
+            ).hexdigest()
+            send_generation_options["request_payload_sha256"] = request_payload_sha256
         resolution = frozen_quick_scan_model_resolution(self.model_resolution)
         attempt_id = str(uuid.uuid4())
         work_attempt = begin_quick_scan_send(
@@ -1577,15 +1705,12 @@ class AsyncLLMClient:
             model_resolution=resolution,
             execution_attempt_id=attempt_id,
             provider_actual=provider,
+            **send_generation_options,
         )
         if work_attempt is not None:
             resolution = normalize_model_resolution(work_attempt.model_resolution)
         client = await http_client_manager.get_async_client()
         headers = _search_request_headers(self.api_key, protocol)
-        data = _search_request_payload(prompt, system_prompt, requested_model, provider, protocol)
-        if external_mode == "external_context_only":
-            for key in ("tools", "tool_choice", "include"):
-                data.pop(key, None)
         started_at = _utc_now()
         if work_attempt is not None:
             work_attempt.consume_for_post()
@@ -1626,6 +1751,9 @@ class AsyncLLMClient:
                 requested_model=requested_model,
                 model_resolution=resolution,
             )
+            if request_payload_sha256 is not None:
+                receipt["request_payload_sha256"] = request_payload_sha256
+                receipt["request_generation"] = _request_generation_metadata(data)
             if work_attempt is not None:
                 work_attempt.record_failure(receipt)
             raise LLMTransportAttemptError(type(error).__name__, receipt) from None
@@ -1641,6 +1769,9 @@ class AsyncLLMClient:
             response_json_basis=response_json_basis,
             model_resolution=resolution,
         )
+        if thinking_enabled is not None or max_output_tokens is not None:
+            result.execution_metadata["request_generation"] = _request_generation_metadata(data)
+            result.execution_metadata["request_payload_sha256"] = request_payload_sha256
         if work_attempt is not None:
             work_attempt.record_response(
                 http_status_code=_response_status_code(response),
