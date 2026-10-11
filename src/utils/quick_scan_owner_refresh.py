@@ -289,9 +289,33 @@ class OwnerRefreshClient:
             if isinstance(error, OwnerRefreshRejected):
                 raise
             raise OwnerRefreshRejected("owner_refresh_current_invalid") from error
+        subject_context_active = False
         if observation_context is not None:
-            for row in observation_context["questions"].values():
-                if row["metadata"].get("analysis_subject") != binding["subject"]:
+            from src.utils.quick_scan_observation_context import (
+                validate_context_document,
+            )
+            from src.utils.quick_scan_subject_context import CONTEXT_SCHEMA
+
+            validate_context_document(
+                observation_context, expected_sha256=canonical_sha256(observation_context)
+            )
+            subject_context_active = observation_context["schema"] == CONTEXT_SCHEMA
+            for row in observation_context["questions"].values() if subject_context_active else ():
+                ref = row["subject_binding"]["subject_ref"]
+                subject = binding["subject"]
+                if (
+                    any(
+                        ref[k] != subject[k]
+                        for k in (
+                            "analysis_subject_id",
+                            "analysis_subject_revision",
+                            "primary_issuer_id",
+                        )
+                    )
+                    or ref["perimeter_sha256"] != binding["perimeter_sha256"]
+                    or ref["entity_id"] != binding["entity_id"]
+                    or row["subject_binding"]["identity_revision"] != binding["identity_revision"]
+                ):
                     raise OwnerRefreshRejected("owner_refresh_subject_context_mismatch")
         scopes = {}
         for q in frozen["questions"]:
@@ -338,7 +362,8 @@ class OwnerRefreshClient:
                     str(c["ttl_hours"]),
                     "--work-projection",
                     str(path),
-                ],
+                ]
+                + (["--c06-subject-bound"] if subject_context_active else []),
             )
         self.assert_current(current, now)
         for k, value in (
@@ -376,7 +401,16 @@ class OwnerRefreshClient:
             {k: v for k, v in plan.items() if k not in {"refresh_id", "reused_observations"}}
         ) != plan.get("refresh_id"):
             raise OwnerRefreshRejected("owner_refresh_plan_hash_mismatch")
-        return OwnerRefreshSession(self, current, plan, scopes, projection, identity, store)
+        return OwnerRefreshSession(
+            self,
+            current,
+            plan,
+            scopes,
+            projection,
+            identity,
+            store,
+            observation_context=observation_context if subject_context_active else None,
+        )
 
 
 class OwnerRefreshSession:
@@ -389,6 +423,7 @@ class OwnerRefreshSession:
         projection: dict,
         identity: dict,
         store: QuickScanWorkStore,
+        observation_context: dict | None = None,
     ):
         self.client, self.current, self.plan = client, copy.deepcopy(current), copy.deepcopy(plan)
         self.scope_bindings, self.projection, self.identity, self.store = (
@@ -398,6 +433,7 @@ class OwnerRefreshSession:
             store,
         )
         self.fields = {f["field_id"]: f for f in self.plan["fields"]}
+        self.observation_context = copy.deepcopy(observation_context)
 
     def check(self) -> None:
         from datetime import datetime, timezone
@@ -405,6 +441,16 @@ class OwnerRefreshSession:
         self.client.assert_current(
             self.current, datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         )
+
+    def register_subject_dispatch(self, request: dict) -> dict:
+        from src.utils.quick_scan_subject_owner import register
+
+        self.check()
+        receipt = register(
+            self.client.config, self.current, request, process_env=self.client._environment
+        )
+        self.check()
+        return receipt
 
     def binding(self, qid: str) -> dict | None:
         row = self.fields[qid]
@@ -418,8 +464,12 @@ class OwnerRefreshSession:
         ):
             raise OwnerRefreshRejected("owner_refresh_ack_observation_missing")
         scope = self.scope_bindings[qid]
-        return dict(
-            protocol="stockqa.owner_refresh_binding/1.0.0",
+        binding = dict(
+            protocol=(
+                "stockqa.owner_refresh_binding/2.0.0"
+                if self.observation_context is not None
+                else "stockqa.owner_refresh_binding/1.0.0"
+            ),
             subject_key=self.plan["subject_key"],
             perimeter_sha256=self.plan["perimeter_sha256"],
             decision_id=self.plan["decision_id"],
@@ -436,6 +486,9 @@ class OwnerRefreshSession:
             entity_id=self.identity["entity_id"],
             identity_revision=self.identity["identity_revision"],
         )
+        if self.observation_context is not None:
+            binding["subject_context_schema"] = self.observation_context["schema"]
+        return binding
 
     def existing_work(self, qid: str) -> dict | None:
         if self.fields[qid]["decision"] != "resume_existing_work":
@@ -468,14 +521,65 @@ class OwnerRefreshSession:
             base64.b64decode(self.current["snapshot"]["manifest_raw_base64"], validate=True)
         )
         question_meta = next(q for q in frozen["questions"] if q["id"] == qid)
+        subject_matches = (
+            payload.get("identity_revision") == self.identity["identity_revision"]
+            and payload.get("analysis_subject")
+            == self.current["snapshot"]["subject_binding"]["subject"]
+        )
+        if self.observation_context is not None:
+            try:
+                from datetime import timezone
+
+                from src.utils.quick_scan_subject_journal import validate_receipt
+
+                descriptor = original["reuse_subject_binding"]
+                sidecar = descriptor["binding"]
+                pre = descriptor["dispatch_receipt"]
+                request = pre["dispatch_request"]
+                expected = self.observation_context["questions"][qid]["subject_binding"]
+                validate_receipt(pre, request, received_at=datetime.now(timezone.utc).timestamp())
+                execution = payload["execution"]
+                subject_matches = (
+                    descriptor["protocol"] == "stockwiki.owner_reuse_subject/1.0.0"
+                    and sidecar["protocol"] == "stockwiki.observation_subject_binding/1.0.0"
+                    and sidecar["subject_ref"] == expected["subject_ref"] == request["subject_ref"]
+                    and request["identity_revision"]
+                    == expected["identity_revision"]
+                    == self.identity["identity_revision"]
+                    and sidecar["observation_id"]
+                    == payload["observation_id"]
+                    == original["observation_id"]
+                    and sidecar["payload_sha256"] == original["payload_sha256"]
+                    and sidecar["recorded_before_send_at"] == pre["registered_at"]
+                    and sidecar["execution_request_id"] == execution["request_id"]
+                    and sidecar["execution_attempt_id"]
+                    == execution["attempt_id"]
+                    == request["execution_attempt_id"]
+                    and sidecar["dispatch_identity_snapshot_sha256"]
+                    == request["dispatch_identity_snapshot_sha256"]
+                    and sidecar["dispatch_manifest_sha256"] == request["dispatch_manifest_sha256"]
+                    and all(
+                        request[k] == payload[k]
+                        for k in (
+                            "question_id",
+                            "field_id",
+                            "question_definition_sha256",
+                            "question_semantic_sha256",
+                            "information_cutoff",
+                        )
+                    )
+                    and request["provider"] == execution["provider"]
+                    and request["model_requested"] == execution["model_requested"]
+                    and request["dispatch_prompt_sha256"] == execution["prompt_sha256"]
+                )
+            except (KeyError, TypeError, ValueError) as error:
+                raise OwnerRefreshRejected("owner_refresh_reuse_subject_invalid") from error
         if (
             payload.get("question_id") != qid
             or payload.get("entity_id") != self.identity["entity_id"]
             or payload.get("scope") != scope["scope"]
             or payload.get("information_cutoff") != self.plan["information_cutoff"]
-            or payload.get("identity_revision") != self.identity["identity_revision"]
-            or payload.get("analysis_subject")
-            != self.current["snapshot"]["subject_binding"]["subject"]
+            or not subject_matches
             or payload.get("question_semantic_sha256") != question_meta["semantic_sha256"]
             or payload.get("question_definition_sha256") != question_meta["definition_sha256"]
             or payload.get("question_version") != question_meta["rubric_version"]
@@ -528,6 +632,31 @@ class OwnerRefreshSession:
         )
 
 
+def routing_fingerprints(session):
+    """The original runner's per-question identity; reused by admission."""
+    return {
+        qid: canonical_sha256(
+            {
+                "subject_key": session.plan["subject_key"],
+                "request_identity_key": row["request_identity_key"],
+            }
+        )
+        for qid, row in session.fields.items()
+        if row.get("request_identity_key")
+    }
+
+
+def public_observation_reference(original: dict) -> dict:
+    """The existing public descriptor, retaining original payload/time/model."""
+    return {
+        "observation_id": original["observation_id"],
+        "payload_sha256": original["payload_sha256"],
+        "original_observation": copy.deepcopy(original["payload"]),
+        "original_qualification_status": original.get("qualification_status"),
+        "new_observation_created": False,
+    }
+
+
 def build_refresh_result(batch, session: OwnerRefreshSession, quick_scan_context: dict) -> dict:
     """Do not repackage an old answer as a current-manifest provider response."""
     from src.core.models import QABatchResult
@@ -549,13 +678,7 @@ def build_refresh_result(batch, session: OwnerRefreshSession, quick_scan_context
             or canonical_sha256(original["payload"]) != reference["payload_sha256"]
         ):
             raise OwnerRefreshRejected("owner_refresh_output_reference_mismatch")
-        references[qid] = {
-            "observation_id": original["observation_id"],
-            "payload_sha256": original["payload_sha256"],
-            "original_observation": copy.deepcopy(original["payload"]),
-            "original_qualification_status": original.get("qualification_status"),
-            "new_observation_created": False,
-        }
+        references[qid] = public_observation_reference(original)
     dispatch.total_questions = len(dispatch.results)
     result = {
         "schema_version": "stockqa.owner_refresh_result/1.0.0",

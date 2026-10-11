@@ -7,10 +7,7 @@ from contextlib import nullcontext
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from src.config.settings import (
-    DISPLAY_QUESTION_TRUNCATE,
-    DISPLAY_TITLE_TRUNCATE,
-)
+from src.config.settings import DISPLAY_QUESTION_TRUNCATE, DISPLAY_TITLE_TRUNCATE
 from src.core.exceptions import ProcessingError, ValidationError
 from src.core.models import Answer, QABatchResult, QAResult, Question
 from src.interfaces.progress_reporter import ProgressReporter
@@ -68,6 +65,43 @@ def _provenance_metadata(provenance: Dict[str, Any]) -> Dict[str, Any]:
             }
         ],
     }
+
+
+def _uncertain_transport_metadata(error: BaseException) -> Dict[str, Any]:
+    """Retain an original uncertain receipt, without making a checkpoint answer."""
+    from src.utils.quick_scan_work_store import _sanitized_receipt
+    from src.utils.quick_scan_work_transport import QuickScanWorkUncertainError
+
+    seen: set[int] = set()
+    current: Optional[BaseException] = error
+    for _ in range(16):
+        if current is None or id(current) in seen:
+            break
+        seen.add(id(current))
+        if isinstance(current, QuickScanWorkUncertainError):
+            attempt_id = current.attempt_id
+            if not isinstance(attempt_id, str) or not attempt_id or len(attempt_id) > 160:
+                return {}
+            receipt = _sanitized_receipt(current.attempt_receipt)
+            outcome = {
+                "scope": "provider_dispatch",
+                "state": "uncertain",
+                "wait_reason": "provider_response_unknown",
+                "resume_condition": "reconcile_same_attempt_before_retry",
+                "uncertain_attempt_id": attempt_id,
+            }
+            return {
+                "failure_type": "outcome_uncertain",
+                "model_requested": receipt.get("requested_model"),
+                "actual_model": receipt.get("actual_model"),
+                "request_id": receipt.get("request_id"),
+                "response_id": receipt.get("response_id"),
+                "search_status": receipt.get("search_status") or "unverified",
+                "execution": {**receipt, "attempt_id": attempt_id, "dispatch_outcome": outcome},
+                "attempts": [{**receipt, "attempt_id": attempt_id}],
+            }
+        current = current.__cause__
+    return {}
 
 
 class QAEngine:
@@ -328,7 +362,11 @@ class QAEngine:
                         else Question(text=question_text)
                     )
                     error_answer = Answer(
-                        text=f"处理失败: {str(e)}", score=None, status="error", source="error"
+                        text=f"处理失败: {str(e)}",
+                        score=None,
+                        status="error",
+                        source="error",
+                        metadata=_uncertain_transport_metadata(e),
                     )
                     error_result = QAResult(
                         question=error_question, answer=error_answer, metadata={"error": str(e)}

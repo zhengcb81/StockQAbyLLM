@@ -532,6 +532,23 @@ class QuickScanWorkLifecycle:
             return nullcontext()
         context = ExitStack()
         try:
+            if (
+                self._observation_context is not None
+                and self._observation_context.get("schema")
+                == "stockqa.quick_scan_observation_context/2.0.0"
+            ):
+                self._store.freeze_observation_context_before_send(
+                    handle["work_item_id"], handle["lease"], self._observation_context
+                )
+                if self._owner_refresh is None:
+                    raise ProcessingError(message="subject_dispatch_owner_session_required")
+                from src.utils.quick_scan_work_transport import (
+                    bind_subject_dispatch_registrar,
+                )
+
+                context.enter_context(
+                    bind_subject_dispatch_registrar(self._owner_refresh.register_subject_dispatch)
+                )
             if self._owner_refresh is not None:
                 from src.utils.quick_scan_work_transport import bind_owner_refresh_guard
 
@@ -1326,6 +1343,8 @@ class LLMRunner:
         security_scope_id: Optional[str] = None,
         search_policy: Optional[str] = None,
         owner_refresh_config: Optional[str] = None,
+        refresh_admission_config: Optional[str] = None,
+        refresh_confirmation_id: Optional[str] = None,
     ) -> int:
         """运行LLM模式处理。
 
@@ -1349,6 +1368,24 @@ class LLMRunner:
             退出码（0 表示成功，1 表示失败）
         """
         # 验证参数互斥性
+        approved_refresh = (
+            refresh_admission_config is not None or refresh_confirmation_id is not None
+        )
+        if approved_refresh and (
+            not refresh_admission_config
+            or not refresh_confirmation_id
+            or not company
+            or batch_file
+            or seal_deliveries
+            or not require_search
+            or not identity_snapshot
+            or not question_manifest
+            or not c06_authority
+            or not owner_refresh_config
+        ):
+            raise ValueError(
+                "refresh admission requires paired config/confirmation and one complete owner-bound company"
+            )
         if seal_deliveries:
             if company or batch_file:
                 raise ValueError("--seal-deliveries 不能与 company/batch 同时使用")
@@ -1388,7 +1425,7 @@ class LLMRunner:
         # zero/unknown spend authorization BEFORE creating any dispatchable
         # attempt — an explicit bounded blocked result, a fresh auditable run
         # id, zero outbound requests, and zero budget/work rows.
-        if require_search:
+        if require_search and not approved_refresh:
             blocked = _spend_authorization_preflight(spend_authorization)
             if blocked is not None:
                 payload = {
@@ -1427,6 +1464,10 @@ class LLMRunner:
                 security_scope_id=security_scope_id,
                 search_policy=search_policy,
                 owner_refresh_config=owner_refresh_config,
+                refresh_admission_config=refresh_admission_config,
+                refresh_confirmation_id=refresh_confirmation_id,
+                identity_snapshot_path=identity_snapshot,
+                spend_authorization=spend_authorization,
             )
         else:
             self.logger.info("批量股票分析模式")
@@ -1477,6 +1518,10 @@ class LLMRunner:
         security_scope_id: Optional[str] = None,
         search_policy: Optional[str] = None,
         owner_refresh_config: Optional[str] = None,
+        refresh_admission_config: Optional[str] = None,
+        refresh_confirmation_id: Optional[str] = None,
+        identity_snapshot_path: Optional[str] = None,
+        spend_authorization: Optional[str] = None,
     ) -> int:
         """运行单公司处理模式。
 
@@ -1497,6 +1542,7 @@ class LLMRunner:
             search_document = None
             shared_budget_policy = None
             provider_health = None
+            approved_session = None
             if require_search and config_format != "json":
                 raise ValueError("--require-search要求JSON题目文件中的显式question_id")
             config_manager: ConfigProvider
@@ -1534,6 +1580,44 @@ class LLMRunner:
                     manifest["manifest_sha256"][:16],
                 )
 
+            # Resolve the complete original authority before deciding whether
+            # this action needs model credentials or only original recovery.
+            identity_snapshot_sha256 = (
+                identity_payload["identity_snapshot_sha256"] if identity_payload else None
+            )
+            c06_authority = load_run_c06_authority(
+                c06_authority_path,
+                manifest=manifest,
+                identity_snapshot_sha256=identity_snapshot_sha256,
+            )
+            if (
+                c06_authority is not None
+                and c06_authority.get("schema_version") in {"2.0.0", "3.0.0"}
+                and (manifest is None or identity_snapshot_sha256 is None)
+            ):
+                raise ValueError(
+                    "complete authority requires identity and full manifest before any HTTP"
+                )
+            if refresh_admission_config is not None:
+                from src.utils.quick_scan_refresh_execution import prepare_execution
+
+                if c06_authority is None or c06_authority.get("schema_version") != "3.0.0":
+                    raise ValueError("approved refresh requires complete authority3/context2")
+                approved_session = prepare_execution(
+                    refresh_admission_config,
+                    refresh_confirmation_id,
+                    input_paths={
+                        "manifest.json": question_manifest,
+                        "identity.json": identity_snapshot_path,
+                        "authority.json": c06_authority_path,
+                        "owner-config.json": owner_refresh_config,
+                        "questions.json": config,
+                    },
+                )
+            readonly_recovery = (
+                approved_session is not None and not approved_session.needs_new_dispatch
+            )
+
             # Q02: import and admit the versioned search policy BEFORE any
             # attempt. The IQS fillable template is refused as non-executable,
             # and an external mode with no admitted route fails closed instead
@@ -1554,7 +1638,11 @@ class LLMRunner:
                             policy_receipt(search_document), ensure_ascii=False, sort_keys=True
                         )
                     )
-                if search_document.requires_external and not search_document.admitted:
+                if (
+                    search_document.requires_external
+                    and not search_document.admitted
+                    and not readonly_recovery
+                ):
                     rejections = ",".join(
                         f"{item['route_id']}:{item['reason']}"
                         for item in search_document.rejections
@@ -1588,24 +1676,6 @@ class LLMRunner:
             # An explicitly supplied but invalid document fails the run closed;
             # an absent conventional document means every checkpoint settles as
             # a durable block instead of an invented envelope field.
-            identity_snapshot_sha256 = (
-                identity_payload["identity_snapshot_sha256"] if identity_payload else None
-            )
-            c06_authority = load_run_c06_authority(
-                c06_authority_path,
-                manifest=manifest,
-                identity_snapshot_sha256=identity_snapshot_sha256,
-            )
-            if (
-                c06_authority is not None
-                and c06_authority.get("schema_version") == "2.0.0"
-                and (manifest is None or identity_snapshot_sha256 is None)
-            ):
-                raise ValueError(
-                    "authority 2.0.0 requires --question-manifest and "
-                    "--identity-snapshot before any HTTP: the frozen context "
-                    "must be bound to the exact files this run loaded"
-                )
             if c06_authority is not None:
                 self.logger.info("C06 权威文档已加载（%s）", c06_authority["authority_sha256"][:16])
             elif c06_authority_path is None:
@@ -1613,6 +1683,47 @@ class LLMRunner:
                     "未找到 C06 权威文档：检查点将记录 durable block，稍后由 "
                     "--seal-deliveries 补封（模型请求不增加）"
                 )
+
+            if approved_session is not None:
+                # FULL manifest and any supplied full external query plan are
+                # validated above. Only the execution collection is selected.
+                selected = set(approved_session.requested_question_ids)
+                if not all(isinstance(question, Question) for question in questions):
+                    raise ValueError("owner_refresh_requires_stable_question_items")
+                question_items = cast(List[Question], questions)
+                questions = [
+                    question for question in question_items if question.question_id in selected
+                ]
+                if readonly_recovery:
+                    report = approved_session.recovery_report()
+                    destination = Path(output)
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    destination.write_text(
+                        json.dumps(report, ensure_ascii=False, allow_nan=False, indent=2) + "\n",
+                        encoding="utf-8",
+                    )
+                    destination.with_suffix(destination.suffix + ".scope.json").write_text(
+                        json.dumps(report, ensure_ascii=False, allow_nan=False, indent=2) + "\n",
+                        encoding="utf-8",
+                    )
+                    print(json.dumps(report, ensure_ascii=False, allow_nan=False))
+                    return 0
+                blocked = _spend_authorization_preflight(spend_authorization)
+                if blocked is not None:
+                    print(
+                        json.dumps(
+                            dict(
+                                schema="stockqa.spend_preflight/1.0.0",
+                                status="needs_configuration",
+                                blocked=True,
+                                reason=blocked,
+                                confirmation_id=refresh_confirmation_id,
+                                dispatch_started=False,
+                                API_requests=0,
+                            )
+                        )
+                    )
+                    return 2
 
             self.logger.info(f"\n成功加载 {len(questions)} 个问题")
             self.logger.info(f"配置文件: {config} ({config_format}格式)")
@@ -1641,6 +1752,10 @@ class LLMRunner:
 
                     shared_budget_policy = build_shared_external_budget_policy(
                         policy, search_document
+                    )
+                if approved_session is not None:
+                    approved_session.assert_executor_policy(
+                        llm_config.config_file, shared_budget_policy or policy
                     )
                 if policy["configured"]:
                     cost_resolver = QuickScanCostResolver(
@@ -1698,6 +1813,22 @@ class LLMRunner:
                                 "running revision."
                             )
                         return quick_scan_policy
+
+                    if approved_session is not None:
+
+                        def approved_policy_reader():
+                            fresh = LLMConfig(
+                                str(llm_config.config_file)
+                            ).get_quick_scan_model_policy(default_provider=provider)
+                            if search_document is not None and search_document.requires_external:
+                                return build_shared_external_budget_policy(fresh, search_document)
+                            return fresh
+
+                        approved_session.assert_executor_policy(
+                            llm_config.config_file,
+                            shared_budget_policy or policy,
+                            policy_reader=approved_policy_reader,
+                        )
 
                     llm_provider: SearchProvider = OrderedSearchProviderCascade(
                         providers=route_providers,
@@ -1818,50 +1949,73 @@ class LLMRunner:
                 if owner_refresh_config is not None:
                     from datetime import datetime, timezone
 
-                    from src.utils.quick_scan_owner_refresh import OwnerRefreshClient
+                    from src.utils.quick_scan_owner_refresh import (
+                        OwnerRefreshClient,
+                        routing_fingerprints,
+                    )
 
                     if (
                         primary_route is None
                         or manifest is None
                         or not isinstance(c06_authority, dict)
-                        or c06_authority.get("schema_version") != "2.0.0"
+                        or c06_authority.get("schema_version") not in {"2.0.0", "3.0.0"}
                     ):
                         raise ValueError(
                             "owner_refresh_requires_admitted_model_and_complete_c06_authority"
                         )
-                    owner_session = OwnerRefreshClient(Path(owner_refresh_config)).prepare(
-                        manifest,
-                        work_store,
-                        identity=identity_payload,
-                        provider=primary_route["provider_config_ref"],
-                        model=primary_route["model"],
-                        now=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-                        observation_context=c06_authority.get("observation_context"),
+                    # The route configuration reference is durable work identity;
+                    # current-answer reuse compares the actual allowlisted adapter.
+                    from src.providers.llm_client import _search_endpoint
+
+                    provider_config = llm_config.get_provider_config(
+                        primary_route["provider_config_ref"]
                     )
+                    if provider_config is None:
+                        raise ValueError("owner_refresh_provider_config_missing")
+                    _, refresh_provider, _ = _search_endpoint(
+                        provider_config["base_url"],
+                        primary_route["model"],
+                        primary_route["provider_config_ref"],
+                        external_context_only=search_document is not None
+                        and search_document.requires_external,
+                    )
+                    if approved_session is not None:
+                        approved_session.assert_provider_model(
+                            refresh_provider, primary_route["model"]
+                        )
+                        approved_session.check()
+                        owner_session = approved_session
+                    else:
+                        owner_session = OwnerRefreshClient(Path(owner_refresh_config)).prepare(
+                            manifest,
+                            work_store,
+                            identity=identity_payload,
+                            provider=refresh_provider,
+                            model=primary_route["model"],
+                            now=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                            observation_context=c06_authority.get("observation_context"),
+                        )
                     scope_bindings = owner_session.scope_bindings
                     generation_overrides = {
                         qid: row["generation"]
                         for qid, row in owner_session.fields.items()
                         if type(row.get("generation")) is int
                     }
-                    from src.utils.quick_scan_result_outbox import canonical_sha256
-
-                    routing_overrides = {
-                        qid: canonical_sha256(
-                            {
-                                "subject_key": owner_session.plan["subject_key"],
-                                "request_identity_key": row["request_identity_key"],
-                            }
-                        )
-                        for qid, row in owner_session.fields.items()
-                        if row.get("request_identity_key")
-                    }
+                    routing_overrides = routing_fingerprints(owner_session)
                     print(json.dumps(owner_session.plan, ensure_ascii=False, sort_keys=True))
                 work_lifecycle = QuickScanWorkLifecycle(
                     work_store,
                     entity_id=entity_id,
-                    run_id="run-" + time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()),
-                    scan_id="scan-l02",
+                    run_id=(
+                        approved_session.record["inputs"]["run_id"]
+                        if approved_session is not None
+                        else "run-" + time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+                    ),
+                    scan_id=(
+                        approved_session.record["inputs"]["scan_id"]
+                        if approved_session is not None
+                        else "scan-l02"
+                    ),
                     identity=identity_payload,
                     routing_fingerprint=routing_fingerprint_for(questions),
                     budget_policy=budget_pair_policy,
@@ -1909,9 +2063,9 @@ class LLMRunner:
             # observation context; every other run keeps the compact prompt.
             from src.providers.base_llm_provider import standard_answer_transport
 
-            complete_transport = (
-                isinstance(c06_authority, dict) and c06_authority.get("schema_version") == "2.0.0"
-            )
+            complete_transport = isinstance(c06_authority, dict) and c06_authority.get(
+                "schema_version"
+            ) in {"2.0.0", "3.0.0"}
             if search_document is not None and search_document.requires_external:
                 print(
                     json.dumps(
@@ -1962,6 +2116,11 @@ class LLMRunner:
 
             # 输出完整结果到JSON文件
             if require_search and quick_scan_policy is not None:
+                approved_scope_report = (
+                    approved_session.dispatch_scope_report(batch_result)
+                    if approved_session is not None
+                    else None
+                )
                 qa_engine.output_results(
                     batch_result,
                     output,
@@ -1980,6 +2139,15 @@ class LLMRunner:
                         else {}
                     ),
                 )
+                if approved_scope_report is not None:
+                    destination = Path(output)
+                    destination.with_suffix(destination.suffix + ".scope.json").write_text(
+                        json.dumps(
+                            approved_scope_report, ensure_ascii=False, allow_nan=False, indent=2
+                        )
+                        + "\n",
+                        encoding="utf-8",
+                    )
             elif require_search:
                 raise RuntimeError("quick-scan output binding: model policy is not bound")
             else:

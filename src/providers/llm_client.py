@@ -1103,16 +1103,21 @@ def _failed_attempt_receipt(
     # Only explicit provider-reported model and complete usage can price
     # a rejected request. HTTP status alone proves neither zero cost nor usage.
     if protocol is not None:
+        # These are frozen local configuration, available even when transport
+        # times out or the response body is unreadable. They are not reported
+        # model identity, response evidence, usage, or proof of zero cost.
+        receipt.update(
+            requested_model=requested_model,
+            search_protocol=protocol,
+            model_resolution_sha256=model_resolution_sha256(model_resolution),
+        )
         try:
             payload, response_sha256, response_json_basis = _canonical_http_json(response)
             reported_model = payload.get("model") if isinstance(payload, dict) else None
             reported_id = payload.get("id") if isinstance(payload, dict) else None
             receipt.update(
-                requested_model=requested_model,
-                search_protocol=protocol,
                 response_sha256=response_sha256,
                 response_json_basis=response_json_basis,
-                model_resolution_sha256=model_resolution_sha256(model_resolution),
             )
             status_code = receipt["http_status_code"]
             if type(status_code) is int and 300 <= status_code < 400:
@@ -1395,8 +1400,14 @@ class LLMClient:
             external_context_only=external_mode == "external_context_only",
         )
         resolution = frozen_quick_scan_model_resolution(self.model_resolution)
+        attempt_id = str(uuid.uuid4())
         work_attempt = begin_quick_scan_send(
-            prompt, system_prompt, model_requested=requested_model, model_resolution=resolution
+            prompt,
+            system_prompt,
+            model_requested=requested_model,
+            model_resolution=resolution,
+            execution_attempt_id=attempt_id,
+            provider_actual=provider,
         )
         if work_attempt is not None:
             resolution = normalize_model_resolution(work_attempt.model_resolution)
@@ -1406,7 +1417,6 @@ class LLMClient:
         if external_mode == "external_context_only":
             for key in ("tools", "tool_choice", "include"):
                 data.pop(key, None)
-        attempt_id = str(uuid.uuid4())
         started_at = _utc_now()
         if work_attempt is not None:
             work_attempt.consume_for_post()
@@ -1559,8 +1569,14 @@ class AsyncLLMClient:
             external_context_only=external_mode == "external_context_only",
         )
         resolution = frozen_quick_scan_model_resolution(self.model_resolution)
+        attempt_id = str(uuid.uuid4())
         work_attempt = begin_quick_scan_send(
-            prompt, system_prompt, model_requested=requested_model, model_resolution=resolution
+            prompt,
+            system_prompt,
+            model_requested=requested_model,
+            model_resolution=resolution,
+            execution_attempt_id=attempt_id,
+            provider_actual=provider,
         )
         if work_attempt is not None:
             resolution = normalize_model_resolution(work_attempt.model_resolution)
@@ -1570,7 +1586,6 @@ class AsyncLLMClient:
         if external_mode == "external_context_only":
             for key in ("tools", "tool_choice", "include"):
                 data.pop(key, None)
-        attempt_id = str(uuid.uuid4())
         started_at = _utc_now()
         if work_attempt is not None:
             work_attempt.consume_for_post()

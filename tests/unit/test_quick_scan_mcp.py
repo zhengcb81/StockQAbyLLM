@@ -364,7 +364,10 @@ def test_mcp_paid_rejection_is_cached_as_failure_without_resend(tmp_path, monkey
 
 
 def _install_real_v12(store):
+    from tests.c06_legacy_fixture import remove_c06_additions
+
     with closing(store._connect()) as connection, connection:
+        remove_c06_additions(connection)
         for table in (
             "quick_scan_mcp_search_binding",
             "quick_scan_mcp_result",

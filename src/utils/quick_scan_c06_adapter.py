@@ -258,11 +258,16 @@ def build_complete_c06_package(
         or checkpoint_payload.get("checkpoint_schema_version") not in {1, 2}
     ):
         raise MissingC06Fields("unsupported checkpoint schema")
-    if (
-        not isinstance(context, dict)
-        or context.get("schema") != "stockqa.quick_scan_question_context/1.0.0"
-    ):
+    if not isinstance(context, dict) or context.get("schema") not in {
+        "stockqa.quick_scan_question_context/1.0.0",
+        "stockqa.quick_scan_question_context/2.0.0",
+    }:
         raise MissingC06Fields("complete sealing needs a bound frozen context")
+    if (
+        context["schema"] == "stockqa.quick_scan_question_context/2.0.0"
+        and authority.get("schema_version") != "3.0.0"
+    ):
+        raise MissingC06Fields("subject-bound context2 requires authority3")
     if not isinstance(standard_answer, dict):
         raise MissingC06Fields("complete sealing needs the full standard answer")
     if standard_answer.get("status") not in _STATUS_MAP:

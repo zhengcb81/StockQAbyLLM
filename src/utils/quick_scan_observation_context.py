@@ -39,6 +39,13 @@ _BOUND_FIELDS = (_CONTEXT_FIELDS - {"questions"}) | {
 }
 
 
+def _subject_version(context, *, bound=False):
+    from .quick_scan_subject_context import CONTEXT_SCHEMA as V2
+    from .quick_scan_subject_context import QUESTION_SCHEMA as Q2
+
+    return context.get("schema") == (Q2 if bound else V2)
+
+
 @lru_cache(maxsize=1)
 def _resources():
     root = Path(__file__).resolve().parents[1] / "config"
@@ -118,7 +125,7 @@ def validate_context_document(context: dict[str, Any], *, expected_sha256: str) 
     """Validate the owner-issued context shape/hash, never infer missing facts."""
     if not isinstance(context, dict) or set(context) != _CONTEXT_FIELDS:
         raise ValueError("observation context field set mismatch")
-    if context["schema"] != CONTEXT_SCHEMA:
+    if context["schema"] not in {CONTEXT_SCHEMA, "stockqa.quick_scan_observation_context/2.0.0"}:
         raise ValueError("unsupported observation context version")
     if _hash(expected_sha256, "context hash") != canonical_sha256(context):
         raise ValueError("observation context hash mismatch")
@@ -133,7 +140,11 @@ def validate_context_document(context: dict[str, Any], *, expected_sha256: str) 
             not isinstance(qid, str)
             or not qid
             or not isinstance(question, dict)
-            or set(question) != {"metadata", "frozen_prompt_sha256", "work_prompt_sha256"}
+            or set(question)
+            != (
+                {"metadata", "frozen_prompt_sha256", "work_prompt_sha256"}
+                | ({"subject_binding"} if _subject_version(context) else set())
+            )
         ):
             raise ValueError("invalid frozen question context")
         for key in ("frozen_prompt_sha256", "work_prompt_sha256"):
@@ -141,6 +152,10 @@ def validate_context_document(context: dict[str, Any], *, expected_sha256: str) 
         _metadata(question["metadata"])
         if question["metadata"]["question_id"] != qid:
             raise ValueError("question map ID differs from metadata")
+        if _subject_version(context):
+            from .quick_scan_subject_context import validate_subject_binding
+
+            validate_subject_binding(question["subject_binding"], question["metadata"])
     return copy.deepcopy(context)
 
 
@@ -210,6 +225,11 @@ def check_context_matches_manifest(context: dict[str, Any], manifest: dict[str, 
     for question_id, selected in context["questions"].items():
         question = known[question_id]
         metadata = selected["metadata"]
+        if (
+            _subject_version(context)
+            and selected["subject_binding"]["question_contract"] != question
+        ):
+            raise ValueError("subject context question differs from the frozen manifest")
         expected = manifest_question_bindings(manifest, question)
         if any(metadata.get(key) != value for key, value in expected.items()):
             raise ValueError(f"context metadata differs from the frozen manifest for {question_id}")
@@ -289,7 +309,11 @@ def bind_question_context(
         raise ValueError("context scope does not match work")
     bound = {key: value for key, value in context.items() if key != "questions"}
     bound.update(selected)
-    bound["schema"] = QUESTION_CONTEXT_SCHEMA
+    bound["schema"] = (
+        "stockqa.quick_scan_question_context/2.0.0"
+        if _subject_version(context)
+        else QUESTION_CONTEXT_SCHEMA
+    )
     return copy.deepcopy(bound)
 
 
@@ -326,7 +350,21 @@ def bind_context_to_work_item(
         raise ValueError("frozen context does not bind the stored work item")
     bound = {key: value for key, value in context.items() if key != "questions"}
     bound.update(selected)
-    bound["schema"] = QUESTION_CONTEXT_SCHEMA
+    if _subject_version(context):
+        from .quick_scan_subject_context import validate_subject_binding
+
+        if type(work_item.get("identity_revision")) is not int:
+            raise ValueError("subject context requires durable identity revision")
+        validate_subject_binding(
+            selected["subject_binding"],
+            metadata,
+            identity_revision=work_item.get("identity_revision"),
+        )
+    bound["schema"] = (
+        "stockqa.quick_scan_question_context/2.0.0"
+        if _subject_version(context)
+        else QUESTION_CONTEXT_SCHEMA
+    )
     return copy.deepcopy(bound)
 
 
@@ -443,8 +481,13 @@ def build_observation(
     """Assemble one immutable snapshot only from frozen inputs and actual execution."""
     if (
         not isinstance(context, dict)
-        or set(context) != _BOUND_FIELDS
-        or context.get("schema") != QUESTION_CONTEXT_SCHEMA
+        or set(context)
+        != (
+            _BOUND_FIELDS
+            | ({"subject_binding"} if _subject_version(context, bound=True) else set())
+        )
+        or context.get("schema")
+        not in {QUESTION_CONTEXT_SCHEMA, "stockqa.quick_scan_question_context/2.0.0"}
     ):
         raise ValueError("unsupported bound question context")
     for key in _BOUND_FIELDS - {"schema", "metadata"}:
@@ -452,6 +495,16 @@ def build_observation(
     _resource_hashes(context)
     metadata = context["metadata"]
     _metadata(metadata)
+    if _subject_version(context, bound=True):
+        from .quick_scan_subject_context import validate_subject_binding
+
+        if type(checkpoint_payload.get("work", {}).get("identity_revision")) is not int:
+            raise ValueError("subject context requires checkpoint identity revision")
+        validate_subject_binding(
+            context["subject_binding"],
+            metadata,
+            identity_revision=checkpoint_payload.get("work", {}).get("identity_revision"),
+        )
     if checkpoint_payload.get("checkpoint_schema") != "quick-scan-answer" or checkpoint_payload.get(
         "checkpoint_schema_version"
     ) not in {1, 2}:

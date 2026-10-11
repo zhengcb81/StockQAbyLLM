@@ -7,7 +7,11 @@ from contextlib import closing
 
 import pytest
 
-from src.utils.quick_scan_work_store import QuickScanWorkStore, WorkConflictError
+from src.utils.quick_scan_work_store import (
+    SCHEMA_VERSION,
+    QuickScanWorkStore,
+    WorkConflictError,
+)
 from tests.unit.test_quick_scan_work_store import _created, _prepared, _spec
 
 
@@ -34,18 +38,25 @@ def _binding(**overrides):
     return value
 
 
-def test_owner_binding_is_registered_schema14_and_stable_across_restart(tmp_path):
+def test_owner_binding_is_registered_and_stable_across_schema15_restart(tmp_path):
     store = QuickScanWorkStore(tmp_path / "work.sqlite")
     row = store.create_or_attach(
         **_spec(generation=2), run_id="RUN_1", scan_id="SCAN_1", owner_refresh_binding=_binding()
     )
+    from src.utils.quick_scan_refresh_admission_journal import DDL_V16_ADDITIONS
+
+    with store._transaction() as con:
+        for ddl in reversed(DDL_V16_ADDITIONS):
+            words = ddl.split()
+            con.execute("DROP " + words[1] + " " + words[2])
+        con.execute("PRAGMA user_version=15")
     again = QuickScanWorkStore(store.path).create_or_attach(
         **_spec(generation=2), run_id="RUN_2", scan_id="SCAN_1", owner_refresh_binding=_binding()
     )
     assert row["work_item_id"] == again["work_item_id"]
     assert store.get_owner_refresh_binding(row["work_item_id"])["binding"] == _binding()
     with closing(sqlite3.connect(store.path)) as con:
-        assert con.execute("PRAGMA user_version").fetchone()[0] == 14
+        assert con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         assert (
             con.execute("SELECT COUNT(*) FROM quick_scan_owner_refresh_binding").fetchone()[0] == 1
         )
@@ -119,15 +130,46 @@ def test_late_legacy_work_cannot_undercut_bound_send_before_intent(tmp_path):
 
 def test_schema13_migration_is_additive_and_keeps_old_item_bytes(tmp_path):
     from src.utils.quick_scan_owner_refresh_journal import DDL_V14_ADDITIONS
+    from src.utils.quick_scan_refresh_admission_journal import DDL_V16_ADDITIONS
+    from src.utils.quick_scan_subject_journal import DDL_V15_ADDITIONS
 
     store = QuickScanWorkStore(tmp_path / "work.sqlite")
     old = _created(store)
     with closing(sqlite3.connect(store.path)) as con:
-        # Construct the previous registered schema by removing only v14 DDL.
-        for ddl in reversed(DDL_V14_ADDITIONS):
+        # Construct actual v13 by removing all later registered extensions.
+        for ddl in reversed((*DDL_V14_ADDITIONS, *DDL_V15_ADDITIONS, *DDL_V16_ADDITIONS)):
             words = ddl.split()
             con.execute("DROP " + words[1] + " " + words[2])
         con.execute("PRAGMA user_version=13")
         con.commit()
     again = QuickScanWorkStore(store.path)
     assert again.get_item(old["work_item_id"]) == old
+
+
+def test_v2_owner_refresh_requires_context2_without_promoting_legacy_binding(tmp_path):
+    store = QuickScanWorkStore(tmp_path / "work.sqlite")
+    new = _binding(
+        protocol="stockqa.owner_refresh_binding/2.0.0",
+        subject_context_schema="stockqa.quick_scan_observation_context/2.0.0",
+    )
+    row = store.create_or_attach(
+        **_spec(generation=2), run_id="RUN_V2", scan_id="SCAN_V2", owner_refresh_binding=new
+    )
+    assert (
+        QuickScanWorkStore(store.path).get_owner_refresh_binding(row["work_item_id"])["binding"]
+        == new
+    )
+    lease = store.claim(row["work_item_id"], lease_seconds=300)
+    attempt = _prepared(store, row["work_item_id"], lease)
+    with pytest.raises(WorkConflictError, match="subject_dispatch_context2_required"):
+        store.mark_send_intent(row["work_item_id"], lease, attempt["attempt_id"])
+    assert store.list_attempts(row["work_item_id"])[0]["phase"] == "prepared"
+    legacy = QuickScanWorkStore(tmp_path / "legacy.sqlite")
+    old = legacy.create_or_attach(
+        **_spec(generation=2), run_id="RUN_V1", scan_id="SCAN_V1", owner_refresh_binding=_binding()
+    )
+    with pytest.raises(WorkConflictError, match="owner_refresh_binding_conflict"):
+        legacy.create_or_attach(
+            **_spec(generation=2), run_id="RUN_V2", scan_id="SCAN_V2", owner_refresh_binding=new
+        )
+    assert legacy.get_owner_refresh_binding(old["work_item_id"])["binding"] == _binding()

@@ -59,7 +59,7 @@ __all__ = [
 ]
 
 
-def _send_intent_iso(epoch: Any) -> str | None:
+def _send_intent_iso(epoch: Any, *, preserve_precision: bool = False) -> str | None:
     """The original dispatch instant as UTC ISO-8601, never a clock read now."""
     if epoch is None:
         return None
@@ -67,7 +67,9 @@ def _send_intent_iso(epoch: Any) -> str | None:
         instant = datetime.fromtimestamp(float(epoch), tz=timezone.utc)
     except (TypeError, ValueError, OverflowError, OSError):
         return None
-    return instant.isoformat(timespec="seconds").replace("+00:00", "Z")
+    return instant.isoformat(timespec="auto" if preserve_precision else "seconds").replace(
+        "+00:00", "Z"
+    )
 
 
 def _complete_package(
@@ -110,7 +112,11 @@ def _complete_package(
         transmission = store.get_attempt_transmission(checkpoint["attempt_id"])
     except KeyError:
         return None, BLOCK_ATTEMPT
-    started_at = _send_intent_iso(transmission.get("send_intent_at"))
+    started_at = _send_intent_iso(
+        transmission.get("send_intent_at"),
+        preserve_precision=stored["context"]["schema"]
+        == "stockqa.quick_scan_observation_context/2.0.0",
+    )
     if started_at is None:
         return None, BLOCK_ATTEMPT
     try:
@@ -170,9 +176,10 @@ def seal_result_delivery(
     existing = store.get_result_delivery(work_item_id)
     sealed = existing is not None and existing.get("package") is not None
 
-    if isinstance(authority, dict) and authority.get("schema_version") == (
-        AUTHORITY_SCHEMA_VERSION_V2
-    ):
+    if isinstance(authority, dict) and authority.get("schema_version") in {
+        AUTHORITY_SCHEMA_VERSION_V2,
+        "3.0.0",
+    }:
         package, missing = _complete_package(store, work_item_id, authority)
         if package is None or missing is not None:
             reason = missing or BLOCK_ADAPTER

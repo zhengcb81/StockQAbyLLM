@@ -317,6 +317,16 @@ def main():
         default=None,
         help="W15：可信 StockWiki 公共 CLI/主体/当前路由配置；增量刷新和原 Observation 复用，不接受外来派发计划",
     )
+    parser.add_argument(
+        "--refresh-admission-config",
+        default=None,
+        help="原Q13已登记action的可信部署配置；必须与confirmation-id同时提供",
+    )
+    parser.add_argument(
+        "--refresh-confirmation-id",
+        default=None,
+        help="原native owner confirmation ID；仅消费耐久登记的题目/主体范围",
+    )
 
     args = parser.parse_args()
 
@@ -352,6 +362,8 @@ def main():
             security_scope_id=args.security_scope_id,
             search_policy=args.search_policy,
             owner_refresh_config=args.quick_scan_owner_config,
+            refresh_admission_config=args.refresh_admission_config,
+            refresh_confirmation_id=args.refresh_confirmation_id,
         )
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error("运行失败: %s", e, exc_info=True)

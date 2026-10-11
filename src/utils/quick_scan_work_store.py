@@ -31,15 +31,19 @@ from src.utils.quick_scan_mcp_journal import DDL_V13_ADDITIONS as _DDL_V13_ADDIT
 from src.utils.quick_scan_owner_refresh_journal import (
     DDL_V14_ADDITIONS as _DDL_V14_ADDITIONS,
 )
+from src.utils.quick_scan_refresh_admission_journal import (
+    DDL_V16_ADDITIONS as _DDL_V16_ADDITIONS,
+)
+from src.utils.quick_scan_subject_journal import DDL_V15_ADDITIONS as _DDL_V15_ADDITIONS
 
-SCHEMA_VERSION = 14
+SCHEMA_VERSION = 16
 _SAFE_ID = re.compile(r"^[A-Za-z0-9_.-]{1,160}$")
 # Hyphens accepted per owner sign-off (2026-10-05 round-51): the W04
 # identity-export package issues ENT_<uuid> entity ids (e.g. the frozen
 # golden ENT_1b2a4d3e-0000-4a1b-8c2d-000000000001).
 _ENTITY_ID = re.compile(r"^ENT_[A-Za-z0-9_-]+$")
-_SECURITY_ID = re.compile(r"^SEC_[A-Za-z0-9_.]+$")
-_SEGMENT_ID = re.compile(r"^SEG_[A-Za-z0-9_]+$")
+_SECURITY_ID = re.compile(r"^SEC_[A-Za-z0-9_.-]+$")
+_SEGMENT_ID = re.compile(r"^SEG_[A-Za-z0-9_-]+$")
 _BINDING_ID = re.compile(r"^BND_[A-Za-z0-9_]+$")
 _HEX_SHA256 = re.compile(r"^[a-f0-9]{64}$")
 _REQUEST_KEY = re.compile(r"^REQ_[a-f0-9]{64}$")
@@ -655,6 +659,8 @@ _DDL = (
     + _DDL_V12_ADDITIONS
     + _DDL_V13_ADDITIONS
     + _DDL_V14_ADDITIONS
+    + _DDL_V15_ADDITIONS
+    + _DDL_V16_ADDITIONS
 )
 
 _RECEIPT_FIELDS = (
@@ -1197,6 +1203,10 @@ class QuickScanWorkStore:
                 cls._validate_schema(connection, schema_version=12)
             elif version == 13:
                 cls._validate_schema(connection, schema_version=13)
+            elif version == 14:
+                cls._validate_schema(connection, schema_version=14)
+            elif version == 15:
+                cls._validate_schema(connection, schema_version=15)
             elif version != SCHEMA_VERSION:
                 raise ValueError("unsupported quick-scan work database schema version")
             if 1 <= version < 8:
@@ -1224,6 +1234,14 @@ class QuickScanWorkStore:
                 connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             if 1 <= version < 14:
                 for statement in _DDL_V14_ADDITIONS:
+                    connection.execute(statement)
+                connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+            if 1 <= version < 15:
+                for statement in _DDL_V15_ADDITIONS:
+                    connection.execute(statement)
+                connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+            if 1 <= version < 16:
+                for statement in _DDL_V16_ADDITIONS:
                     connection.execute(statement)
                 connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             cls._validate_schema(connection, schema_version=SCHEMA_VERSION)
@@ -1461,6 +1479,18 @@ class QuickScanWorkStore:
                 if match is None:
                     raise ValueError("quick-scan work database schema mismatch")
                 expected[(match[1].lower(), match[2])] = statement
+        if schema_version >= 15:
+            for statement in _DDL_V15_ADDITIONS:
+                match = re.match(r"CREATE (TABLE|TRIGGER) ([A-Za-z_]+)", statement)
+                if match is None:
+                    raise ValueError("quick-scan work database schema mismatch")
+                expected[(match[1].lower(), match[2])] = statement
+        if schema_version >= 16:
+            for statement in _DDL_V16_ADDITIONS:
+                match = re.match(r"CREATE (TABLE|TRIGGER) ([A-Za-z_]+)", statement)
+                if match is None:
+                    raise ValueError("quick-scan work database schema mismatch")
+                expected[(match[1].lower(), match[2])] = statement
         if actual.keys() != expected.keys() or any(
             _normalized_sql(actual[key]) != _normalized_sql(statement)
             for key, statement in expected.items()
@@ -1525,6 +1555,18 @@ class QuickScanWorkStore:
             )
 
             validate_refresh_tables(connection)
+        if schema_version >= 15:
+            from src.utils.quick_scan_subject_journal import (
+                validate_tables as validate_subject_tables,
+            )
+
+            validate_subject_tables(connection)
+        if schema_version >= 16:
+            from src.utils.quick_scan_refresh_admission_journal import (
+                validate_tables as validate_admission_tables,
+            )
+
+            validate_admission_tables(connection)
         if schema_version >= 10:
             from src.utils.quick_scan_external_journal import read_use
 
@@ -2846,6 +2888,11 @@ class QuickScanWorkStore:
             from src.utils.quick_scan_owner_refresh_journal import guard_send
 
             guard_send(connection, dict(item))
+            from src.utils.quick_scan_subject_journal import (
+                guard_send as guard_subject_send,
+            )
+
+            guard_subject_send(connection, dict(item), attempt_id)
             if normalized_policy is not None:
                 if budget_route is None:
                     raise RuntimeError("mark_send_intent: budget_route is None")
@@ -2975,6 +3022,9 @@ class QuickScanWorkStore:
             item = self._item(connection, work_item_id)
             self._assert_lease(item, lease, now)
             if execution_receipt is not None:
+                from src.utils.quick_scan_subject_journal import guard_response
+
+                guard_response(connection, attempt_id, execution_receipt)
                 self._persist_response_tx(
                     connection,
                     attempt_id,
@@ -3877,6 +3927,123 @@ class QuickScanWorkStore:
                 "answer_sha256": side_tables["standard_sha256"],
             }
 
+    def freeze_observation_context_before_send(
+        self, work_item_id: str, lease: Lease, context: dict
+    ) -> dict:
+        """Freeze context2 before the first transport attempt; no answer required."""
+        from .quick_scan_observation_context import validate_context_document
+        from .quick_scan_result_outbox import canonical_bytes, canonical_sha256
+        from .quick_scan_subject_context import CONTEXT_SCHEMA
+
+        document = validate_context_document(context, expected_sha256=canonical_sha256(context))
+        if document["schema"] != CONTEXT_SCHEMA:
+            raise ValueError("subject_dispatch_context2_required")
+        now = self._now()
+        with self._transaction() as connection:
+            item = self._item(connection, work_item_id)
+            self._assert_lease(item, lease, now)
+            existing = connection.execute(
+                "SELECT context_sha256 FROM quick_scan_work_context WHERE work_item_id=?",
+                (work_item_id,),
+            ).fetchone()
+            if (
+                existing is None
+                and connection.execute(
+                    "SELECT 1 FROM attempt WHERE work_item_id=? LIMIT 1", (work_item_id,)
+                ).fetchone()
+                is not None
+            ):
+                raise WorkConflictError("subject context must be frozen before any attempt")
+            self._store_side_tables(
+                connection,
+                work_item_id=work_item_id,
+                item=dict(item),
+                now=now,
+                context_encoded=canonical_bytes(document).decode("utf-8"),
+                context_sha256=canonical_sha256(document),
+                standard_encoded=None,
+                standard_sha256=None,
+            )
+        return {"context_sha256": canonical_sha256(document)}
+
+    def persist_subject_dispatch_receipt(
+        self,
+        work_item_id: str,
+        lease: Lease,
+        attempt_id: str,
+        receipt: dict,
+        *,
+        expected_request: dict,
+    ) -> dict:
+        """Re-derive the request from durable inputs before committing an owner ACK."""
+        from . import quick_scan_subject_journal as journal
+        from .quick_scan_result_outbox import canonical_bytes, canonical_sha256
+
+        now = self._now()
+        with self._transaction() as connection:
+            item = self._item(connection, work_item_id)
+            self._assert_lease(item, lease, now)
+            attempt = connection.execute(
+                "SELECT * FROM attempt WHERE attempt_id=? AND work_item_id=?",
+                (attempt_id, work_item_id),
+            ).fetchone()
+            if attempt is None:
+                raise WorkConflictError("subject_dispatch_attempt_missing")
+            context = journal.bound_context(connection, item)
+            if context is None:
+                raise WorkConflictError("subject_dispatch_context2_required")
+            expected = journal.dispatch_request(
+                item,
+                attempt,
+                context,
+                execution_attempt_id=expected_request["execution_attempt_id"],
+                provider_actual=expected_request["provider"],
+                provider_prompt_sha256=expected_request["dispatch_prompt_sha256"],
+            )
+            if expected != expected_request:
+                raise WorkConflictError("subject_dispatch_request_work_mismatch")
+            validated = journal.validate_receipt(receipt, expected, received_at=now)
+            existing = connection.execute(
+                "SELECT * FROM quick_scan_subject_send_receipt WHERE attempt_id=?", (attempt_id,)
+            ).fetchone()
+            if existing is not None:
+                original = journal.receipt_record(connection, existing)
+                if original["receipt"] != validated:
+                    raise WorkConflictError("subject_dispatch_immutable_conflict")
+                return original
+            if (
+                attempt["phase"] != "prepared"
+                or attempt["lease_epoch"] != lease.lease_epoch
+                or attempt["lease_token"] != lease.lease_token
+            ):
+                raise WorkConflictError("subject_dispatch_before_send_required")
+            connection.execute(
+                "INSERT INTO quick_scan_subject_send_receipt "
+                "(attempt_id,work_item_id,receipt_id,receipt_sha256,receipt_json,received_at) VALUES (?,?,?,?,?,?)",
+                (
+                    attempt_id,
+                    work_item_id,
+                    validated["receipt_id"],
+                    canonical_sha256(validated),
+                    canonical_bytes(validated).decode("utf-8"),
+                    now,
+                ),
+            )
+            return {
+                "receipt": validated,
+                "receipt_sha256": canonical_sha256(validated),
+                "received_at": now,
+            }
+
+    def get_subject_dispatch_receipt(self, attempt_id: str) -> Optional[dict]:
+        from .quick_scan_subject_journal import receipt_record
+
+        with closing(self._connect()) as connection:
+            row = connection.execute(
+                "SELECT * FROM quick_scan_subject_send_receipt WHERE attempt_id=?", (attempt_id,)
+            ).fetchone()
+            return None if row is None else receipt_record(connection, row)
+
     def get_observation_context(self, work_item_id: str) -> Optional[dict]:
         """The frozen context this task was bound to, or None if it predates v6."""
         _safe(work_item_id, "work_item_id")
@@ -4376,7 +4543,13 @@ class QuickScanWorkStore:
             (checkpoint["attempt_id"], work_item_id),
         ).fetchone()
         started_at = (
-            _send_intent_iso(attempt_row["send_intent_at"]) if attempt_row is not None else None
+            _send_intent_iso(
+                attempt_row["send_intent_at"],
+                preserve_precision=context_document["schema"]
+                == "stockqa.quick_scan_observation_context/2.0.0",
+            )
+            if attempt_row is not None
+            else None
         )
         if started_at is None:
             raise WorkConflictError("complete observation requires the original successful attempt")

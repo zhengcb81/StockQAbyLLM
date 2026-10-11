@@ -3585,6 +3585,9 @@ def test_native_event_journal_corrupt_restore_is_rejected_without_more_http(
 
 
 def _remove_mcp_additions(connection):
+    from tests.c06_legacy_fixture import remove_c06_additions
+
+    remove_c06_additions(connection)
     for table in (
         "quick_scan_mcp_search_binding",
         "quick_scan_mcp_result",

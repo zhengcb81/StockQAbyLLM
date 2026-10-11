@@ -175,3 +175,75 @@ class TestQAEngine:
         assert stats["processed_count"] == 3
         assert stats["error_count"] == 1
         assert stats["success_count"] == 2
+
+
+@pytest.mark.parametrize("status", [400, 429, 503])
+def test_error_result_keeps_typed_uncertain_receipt_without_checkpoint_or_retry(status):
+    from src.utils.quick_scan_work_transport import QuickScanWorkUncertainError
+
+    receipt = {
+        "provider": "openai",
+        "requested_model": "fixture-model",
+        "http_status_code": status,
+        "request_id": "fixture-request",
+        "failure_type": "http_error",
+        "search_status": "unavailable",
+    }
+    error = QuickScanWorkUncertainError("fixture-attempt", receipt)
+    error.attempt_receipt["raw_body"] = "must-not-export-private-body"
+    provider = Mock()
+    provider.search_question.side_effect = error
+    lifecycle = Mock()
+    lifecycle.before_question.return_value = {"claimed": True, "work_item_id": "fixture-work"}
+    lifecycle.reference_question.return_value = None
+    lifecycle.hydrate_question.return_value = None
+    from contextlib import nullcontext
+
+    lifecycle.dispatch_context.return_value = nullcontext()
+    generator = Mock()
+    engine = QAEngine(provider, generator, work_item_lifecycle=lifecycle)
+    result = engine.process_questions([Question("fixture quality", question_id="IQS_05")])
+    answer = result.results[0].answer
+    assert answer.status == "error" and answer.score is None
+    generator.generate_answer.assert_not_called()
+    lifecycle.after_question.assert_not_called()
+    lifecycle.after_question_failed.assert_called_once()
+    provider.search_question.assert_called_once()
+    public = result.to_quick_scan_dict(
+        entity_id="issuer:fixture",
+        company_name="Fixture",
+        provider_name="openai",
+        requested_model="fixture-model",
+    )
+    execution = public["execution_receipts"]["IQS_05"]
+    assert execution["http_status_code"] == status
+    assert execution["attempts"] == [{**receipt, "attempt_id": "fixture-attempt"}]
+    assert execution["dispatch_outcome"]["state"] == "uncertain"
+    assert (
+        execution["dispatch_outcome"]["resume_condition"] == "reconcile_same_attempt_before_retry"
+    )
+    assert "raw_body" not in str(public) and "must-not-export" not in str(public)
+
+
+@pytest.mark.parametrize("kind", ["lookalike", "cycle", "deep"])
+def test_uncertain_projection_rejects_untyped_or_unbounded_exception_chains(kind):
+    from src.core.qa_engine import _uncertain_transport_metadata
+    from src.utils.quick_scan_work_transport import QuickScanWorkUncertainError
+
+    class LookalikeError(ValueError):
+        attempt_id = "fixture-attempt"
+        attempt_receipt = {"http_status_code": 503}
+
+    error: BaseException = ValueError("fixture")
+    if kind == "lookalike":
+        error = LookalikeError("fixture")
+    elif kind == "cycle":
+        error.__cause__ = error
+    else:
+        cursor = error
+        for _ in range(16):
+            child = ValueError("fixture")
+            cursor.__cause__ = child
+            cursor = child
+        cursor.__cause__ = QuickScanWorkUncertainError("fixture-attempt", {})
+    assert _uncertain_transport_metadata(error) == {}

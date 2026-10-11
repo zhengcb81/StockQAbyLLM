@@ -73,6 +73,18 @@ def _write_inputs(
     }
     if model_policy is not None:
         llm_config["quick_scan_model_policy"] = model_policy
+    llm_config["quick_scan_model_resolution"] = {
+        "schema_version": "1.0.0",
+        "aliases": [
+            {
+                "provider": "openai",
+                "protocol": "responses",
+                "requested_model": requested,
+                "resolved_model": "actual-fixture-model",
+            }
+            for requested in ("requested-fixture-model", "primary-model", "backup-model")
+        ],
+    }
     config_file.write_text(json.dumps(llm_config), encoding="utf-8")
     if rate_cards is not None:
         (tmp_path / "quick_scan_rate_cards.json").write_text(

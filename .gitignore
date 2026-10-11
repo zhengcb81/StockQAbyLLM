@@ -156,3 +156,6 @@ desktop.ini
 # W15 non-secret owner transport/result contracts only
 !src/config/quick_scan_owner_refresh_config.schema.json
 !src/config/quick_scan_owner_refresh_result.schema.json
+
+# C06 authority contract is source, not a generated result.
+!src/config/quick_scan_c06_authority.v3.schema.json

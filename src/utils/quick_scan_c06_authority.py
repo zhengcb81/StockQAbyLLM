@@ -49,6 +49,9 @@ DEFAULT_AUTHORITY_FILENAME = "quick_scan_c06_authority.json"
 _ROOT = Path(__file__).resolve().parent.parent
 _SCHEMA_PATH = _ROOT / "config" / "quick_scan_c06_authority.schema.json"
 _SCHEMA_V2_PATH = _ROOT / "config" / "quick_scan_c06_authority.v2.schema.json"
+AUTHORITY_SCHEMA_ID_V3 = "stockqa.quick_scan_c06_authority/3.0.0"
+AUTHORITY_SCHEMA_VERSION_V3 = "3.0.0"
+_SCHEMA_V3_PATH = _ROOT / "config" / "quick_scan_c06_authority.v3.schema.json"
 
 
 class AuthorityUnavailable(MissingC06Fields):
@@ -133,6 +136,7 @@ def _validate_v2(
     *,
     manifest: dict[str, Any] | None,
     identity_snapshot_sha256: str | None,
+    bound_subject: bool = False,
 ) -> dict[str, Any]:
     if not isinstance(document, dict):
         raise AuthorityUnavailable("c06 authority must be a JSON object")
@@ -147,12 +151,21 @@ def _validate_v2(
             "observation_context_sha256",
         },
     )
-    if document["schema_version"] != AUTHORITY_SCHEMA_VERSION_V2:
+    expected_version = AUTHORITY_SCHEMA_VERSION_V3 if bound_subject else AUTHORITY_SCHEMA_VERSION_V2
+    expected_id = AUTHORITY_SCHEMA_ID_V3 if bound_subject else AUTHORITY_SCHEMA_ID_V2
+    schema_path = _SCHEMA_V3_PATH if bound_subject else _SCHEMA_V2_PATH
+    if document["schema_version"] != expected_version:
         raise AuthorityUnavailable("c06 authority schema_version mismatch")
 
-    artifact = _schema_document(_SCHEMA_V2_PATH)
-    if artifact.get("$id") != AUTHORITY_SCHEMA_ID_V2:
+    artifact = _schema_document(schema_path)
+    if artifact.get("$id") != expected_id:
         raise AuthorityUnavailable("c06 authority v2 schema artifact id mismatch")
+    from jsonschema import Draft202012Validator, FormatChecker, ValidationError
+
+    try:
+        Draft202012Validator(artifact, format_checker=FormatChecker()).validate(document)
+    except ValidationError as error:
+        raise AuthorityUnavailable("c06 authority schema artifact mismatch") from error
 
     from src.utils.quick_scan_observation_context import validate_context_document
 
@@ -224,15 +237,20 @@ def load_c06_authority(
         schema_id = AUTHORITY_SCHEMA_ID
         schema_version = AUTHORITY_SCHEMA_VERSION
         extra: dict[str, Any] = {}
-    elif version == AUTHORITY_SCHEMA_VERSION_V2:
+    elif version in {AUTHORITY_SCHEMA_VERSION_V2, AUTHORITY_SCHEMA_VERSION_V3}:
         validated = _validate_v2(
             document,
             manifest=manifest,
             identity_snapshot_sha256=identity_snapshot_sha256,
+            bound_subject=version == AUTHORITY_SCHEMA_VERSION_V3,
         )
-        schema_path = _SCHEMA_V2_PATH
-        schema_id = AUTHORITY_SCHEMA_ID_V2
-        schema_version = AUTHORITY_SCHEMA_VERSION_V2
+        schema_path = _SCHEMA_V3_PATH if version == AUTHORITY_SCHEMA_VERSION_V3 else _SCHEMA_V2_PATH
+        schema_id = (
+            AUTHORITY_SCHEMA_ID_V3
+            if version == AUTHORITY_SCHEMA_VERSION_V3
+            else AUTHORITY_SCHEMA_ID_V2
+        )
+        schema_version = version
         extra = {
             "observation_context": validated["observation_context"],
             "observation_context_sha256": validated["observation_context_sha256"],
@@ -267,9 +285,12 @@ def authority_adapter_input(authority: dict[str, Any] | None) -> dict[str, Any]:
     """
     if not isinstance(authority, dict) or not authority:
         raise AuthorityUnavailable("c06 authority is not configured")
-    return {
+    result = {
         "contract_versions": dict(authority.get("contract_versions") or {}),
         "capabilities": list(authority.get("capabilities") or []),
         "producer_component_version": authority.get("producer_component_version"),
         "producer_build_id": authority.get("producer_build_id"),
     }
+    if authority.get("schema_version") == "3.0.0":
+        result["schema_version"] = "3.0.0"
+    return result

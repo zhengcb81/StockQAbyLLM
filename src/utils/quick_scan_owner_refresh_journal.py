@@ -55,13 +55,26 @@ def sha(text: str) -> str:
 
 
 def normalize(binding: dict, item: dict) -> tuple[str, str]:
-    if not isinstance(binding, dict) or set(binding) != _KEYS:
+    subject_required = (
+        isinstance(binding, dict)
+        and binding.get("protocol") == "stockqa.owner_refresh_binding/2.0.0"
+    )
+    keys = _KEYS | {"subject_context_schema"} if subject_required else _KEYS
+    if not isinstance(binding, dict) or set(binding) != keys:
         raise ValueError("owner_refresh_binding_invalid")
-    if binding["protocol"] != "stockqa.owner_refresh_binding/1.0.0":
+    if binding["protocol"] not in {
+        "stockqa.owner_refresh_binding/1.0.0",
+        "stockqa.owner_refresh_binding/2.0.0",
+    }:
         raise ValueError("owner_refresh_binding_invalid")
+    if (
+        subject_required
+        and binding["subject_context_schema"] != "stockqa.quick_scan_observation_context/2.0.0"
+    ):
+        raise ValueError("owner_refresh_subject_context_version_invalid")
     if any(
         not isinstance(binding[k], str) or not binding[k] or len(binding[k]) > 256
-        for k in _KEYS - {"anchor_version", "target_generation", "identity_revision"}
+        for k in keys - {"anchor_version", "target_generation", "identity_revision"}
     ):
         raise ValueError("owner_refresh_binding_invalid")
     for key in ("anchor_version", "target_generation", "identity_revision"):

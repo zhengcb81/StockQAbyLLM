@@ -106,6 +106,18 @@ class QuickScanSendAttempt:
         with self._lock:
             if self._consumed:
                 raise QuickScanWorkPersistenceError("send permit already consumed")
+            if self.binding is not None:
+                _check_owner_refresh_guard()
+                frozen = self.binding.store.get_observation_context(self.binding.work_item_id)
+                if (
+                    frozen is not None
+                    and frozen["context"].get("schema")
+                    == "stockqa.quick_scan_observation_context/2.0.0"
+                    and self.binding.store.get_subject_dispatch_receipt(self.attempt_id) is None
+                ):
+                    raise QuickScanWorkPersistenceError(
+                        "subject_dispatch_receipt_missing_before_post"
+                    )
             expected_epoch = 0 if self.binding is None else self.binding.lease.lease_epoch
             if (
                 self.permit.attempt_id != self.attempt_id
@@ -627,6 +639,21 @@ def bind_quick_scan_format_repair() -> Iterator[None]:
 
 
 _OWNER_REFRESH_GUARD = contextvars.ContextVar("quick_scan_owner_refresh_guard", default=None)
+_SUBJECT_DISPATCH_REGISTRAR = contextvars.ContextVar(
+    "quick_scan_subject_dispatch_registrar", default=None
+)
+
+
+@contextmanager
+def bind_subject_dispatch_registrar(registrar):
+    """Only the configured first-party owner session supplies this callback."""
+    if not callable(registrar):
+        raise ValueError("subject_dispatch_registrar_invalid")
+    token = _SUBJECT_DISPATCH_REGISTRAR.set(registrar)
+    try:
+        yield
+    finally:
+        _SUBJECT_DISPATCH_REGISTRAR.reset(token)
 
 
 @contextmanager
@@ -659,7 +686,13 @@ def _check_owner_refresh_guard() -> None:
 
 
 def begin_quick_scan_send(
-    prompt: str, system_prompt: str, *, model_requested: Any = None, model_resolution: Any = None
+    prompt: str,
+    system_prompt: str,
+    *,
+    model_requested: Any = None,
+    model_resolution: Any = None,
+    execution_attempt_id: Any = None,
+    provider_actual: Any = None,
 ) -> Optional[QuickScanSendAttempt]:
     """Commit prepared + send-intent state before permitting the HTTP request."""
     _check_owner_refresh_guard()
@@ -751,6 +784,40 @@ def begin_quick_scan_send(
                     context_sha256=external["context_sha256"],
                     prompt_sha256=prompt_sha256,
                     prompt_text_sha256=hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+                )
+            frozen = work.store.get_observation_context(work.work_item_id)
+            if (
+                frozen is not None
+                and frozen["context"].get("schema")
+                == "stockqa.quick_scan_observation_context/2.0.0"
+            ):
+                from src.utils.quick_scan_observation_context import (
+                    bind_context_to_work_item,
+                )
+                from src.utils.quick_scan_subject_journal import dispatch_request
+
+                item = work.store.get_item(work.work_item_id)
+                context = bind_context_to_work_item(
+                    frozen["context"], work_item=item, question_id=item["question_id"]
+                )
+                request = dispatch_request(
+                    item,
+                    prepared,
+                    context,
+                    execution_attempt_id=execution_attempt_id,
+                    provider_actual=provider_actual,
+                    provider_prompt_sha256=hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+                )
+                registrar = _SUBJECT_DISPATCH_REGISTRAR.get()
+                if registrar is None:
+                    raise QuickScanWorkPersistenceError("subject_dispatch_registrar_missing")
+                receipt = registrar(request)
+                work.store.persist_subject_dispatch_receipt(
+                    work.work_item_id,
+                    work.lease,
+                    prepared["attempt_id"],
+                    receipt,
+                    expected_request=request,
                 )
         budget_route = (
             None
