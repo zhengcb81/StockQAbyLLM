@@ -603,6 +603,10 @@ def _q10_reconstruct_old_schema(connection, version):
     # Reconstruct an actual old schema, including removal of later empty
     # retrieval tables. Keeping them while lowering user_version is not v7.
     for table in (
+        "quick_scan_question_pack_outcome",  # schema17, child tables first
+        "quick_scan_question_pack_send",
+        "quick_scan_question_pack_member",
+        "quick_scan_question_pack",  # DROP also removes pack triggers/indexes
         "quick_scan_refresh_admission",  # schema16 control metadata, not an old queue
         "quick_scan_subject_send_receipt",  # schema15; also removes its triggers
         "quick_scan_owner_refresh_binding",
@@ -2743,3 +2747,119 @@ def test_jr2_failed_v7_migration_rolls_back_original_v6_schema(tmp_path, monkeyp
     with closing(store._connect()) as connection:
         assert connection.execute("PRAGMA user_version").fetchone()[0] == 6
         assert tuple(connection.iterdump()) == before
+
+
+# Canonical BIND UUID4 examples observed in the original StockWiki export.
+# These are synthetic software-contract DTOs, not authenticated owner authority.
+_CANONICAL_OWNER_BIND_REFS = (
+    "BIND_e1eaa3ea-bf67-4732-b336-a96cdb4fbb81",
+    "BIND_ac70739c-f427-4994-9736-c371bea886e7",
+)
+
+
+def _owner_uuid_identity_fixture(tmp_path):
+    from src.runners.llm_runner import load_identity_snapshot
+
+    path = tmp_path / "synthetic-stockwiki-identity.json"
+    dto = {
+        "object_type": "entity",
+        "schema_version": "2.2.0",
+        "payload": {
+            "entity_id": "ENT_CANONICAL_BIND_SOFTWARE_FIXTURE",
+            "identity_revision": 2,
+            "identity_state": "verified",
+            "listings": [{"source_binding_ref": ref} for ref in _CANONICAL_OWNER_BIND_REFS],
+        },
+    }
+    path.write_text(json.dumps(dto, sort_keys=True), encoding="utf-8")
+    return load_identity_snapshot(str(path), expected_entity_id=dto["payload"]["entity_id"])
+
+
+def test_stockwiki_canonical_binding_snapshot_can_create_claim_without_rebinding(tmp_path):
+    identity = _owner_uuid_identity_fixture(tmp_path)
+    store = _store(tmp_path, [1_800_000_000.0])
+    original = _created(store, **identity, scope_id=identity["entity_id"])
+    lease = store.claim(original["work_item_id"], lease_seconds=60)
+    assert lease is not None
+    assert store.get_item(original["work_item_id"])["source_binding_refs_json"] == json.dumps(
+        sorted(_CANONICAL_OWNER_BIND_REFS), separators=(",", ":")
+    )
+    reversed_anchor = _created(
+        store,
+        run_id="RUN_CANONICAL_SECOND",
+        **{
+            **identity,
+            "source_binding_refs": list(reversed(identity["source_binding_refs"])),
+            "source_binding_ref": identity["source_binding_refs"][1],
+        },
+        scope_id=identity["entity_id"],
+    )
+    assert reversed_anchor["work_item_id"] == original["work_item_id"]
+    assert reversed_anchor["source_binding_ref"] == identity["source_binding_ref"]
+    with pytest.raises(WorkConflictError):
+        _created(
+            store,
+            **{**identity, "identity_snapshot_sha256": "0" * 64},
+            scope_id=identity["entity_id"],
+        )
+    old = store.get_item(original["work_item_id"])
+    assert old["status"] == "leased"
+    assert old["lease_token"] == lease.lease_token
+    assert old["identity_snapshot_sha256"] == identity["identity_snapshot_sha256"]
+    changed_set = _created(
+        store,
+        **{**identity, "source_binding_refs": identity["source_binding_refs"][:1]},
+        scope_id=identity["entity_id"],
+    )
+    assert changed_set["work_item_id"] != original["work_item_id"]
+    assert store.get_item(original["work_item_id"])["status"] == "leased"
+
+
+def test_stockwiki_canonical_binding_keeps_membership_duplicates_and_provisional_guards(tmp_path):
+    refs = _CANONICAL_OWNER_BIND_REFS
+    store = _store(tmp_path, [1_800_000_000.0])
+    with pytest.raises(ValueError, match="unique"):
+        _created(store, source_binding_ref=refs[0], source_binding_refs=(refs[0], refs[0]))
+    with pytest.raises(ValueError, match="anchor"):
+        _created(store, source_binding_ref=refs[0], source_binding_refs=(refs[1],))
+    with pytest.raises(ValueError, match="provisional"):
+        _created(
+            store,
+            identity_state="provisional",
+            source_binding_ref=refs[0],
+            source_binding_refs=refs,
+        )
+    mixed = _created(store, source_binding_refs=("BND_CN_002594", refs[0]))
+    assert json.loads(mixed["source_binding_refs_json"]) == sorted(("BND_CN_002594", refs[0]))
+
+
+@pytest.mark.parametrize(
+    "ref",
+    [
+        "BIND_",
+        "BIND_CN_002594",
+        "BIND_route_ref",
+        "BND_has-hyphens",
+        "BIND_E1EAA3EA-BF67-4732-B336-A96CDB4FBB81",
+        "BIND_e1eaa3eabf674732b336a96cdb4fbb81",
+        "BIND_e1eaa3ea-bf67-1732-b336-a96cdb4fbb81",
+        "BIND_e1eaa3ea-bf67-5732-b336-a96cdb4fbb81",
+        "BIND_e1eaa3ea-bf67-4732-7336-a96cdb4fbb81",
+        "BIND_e1eaa3ea-bf67-4732-c336-a96cdb4fbb81",
+        "BIND_e1eaa3ea-bf67-4732-b336-a96cdb4fbb8z",
+        "BIND_e1eaa3ea-bf67-4732-b336-a96cdb4fbb81suffix",
+        "BIND_e1eaa3ea-bf67-4732-b336-a96cdb4fbb81\n",
+        " BIND_e1eaa3ea-bf67-4732-b336-a96cdb4fbb81",
+    ],
+)
+def test_stockwiki_canonical_binding_rejects_nonproducer_spellings(tmp_path, ref):
+    store = _store(tmp_path, [1_800_000_000.0])
+    with pytest.raises(ValueError, match="source_binding_ref"):
+        _created(store, source_binding_ref=ref, source_binding_refs=(ref,))
+
+
+@pytest.mark.parametrize("bad_ref", ["BIND_not_uuid", "BIND_e1eaa3ea-bf67-4732-c336-a96cdb4fbb81"])
+def test_stockwiki_canonical_binding_rejects_malformed_nonanchor_member(tmp_path, bad_ref):
+    store = _store(tmp_path, [1_800_000_000.0])
+    with pytest.raises(ValueError, match="source_binding_refs"):
+        _created(store, source_binding_refs=("BND_CN_002594", bad_ref))
