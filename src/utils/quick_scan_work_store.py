@@ -28,6 +28,9 @@ from src.utils.quick_scan_external_journal import DDL_V9_ADDITIONS as _DDL_V9_AD
 from src.utils.quick_scan_external_journal import (
     DDL_V10_ADDITIONS as _DDL_V10_ADDITIONS,
 )
+from src.utils.quick_scan_known_outcome_journal import (
+    DDL_V19_ADDITIONS as _DDL_V19_ADDITIONS,
+)
 from src.utils.quick_scan_mcp_journal import DDL_V13_ADDITIONS as _DDL_V13_ADDITIONS
 from src.utils.quick_scan_owner_refresh_journal import (
     DDL_V14_ADDITIONS as _DDL_V14_ADDITIONS,
@@ -40,7 +43,7 @@ from src.utils.quick_scan_refresh_admission_journal import (
 )
 from src.utils.quick_scan_subject_journal import DDL_V15_ADDITIONS as _DDL_V15_ADDITIONS
 
-SCHEMA_VERSION = 18
+SCHEMA_VERSION = 19
 _SAFE_ID = re.compile(r"^[A-Za-z0-9_.-]{1,160}$")
 # Hyphens accepted per owner sign-off (2026-10-05 round-51): the W04
 # identity-export package issues ENT_<uuid> entity ids (e.g. the frozen
@@ -678,6 +681,7 @@ _DDL = (
     + _DDL_V16_ADDITIONS
     + _DDL_V17_ADDITIONS
     + _DDL_V18_ADDITIONS
+    + _DDL_V19_ADDITIONS
 )
 
 _RECEIPT_FIELDS = (
@@ -1237,6 +1241,8 @@ class QuickScanWorkStore:
                 cls._validate_schema(connection, schema_version=16)
             elif version == 17:
                 cls._validate_schema(connection, schema_version=17)
+            elif version == 18:
+                cls._validate_schema(connection, schema_version=18)
             elif version != SCHEMA_VERSION:
                 raise ValueError("unsupported quick-scan work database schema version")
             if 1 <= version < 8:
@@ -1280,6 +1286,10 @@ class QuickScanWorkStore:
                 connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             if 1 <= version < 18:
                 for statement in _DDL_V18_ADDITIONS:
+                    connection.execute(statement)
+                connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+            if 1 <= version < 19:
+                for statement in _DDL_V19_ADDITIONS:
                     connection.execute(statement)
                 connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             cls._validate_schema(connection, schema_version=SCHEMA_VERSION)
@@ -1556,6 +1566,12 @@ class QuickScanWorkStore:
                 if match is None:
                     raise ValueError("quick-scan work database schema mismatch")
                 expected[(match[1].lower(), match[2])] = statement
+        if schema_version >= 19:
+            for statement in _DDL_V19_ADDITIONS:
+                match = re.match(r"CREATE (TABLE|TRIGGER) ([A-Za-z_]+)", statement)
+                if match is None:
+                    raise ValueError("quick-scan work database schema mismatch")
+                expected[(match[1].lower(), match[2])] = statement
         if actual.keys() != expected.keys() or any(
             _normalized_sql(actual[key]) != _normalized_sql(statement)
             for key, statement in expected.items()
@@ -1638,6 +1654,12 @@ class QuickScanWorkStore:
             )
 
             validate_pack_tables(connection)
+        if schema_version >= 19:
+            from src.utils.quick_scan_known_outcome_journal import (
+                validate_tables as validate_decision_tables,
+            )
+
+            validate_decision_tables(connection)
         if schema_version >= 10:
             from src.utils.quick_scan_external_journal import read_use
 
@@ -2785,6 +2807,7 @@ class QuickScanWorkStore:
                     dict(self._item(connection, work_item_id)),
                     owner_refresh_binding,
                     new_item=row is None,
+                    now=self._now(),
                 )
             added = connection.execute(
                 "INSERT OR IGNORE INTO work_run_ref (work_item_id,run_id,scan_id,attached_at) "
@@ -2998,7 +3021,7 @@ class QuickScanWorkStore:
             self._assert_lease(item, lease, now)
             from src.utils.quick_scan_owner_refresh_journal import guard_send
 
-            guard_send(connection, dict(item))
+            guard_send(connection, dict(item), now=self._now())
             from src.utils.quick_scan_subject_journal import (
                 guard_send as guard_subject_send,
             )
@@ -5491,9 +5514,12 @@ class QuickScanWorkStore:
         entity_id: str,
         question_ids: Sequence[str],
         scope_bindings: dict[str, dict[str, str]],
+        include_owner_decisions: bool = False,
     ) -> dict[str, dict]:
         """Self-owned complete projection; never trust a caller's generation map."""
         _safe(entity_id, "entity_id")
+        if type(include_owner_decisions) is not bool:
+            raise ValueError("owner_refresh_projection_invalid")
         if (
             not question_ids
             or len(question_ids) > 500
@@ -5521,6 +5547,25 @@ class QuickScanWorkStore:
                         "generation": row["generation"],
                         "status": row["status"],
                     }
+                    if (
+                        include_owner_decisions
+                        and connection.execute("PRAGMA user_version").fetchone()[0] >= 19
+                    ):
+                        from src.utils.quick_scan_known_outcome_journal import (
+                            projection,
+                        )
+
+                        decision = projection(self, connection, row["work_item_id"])
+                        if decision is not None:
+                            result[qid].update(
+                                next_retry_at=decision["next_retry_at"],
+                                retry_decision_id=decision["decision_id"],
+                                retry_purpose=decision["request"]["purpose"],
+                                target_generation=decision["request"]["target_generation"],
+                                delivery_required=decision["request"]["requires_prior_delivery"]
+                                and row["status"] == "result_ready",
+                                comparison_controls=decision["request"]["comparison_controls"],
+                            )
         return result
 
     def find_work_items(
@@ -5649,3 +5694,66 @@ class QuickScanWorkStore:
         from src.utils.quick_scan_question_pack_journal import get
 
         return cast(Optional[dict], get(self, pack_id))
+
+    def resolve_known_response(
+        self,
+        work_item_id: str,
+        *,
+        attempt_id: str,
+        expected_lease: Lease,
+        receipt_sha256: str,
+        request_payload_sha256: str,
+        reason: str,
+        owner_authority: object,
+        idempotency_key: str,
+        diagnostic: Optional[dict] = None,
+    ) -> dict:
+        """Close one unusable known answer after settlement and original lease expiry."""
+        from src.utils.quick_scan_known_outcome_journal import resolve
+
+        return cast(
+            dict,
+            resolve(
+                self,
+                work_item_id,
+                attempt_id=attempt_id,
+                expected_lease=expected_lease,
+                receipt_sha256=receipt_sha256,
+                request_payload_sha256=request_payload_sha256,
+                reason=reason,
+                owner_authority=owner_authority,
+                idempotency_key=idempotency_key,
+                diagnostic=diagnostic,
+            ),
+        )
+
+    def record_owner_retry_decision(
+        self,
+        work_item_id: str,
+        *,
+        purpose: str,
+        retry_after_seconds: float,
+        owner_authority: object,
+        idempotency_key: str,
+        comparison_controls: Optional[dict] = None,
+    ) -> dict:
+        """Persist owner intent; original refresh admission must create any new generation."""
+        from src.utils.quick_scan_known_outcome_journal import retry
+
+        return cast(
+            dict,
+            retry(
+                self,
+                work_item_id,
+                purpose=purpose,
+                retry_after_seconds=retry_after_seconds,
+                owner_authority=owner_authority,
+                idempotency_key=idempotency_key,
+                comparison_controls=comparison_controls,
+            ),
+        )
+
+    def get_owner_retry_decision(self, work_item_id: str) -> Optional[dict]:
+        from src.utils.quick_scan_known_outcome_journal import get
+
+        return cast(Optional[dict], get(self, work_item_id))

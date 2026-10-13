@@ -80,7 +80,7 @@ def setup_admission(actual, tmp_path, *, policy=None, ledger_path=None, refresh_
         universe_id="admit-pool",
         field_ids=[field],
         provider="openai",
-        model="fixture-model",
+        model=policy["routes"][0]["model"],
         ttl_hours=48,
         routes=[
             dict(

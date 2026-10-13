@@ -7,8 +7,10 @@ Approval/paid dispatch must separately recheck and reserve via original Q09.
 
 import sqlite3
 import stat
+import time
 from contextlib import closing
 from pathlib import Path
+from typing import Callable
 
 from src.utils.quick_scan_result_outbox import canonical_sha256
 from src.utils.quick_scan_work_store import (
@@ -42,6 +44,7 @@ class ReadOnlyWorkView(QuickScanWorkStore):
             ):
                 raise ValueError("refresh_executor_store_unavailable")
         self.path = raw_path.resolve()
+        self._clock: Callable[[], float] = time.time
         self._inspection_connection = None
         if not self.path.is_file():
             raise ValueError("refresh_executor_store_unavailable")
@@ -57,9 +60,10 @@ class ReadOnlyWorkView(QuickScanWorkStore):
         connection.row_factory = sqlite3.Row
         try:
             connection.execute("PRAGMA query_only=ON")
-            if connection.execute("PRAGMA user_version").fetchone()[0] != SCHEMA_VERSION:
+            version = connection.execute("PRAGMA user_version").fetchone()[0]
+            if version not in {18, SCHEMA_VERSION}:
                 raise ValueError("refresh_executor_schema_unavailable")
-            self._validate_schema(connection, schema_version=SCHEMA_VERSION)
+            self._validate_schema(connection, schema_version=version)
         except Exception:
             connection.close()
             raise
@@ -70,7 +74,7 @@ class ReadOnlyWorkView(QuickScanWorkStore):
 
 
 def inspect_refresh(path, request, *, policy, schema_version="1.0.0"):
-    if schema_version not in {"1.0.0", "1.1.0"}:
+    if schema_version not in {"1.0.0", "1.1.0", "1.2.0", "1.3.0"}:
         raise ValueError("refresh_inspection_schema_unsupported")
     required = {
         "entity_id",
@@ -81,6 +85,8 @@ def inspect_refresh(path, request, *, policy, schema_version="1.0.0"):
         "provider_config_ref",
         "model",
     }
+    if schema_version in {"1.2.0", "1.3.0"}:
+        required |= {"cohort_id", "work_decision_refs"}
     if not isinstance(request, dict) or set(request) != required:
         raise ValueError("refresh_inspection_request_invalid")
     normalized = _budget_policy_projection(policy)
@@ -110,9 +116,10 @@ def inspect_refresh(path, request, *, policy, schema_version="1.0.0"):
         connection.execute("BEGIN")
         # Bind schema and rows to the same native read transaction. A schema
         # change after the initial connection check must not be overlooked.
-        if connection.execute("PRAGMA user_version").fetchone()[0] != SCHEMA_VERSION:
+        version = connection.execute("PRAGMA user_version").fetchone()[0]
+        if version not in {18, SCHEMA_VERSION}:
             raise ValueError("refresh_executor_schema_unavailable")
-        view._validate_schema(connection, schema_version=SCHEMA_VERSION)
+        view._validate_schema(connection, schema_version=version)
         view._inspection_connection = connection
         try:
             stored = connection.execute(
@@ -148,7 +155,96 @@ def inspect_refresh(path, request, *, policy, schema_version="1.0.0"):
                 question_ids=request["question_ids"],
                 scope_bindings=bindings,
             )
-            allowed_currencies = {"USD", "CNY"} if schema_version == "1.1.0" else {"USD"}
+            if schema_version in {"1.2.0", "1.3.0"}:
+                from src.utils.quick_scan_known_outcome_journal import _read
+                from src.utils.quick_scan_work_control import project_owner_control
+
+                refs = request["work_decision_refs"]
+                if not isinstance(refs, list) or not 1 <= len(refs) <= 500:
+                    raise ValueError("refresh_control_refs_invalid")
+                seen = set()
+                all_refs = set()
+                for ref in refs:
+                    if not isinstance(ref, dict) or set(ref) != {
+                        "work_item_id",
+                        "decision_id",
+                    }:
+                        raise ValueError("refresh_control_ref_invalid")
+                    key = (ref["work_item_id"], ref["decision_id"])
+                    if key in all_refs:
+                        raise ValueError("refresh_control_duplicate_ref")
+                    all_refs.add(key)
+                    item = view._item(connection, ref["work_item_id"])
+                    qid = item["question_id"]
+                    row = connection.execute(
+                        "SELECT * FROM quick_scan_owner_work_decision WHERE decision_id=? AND work_item_id=?",
+                        (ref["decision_id"], ref["work_item_id"]),
+                    ).fetchone()
+                    if row is None:
+                        raise ValueError("refresh_control_decision_missing")
+                    document = _read(view, connection, row)
+                    targeted = schema_version == "1.3.0"
+                    if document["protocol"] != "stockqa.owner_work_decision/" + (
+                        "1.1.0" if targeted else "1.0.0"
+                    ):
+                        raise ValueError("refresh_control_explicit_target_dialect_required")
+                    physical = document["request"]["physical"]
+                    target = document["grant"].get("comparison_target")
+                    if targeted:
+                        if any(
+                            target[k] != request[k]
+                            for k in (
+                                "route_id",
+                                "provider_config_ref",
+                                "model",
+                                "policy_id",
+                            )
+                        ):
+                            raise ValueError("refresh_control_target_changed")
+                    elif (
+                        physical["route_id"] != request["route_id"]
+                        or physical["route_provider"] != request["provider_config_ref"]
+                    ):
+                        raise ValueError("refresh_control_route_changed")
+                    scope = bindings.get(qid)
+                    local = (
+                        item["entity_id"] == request["entity_id"]
+                        and scope is not None
+                        and item["scope"] == scope["scope"]
+                        and item["scope_id"] == scope["scope_id"]
+                    )
+                    # Each subject reads the same global refs. Validate all native
+                    # proofs first, then select this exact local scope; IQS checks
+                    # the aggregated controls cover every requested ref once.
+                    if targeted and not local:
+                        continue
+                    if (
+                        not local
+                        or qid in seen
+                        or qid not in work
+                        or work[qid]["work_item_id"] != item["work_item_id"]
+                    ):
+                        raise ValueError("refresh_control_source_work_changed")
+                    projected = project_owner_control(
+                        document,
+                        source_work=dict(item),
+                        subject_ref=physical["subject_binding"]["subject_ref"],
+                        provider=(target["provider"] if targeted else physical["provider"]),
+                        model=request["model"],
+                        now=time.time(),
+                        cohort_id=request["cohort_id"],
+                    )
+                    work[qid].update(
+                        owner_control=projected["owner_control"],
+                        control_dispatch=projected["decision"],
+                        controlled_generation=projected["generation"],
+                    )
+                    seen.add(qid)
+                if seen != set(request["question_ids"]):
+                    raise ValueError("refresh_control_scope_incomplete")
+            allowed_currencies = (
+                {"USD", "CNY"} if schema_version in {"1.1.0", "1.2.0", "1.3.0"} else {"USD"}
+            )
             if status["currency"] not in allowed_currencies:
                 raise ValueError("refresh_executor_currency_unsupported")
             remaining = max(

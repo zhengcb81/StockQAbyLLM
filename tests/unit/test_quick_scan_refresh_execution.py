@@ -206,7 +206,15 @@ def state_session(store, work_id, *, projected_work_id=None):
         {},
         {"manifest": {"questions": [{"id": qid}, {"id": "IQS_10"}]}, "authority": {}},
         {},
-        {qid: {"kind": "work", "work_item_id": work_id}},
+        {
+            qid: {
+                "kind": "work",
+                "work_item_id": work_id,
+                "specification": {
+                    "owner_refresh_binding": {"protocol": "stockqa.owner_refresh_binding/2.0.0"}
+                },
+            }
+        },
         native,
         {},
         {},

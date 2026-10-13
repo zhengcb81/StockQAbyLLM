@@ -46,7 +46,11 @@ _KEYS = {
 
 def canonical(value: Any) -> str:
     return json.dumps(
-        value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
     )
 
 
@@ -55,16 +59,25 @@ def sha(text: str) -> str:
 
 
 def normalize(binding: dict, item: dict) -> tuple[str, str]:
-    subject_required = (
-        isinstance(binding, dict)
-        and binding.get("protocol") == "stockqa.owner_refresh_binding/2.0.0"
-    )
+    subject_required = isinstance(binding, dict) and binding.get("protocol") in {
+        "stockqa.owner_refresh_binding/2.0.0",
+        "stockqa.owner_refresh_binding/3.0.0",
+        "stockqa.owner_refresh_binding/4.0.0",
+    }
     keys = _KEYS | {"subject_context_schema"} if subject_required else _KEYS
+    controlled = isinstance(binding, dict) and binding.get("protocol") in {
+        "stockqa.owner_refresh_binding/3.0.0",
+        "stockqa.owner_refresh_binding/4.0.0",
+    }
+    if controlled:
+        keys = keys | {"owner_control"}
     if not isinstance(binding, dict) or set(binding) != keys:
         raise ValueError("owner_refresh_binding_invalid")
     if binding["protocol"] not in {
         "stockqa.owner_refresh_binding/1.0.0",
         "stockqa.owner_refresh_binding/2.0.0",
+        "stockqa.owner_refresh_binding/3.0.0",
+        "stockqa.owner_refresh_binding/4.0.0",
     }:
         raise ValueError("owner_refresh_binding_invalid")
     if (
@@ -74,7 +87,8 @@ def normalize(binding: dict, item: dict) -> tuple[str, str]:
         raise ValueError("owner_refresh_subject_context_version_invalid")
     if any(
         not isinstance(binding[k], str) or not binding[k] or len(binding[k]) > 256
-        for k in keys - {"anchor_version", "target_generation", "identity_revision"}
+        for k in keys
+        - {"anchor_version", "target_generation", "identity_revision", "owner_control"}
     ):
         raise ValueError("owner_refresh_binding_invalid")
     for key in ("anchor_version", "target_generation", "identity_revision"):
@@ -93,13 +107,20 @@ def normalize(binding: dict, item: dict) -> tuple[str, str]:
             raise ValueError("owner_refresh_binding_item_mismatch")
     if binding["target_generation"] != item["generation"]:
         raise ValueError("owner_refresh_binding_item_mismatch")
+    if controlled and (
+        not isinstance(binding["owner_control"], dict)
+        or ("comparison_target" in binding["owner_control"])
+        != (binding["protocol"] == "stockqa.owner_refresh_binding/4.0.0")
+    ):
+        raise ValueError("owner_refresh_binding_invalid")
     text = canonical(binding)
     return text, sha(text)
 
 
 def read(connection: sqlite3.Connection, work_item_id: str) -> dict | None:
     row = connection.execute(
-        "SELECT * FROM quick_scan_owner_refresh_binding WHERE work_item_id=?", (work_item_id,)
+        "SELECT * FROM quick_scan_owner_refresh_binding WHERE work_item_id=?",
+        (work_item_id,),
     ).fetchone()
     if row is None:
         return None
@@ -119,18 +140,105 @@ def read(connection: sqlite3.Connection, work_item_id: str) -> dict | None:
         or row["binding_key"] != "ORF_" + digest
     ):
         raise ValueError("owner_refresh_binding_corrupted")
-    return {"binding_key": row["binding_key"], "binding": binding, "binding_sha256": digest}
+    if binding["protocol"] in {
+        "stockqa.owner_refresh_binding/3.0.0",
+        "stockqa.owner_refresh_binding/4.0.0",
+    }:
+        native_control(connection, item, binding)
+    return {
+        "binding_key": row["binding_key"],
+        "binding": binding,
+        "binding_sha256": digest,
+    }
+
+
+def native_control(connection, item, binding, *, now=None, require_ready=False):
+    """Integrity/readiness from the original immutable decision, not JSON authority.
+
+    The trusted admission/runner separately rechecks current owner permissions.
+    This function runs in their existing ledger transaction and never migrates,
+    allocates work, rewrites an old result or grants permission by itself.
+    """
+    from datetime import datetime
+
+    from .quick_scan_known_outcome_journal import _read
+    from .quick_scan_work_control import project_owner_control
+    from .quick_scan_work_store import QuickScanWorkStore, WorkConflictError
+
+    control = binding["owner_control"]
+    try:
+        row = connection.execute(
+            "SELECT * FROM quick_scan_owner_work_decision WHERE decision_id=?",
+            (control["decision_id"],),
+        ).fetchone()
+        if row is None:
+            raise ValueError("native_decision_missing")
+        document = _read(QuickScanWorkStore, connection, row)
+        target_version = binding["protocol"] == "stockqa.owner_refresh_binding/4.0.0"
+        if document["protocol"] != "stockqa.owner_work_decision/" + (
+            "1.1.0" if target_version else "1.0.0"
+        ):
+            raise ValueError("native_control_dialect_mismatch")
+        source = dict(QuickScanWorkStore._item(connection, row["work_item_id"]))
+        subject = document["request"]["physical"]["subject_binding"]["subject_ref"]
+        if (
+            any(item[k] != source[k] for k in ("entity_id", "question_id", "scope", "scope_id"))
+            or binding["subject_key"]
+            != subject["analysis_subject_id"] + "@" + str(subject["analysis_subject_revision"])
+            or binding["perimeter_sha256"] != subject["perimeter_sha256"]
+            or binding["identity_revision"]
+            != document["request"]["physical"]["subject_binding"]["identity_revision"]
+        ):
+            raise ValueError("native_scope_mismatch")
+        read_clock = datetime.fromisoformat(
+            document["decided_at"].replace("Z", "+00:00")
+        ).timestamp()
+        projection = project_owner_control(
+            document,
+            source_work=source,
+            subject_ref=subject,
+            provider=binding["provider"],
+            model=binding["model"],
+            now=now if require_ready else read_clock,
+            cohort_id=control["cohort_id"],
+        )
+        if (
+            canonical(projection["owner_control"]) != canonical(control)
+            or item["generation"] != control["target_generation"]
+        ):
+            raise ValueError("native_projection_mismatch")
+    except (ValueError, TypeError, KeyError) as error:
+        raise WorkConflictError("owner_refresh_native_control_mismatch") from error
+    if require_ready and (
+        projection["decision"] != "dispatch_new_generation"
+        or projection["generation"] != item["generation"]
+    ):
+        raise WorkConflictError("owner_refresh_control_not_ready")
+    return source
 
 
 def guard_unresolved(
-    connection: sqlite3.Connection, item: dict, *, exclude_work_id: str | None = None
+    connection: sqlite3.Connection,
+    item: dict,
+    *,
+    exclude_work_id: str | None = None,
+    binding: dict | None = None,
+    now=None,
 ) -> None:
     # No LIMIT and no dependency on a read-only planner or current generation.
     # Legacy rows have no subject attestation: conservatively reconcile them
     # rather than guessing they belong to another reporting perimeter.
-    row = connection.execute(
-        "SELECT work_item_id FROM work_item WHERE entity_id=? AND question_id=? AND scope=? AND scope_id=? "
-        "AND status IN ('pending','leased','uncertain','result_ready') AND (? IS NULL OR work_item_id!=?) LIMIT 1",
+    comparison_source = None
+    if binding is not None and binding["protocol"] in {
+        "stockqa.owner_refresh_binding/3.0.0",
+        "stockqa.owner_refresh_binding/4.0.0",
+    }:
+        source = native_control(connection, item, binding, now=now, require_ready=True)
+        if binding["owner_control"]["purpose"] == "comparison":
+            comparison_source = source["work_item_id"]
+    rows = connection.execute(
+        "SELECT work_item_id,status FROM work_item WHERE entity_id=? AND question_id=? AND scope=? AND scope_id=? "
+        "AND status IN ('pending','leased','uncertain','result_ready') AND (? IS NULL OR work_item_id!=?)",
         (
             item["entity_id"],
             item["question_id"],
@@ -139,14 +247,23 @@ def guard_unresolved(
             exclude_work_id,
             exclude_work_id,
         ),
-    ).fetchone()
-    if row is not None:
+    ).fetchall()
+    if any(
+        row["work_item_id"] != comparison_source or row["status"] != "result_ready" for row in rows
+    ):
         from src.utils.quick_scan_work_store import WorkConflictError
 
         raise WorkConflictError("owner_refresh_prior_work_unresolved")
 
 
-def bind(connection: sqlite3.Connection, item: dict, binding: dict, *, new_item: bool) -> None:
+def bind(
+    connection: sqlite3.Connection,
+    item: dict,
+    binding: dict,
+    *,
+    new_item: bool,
+    now=None,
+) -> None:
     from src.utils.quick_scan_work_store import WorkConflictError
 
     text, digest = normalize(binding, item)
@@ -158,16 +275,25 @@ def bind(connection: sqlite3.Connection, item: dict, binding: dict, *, new_item:
     # Do not attach owner authority to a previously created legacy work item.
     if not new_item:
         raise WorkConflictError("owner_refresh_legacy_work_requires_reconciliation")
-    guard_unresolved(connection, item, exclude_work_id=item["work_item_id"])
+    guard_unresolved(
+        connection, item, exclude_work_id=item["work_item_id"], binding=binding, now=now
+    )
     connection.execute(
         "INSERT INTO quick_scan_owner_refresh_binding VALUES (?,?,?,?)",
         (item["work_item_id"], "ORF_" + digest, text, digest),
     )
 
 
-def guard_send(connection: sqlite3.Connection, item: dict) -> None:
-    if read(connection, item["work_item_id"]) is not None:
-        guard_unresolved(connection, item, exclude_work_id=item["work_item_id"])
+def guard_send(connection: sqlite3.Connection, item: dict, *, now=None) -> None:
+    bound = read(connection, item["work_item_id"])
+    if bound is not None:
+        guard_unresolved(
+            connection,
+            item,
+            exclude_work_id=item["work_item_id"],
+            binding=bound["binding"],
+            now=now,
+        )
     else:
         # A legacy worker must not undercut a bound owner's send in the same
         # logical scope. Legacy-only databases retain their historical behavior.

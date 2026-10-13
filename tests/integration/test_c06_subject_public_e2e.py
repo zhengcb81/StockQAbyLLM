@@ -132,9 +132,9 @@ def owner_identity_request(identity, entity):
     )
 
 
-def invoke(command, tmp_path, label, **env_extra):
+def invoke(command, tmp_path, label, *, timeout=80, **env_extra):
     env = dict(os.environ, **env_extra)
-    result = subprocess.run(command, capture_output=True, timeout=80, env=env, check=False)
+    result = subprocess.run(command, capture_output=True, timeout=timeout, env=env, check=False)
     (tmp_path / (label + ".stdout.log")).write_bytes(result.stdout)
     (tmp_path / (label + ".stderr.log")).write_bytes(result.stderr)
     assert result.returncode == 0, (result.stdout + result.stderr).decode("utf-8", errors="replace")

@@ -182,16 +182,16 @@ class RefreshConsentClient:
         ):
             raise ValueError("native read receipt invalid")
         root = Path(self.owner.config["iqs_code_root"]) / "schemas/quick_scan"
-        new_dialect = result["request"].get("protocol") == "iqs.refresh_request/1.1.0"
-        names = (
-            (
-                "refresh-v1.1.schema.json",
-                "query-v2.schema.json",
-                "query-v2.6.schema.json",
-            )
-            if new_dialect
-            else ("refresh-v1.schema.json", "query-v2.schema.json")
-        )
+        dialect = result["request"].get("protocol")
+        refresh_name = {
+            "iqs.refresh_request/1.0.0": "refresh-v1.schema.json",
+            "iqs.refresh_request/1.1.0": "refresh-v1.1.schema.json",
+            "iqs.refresh_request/1.2.0": "refresh-v1.2.schema.json",
+            "iqs.refresh_request/1.3.0": "refresh-v1.3.schema.json",
+        }.get(dialect)
+        if refresh_name is None:
+            raise ValueError("unsupported explicit refresh dialect")
+        names = (refresh_name, "query-v2.schema.json", "query-v2.6.schema.json")
         schemas = [_read((root / name).read_bytes()) for name in names]
         registry = Registry().with_resources((s["$id"], Resource.from_contents(s)) for s in schemas)
         for field, kind in [

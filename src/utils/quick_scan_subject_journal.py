@@ -203,10 +203,11 @@ def guard_send(connection, item, attempt_id):
 
     owner_bound = owner_binding(connection, item["work_item_id"])
     if context is None:
-        if (
-            owner_bound is not None
-            and owner_bound["binding"]["protocol"] == "stockqa.owner_refresh_binding/2.0.0"
-        ):
+        if owner_bound is not None and owner_bound["binding"]["protocol"] in {
+            "stockqa.owner_refresh_binding/2.0.0",
+            "stockqa.owner_refresh_binding/3.0.0",
+            "stockqa.owner_refresh_binding/4.0.0",
+        }:
             raise WorkConflictError("subject_dispatch_context2_required")
         return
     row = connection.execute(

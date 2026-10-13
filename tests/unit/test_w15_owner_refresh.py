@@ -44,9 +44,16 @@ def test_owner_binding_is_registered_and_stable_across_schema15_restart(tmp_path
         **_spec(generation=2), run_id="RUN_1", scan_id="SCAN_1", owner_refresh_binding=_binding()
     )
     from src.utils.quick_scan_refresh_admission_journal import DDL_V16_ADDITIONS
+    from src.utils.quick_scan_work_store import (
+        _DDL_V17_ADDITIONS,
+        _DDL_V18_ADDITIONS,
+        _DDL_V19_ADDITIONS,
+    )
 
     with store._transaction() as con:
-        for ddl in reversed(DDL_V16_ADDITIONS):
+        for ddl in reversed(
+            DDL_V16_ADDITIONS + _DDL_V17_ADDITIONS + _DDL_V18_ADDITIONS + _DDL_V19_ADDITIONS
+        ):
             words = ddl.split()
             con.execute("DROP " + words[1] + " " + words[2])
         con.execute("PRAGMA user_version=15")
@@ -132,12 +139,26 @@ def test_schema13_migration_is_additive_and_keeps_old_item_bytes(tmp_path):
     from src.utils.quick_scan_owner_refresh_journal import DDL_V14_ADDITIONS
     from src.utils.quick_scan_refresh_admission_journal import DDL_V16_ADDITIONS
     from src.utils.quick_scan_subject_journal import DDL_V15_ADDITIONS
+    from src.utils.quick_scan_work_store import (
+        _DDL_V17_ADDITIONS,
+        _DDL_V18_ADDITIONS,
+        _DDL_V19_ADDITIONS,
+    )
 
     store = QuickScanWorkStore(tmp_path / "work.sqlite")
     old = _created(store)
     with closing(sqlite3.connect(store.path)) as con:
         # Construct actual v13 by removing all later registered extensions.
-        for ddl in reversed((*DDL_V14_ADDITIONS, *DDL_V15_ADDITIONS, *DDL_V16_ADDITIONS)):
+        for ddl in reversed(
+            (
+                *DDL_V14_ADDITIONS,
+                *DDL_V15_ADDITIONS,
+                *DDL_V16_ADDITIONS,
+                *_DDL_V17_ADDITIONS,
+                *_DDL_V18_ADDITIONS,
+                *_DDL_V19_ADDITIONS,
+            )
+        ):
             words = ddl.split()
             con.execute("DROP " + words[1] + " " + words[2])
         con.execute("PRAGMA user_version=13")

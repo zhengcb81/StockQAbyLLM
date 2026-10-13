@@ -366,6 +366,40 @@ class RefreshAdmissionService:
                     bundle = bundles[canonical_sha256(item["subject_ref"])]
                     session, qid = bundle["session"], item["question_id"]
                     planned = session.fields[qid]
+                    controlled_binding = None
+                    if proof["request"]["protocol"] in {
+                        "iqs.refresh_request/1.2.0",
+                        "iqs.refresh_request/1.3.0",
+                    }:
+                        from .quick_scan_owner_refresh_journal import native_control
+
+                        control = item["owner_control"]
+                        if control["cohort_id"] != proof["request"]["cohort_id"]:
+                            raise AdmissionRejected("refresh_admission_control_cohort_mismatch")
+                        controlled_binding = session.binding(qid, owner_control=control)
+                        synthetic_target = dict(
+                            entity_id=item["subject_ref"]["entity_id"],
+                            question_id=qid,
+                            scope=item["subject_ref"]["scope"],
+                            scope_id=item["subject_ref"]["scope_id"],
+                            identity_revision=bundle["identity"]["identity_revision"],
+                            generation=control["target_generation"],
+                        )
+                        with closing(self.store._connect()) as connection:
+                            source = native_control(
+                                connection,
+                                synthetic_target,
+                                controlled_binding,
+                                now=self.store._now(),
+                                require_ready=True,
+                            )
+                        planned = dict(
+                            planned,
+                            decision="dispatch_new_generation",
+                            generation=control["target_generation"],
+                            reuse_observation_id=None,
+                            existing_work_status=source["status"],
+                        )
                     for key in (
                         "decision",
                         "generation",
@@ -393,7 +427,11 @@ class RefreshAdmissionService:
                         "dispatch_new_work",
                         "dispatch_new_generation",
                     }:
-                        binding = session.binding(qid)
+                        binding = (
+                            controlled_binding
+                            if controlled_binding is not None
+                            else session.binding(qid)
+                        )
                     elif item["decision"] == "resume_existing_work":
                         work = session.existing_work(qid)
                         if work is None:
@@ -415,7 +453,12 @@ class RefreshAdmissionService:
                             question_fingerprint=hashlib.sha256(
                                 bundle["questions"][qid].text.strip().encode("utf-8")
                             ).hexdigest(),
-                            routing_fingerprint=routing_fingerprints(session)[qid],
+                            routing_fingerprint=canonical_sha256(
+                                dict(
+                                    subject_key=binding["subject_key"],
+                                    request_identity_key=binding["request_identity_key"],
+                                )
+                            ),
                             owner_refresh_binding=binding,
                         )
                     )

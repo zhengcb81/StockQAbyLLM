@@ -22,7 +22,11 @@ def main(argv=None):
     parser.add_argument("--ledger", type=Path, required=True)
     parser.add_argument("--policy", type=Path, required=True)
     parser.add_argument("--request", type=Path, required=True)
-    parser.add_argument("--schema-version", choices=("1.0.0", "1.1.0"), default="1.0.0")
+    parser.add_argument(
+        "--schema-version",
+        choices=("1.0.0", "1.1.0", "1.2.0", "1.3.0"),
+        default="1.0.0",
+    )
     args = parser.parse_args(argv)
     try:
         result = inspect_refresh(

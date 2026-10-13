@@ -767,6 +767,86 @@ def _check_owner_refresh_guard() -> None:
             raise QuickScanWorkPersistenceError("owner_refresh_guard_rejected") from error
 
 
+def assert_controlled_generation_payload(payload, *, provider, protocol):
+    """Compare the actual native body with durable controls before any attempt.
+
+    No body is logged or persisted. The normal owner guard is still required
+    and invoked again by begin_quick_scan_send after capacity waits.
+    """
+    pack = _QUESTION_PACK_BINDING.get()
+    work = _WORK_BINDING.get()
+    if pack is not None:
+        store, work_ids = pack.store, [member[0] for member in pack.members]
+    elif work is not None:
+        store, work_ids = work.store, [work.work_item_id]
+    else:
+        return
+    bindings = [store.get_owner_refresh_binding(work_id) for work_id in work_ids]
+    controlled = [
+        record["binding"]
+        for record in bindings
+        if record is not None
+        and record["binding"]["protocol"]
+        in {
+            "stockqa.owner_refresh_binding/3.0.0",
+            "stockqa.owner_refresh_binding/4.0.0",
+        }
+    ]
+    if not controlled:
+        return
+    if len(controlled) != len(work_ids) or _OWNER_REFRESH_GUARD.get() is None:
+        raise QuickScanWorkPersistenceError("controlled_generation_owner_scope_required")
+    cohorts = {binding["owner_control"]["cohort_id"] for binding in controlled}
+    if len(cohorts) != 1:
+        raise QuickScanWorkPersistenceError("controlled_generation_cohort_mismatch")
+    for binding in controlled:
+        if provider != binding["provider"] or payload.get("model") != binding["model"]:
+            raise QuickScanWorkPersistenceError("controlled_generation_route_mismatch")
+        if binding["protocol"] == "stockqa.owner_refresh_binding/4.0.0":
+            target = binding["owner_control"]["comparison_target"]
+            route = _ROUTE_BINDING.get()
+            budget = _BUDGET_BINDING.get()
+            if (
+                route is None
+                or budget is None
+                or budget.store is not store
+                or route.route_id != target["route_id"]
+                or route.provider != target["provider_config_ref"]
+                or route.model_requested != target["model"]
+                or budget.policy.get("policy_id") != target["policy_id"]
+            ):
+                raise QuickScanWorkPersistenceError(
+                    "controlled_generation_approved_target_route_mismatch"
+                )
+        expected = binding["owner_control"]["comparison_controls"]
+        if expected is None:
+            continue
+        if len(work_ids) > expected["pack_size"] or pack is None and expected["pack_size"] != 1:
+            raise QuickScanWorkPersistenceError("controlled_generation_pack_mismatch")
+        if protocol == "mimo_chat_completions":
+            thinking = {"enabled": True, "disabled": False}.get(
+                payload.get("thinking", {}).get("type")
+            )
+            tokens = payload.get("max_completion_tokens")
+        elif protocol == "anthropic_messages":
+            thinking = {"adaptive": True, "disabled": False}.get(
+                payload.get("thinking", {}).get("type")
+            )
+            tokens = payload.get("max_tokens")
+        elif protocol == "responses" and provider == "deepseek":
+            thinking = True if payload.get("reasoning") == {"effort": "high"} else None
+            tokens = payload.get("max_output_tokens")
+        else:
+            raise QuickScanWorkPersistenceError("controlled_generation_protocol_unverified")
+        if (
+            type(thinking) is not bool
+            or thinking != expected["thinking_enabled"]
+            or type(tokens) is not int
+            or tokens != expected["max_output_tokens"]
+        ):
+            raise QuickScanWorkPersistenceError("controlled_generation_payload_mismatch")
+
+
 def _classify_transport_failure(receipt: dict) -> tuple[str, Optional[str]]:
     """The existing single and pack boundaries share one refusal policy."""
     status = receipt.get("http_status_code")

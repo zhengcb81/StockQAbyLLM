@@ -63,7 +63,12 @@ def attach_owner_refresh_batch(store, specifications, *, run_id, scan_id, rechec
         binding = spec["owner_refresh_binding"]
         if (
             not isinstance(binding, dict)
-            or binding.get("protocol") != "stockqa.owner_refresh_binding/2.0.0"
+            or binding.get("protocol")
+            not in {
+                "stockqa.owner_refresh_binding/2.0.0",
+                "stockqa.owner_refresh_binding/3.0.0",
+                "stockqa.owner_refresh_binding/4.0.0",
+            }
             or binding.get("subject_context_schema")
             != "stockqa.quick_scan_observation_context/2.0.0"
         ):

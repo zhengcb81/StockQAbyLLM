@@ -463,13 +463,28 @@ class OwnerRefreshSession:
         self.check()
         return receipt
 
-    def binding(self, qid: str) -> dict | None:
+    def binding(self, qid: str, *, owner_control: dict | None = None) -> dict | None:
         row = self.fields[qid]
+        if owner_control is not None:
+            if self.observation_context is None:
+                raise OwnerRefreshRejected("owner_refresh_control_requires_context2")
+            row = dict(
+                row,
+                decision="dispatch_new_generation",
+                generation=owner_control["target_generation"],
+                request_identity_key=canonical_sha256(
+                    dict(
+                        ordinary_request_identity_key=row["request_identity_key"],
+                        owner_control=owner_control,
+                    )
+                ),
+            )
         if row["decision"] not in {"dispatch_new_work", "dispatch_new_generation"}:
             return None
         projected = self.projection.get(qid)
         if (
             projected is not None
+            and owner_control is None
             and row.get("freshness_status") == "absent"
             and projected["status"] == "delivered"
         ):
@@ -477,9 +492,17 @@ class OwnerRefreshSession:
         scope = self.scope_bindings[qid]
         binding = dict(
             protocol=(
-                "stockqa.owner_refresh_binding/2.0.0"
-                if self.observation_context is not None
-                else "stockqa.owner_refresh_binding/1.0.0"
+                "stockqa.owner_refresh_binding/4.0.0"
+                if owner_control is not None and owner_control.get("comparison_target") is not None
+                else (
+                    "stockqa.owner_refresh_binding/3.0.0"
+                    if owner_control is not None
+                    else (
+                        "stockqa.owner_refresh_binding/2.0.0"
+                        if self.observation_context is not None
+                        else "stockqa.owner_refresh_binding/1.0.0"
+                    )
+                )
             ),
             subject_key=self.plan["subject_key"],
             perimeter_sha256=self.plan["perimeter_sha256"],
@@ -499,6 +522,8 @@ class OwnerRefreshSession:
         )
         if self.observation_context is not None:
             binding["subject_context_schema"] = self.observation_context["schema"]
+        if owner_control is not None:
+            binding["owner_control"] = copy.deepcopy(owner_control)
         return binding
 
     def existing_work(self, qid: str) -> dict | None:
@@ -507,7 +532,14 @@ class OwnerRefreshSession:
         projected = self.projection.get(qid)
         if not projected:
             raise OwnerRefreshRejected("owner_refresh_existing_work_missing")
-        return self.store.get_item(projected["work_item_id"])
+        item = self.store.get_item(projected["work_item_id"])
+        binding = self.store.get_owner_refresh_binding(item["work_item_id"])
+        if binding is not None and binding["binding"]["protocol"] in {
+            "stockqa.owner_refresh_binding/3.0.0",
+            "stockqa.owner_refresh_binding/4.0.0",
+        }:
+            raise OwnerRefreshRejected("owner_refresh_controlled_admission_required")
+        return item
 
     def reference(self, question):
         from datetime import datetime

@@ -300,7 +300,7 @@ def _validate_members(store, connection, pack, *, guard_subject, now):
             "SELECT 1 FROM answer_checkpoint WHERE work_item_id=?", (member["work_item_id"],)
         ).fetchone():
             raise WorkConflictError("question pack member already has an answer checkpoint")
-        guard_owner_send(connection, dict(item))
+        guard_owner_send(connection, dict(item), now=now)
         if guard_subject:
             guard_subject_send(connection, dict(item), member["attempt_id"])
             row = connection.execute(

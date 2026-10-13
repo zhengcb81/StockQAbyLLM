@@ -1838,6 +1838,12 @@ class LLMRunner:
                         "questions.json": config,
                     },
                 )
+                if approved_session.needs_new_dispatch:
+                    approved_session.assert_execution_controls(
+                        pack_size=question_pack_size,
+                        thinking_enabled=generation_options.get("thinking_enabled"),
+                        max_output_tokens=generation_options.get("max_output_tokens"),
+                    )
             readonly_recovery = (
                 approved_session is not None and not approved_session.needs_new_dispatch
             )
@@ -2007,14 +2013,23 @@ class LLMRunner:
                             "attempt its reserved cost will remain unpriced and dispatch will pause.",
                             policy["cost_policy"]["pricing_ref"],
                         )
-                    budget_store = QuickScanWorkStore(
-                        llm_config.config_file.parent / "quick_scan_work.sqlite"
+                    budget_store = (
+                        approved_session.service.store
+                        if approved_session is not None
+                        else QuickScanWorkStore(
+                            llm_config.config_file.parent / "quick_scan_work.sqlite"
+                        )
                     )
                     provider_health = QuickScanProviderHealth(
                         llm_config.config_file.parent / "quick_scan_health.sqlite"
                     )
                     route_providers: List[Optional[LLMProvider]] = []
-                    for route in policy["routes"]:
+                    execution_routes = (
+                        approved_session.execution_routes(policy)
+                        if approved_session is not None
+                        else policy["routes"]
+                    )
+                    for route in execution_routes:
                         if not route["eligible"]:
                             route_providers.append(None)
                             continue
@@ -2069,25 +2084,31 @@ class LLMRunner:
 
                     llm_provider: SearchProvider = OrderedSearchProviderCascade(
                         providers=route_providers,
-                        routes=policy["routes"],
+                        routes=execution_routes,
                         policy_version=policy["policy_version"],
                         max_attempts_per_dispatch_round=policy["max_attempts_per_dispatch_round"],
                         require_search=True,
                         health_store=provider_health,
                         quota_groups=policy["quota_groups"],
-                        policy_source={
-                            "policy_provider": policy_provider,
-                            "provider_factory": lambda snapshot: self._build_route_providers(
-                                snapshot,
-                                company=company,
-                                entity_id=entity_id,
-                                config_file=llm_config.config_file,
-                                **generation_options,
-                            ),
-                            "effective_mode": lambda: self._read_policy_effective_mode(
-                                llm_config.config_file
-                            ),
-                        },
+                        policy_source=(
+                            None
+                            if approved_session is not None
+                            and approved_session.proof["request"]["protocol"]
+                            == "iqs.refresh_request/1.3.0"
+                            else {
+                                "policy_provider": policy_provider,
+                                "provider_factory": lambda snapshot: self._build_route_providers(
+                                    snapshot,
+                                    company=company,
+                                    entity_id=entity_id,
+                                    config_file=llm_config.config_file,
+                                    **generation_options,
+                                ),
+                                "effective_mode": lambda: self._read_policy_effective_mode(
+                                    llm_config.config_file
+                                ),
+                            }
+                        ),
                     )
                 else:
                     # Preserve existing retry behavior until the user activates
@@ -2162,7 +2183,15 @@ class LLMRunner:
                 primary_route = None
                 if quick_scan_policy is not None and quick_scan_policy.get("configured"):
                     primary_route = next(
-                        (r for r in quick_scan_policy.get("routes", []) if r.get("eligible")),
+                        (
+                            r
+                            for r in (
+                                approved_session.execution_routes(quick_scan_policy)
+                                if approved_session is not None
+                                else quick_scan_policy.get("routes", [])
+                            )
+                            if r.get("eligible")
+                        ),
                         None,
                     )
                     if primary_route is not None:

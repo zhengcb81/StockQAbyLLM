@@ -59,7 +59,9 @@ def registered_scope(items, bundle, record, *, information_cutoff):
             ):
                 raise AdmissionRejected("refresh_execution_reference_mismatch")
             result[qid] = dict(
-                kind="reference", item=copy.deepcopy(item), reference=copy.deepcopy(descriptor)
+                kind="reference",
+                item=copy.deepcopy(item),
+                reference=copy.deepcopy(descriptor),
             )
             continue
         spec, receipt = works[0]
@@ -78,13 +80,34 @@ def registered_scope(items, bundle, record, *, information_cutoff):
             )
             or any(
                 canonical_bytes(receipt.get(key)) != canonical_bytes(spec[key])
-                for key in ("entity_id", "question_id", "generation", "scope", "scope_id")
+                for key in (
+                    "entity_id",
+                    "question_id",
+                    "generation",
+                    "scope",
+                    "scope_id",
+                )
             )
             or canonical_bytes(spec["generation"]) != canonical_bytes(item["generation"])
             or spec["question_fingerprint"]
             != hashlib.sha256(bundle["questions"][qid].text.strip().encode("utf-8")).hexdigest()
             or spec["routing_fingerprint"] != expected_routing
-            or binding.get("protocol") != "stockqa.owner_refresh_binding/2.0.0"
+            or binding.get("protocol")
+            not in {
+                "stockqa.owner_refresh_binding/2.0.0",
+                "stockqa.owner_refresh_binding/3.0.0",
+                "stockqa.owner_refresh_binding/4.0.0",
+            }
+            or (
+                binding.get("protocol")
+                in {
+                    "stockqa.owner_refresh_binding/3.0.0",
+                    "stockqa.owner_refresh_binding/4.0.0",
+                }
+            )
+            != (item.get("owner_control") is not None)
+            or canonical_bytes(binding.get("owner_control"))
+            != canonical_bytes(item.get("owner_control"))
             or binding.get("subject_context_schema")
             != "stockqa.quick_scan_observation_context/2.0.0"
             or binding.get("subject_key")
@@ -94,7 +117,13 @@ def registered_scope(items, bundle, record, *, information_cutoff):
             or binding.get("information_cutoff") != information_cutoff
             or any(
                 canonical_bytes(binding.get(key)) != canonical_bytes(spec[key])
-                for key in ("entity_id", "question_id", "scope", "scope_id", "identity_revision")
+                for key in (
+                    "entity_id",
+                    "question_id",
+                    "scope",
+                    "scope_id",
+                    "identity_revision",
+                )
             )
             or canonical_bytes(binding.get("target_generation"))
             != canonical_bytes(spec["generation"])
@@ -177,6 +206,7 @@ class ApprovedRefreshSession:
         self.scope_bindings = {qid: copy.deepcopy(native.scope_bindings[qid]) for qid in entries}
         self.fields, self.work, self.deferred = {}, {}, {}
         self._policy_check = None
+        self._execution_controls = None
         self._refresh_states()
 
     def _refresh_states(self):
@@ -207,6 +237,15 @@ class ApprovedRefreshSession:
                     # Resuming the exact approved work, never the new generation
                     # a later owner plan might propose under this old action.
                     field.update(decision="resume_existing_work", generation=item["generation"])
+                    binding = entry["specification"]["owner_refresh_binding"]
+                    if binding["protocol"] in {
+                        "stockqa.owner_refresh_binding/3.0.0",
+                        "stockqa.owner_refresh_binding/4.0.0",
+                    }:
+                        field.update(
+                            owner_control=copy.deepcopy(binding["owner_control"]),
+                            request_identity_key=binding["request_identity_key"],
+                        )
                 if item["status"] == "delivered" and field["decision"] != "defer":
                     delivery = self.service.store.get_result_delivery(item["work_item_id"])
                     original = self.plan.get("reused_observations", {}).get(
@@ -238,6 +277,15 @@ class ApprovedRefreshSession:
         )
 
     def check(self):
+        if (
+            self.proof["request"]["protocol"]
+            in {"iqs.refresh_request/1.2.0", "iqs.refresh_request/1.3.0"}
+            and self.needs_new_dispatch
+        ):
+            controls = getattr(self, "_execution_controls", None)
+            if not isinstance(controls, dict):
+                raise AdmissionRejected("refresh_execution_approved_controls_required")
+            self.assert_execution_controls(**controls)
         self.service._inputs_unchanged(self.bundles)
         if any(
             _snapshot(path)[1] != self.input_raw[name] for name, path in self.input_paths.items()
@@ -259,6 +307,41 @@ class ApprovedRefreshSession:
         if self._policy_check is not None:
             self._policy_check()
         self.native.check()
+
+    def assert_execution_controls(self, *, pack_size, thinking_enabled, max_output_tokens):
+        if self.proof["request"]["protocol"] not in {
+            "iqs.refresh_request/1.2.0",
+            "iqs.refresh_request/1.3.0",
+        }:
+            return
+        actual = dict(
+            pack_size=pack_size,
+            thinking_enabled=thinking_enabled,
+            max_output_tokens=max_output_tokens,
+        )
+        for entry in self.entries.values():
+            if entry["kind"] != "work":
+                raise AdmissionRejected("refresh_execution_approved_controls_scope_invalid")
+            binding = entry["specification"]["owner_refresh_binding"]
+            control = binding.get("owner_control")
+            expected_version = (
+                "4.0.0"
+                if self.proof["request"]["protocol"] == "iqs.refresh_request/1.3.0"
+                else "3.0.0"
+            )
+            if (
+                binding["protocol"] != "stockqa.owner_refresh_binding/" + expected_version
+                or not isinstance(control, dict)
+                or control["cohort_id"] != self.proof["request"]["cohort_id"]
+            ):
+                raise AdmissionRejected("refresh_execution_approved_controls_scope_invalid")
+            expected = control["comparison_controls"]
+            if expected is not None and (
+                any(type(actual[k]) is not type(v) for k, v in expected.items())
+                or actual != expected
+            ):
+                raise AdmissionRejected("refresh_execution_approved_controls_mismatch")
+        self._execution_controls = actual
 
     def assert_executor_policy(self, config_file, policy, *, policy_reader=None):
         if (
@@ -286,6 +369,39 @@ class ApprovedRefreshSession:
         if qid not in self.entries:
             raise AdmissionRejected("refresh_execution_question_not_approved")
         return None  # Every approved work already exists in the original Q13.
+
+    def execution_routes(self, policy):
+        """Select approved targets without editing the original budget snapshot."""
+        if self.proof["request"]["protocol"] != "iqs.refresh_request/1.3.0":
+            return copy.deepcopy(policy["routes"])
+        expected = self.proof["owner_policy"]
+        qa = expected["qa"]
+        selected = [
+            route
+            for route in policy["routes"]
+            if route["id"] == qa["route_id"]
+            and route["provider_config_ref"] == qa["provider_config_ref"]
+            and route["model"] == expected["model"]
+            and route.get("eligible") is True
+        ]
+        if len(selected) != 1 or policy["policy_id"] != qa["policy_id"]:
+            raise AdmissionRejected("refresh_execution_target_route_unavailable")
+        for entry in self.entries.values():
+            if entry["kind"] != "work":
+                raise AdmissionRejected("refresh_execution_target_scope_invalid")
+            target = entry["specification"]["owner_refresh_binding"]["owner_control"].get(
+                "comparison_target"
+            )
+            if target != dict(
+                provider=expected["provider"],
+                model=expected["model"],
+                route_id=qa["route_id"],
+                provider_config_ref=qa["provider_config_ref"],
+                policy_id=qa["policy_id"],
+                owner_policy_sha256=canonical_sha256(expected),
+            ):
+                raise AdmissionRejected("refresh_execution_target_not_approved")
+        return copy.deepcopy(selected)
 
     def existing_work(self, qid):
         entry = self.entries.get(qid)
@@ -375,7 +491,9 @@ class ApprovedRefreshSession:
             ):
                 self.check()
                 seal_result_delivery(
-                    self.service.store, item["work_item_id"], authority=self.bundle["authority"]
+                    self.service.store,
+                    item["work_item_id"],
+                    authority=self.bundle["authority"],
                 )
                 delivery = self.service.store.get_result_delivery(item["work_item_id"])
             if delivery is not None:

@@ -25,6 +25,7 @@ from src.providers.model_resolution import (
 from src.utils.http_client import http_client_manager
 from src.utils.logger import get_logger
 from src.utils.quick_scan_work_transport import (
+    assert_controlled_generation_payload,
     attach_external_use_proof,
     begin_quick_scan_send,
     frozen_quick_scan_model_resolution,
@@ -1523,6 +1524,7 @@ class LLMClient:
         )
         resolution = frozen_quick_scan_model_resolution(self.model_resolution)
         attempt_id = str(uuid.uuid4())
+        assert_controlled_generation_payload(data, provider=provider, protocol=protocol)
         work_attempt = begin_quick_scan_send(
             prompt,
             system_prompt,
@@ -1733,6 +1735,7 @@ class AsyncLLMClient:
         )
         resolution = frozen_quick_scan_model_resolution(self.model_resolution)
         attempt_id = str(uuid.uuid4())
+        assert_controlled_generation_payload(data, provider=provider, protocol=protocol)
         work_attempt = begin_quick_scan_send(
             prompt,
             system_prompt,
