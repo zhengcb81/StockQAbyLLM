@@ -25,7 +25,10 @@ def _q10_response(model):
                 "type": "web_search_call",
                 "id": "q10-search",
                 "status": "completed",
-                "action": {"type": "search", "sources": [{"url": "https://example.org/source"}]},
+                "action": {
+                    "type": "search",
+                    "sources": [{"url": "https://example.org/source"}],
+                },
             },
             {
                 "type": "message",
@@ -84,7 +87,12 @@ def test_q10_registered_openai_alias_preserves_both_models(monkeypatch):
 @pytest.mark.parametrize(
     "provider,protocol,requested,url",
     [
-        ("openai", "responses", "synthetic-requested", "https://api.openai.com/v1/responses"),
+        (
+            "openai",
+            "responses",
+            "synthetic-requested",
+            "https://api.openai.com/v1/responses",
+        ),
         ("minimax", "responses", "MiniMax-M3", "https://api.minimax.io/v1/responses"),
         (
             "minimax",
@@ -116,7 +124,12 @@ def test_q10_native_protocols_share_exact_or_registered_resolution(
                 {
                     "type": "web_search_tool_result",
                     "tool_use_id": "q10-search",
-                    "content": [{"type": "web_search_result", "url": "https://example.org/source"}],
+                    "content": [
+                        {
+                            "type": "web_search_result",
+                            "url": "https://example.org/source",
+                        }
+                    ],
                 },
                 {"type": "text", "text": "synthetic answer"},
             ],
@@ -131,7 +144,10 @@ def test_q10_native_protocols_share_exact_or_registered_resolution(
                     "message": {
                         "content": "synthetic answer",
                         "annotations": [
-                            {"type": "url_citation", "url": "https://example.org/source"}
+                            {
+                                "type": "url_citation",
+                                "url": "https://example.org/source",
+                            }
                         ],
                     },
                 }
@@ -146,7 +162,7 @@ def test_q10_native_protocols_share_exact_or_registered_resolution(
                 if provider != "minimax"
                 else (
                     "minimax",
-                    "responses" if protocol == "anthropic_messages" else "anthropic_messages",
+                    ("responses" if protocol == "anthropic_messages" else "anthropic_messages"),
                 )
             )
         aliases = [
@@ -173,7 +189,8 @@ def test_q10_native_protocols_share_exact_or_registered_resolution(
     else:
         session.post.return_value = response
         monkeypatch.setattr(
-            "src.providers.llm_client.http_client_manager.get_sync_session", lambda: session
+            "src.providers.llm_client.http_client_manager.get_sync_session",
+            lambda: session,
         )
         client = LLMClient(
             "synthetic", requested, url, provider_name=provider, model_resolution=policy
@@ -188,7 +205,11 @@ def test_q10_native_protocols_share_exact_or_registered_resolution(
 
 @pytest.mark.parametrize(
     "raw",
-    [b'{"model":"a","model":"b"}', b'{"model":"a","number":NaN}', b'{"model":"a","number":1e999}'],
+    [
+        b'{"model":"a","model":"b"}',
+        b'{"model":"a","number":NaN}',
+        b'{"model":"a","number":1e999}',
+    ],
 )
 def test_q10_raw_duplicate_or_nonfinite_json_cannot_be_success(monkeypatch, raw):
     response = _q10_response("fixture-requested")
@@ -204,7 +225,9 @@ def test_q10_raw_duplicate_or_nonfinite_json_cannot_be_success(monkeypatch, raw)
         ).send_search_request("synthetic")
 
 
-def test_q10_strict_raw_json_is_the_model_source_even_if_json_method_disagrees(monkeypatch):
+def test_q10_strict_raw_json_is_the_model_source_even_if_json_method_disagrees(
+    monkeypatch,
+):
     response = _q10_response("forged-json-method-model")
     payload = dict(response.json.return_value)
     payload["model"] = "fixture-requested"
@@ -266,7 +289,12 @@ def test_q10_async_model_mutation_after_begin_cannot_change_frozen_http_request(
         "configured": True,
         "policy_id": "synthetic-mutation-budget",
         "policy_version": "synthetic-mutation-budget@v1",
-        "budget": {"currency": "USD", "max_cost": 20, "max_requests": 5, "max_cost_per_attempt": 2},
+        "budget": {
+            "currency": "USD",
+            "max_cost": 20,
+            "max_requests": 5,
+            "max_cost_per_attempt": 2,
+        },
         "cost_policy": {
             "pricing_basis": "verified_rate_card",
             "pricing_ref": "synthetic-rates",
@@ -291,7 +319,10 @@ def test_q10_async_model_mutation_after_begin_cannot_change_frozen_http_request(
 
     monkeypatch.setattr("src.providers.llm_client.http_client_manager.get_async_client", get_client)
     try:
-        with bind_quick_scan_work(store, work_id, lease), bind_quick_scan_budget(store, policy):
+        with (
+            bind_quick_scan_work(store, work_id, lease),
+            bind_quick_scan_budget(store, policy),
+        ):
             with bind_quick_scan_route(
                 route_id=route["id"],
                 provider="openai",
@@ -1788,7 +1819,11 @@ def test_mimo_chat_search_binds_only_same_response_url_citations(mock_manager, b
             "action_type": "search",
             "source_urls": ["https://example.com/source"],
             "sources": [
-                {"url": "https://example.com/source", "title": None, "published_date": None}
+                {
+                    "url": "https://example.com/source",
+                    "title": None,
+                    "published_date": None,
+                }
             ],
             "evidence_basis": "url_citation_annotations",
         }
@@ -1935,12 +1970,19 @@ def _b01_thinking_response(protocol, model, *, external=False, final='{"answers"
         if not external:
             content.extend(
                 [
-                    {"type": "server_tool_use", "name": "web_search", "id": "b01-search"},
+                    {
+                        "type": "server_tool_use",
+                        "name": "web_search",
+                        "id": "b01-search",
+                    },
                     {
                         "type": "web_search_tool_result",
                         "tool_use_id": "b01-search",
                         "content": [
-                            {"type": "web_search_result", "url": "https://example.org/source"}
+                            {
+                                "type": "web_search_result",
+                                "url": "https://example.org/source",
+                            }
                         ],
                     },
                 ]
@@ -2011,9 +2053,24 @@ def _b01_thinking_response(protocol, model, *, external=False, final='{"answers"
 
 
 _B01_THINKING_ROUTES = [
-    ("mimo", "mimo_chat_completions", "mimo-v2.6-flash", "https://api.xiaomimimo.com/v1"),
-    ("mimo", "mimo_chat_completions", "mimo-v2.6-pro", "https://token-plan-cn.xiaomimimo.com/v1"),
-    ("minimax", "anthropic_messages", "MiniMax-M3", "https://api.minimax.io/anthropic/v1/messages"),
+    (
+        "mimo",
+        "mimo_chat_completions",
+        "mimo-v2.6-flash",
+        "https://api.xiaomimimo.com/v1",
+    ),
+    (
+        "mimo",
+        "mimo_chat_completions",
+        "mimo-v2.6-pro",
+        "https://token-plan-cn.xiaomimimo.com/v1",
+    ),
+    (
+        "minimax",
+        "anthropic_messages",
+        "MiniMax-M3",
+        "https://api.minimax.io/anthropic/v1/messages",
+    ),
 ]
 
 
@@ -2233,7 +2290,11 @@ def test_b01_thinking_payload_digest_binds_actual_generation_before_send(
     data = session.post.call_args.kwargs["json"]
     actual_sha = hashlib.sha256(
         json.dumps(
-            data, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
+            data,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
         ).encode("utf-8")
     ).hexdigest()
     assert begin.call_args.kwargs["request_payload_sha256"] == actual_sha
@@ -2271,3 +2332,66 @@ def test_b01_thinking_default_does_not_change_legacy_request_or_receipt(monkeypa
     assert "request_payload_sha256" not in result.execution_metadata
     assert "request_generation" not in result.execution_metadata
     assert session.post.call_args.kwargs["json"]["thinking"] == {"type": "disabled"}
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+@pytest.mark.parametrize("failure", [False, True])
+def test_vendor_profile_default_call_captures_final_body_without_optional_controls(
+    monkeypatch, asynchronous, failure
+):
+    """Protocol-unit input only; the real frozen-work selection is tested E2E."""
+    import asyncio
+    import hashlib
+    import json
+
+    session = AsyncMock() if asynchronous else Mock()
+    response = _b01_thinking_response("mimo_chat_completions", "mimo-v2.6-pro")
+    if failure:
+        response.raise_for_status.side_effect = requests.HTTPError("synthetic only")
+    session.post.return_value = response
+    begin = Mock(return_value=None)
+    monkeypatch.setattr("src.providers.llm_client.begin_quick_scan_send", begin)
+    monkeypatch.setattr(
+        "src.providers.llm_client.quick_scan_request_identity_required", lambda: True
+    )
+    monkeypatch.setattr(
+        "src.providers.llm_client.http_client_manager.get_sync_session", lambda: session
+    )
+    monkeypatch.setattr(
+        "src.providers.llm_client.http_client_manager.get_async_client",
+        AsyncMock(return_value=session),
+    )
+    client = (AsyncLLMClient if asynchronous else LLMClient)(
+        "synthetic", "mimo-v2.6-pro", "https://api.xiaomimimo.com/v1"
+    )
+
+    def invoke():
+        return (
+            asyncio.run(client.send_search_request_async("synthetic"))
+            if asynchronous
+            else client.send_search_request("synthetic")
+        )
+
+    if failure:
+        with pytest.raises(LLMTransportAttemptError) as error:
+            invoke()
+        receipt = error.value.attempt_receipt
+    else:
+        receipt = invoke().execution_metadata
+    posted = session.post.call_args.kwargs["json"]
+    digest = hashlib.sha256(
+        json.dumps(
+            posted,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode()
+    ).hexdigest()
+    assert (
+        receipt["request_payload_sha256"]
+        == begin.call_args.kwargs["request_payload_sha256"]
+        == digest
+    )
+    assert "request_generation" not in receipt
+    assert posted["thinking"] == {"type": "disabled"}  # Default semantics unchanged.

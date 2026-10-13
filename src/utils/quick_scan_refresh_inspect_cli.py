@@ -22,16 +22,30 @@ def main(argv=None):
     parser.add_argument("--ledger", type=Path, required=True)
     parser.add_argument("--policy", type=Path, required=True)
     parser.add_argument("--request", type=Path, required=True)
+    parser.add_argument("--schema-version", choices=("1.0.0", "1.1.0"), default="1.0.0")
     args = parser.parse_args(argv)
     try:
-        result = inspect_refresh(args.ledger, read(args.request), policy=read(args.policy))
+        result = inspect_refresh(
+            args.ledger,
+            read(args.request),
+            policy=read(args.policy),
+            schema_version=args.schema_version,
+        )
         print(json.dumps(result, ensure_ascii=False, allow_nan=False))
         return 0
-    except (ValueError, TypeError, KeyError, OSError, UnicodeError, RecursionError, sqlite3.Error):
+    except (
+        ValueError,
+        TypeError,
+        KeyError,
+        OSError,
+        UnicodeError,
+        RecursionError,
+        sqlite3.Error,
+    ):
         print(
             json.dumps(
                 dict(
-                    protocol="stockqa.refresh_inspection/1.0.0",
+                    protocol="stockqa.refresh_inspection/" + args.schema_version,
                     status="rejected",
                     error_code="refresh_executor_inspection_rejected",
                     API_requests=0,

@@ -102,7 +102,11 @@ class RefreshConsentClient:
             owned = Path(source["IQS_C06_OWN"]).resolve()
             env.update(IQS_C06_RUN_INTEGRATION="1", IQS_C06_OWN=str(owned))
             env["PYTHONPATH"] = os.pathsep.join([str(owned / "guard"), env["PYTHONPATH"]])
-            env.update(TEMP=str(owned / "tmp"), TMP=str(owned / "tmp"), TMPDIR=str(owned / "tmp"))
+            env.update(
+                TEMP=str(owned / "tmp"),
+                TMP=str(owned / "tmp"),
+                TMPDIR=str(owned / "tmp"),
+            )
         return env
 
     def inspect(self, confirmation_id, *, mode):
@@ -178,10 +182,17 @@ class RefreshConsentClient:
         ):
             raise ValueError("native read receipt invalid")
         root = Path(self.owner.config["iqs_code_root"]) / "schemas/quick_scan"
-        schemas = [
-            _read((root / name).read_bytes())
-            for name in ("refresh-v1.schema.json", "query-v2.schema.json")
-        ]
+        new_dialect = result["request"].get("protocol") == "iqs.refresh_request/1.1.0"
+        names = (
+            (
+                "refresh-v1.1.schema.json",
+                "query-v2.schema.json",
+                "query-v2.6.schema.json",
+            )
+            if new_dialect
+            else ("refresh-v1.schema.json", "query-v2.schema.json")
+        )
+        schemas = [_read((root / name).read_bytes()) for name in names]
         registry = Registry().with_resources((s["$id"], Resource.from_contents(s)) for s in schemas)
         for field, kind in [
             ("request", "Request"),
@@ -216,7 +227,12 @@ class RefreshConsentClient:
             or preview["policy_sha256"] != canonical_sha256(policy)
             or any(
                 receipt[k] != preview[k]
-                for k in ("request_sha256", "scope_sha256", "owner_state_sha256", "policy_sha256")
+                for k in (
+                    "request_sha256",
+                    "scope_sha256",
+                    "owner_state_sha256",
+                    "policy_sha256",
+                )
             )
             or preview["status"] != "ready"
             or preview["requires_user_confirmation"] is not True
@@ -237,6 +253,8 @@ class RefreshConsentClient:
         route = budget["route_identity"].get(qa["route_id"])
         if (
             qa["policy_id"] != budget["policy_id"]
+            or preview["quote"]["currency"] != budget["currency"]
+            or state["quote"] != preview["quote"]
             or route is None
             or route["provider_config_ref"] != qa["provider_config_ref"]
             or route["model"] != policy["model"]

@@ -241,6 +241,7 @@ def build_complete_c06_package(
     context: dict[str, Any],
     standard_answer: dict[str, Any],
     started_at: str,
+    durable_response: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build the complete-observation C06 package (authority 2.0.0).
 
@@ -284,6 +285,7 @@ def build_complete_c06_package(
             context=context,
             standard_answer=standard_answer,
             started_at=started_at,
+            durable_response=durable_response,
         )
     except ValueError as error:
         raise MissingC06Fields(f"complete observation refused: {error}") from error

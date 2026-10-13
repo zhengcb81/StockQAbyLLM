@@ -69,7 +69,9 @@ class ReadOnlyWorkView(QuickScanWorkStore):
         raise ValueError("refresh_inspection_is_read_only")
 
 
-def inspect_refresh(path, request, *, policy):
+def inspect_refresh(path, request, *, policy, schema_version="1.0.0"):
+    if schema_version not in {"1.0.0", "1.1.0"}:
+        raise ValueError("refresh_inspection_schema_unsupported")
     required = {
         "entity_id",
         "question_ids",
@@ -114,7 +116,8 @@ def inspect_refresh(path, request, *, policy):
         view._inspection_connection = connection
         try:
             stored = connection.execute(
-                "SELECT * FROM quick_scan_budget_policy WHERE policy_id=?", (request["policy_id"],)
+                "SELECT * FROM quick_scan_budget_policy WHERE policy_id=?",
+                (request["policy_id"],),
             ).fetchone()
             if stored is None:
                 raise ValueError("refresh_executor_policy_unavailable")
@@ -145,14 +148,16 @@ def inspect_refresh(path, request, *, policy):
                 question_ids=request["question_ids"],
                 scope_bindings=bindings,
             )
-            if status["currency"] != "USD":
+            allowed_currencies = {"USD", "CNY"} if schema_version == "1.1.0" else {"USD"}
+            if status["currency"] not in allowed_currencies:
                 raise ValueError("refresh_executor_currency_unsupported")
             remaining = max(
-                0, status["max_cost_micros"] - status["spent_micros"] - status["reserved_micros"]
+                0,
+                status["max_cost_micros"] - status["spent_micros"] - status["reserved_micros"],
             )
             requests = max(0, status["max_requests"] - status["requests"])
             quote = dict(
-                currency="USD",
+                currency=status["currency"],
                 max_cost_micros=remaining,
                 max_http_requests=requests,
                 budget_state_sha256=canonical_sha256(
@@ -170,7 +175,7 @@ def inspect_refresh(path, request, *, policy):
                 ),
             )
             return dict(
-                protocol="stockqa.refresh_inspection/1.0.0",
+                protocol="stockqa.refresh_inspection/" + schema_version,
                 request_sha256=canonical_sha256(request),
                 quote=quote,
                 work_items=work,

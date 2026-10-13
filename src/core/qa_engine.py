@@ -97,7 +97,11 @@ def _uncertain_transport_metadata(error: BaseException) -> Dict[str, Any]:
                 "request_id": receipt.get("request_id"),
                 "response_id": receipt.get("response_id"),
                 "search_status": receipt.get("search_status") or "unverified",
-                "execution": {**receipt, "attempt_id": attempt_id, "dispatch_outcome": outcome},
+                "execution": {
+                    **receipt,
+                    "attempt_id": attempt_id,
+                    "dispatch_outcome": outcome,
+                },
                 "attempts": [{**receipt, "attempt_id": attempt_id}],
             }
         current = current.__cause__
@@ -228,7 +232,7 @@ class QAEngine:
                 question_texts,
                 question_pack_size=question_pack_size,
                 thinking_enabled=True if thinking_enabled is None else thinking_enabled,
-                max_output_tokens=8192 if max_output_tokens is None else max_output_tokens,
+                max_output_tokens=(8192 if max_output_tokens is None else max_output_tokens),
             )
 
         batch_result = QABatchResult(total_questions=len(question_texts))
@@ -314,7 +318,10 @@ class QAEngine:
                 if lifecycle_handle is None or not lifecycle_handle.get("claimed"):
                     reason = (lifecycle_handle or {}).get("reason") or "lifecycle_refused"
                     logger.warning(
-                        "[%d/%d] work claim 拒绝（%s），不派发", i, len(question_texts), reason
+                        "[%d/%d] work claim 拒绝（%s），不派发",
+                        i,
+                        len(question_texts),
+                        reason,
                     )
                     refuse_question = hook_question or (
                         question_text
@@ -388,7 +395,9 @@ class QAEngine:
                         metadata=_uncertain_transport_metadata(e),
                     )
                     error_result = QAResult(
-                        question=error_question, answer=error_answer, metadata={"error": str(e)}
+                        question=error_question,
+                        answer=error_answer,
+                        metadata={"error": str(e)},
                     )
                     batch_result.add_result(error_result)
                 except (ConnectionError, TimeoutError):
@@ -545,7 +554,15 @@ class QAEngine:
                 try:
                     answer = self.answer_generator.generate_answer(question, [search_result])
                     if answer.status == "error":
-                        raise ValueError("answer_generator_rejected_member")
+                        failed(
+                            index,
+                            question,
+                            handle,
+                            ValueError("answer_generator_rejected_member"),
+                            response.execution_metadata,
+                            "answer_generator_rejected_member",
+                        )
+                        continue
                     result = QAResult(question=question, answer=answer)
                     lifecycle.after_question(handle, result)
                     output[index] = result

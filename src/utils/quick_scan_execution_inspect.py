@@ -79,7 +79,7 @@ def inspect_executions(path, request):
                     original = delivery["package"]["items"][0]["observation"]
                     context = view.get_observation_context(work)
                     if (
-                        original.get("schema_version") != "1.1.0"
+                        original.get("schema_version") not in {"1.1.0", "1.2.0"}
                         or context is None
                         or context["context"].get("schema")
                         != "stockqa.quick_scan_observation_context/2.0.0"

@@ -40,7 +40,7 @@ from src.utils.quick_scan_refresh_admission_journal import (
 )
 from src.utils.quick_scan_subject_journal import DDL_V15_ADDITIONS as _DDL_V15_ADDITIONS
 
-SCHEMA_VERSION = 17
+SCHEMA_VERSION = 18
 _SAFE_ID = re.compile(r"^[A-Za-z0-9_.-]{1,160}$")
 # Hyphens accepted per owner sign-off (2026-10-05 round-51): the W04
 # identity-export package issues ENT_<uuid> entity ids (e.g. the frozen
@@ -628,7 +628,8 @@ _DDL_V8_ADDITIONS = (
 )
 
 _DDL_CHECKPOINT_V11 = _DDL_V2_ADDITIONS[0].replace(
-    "CHECK (checkpoint_schema_version = 1)", "CHECK (checkpoint_schema_version IN (1,2))"
+    "CHECK (checkpoint_schema_version = 1)",
+    "CHECK (checkpoint_schema_version IN (1,2))",
 )
 
 # Preserve the historical receipt hash recipe. Native event metadata has its
@@ -651,6 +652,13 @@ _DDL_V12_ADDITIONS = (
         BEGIN SELECT RAISE(ABORT,'native events are immutable'); END""",
 )
 
+_DDL_V18_ADDITIONS = (
+    """CREATE TRIGGER quick_scan_work_event_no_update BEFORE UPDATE ON work_event
+        BEGIN SELECT RAISE(ABORT,'work events are immutable'); END""",
+    """CREATE TRIGGER quick_scan_work_event_no_delete BEFORE DELETE ON work_event
+        BEGIN SELECT RAISE(ABORT,'work events are immutable'); END""",
+)
+
 _DDL = (
     _DDL_V1
     + (_DDL_CHECKPOINT_V11,)
@@ -669,6 +677,7 @@ _DDL = (
     + _DDL_V15_ADDITIONS
     + _DDL_V16_ADDITIONS
     + _DDL_V17_ADDITIONS
+    + _DDL_V18_ADDITIONS
 )
 
 _RECEIPT_FIELDS = (
@@ -755,7 +764,11 @@ def _canonical_native_events(value: object) -> list[dict]:
                 raise ValueError("invalid native source metadata")
             sources = []
             for source in original["sources"]:
-                if not isinstance(source, dict) or set(source) - {"url", "title", "published_date"}:
+                if not isinstance(source, dict) or set(source) - {
+                    "url",
+                    "title",
+                    "published_date",
+                }:
                     raise ValueError("invalid native source fields")
                 entry: dict[str, Any] = {"url": _canonical_source_urls([source["url"]])[0]}
                 for key, maximum in (("title", 500), ("published_date", 80)):
@@ -1222,6 +1235,8 @@ class QuickScanWorkStore:
                 cls._validate_schema(connection, schema_version=15)
             elif version == 16:
                 cls._validate_schema(connection, schema_version=16)
+            elif version == 17:
+                cls._validate_schema(connection, schema_version=17)
             elif version != SCHEMA_VERSION:
                 raise ValueError("unsupported quick-scan work database schema version")
             if 1 <= version < 8:
@@ -1261,6 +1276,10 @@ class QuickScanWorkStore:
                 connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             if 1 <= version < 17:
                 for statement in _DDL_V17_ADDITIONS:
+                    connection.execute(statement)
+                connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+            if 1 <= version < 18:
+                for statement in _DDL_V18_ADDITIONS:
                     connection.execute(statement)
                 connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             cls._validate_schema(connection, schema_version=SCHEMA_VERSION)
@@ -1455,11 +1474,26 @@ class QuickScanWorkStore:
         if schema_version >= 7:
             expected.update(
                 {
-                    ("table", "quick_scan_delivery_consumer_binding"): _DDL_V7_ADDITIONS[0],
-                    ("trigger", "quick_scan_consumer_binding_insert_guard"): _DDL_V7_ADDITIONS[1],
-                    ("trigger", "quick_scan_consumer_binding_no_update"): _DDL_V7_ADDITIONS[2],
-                    ("trigger", "quick_scan_consumer_binding_no_delete"): _DDL_V7_ADDITIONS[3],
-                    ("trigger", "quick_scan_delivery_consumer_guard"): _DDL_V7_ADDITIONS[4],
+                    (
+                        "table",
+                        "quick_scan_delivery_consumer_binding",
+                    ): _DDL_V7_ADDITIONS[0],
+                    (
+                        "trigger",
+                        "quick_scan_consumer_binding_insert_guard",
+                    ): _DDL_V7_ADDITIONS[1],
+                    (
+                        "trigger",
+                        "quick_scan_consumer_binding_no_update",
+                    ): _DDL_V7_ADDITIONS[2],
+                    (
+                        "trigger",
+                        "quick_scan_consumer_binding_no_delete",
+                    ): _DDL_V7_ADDITIONS[3],
+                    (
+                        "trigger",
+                        "quick_scan_delivery_consumer_guard",
+                    ): _DDL_V7_ADDITIONS[4],
                 }
             )
         if schema_version >= 8:
@@ -1512,6 +1546,12 @@ class QuickScanWorkStore:
                 expected[(match[1].lower(), match[2])] = statement
         if schema_version >= 17:
             for statement in _DDL_V17_ADDITIONS:
+                match = re.match(r"CREATE (TABLE|TRIGGER) ([A-Za-z_]+)", statement)
+                if match is None:
+                    raise ValueError("quick-scan work database schema mismatch")
+                expected[(match[1].lower(), match[2])] = statement
+        if schema_version >= 18:
+            for statement in _DDL_V18_ADDITIONS:
                 match = re.match(r"CREATE (TABLE|TRIGGER) ([A-Za-z_]+)", statement)
                 if match is None:
                     raise ValueError("quick-scan work database schema mismatch")
@@ -1812,10 +1852,14 @@ class QuickScanWorkStore:
     def _response_record(cls, connection: sqlite3.Connection, row: sqlite3.Row) -> dict:
         receipt = json.loads(row["receipt_json"])
         encoded = json.dumps(
-            _sanitized_receipt(receipt), sort_keys=True, separators=(",", ":"), ensure_ascii=True
+            _sanitized_receipt(receipt),
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
         )
         resolution = connection.execute(
-            "SELECT * FROM quick_scan_attempt_resolution WHERE attempt_id=?", (row["attempt_id"],)
+            "SELECT * FROM quick_scan_attempt_resolution WHERE attempt_id=?",
+            (row["attempt_id"],),
         ).fetchone()
         if resolution is None:
             raise ValueError("durable response has no frozen resolution")
@@ -1916,7 +1960,8 @@ class QuickScanWorkStore:
         if safe.get("response_sha256") is None:
             return  # No decodable HTTP JSON, not a fabricated response.
         resolution = connection.execute(
-            "SELECT * FROM quick_scan_attempt_resolution WHERE attempt_id=?", (attempt_id,)
+            "SELECT * FROM quick_scan_attempt_resolution WHERE attempt_id=?",
+            (attempt_id,),
         ).fetchone()
         if resolution is None:
             raise WorkConflictError("durable response requires a frozen dispatch")
@@ -1932,7 +1977,8 @@ class QuickScanWorkStore:
         _sha256(safe.get("response_sha256"), "HTTP canonical JSON hash")
         encoded = json.dumps(safe, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
         previous = connection.execute(
-            "SELECT * FROM quick_scan_attempt_response WHERE attempt_id=?", (attempt_id,)
+            "SELECT * FROM quick_scan_attempt_response WHERE attempt_id=?",
+            (attempt_id,),
         ).fetchone()
         if previous is not None:
             if previous["receipt_json"] != encoded:
@@ -1957,7 +2003,8 @@ class QuickScanWorkStore:
             ),
         )
         row = connection.execute(
-            "SELECT * FROM quick_scan_attempt_response WHERE attempt_id=?", (attempt_id,)
+            "SELECT * FROM quick_scan_attempt_response WHERE attempt_id=?",
+            (attempt_id,),
         ).fetchone()
         cls._persist_native_events_tx(connection, attempt_id, receipt, new_response=True)
         cls._response_record(connection, row)
@@ -1975,7 +2022,8 @@ class QuickScanWorkStore:
         if final_attempt is None or final_attempt["attempt_id"] != attempt["attempt_id"]:
             raise WorkConflictError("checkpoint requires the final attempt")
         row = connection.execute(
-            "SELECT * FROM quick_scan_attempt_response WHERE attempt_id=?", (attempt["attempt_id"],)
+            "SELECT * FROM quick_scan_attempt_response WHERE attempt_id=?",
+            (attempt["attempt_id"],),
         ).fetchone()
         if row is None:
             raise WorkConflictError("checkpoint requires the durable response")
@@ -1993,7 +2041,8 @@ class QuickScanWorkStore:
     def get_attempt_response(self, attempt_id: str) -> Optional[dict]:
         with closing(self._connect()) as connection:
             row = connection.execute(
-                "SELECT * FROM quick_scan_attempt_response WHERE attempt_id=?", (attempt_id,)
+                "SELECT * FROM quick_scan_attempt_response WHERE attempt_id=?",
+                (attempt_id,),
             ).fetchone()
             return None if row is None else self._response_record(connection, row)
 
@@ -2498,7 +2547,11 @@ class QuickScanWorkStore:
         with self._transaction() as connection:
             if execution_receipt is not None:
                 self._persist_response_tx(
-                    connection, budget_attempt_id, execution_receipt, receipt_sha256=None, now=now
+                    connection,
+                    budget_attempt_id,
+                    execution_receipt,
+                    receipt_sha256=None,
+                    now=now,
                 )
             return self._record_budget_outcome_tx(
                 connection,
@@ -3146,6 +3199,109 @@ class QuickScanWorkStore:
                 new="uncertain" if outcome == "unknown" else "leased",
             )
 
+    def fail_received_without_answer(
+        self, work_item_id: str, lease: Lease, attempt_id: str, *, reason_code: str
+    ) -> str:
+        """Finish only a known received logical failure; never retry or reprice.
+
+        The trusted runner calls this for explicit missing/invalid pack members.
+        Crash recovery, expired leases and uncertain sends are not classified
+        by absence of a checkpoint. Physical response/pack/budget rows stay
+        immutable, and the owner must separately approve a new generation.
+        """
+        if reason_code not in {
+            "missing_question",
+            "invalid_question",
+            "answer_generator_rejected_member",
+        }:
+            raise ValueError("received_without_answer_reason_invalid")
+        event_type = "received_without_answer:" + reason_code
+        with self._transaction() as connection:
+            item = self._item(connection, work_item_id)
+            attempt = connection.execute(
+                "SELECT * FROM attempt WHERE work_item_id=? ORDER BY ordinal DESC LIMIT 1",
+                (work_item_id,),
+            ).fetchone()
+            if (
+                attempt is None
+                or attempt["attempt_id"] != attempt_id
+                or attempt["phase"] != "response_available"
+                or attempt["lease_epoch"] != lease.lease_epoch
+                or attempt["lease_token"] != lease.lease_token
+            ):
+                raise WorkConflictError("received_without_answer_final_attempt_mismatch")
+            response = self._response_for_checkpoint(connection, attempt, attempt["receipt_sha256"])
+            if (
+                response["receipt"].get("http_status_code") != attempt["http_status_code"]
+                or attempt["http_status_code"] is None
+                or not 200 <= attempt["http_status_code"] < 300
+            ):
+                raise WorkConflictError("received_without_answer_response_unavailable")
+            if (
+                connection.execute(
+                    "SELECT 1 FROM answer_checkpoint WHERE work_item_id=?",
+                    (work_item_id,),
+                ).fetchone()
+                or connection.execute(
+                    "SELECT 1 FROM quick_scan_result_delivery WHERE work_item_id=?",
+                    (work_item_id,),
+                ).fetchone()
+            ):
+                raise WorkConflictError("received_without_answer_checkpoint_exists")
+            pack_member = connection.execute(
+                "SELECT pack_id FROM quick_scan_question_pack_member WHERE attempt_id=?",
+                (attempt_id,),
+            ).fetchone()
+            if pack_member is not None:
+                from .quick_scan_question_pack_journal import _read
+
+                pack = _read(connection, pack_member["pack_id"])
+                if (
+                    pack["physical_outcome"] != "response_available"
+                    or pack["members_uncertain"]
+                    or pack["receipt_sha256"] != response["receipt_sha256"]
+                ):
+                    raise WorkConflictError("received_without_answer_pack_unresolved")
+                budget = connection.execute(
+                    "SELECT b.status,t.terminal_outcome FROM quick_scan_budget_attempt b "
+                    "JOIN quick_scan_budget_terminal t USING(budget_attempt_id) WHERE b.budget_attempt_id=?",
+                    (pack["budget_attempt_id"],),
+                ).fetchone()
+                if budget is None or tuple(budget) != ("settled", "completed"):
+                    raise WorkConflictError("received_without_answer_budget_unresolved")
+            if item["status"] == "failed":
+                prior = connection.execute(
+                    "SELECT event_type,attempt_id,lease_epoch FROM work_event WHERE work_item_id=? AND to_status='failed' ORDER BY event_id DESC LIMIT 1",
+                    (work_item_id,),
+                ).fetchone()
+                if prior is None or tuple(prior) != (
+                    event_type,
+                    attempt_id,
+                    lease.lease_epoch,
+                ):
+                    raise WorkConflictError("received_without_answer_terminal_conflict")
+                return "failed"
+            # Capture time after acquiring the SQLite write lock; waiting
+            # for another writer cannot extend an expired lease.
+            now = self._now()
+            self._assert_lease(item, lease, now)
+            connection.execute(
+                "UPDATE work_item SET status='failed',lease_token=NULL,lease_expires_at=NULL,"
+                "uncertain_attempt_id=NULL,updated_at=? WHERE work_item_id=?",
+                (now, work_item_id),
+            )
+            self._event(
+                connection,
+                work_item_id,
+                event_type,
+                lease.lease_epoch,
+                now,
+                attempt_id=attempt_id,
+                old="leased",
+                new="failed",
+            )
+            return "failed"
+
     def recover_expired(self, work_item_id: str) -> str:
         """Release provably unsent work; a send intent is always uncertain."""
         now = self._now()
@@ -3190,7 +3346,7 @@ class QuickScanWorkStore:
             self._event(
                 connection,
                 work_item_id,
-                "lease_expired_uncertain" if unresolved is not None else "lease_expired_unsent",
+                ("lease_expired_uncertain" if unresolved is not None else "lease_expired_unsent"),
                 item["lease_epoch"],
                 now,
                 attempt_id=attempt_id,
@@ -3306,7 +3462,8 @@ class QuickScanWorkStore:
         row = None
         if connection.execute("PRAGMA user_version").fetchone()[0] >= 10:
             row = connection.execute(
-                "SELECT * FROM quick_scan_external_use_intent WHERE attempt_id=?", (attempt_id,)
+                "SELECT * FROM quick_scan_external_use_intent WHERE attempt_id=?",
+                (attempt_id,),
             ).fetchone()
         if row is None:
             if supplied is not None:
@@ -3321,13 +3478,18 @@ class QuickScanWorkStore:
         ):
             raise WorkConflictError("checkpoint requires the actual external context-use proof")
         response_row = connection.execute(
-            "SELECT * FROM quick_scan_attempt_response WHERE attempt_id=?", (attempt_id,)
+            "SELECT * FROM quick_scan_attempt_response WHERE attempt_id=?",
+            (attempt_id,),
         ).fetchone()
         original = QuickScanWorkStore._response_record(connection, response_row)["receipt"]
         urls = _canonical_source_urls(
             list(original.get("source_urls") or []) + proof["source_urls"]
         )
-        return {"proof": proof, "source_urls": urls, "search_receipt_id": proof["use_id"]}
+        return {
+            "proof": proof,
+            "source_urls": urls,
+            "search_receipt_id": proof["use_id"],
+        }
 
     @staticmethod
     def _checkpoint_record(
@@ -3454,7 +3616,9 @@ class QuickScanWorkStore:
             }
             if payload["checkpoint_schema_version"] == 2:
                 projection = QuickScanWorkStore._external_checkpoint_projection(
-                    connection, attempt["attempt_id"], provenance.get("external_context_use")
+                    connection,
+                    attempt["attempt_id"],
+                    provenance.get("external_context_use"),
                 )
                 if (
                     projection is None
@@ -4010,7 +4174,8 @@ class QuickScanWorkStore:
             if (
                 existing is None
                 and connection.execute(
-                    "SELECT 1 FROM attempt WHERE work_item_id=? LIMIT 1", (work_item_id,)
+                    "SELECT 1 FROM attempt WHERE work_item_id=? LIMIT 1",
+                    (work_item_id,),
                 ).fetchone()
                 is not None
             ):
@@ -4065,7 +4230,8 @@ class QuickScanWorkStore:
                 raise WorkConflictError("subject_dispatch_request_work_mismatch")
             validated = journal.validate_receipt(receipt, expected, received_at=now)
             existing = connection.execute(
-                "SELECT * FROM quick_scan_subject_send_receipt WHERE attempt_id=?", (attempt_id,)
+                "SELECT * FROM quick_scan_subject_send_receipt WHERE attempt_id=?",
+                (attempt_id,),
             ).fetchone()
             if existing is not None:
                 original = journal.receipt_record(connection, existing)
@@ -4101,7 +4267,8 @@ class QuickScanWorkStore:
 
         with closing(self._connect()) as connection:
             row = connection.execute(
-                "SELECT * FROM quick_scan_subject_send_receipt WHERE attempt_id=?", (attempt_id,)
+                "SELECT * FROM quick_scan_subject_send_receipt WHERE attempt_id=?",
+                (attempt_id,),
             ).fetchone()
             return None if row is None else receipt_record(connection, row)
 
@@ -4358,7 +4525,9 @@ class QuickScanWorkStore:
                 if canonical_sha256(ack) != result["ack_sha256"]:
                     raise ValueError("ACK hash mismatch")
                 validate_import_ack(
-                    ack, result, expected_consumer=None if binding is None else binding["consumer"]
+                    ack,
+                    result,
+                    expected_consumer=None if binding is None else binding["consumer"],
                 )
                 expected_state = (
                     "delivered"
@@ -4619,11 +4788,26 @@ class QuickScanWorkStore:
             work_item=item,
             question_id=item["question_id"],
         )
+        response = None
+        if bound["metadata"]["schema_version"] == "1.2.0":
+            # Same transaction, actual owner record; an adapter-supplied hash is not proof.
+            actual_attempt = connection.execute(
+                "SELECT * FROM attempt WHERE attempt_id=? AND work_item_id=?",
+                (checkpoint["attempt_id"], work_item_id),
+            ).fetchone()
+            if actual_attempt is None:
+                raise WorkConflictError("complete vendor observation has no actual attempt")
+            response = self._response_for_checkpoint(
+                connection,
+                actual_attempt,
+                checkpoint["payload"]["provenance"]["receipt_sha256"],
+            )
         expected = build_observation(
             checkpoint["payload"],
             context=bound,
             standard_answer=json.loads(answer_row["answer_json"]),
             started_at=started_at,
+            durable_response=response,
         )
         if canonical_sha256(expected) != canonical_sha256(observation):
             raise WorkConflictError(
@@ -5418,7 +5602,8 @@ class QuickScanWorkStore:
         from src.utils.quick_scan_question_pack_journal import mark
 
         return cast(
-            dict, mark(self, pack_id, budget_policy=budget_policy, budget_route=budget_route)
+            dict,
+            mark(self, pack_id, budget_policy=budget_policy, budget_route=budget_route),
         )
 
     def validate_question_pack_for_post(self, pack_id: str) -> dict:

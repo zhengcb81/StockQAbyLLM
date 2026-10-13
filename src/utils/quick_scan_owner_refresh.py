@@ -297,10 +297,13 @@ class OwnerRefreshClient:
             from src.utils.quick_scan_subject_context import CONTEXT_SCHEMA
 
             validate_context_document(
-                observation_context, expected_sha256=canonical_sha256(observation_context)
+                observation_context,
+                expected_sha256=canonical_sha256(observation_context),
             )
             subject_context_active = observation_context["schema"] == CONTEXT_SCHEMA
-            for row in observation_context["questions"].values() if subject_context_active else ():
+            for row in (
+                observation_context["questions"].values() if subject_context_active else ()
+            ):
                 ref = row["subject_binding"]["subject_ref"]
                 subject = binding["subject"]
                 if (
@@ -347,7 +350,8 @@ class OwnerRefreshClient:
         with TemporaryDirectory(prefix="owner-refresh-", dir=runs) as temporary:
             path = Path(temporary) / "work-projection.json"
             path.write_text(
-                json.dumps(projection, ensure_ascii=False, allow_nan=False), encoding="utf-8"
+                json.dumps(projection, ensure_ascii=False, allow_nan=False),
+                encoding="utf-8",
             )
             plan = self._call(
                 "refresh",
@@ -425,7 +429,11 @@ class OwnerRefreshSession:
         store: QuickScanWorkStore,
         observation_context: dict | None = None,
     ):
-        self.client, self.current, self.plan = client, copy.deepcopy(current), copy.deepcopy(plan)
+        self.client, self.current, self.plan = (
+            client,
+            copy.deepcopy(current),
+            copy.deepcopy(plan),
+        )
         self.scope_bindings, self.projection, self.identity, self.store = (
             scopes,
             projection,
@@ -447,7 +455,10 @@ class OwnerRefreshSession:
 
         self.check()
         receipt = register(
-            self.client.config, self.current, request, process_env=self.client._environment
+            self.client.config,
+            self.current,
+            request,
+            process_env=self.client._environment,
         )
         self.check()
         return receipt
@@ -539,9 +550,40 @@ class OwnerRefreshSession:
                 expected = self.observation_context["questions"][qid]["subject_binding"]
                 validate_receipt(pre, request, received_at=datetime.now(timezone.utc).timestamp())
                 execution = payload["execution"]
+                if payload.get("schema_version") == "1.2.0":
+                    profile_matches = (
+                        sidecar["protocol"] == "stockwiki.observation_subject_binding/1.1.0"
+                        and request["protocol"] == "stockwiki.subject_dispatch_request/1.2.0"
+                        and sidecar["execution_profile"] == request["execution_profile"]
+                        and request["execution_profile"]["observation_schema_version"] == "1.2.0"
+                        and request["execution_profile"]["observation_schema_sha256"]
+                        == self.observation_context["observation_schema_sha256"]
+                        and all(
+                            sidecar[side] == execution[field]
+                            for side, field in (
+                                ("execution_response_id", "response_id"),
+                                (
+                                    "execution_request_payload_sha256",
+                                    "request_payload_sha256",
+                                ),
+                                ("execution_response_sha256", "response_sha256"),
+                                ("execution_receipt_sha256", "receipt_sha256"),
+                            )
+                        )
+                    )
+                else:
+                    profile_matches = (
+                        payload.get("schema_version") == "1.1.0"
+                        and sidecar["protocol"] == "stockwiki.observation_subject_binding/1.0.0"
+                        and request["protocol"]
+                        in {
+                            "stockwiki.subject_dispatch_request/1.0.0",
+                            "stockwiki.subject_dispatch_request/1.1.0",
+                        }
+                    )
                 subject_matches = (
                     descriptor["protocol"] == "stockwiki.owner_reuse_subject/1.0.0"
-                    and sidecar["protocol"] == "stockwiki.observation_subject_binding/1.0.0"
+                    and profile_matches
                     and sidecar["subject_ref"] == expected["subject_ref"] == request["subject_ref"]
                     and request["identity_revision"]
                     == expected["identity_revision"]

@@ -28,6 +28,7 @@ from src.utils.quick_scan_work_transport import (
     attach_external_use_proof,
     begin_quick_scan_send,
     frozen_quick_scan_model_resolution,
+    quick_scan_request_identity_required,
     render_external_request,
 )
 
@@ -73,7 +74,10 @@ class LLMSearchResponse:
         if (
             not isinstance(external, dict)
             or external.get("schema")
-            not in {"stockqa.external_context_use/1.0.0", "stockqa.external_context_use/1.1.0"}
+            not in {
+                "stockqa.external_context_use/1.0.0",
+                "stockqa.external_context_use/1.1.0",
+            }
             or external.get("state") != "request_and_response_bound"
             or not isinstance(transport, dict)
             or external.get("work_attempt_id") != transport.get("work_attempt_id")
@@ -305,7 +309,7 @@ def _parse_search_response(
             sources = _extract_sources(action.get("sources"))
             call: Dict[str, Any] = {
                 "id": item.get("id") if isinstance(item.get("id"), str) else None,
-                "status": item.get("status") if isinstance(item.get("status"), str) else None,
+                "status": (item.get("status") if isinstance(item.get("status"), str) else None),
                 "action_type": (
                     action.get("type") if isinstance(action.get("type"), str) else None
                 ),
@@ -540,7 +544,11 @@ def _parse_anthropic_search_response(
     search_verified = bool(
         response_id
         and model_resolution_allowed(
-            "minimax", "anthropic_messages", requested_model, actual_model, model_resolution
+            "minimax",
+            "anthropic_messages",
+            requested_model,
+            actual_model,
+            model_resolution,
         )
         and stop_reason == "end_turn"
         and base_resp_ok
@@ -629,7 +637,11 @@ def _parse_mimo_search_response(
     verified = bool(
         response_id
         and model_resolution_allowed(
-            "mimo", "mimo_chat_completions", requested_model, actual_model, model_resolution
+            "mimo",
+            "mimo_chat_completions",
+            requested_model,
+            actual_model,
+            model_resolution,
         )
         and finish_reason == "stop"
         and content.strip()
@@ -762,7 +774,10 @@ def _parse_external_answer_response(
         if payload.get("stop_reason") != "end_turn":
             raise ValueError("external answer is not complete")
         for block in payload.get("content", []):
-            if isinstance(block, dict) and block.get("type") in {"thinking", "redacted_thinking"}:
+            if isinstance(block, dict) and block.get("type") in {
+                "thinking",
+                "redacted_thinking",
+            }:
                 continue
             if (
                 not isinstance(block, dict)
@@ -792,7 +807,7 @@ def _parse_external_answer_response(
         raise ValueError("external answer has no complete response identity/text")
     usage = _normalize_provider_usage(
         payload.get("usage"),
-        protocol="chat_completions" if protocol == "mimo_chat_completions" else protocol,
+        protocol=("chat_completions" if protocol == "mimo_chat_completions" else protocol),
         observed_search_calls=0,
     )
     metadata = dict(parsed.execution_metadata)
@@ -850,7 +865,11 @@ def _canonical_http_json(response: Any) -> Tuple[Any, str, str]:
 
     finite_json(payload)
     encoded = json.dumps(
-        payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+        allow_nan=False,
     ).encode("utf-8")
     return payload, hashlib.sha256(encoded).hexdigest(), basis
 
@@ -1332,7 +1351,7 @@ def _search_request_payload(
             "instructions": system_prompt,
             "input": prompt,
             "reasoning": {"effort": "high"},
-            "max_output_tokens": MAX_TOKENS if max_output_tokens is None else max_output_tokens,
+            "max_output_tokens": (MAX_TOKENS if max_output_tokens is None else max_output_tokens),
             "stream": False,
             "store": False,
         }
@@ -1367,7 +1386,7 @@ def _search_request_payload(
             ],
             "tool_choice": "auto",
             "stream": False,
-            "max_completion_tokens": 2048 if max_output_tokens is None else max_output_tokens,
+            "max_completion_tokens": (2048 if max_output_tokens is None else max_output_tokens),
             "thinking": {"type": "enabled" if thinking_enabled else "disabled"},
         }
     if provider == "minimax":
@@ -1388,7 +1407,7 @@ def _search_request_payload(
         "tools": [{"type": "web_search"}],
         "tool_choice": "required",
         "include": ["web_search_call.action.sources"],
-        "max_output_tokens": MAX_TOKENS if max_output_tokens is None else max_output_tokens,
+        "max_output_tokens": (MAX_TOKENS if max_output_tokens is None else max_output_tokens),
         "store": False,
     }
 
@@ -1482,19 +1501,26 @@ class LLMClient:
         if external_mode == "external_context_only":
             for key in ("tools", "tool_choice", "include"):
                 data.pop(key, None)
-        request_payload_sha256 = None
-        send_generation_options = {}
-        if thinking_enabled is not None or max_output_tokens is not None:
-            request_payload_sha256 = hashlib.sha256(
-                json.dumps(
-                    data,
-                    ensure_ascii=False,
-                    sort_keys=True,
-                    separators=(",", ":"),
-                    allow_nan=False,
-                ).encode("utf-8")
-            ).hexdigest()
-            send_generation_options["request_payload_sha256"] = request_payload_sha256
+        # Capture the exact final JSON body before dispatch, including default
+        # controls and external-context tool removal. Receipt identity must not
+        # depend on callers supplying optional generation overrides.
+        request_payload_sha256 = hashlib.sha256(
+            json.dumps(
+                data,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            ).encode("utf-8")
+        ).hexdigest()
+        capture_request_identity = (
+            thinking_enabled is not None
+            or max_output_tokens is not None
+            or quick_scan_request_identity_required()
+        )
+        send_generation_options = (
+            {"request_payload_sha256": request_payload_sha256} if capture_request_identity else {}
+        )
         resolution = frozen_quick_scan_model_resolution(self.model_resolution)
         attempt_id = str(uuid.uuid4())
         work_attempt = begin_quick_scan_send(
@@ -1550,8 +1576,9 @@ class LLMClient:
                 requested_model=requested_model,
                 model_resolution=resolution,
             )
-            if request_payload_sha256 is not None:
+            if capture_request_identity:
                 receipt["request_payload_sha256"] = request_payload_sha256
+            if thinking_enabled is not None or max_output_tokens is not None:
                 receipt["request_generation"] = _request_generation_metadata(data)
             if work_attempt is not None:
                 work_attempt.record_failure(receipt)
@@ -1568,9 +1595,10 @@ class LLMClient:
             response_json_basis=response_json_basis,
             model_resolution=resolution,
         )
+        if capture_request_identity:
+            result.execution_metadata["request_payload_sha256"] = request_payload_sha256
         if thinking_enabled is not None or max_output_tokens is not None:
             result.execution_metadata["request_generation"] = _request_generation_metadata(data)
-            result.execution_metadata["request_payload_sha256"] = request_payload_sha256
         if work_attempt is not None:
             work_attempt.record_response(
                 http_status_code=_response_status_code(response),
@@ -1683,19 +1711,26 @@ class AsyncLLMClient:
         if external_mode == "external_context_only":
             for key in ("tools", "tool_choice", "include"):
                 data.pop(key, None)
-        request_payload_sha256 = None
-        send_generation_options = {}
-        if thinking_enabled is not None or max_output_tokens is not None:
-            request_payload_sha256 = hashlib.sha256(
-                json.dumps(
-                    data,
-                    ensure_ascii=False,
-                    sort_keys=True,
-                    separators=(",", ":"),
-                    allow_nan=False,
-                ).encode("utf-8")
-            ).hexdigest()
-            send_generation_options["request_payload_sha256"] = request_payload_sha256
+        # Capture the exact final JSON body before dispatch, including default
+        # controls and external-context tool removal. Receipt identity must not
+        # depend on callers supplying optional generation overrides.
+        request_payload_sha256 = hashlib.sha256(
+            json.dumps(
+                data,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            ).encode("utf-8")
+        ).hexdigest()
+        capture_request_identity = (
+            thinking_enabled is not None
+            or max_output_tokens is not None
+            or quick_scan_request_identity_required()
+        )
+        send_generation_options = (
+            {"request_payload_sha256": request_payload_sha256} if capture_request_identity else {}
+        )
         resolution = frozen_quick_scan_model_resolution(self.model_resolution)
         attempt_id = str(uuid.uuid4())
         work_attempt = begin_quick_scan_send(
@@ -1751,8 +1786,9 @@ class AsyncLLMClient:
                 requested_model=requested_model,
                 model_resolution=resolution,
             )
-            if request_payload_sha256 is not None:
+            if capture_request_identity:
                 receipt["request_payload_sha256"] = request_payload_sha256
+            if thinking_enabled is not None or max_output_tokens is not None:
                 receipt["request_generation"] = _request_generation_metadata(data)
             if work_attempt is not None:
                 work_attempt.record_failure(receipt)
@@ -1769,9 +1805,10 @@ class AsyncLLMClient:
             response_json_basis=response_json_basis,
             model_resolution=resolution,
         )
+        if capture_request_identity:
+            result.execution_metadata["request_payload_sha256"] = request_payload_sha256
         if thinking_enabled is not None or max_output_tokens is not None:
             result.execution_metadata["request_generation"] = _request_generation_metadata(data)
-            result.execution_metadata["request_payload_sha256"] = request_payload_sha256
         if work_attempt is not None:
             work_attempt.record_response(
                 http_status_code=_response_status_code(response),

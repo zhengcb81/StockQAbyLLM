@@ -295,7 +295,11 @@ class QuickScanWorkLifecycle:
                 self._store.recover_expired(old["work_item_id"])
                 old = self._store.get_item(old["work_item_id"])
             if old["status"] != "pending":
-                return old, None, "resume_original_work_delivery_or_reconciliation_required"
+                return (
+                    old,
+                    None,
+                    "resume_original_work_delivery_or_reconciliation_required",
+                )
             return old, bound["binding"], None
         return None, None, "owner_refresh_" + action
 
@@ -676,7 +680,13 @@ class QuickScanWorkLifecycle:
             != row.get("work_prompt_sha256")
         ):
             raise ValueError("question_pack_frozen_subject_mismatch")
-        return (self._entity_id, question.metadata.get("company_name"), scope, scope_id, perimeter)
+        return (
+            self._entity_id,
+            question.metadata.get("company_name"),
+            scope,
+            scope_id,
+            perimeter,
+        )
 
     def dispatch_question_pack_context(self, handles: List[Dict[str, Any]]):
         """Freeze every original question, then bind one group with no single-work binding."""
@@ -823,7 +833,9 @@ class QuickScanWorkLifecycle:
                 )
 
                 search_projection = project_quick_scan_search(
-                    execution, work_store=self._store, work_item_id=handle["work_item_id"]
+                    execution,
+                    work_store=self._store,
+                    work_item_id=handle["work_item_id"],
                 )
             description, standard_body = self._standard_transport(getattr(answer, "text", ""))
             payload = {
@@ -999,8 +1011,32 @@ class QuickScanWorkLifecycle:
 
     def after_question_failed(self, handle: Dict[str, Any], error_message: str) -> None:
         if self._transport_managed:
-            # HTTP already persisted failure/unknown. If no HTTP was sent,
-            # existing fenced lease recovery proves unsent and releases it.
+            # Only deterministic pack-member parse failures finish logical
+            # work. Generic processing/DB/timeout errors remain recoverable;
+            # the existence of a 2xx alone never declares the answer invalid.
+            if error_message in {
+                "missing_question",
+                "invalid_question",
+                "answer_generator_rejected_member",
+            }:
+                from src.utils.quick_scan_work_store import (
+                    LeaseFencedError,
+                    WorkConflictError,
+                )
+
+                attempts = self._store.list_attempts(handle["work_item_id"])
+                if attempts:
+                    try:
+                        self._store.fail_received_without_answer(
+                            handle["work_item_id"],
+                            handle["lease"],
+                            attempts[-1]["attempt_id"],
+                            reason_code=error_message,
+                        )
+                    except (ValueError, WorkConflictError, LeaseFencedError):
+                        logger.warning(
+                            "Received member could not finish under its current lease; native recovery remains required"
+                        )
             return
         try:
             from src.utils.quick_scan_work_transport import _OWN_RESERVATION
@@ -1670,7 +1706,7 @@ class LLMRunner:
         report = seal_pending_deliveries(store, authority=authority)
         payload = {
             "schema": "stockqa.seal_deliveries/1.0.0",
-            "authority_sha256": None if authority is None else authority["authority_sha256"],
+            "authority_sha256": (None if authority is None else authority["authority_sha256"]),
             "store": str(store.path),
             **report,
         }
@@ -1823,7 +1859,9 @@ class LLMRunner:
                 if not search_document.requires_external:
                     print(
                         json.dumps(
-                            policy_receipt(search_document), ensure_ascii=False, sort_keys=True
+                            policy_receipt(search_document),
+                            ensure_ascii=False,
+                            sort_keys=True,
                         )
                     )
                 if (
@@ -2342,7 +2380,9 @@ class LLMRunner:
                         # per-question receipt names the route that answered.
                         "provider_name": quick_scan_policy["routes"][0]["provider_config_ref"],
                         "requested_model": quick_scan_policy["routes"][0]["model"],
-                        "work_store": work_lifecycle._store if work_lifecycle is not None else None,
+                        "work_store": (
+                            work_lifecycle._store if work_lifecycle is not None else None
+                        ),
                     },
                     **(
                         {"owner_refresh_session": work_lifecycle._owner_refresh}
@@ -2354,7 +2394,10 @@ class LLMRunner:
                     destination = Path(output)
                     destination.with_suffix(destination.suffix + ".scope.json").write_text(
                         json.dumps(
-                            approved_scope_report, ensure_ascii=False, allow_nan=False, indent=2
+                            approved_scope_report,
+                            ensure_ascii=False,
+                            allow_nan=False,
+                            indent=2,
                         )
                         + "\n",
                         encoding="utf-8",

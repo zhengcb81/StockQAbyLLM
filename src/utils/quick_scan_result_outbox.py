@@ -380,8 +380,24 @@ def validate_checkpoint_binding(package: dict, checkpoint: dict) -> None:
         "prompt_sha256": provenance.get("provider_prompt_sha256"),
         "answered_at": provenance.get("response_completed_at"),
     }
+    vendor12 = observation.get("schema_version") == "1.2.0"
+    if vendor12:
+        if (
+            provenance.get("model_resolution_binding") != "durable-response-v1"
+            or "request_id" not in provenance
+            or not isinstance(execution, dict)
+            or "request_id" not in execution
+        ):
+            raise ValueError("vendor observation requires the captured durable response binding")
+        expected_execution.update(
+            response_id=provenance.get("response_id"),
+            response_sha256=provenance.get("response_sha256"),
+            receipt_sha256=provenance.get("receipt_sha256"),
+        )
     if not isinstance(execution, dict) or any(
-        not isinstance(value, str) or not value.strip() for value in expected_execution.values()
+        not (vendor12 and key == "request_id" and value is None)
+        and (not isinstance(value, str) or not value.strip())
+        for key, value in expected_execution.items()
     ):
         raise ValueError("checkpoint lacks required C06 execution metadata")
     if any(execution.get(key) != value for key, value in expected_execution.items()):

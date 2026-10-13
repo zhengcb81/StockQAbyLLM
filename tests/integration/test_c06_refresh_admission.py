@@ -28,11 +28,15 @@ from tests.integration.test_c06_subject_public_e2e import OWN, actual, invoke, u
 from tests.unit.test_quick_scan_budget import _policy
 
 
-def setup_admission(actual, tmp_path, *, policy=None, ledger_path=None):
+def setup_admission(actual, tmp_path, *, policy=None, ledger_path=None, refresh_version="1.0.0"):
+    assert refresh_version in {"1.0.0", "1.1.0"}
     routes, current, config, authority, manifest, identity_file = actual
     q = next(row for row in manifest["questions"] if row["scope"] == "entity")
     metadata = authority["observation_context"]["questions"][q["id"]]
-    ref, field = metadata["subject_binding"]["subject_ref"], metadata["metadata"]["field_id"]
+    ref, field = (
+        metadata["subject_binding"]["subject_ref"],
+        metadata["metadata"]["field_id"],
+    )
     routes.identity.create_universe("admit-pool", "Synthetic test only", soft_target_capacity=1)
     routes.identity.save_member(
         dict(
@@ -68,7 +72,7 @@ def setup_admission(actual, tmp_path, *, policy=None, ledger_path=None):
     ]
     principal = invoke(base + ["--principal"], tmp_path, "principal")["principal"]
     owner_policy = dict(
-        protocol="stockwiki.refresh_owner_policy/1.0.0",
+        protocol="stockwiki.refresh_owner_policy/" + refresh_version,
         policy_id="admit-fixture",
         policy_version=1,
         owner_principal=principal,
@@ -95,13 +99,15 @@ def setup_admission(actual, tmp_path, *, policy=None, ledger_path=None):
             provider_config_ref=policy["routes"][0]["provider_config_ref"],
         ),
     )
+    if refresh_version == "1.1.0":
+        owner_policy["qa"]["quote_schema_version"] = "1.1.0"
     paths = routes.identity.paths
     paths.config_dir.mkdir(parents=True, exist_ok=True)
     policy_file = paths.config_dir / "quick_scan_refresh.json"
     policy_file.write_text(json.dumps(owner_policy), encoding="utf-8")
     request = dict(
         message_type="request",
-        schema_version="2.0.0",
+        schema_version="2.6.0" if refresh_version == "1.1.0" else "2.0.0",
         request_id="admit-query",
         consumer_id="invest-quick-scan",
         operation="get_profiles",
@@ -137,7 +143,7 @@ def setup_admission(actual, tmp_path, *, policy=None, ledger_path=None):
     )
     request["payload"]["snapshot_id"] = capture["result"]["watermark"]["snapshot_id"]
     refresh = dict(
-        protocol="iqs.refresh_request/1.0.0",
+        protocol="iqs.refresh_request/" + refresh_version,
         operation="request_refresh",
         request_id="admit-refresh",
         consumer_id="invest-quick-scan",
@@ -161,7 +167,8 @@ def setup_admission(actual, tmp_path, *, policy=None, ledger_path=None):
     producer_input = tmp_path / "producer-input.json"
     raw_manifest = Path(config["iqs_release_root"]) / "run/manifest.json"
     producer_input.write_text(
-        json.dumps({"manifest": json.loads(raw_manifest.read_bytes())}), encoding="utf-8"
+        json.dumps({"manifest": json.loads(raw_manifest.read_bytes())}),
+        encoding="utf-8",
     )
     questions = invoke(
         [

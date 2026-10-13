@@ -31,6 +31,11 @@ def fixture(tmp_path):
     assert hashlib.sha256(raw).hexdigest() == SOURCE_SHA
     path = tmp_path / "execution-source.sqlite"
     path.write_bytes(raw)
+    # Migrate only this mutable test copy via the released native algorithm.
+    # The immutable schema16 SQL/source and its hash remain unchanged.
+    from src.utils.quick_scan_work_store import QuickScanWorkStore
+
+    QuickScanWorkStore(path)
     with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True)) as con:
         con.row_factory = sqlite3.Row
         row = con.execute(
@@ -66,7 +71,8 @@ def inspect(path, request):
 def tamper(path, table, sql, args=()):
     with closing(sqlite3.connect(path)) as con:
         triggers = con.execute(
-            "SELECT name,sql FROM sqlite_master WHERE type=? AND tbl_name=?", ("trigger", table)
+            "SELECT name,sql FROM sqlite_master WHERE type=? AND tbl_name=?",
+            ("trigger", table),
         ).fetchall()
         for name, _ in triggers:
             con.execute('DROP TRIGGER "' + name.replace('"', '""') + '"')
@@ -176,7 +182,9 @@ def test_durable_provenance_corruption_never_becomes_execution_verified(tmp_path
     source, path, req, original, package = fixture(tmp_path)
     if fault == "missing_pre_send":
         tamper(
-            path, "quick_scan_subject_send_receipt", "DELETE FROM quick_scan_subject_send_receipt"
+            path,
+            "quick_scan_subject_send_receipt",
+            "DELETE FROM quick_scan_subject_send_receipt",
         )
     elif fault == "missing_checkpoint":
         tamper(path, "answer_checkpoint", "DELETE FROM answer_checkpoint")
@@ -222,7 +230,9 @@ def test_durable_provenance_corruption_never_becomes_execution_verified(tmp_path
     )
 
 
-def test_missing_ledger_and_uncheckpointed_sidecar_are_not_created_or_repaired(tmp_path):
+def test_missing_ledger_and_uncheckpointed_sidecar_are_not_created_or_repaired(
+    tmp_path,
+):
     source, path, req, original, package = fixture(tmp_path)
     missing = tmp_path / "missing.sqlite"
     with pytest.raises(ValueError):
@@ -307,7 +317,9 @@ def test_batch_with_valid_first_original_and_missing_second_refuses_all_without_
     assert hashlib.sha256(source.read_bytes()).hexdigest() == SOURCE_SHA
 
 
-def test_actual_windows_junction_does_not_make_foreign_ledger_a_trusted_inspection_source(tmp_path):
+def test_actual_windows_junction_does_not_make_foreign_ledger_a_trusted_inspection_source(
+    tmp_path,
+):
     if os.name != "nt":
         pytest.skip("actual Windows junction behavior")
     source, path, req, original, package = fixture(tmp_path)
@@ -318,20 +330,63 @@ def test_actual_windows_junction_does_not_make_foreign_ledger_a_trusted_inspecti
     sentinel = target / "keep.txt"
     sentinel.write_bytes(b"preserve target")
     junction = tmp_path / "inspection-link"
-    quoted = lambda p: "'" + str(p).replace("'", "''") + "'"
-    command = (
-        "$ErrorActionPreference='Stop'; New-Item -ItemType Junction -Path "
-        + quoted(junction)
-        + " -Target "
-        + quoted(target)
-        + " | Out-Null"
+    # Native mount-point creation avoids spawning an unconstrained shell in
+    # the isolated suite. Both paths are checked before the OS mutation.
+    import ctypes
+    import struct
+    from ctypes import wintypes
+
+    assert junction.parent.resolve().is_relative_to(tmp_path.resolve())
+    assert target.resolve().is_relative_to(tmp_path.resolve())
+    junction.mkdir()
+    substitute = ("\\??\\" + str(target.resolve())).encode("utf-16-le")
+    printed = str(target.resolve()).encode("utf-16-le")
+    path_buffer = substitute + b"\x00\x00" + printed + b"\x00\x00"
+    buffer = (
+        struct.pack(
+            "<LHHHHHH",
+            0xA0000003,
+            len(path_buffer) + 8,
+            0,
+            0,
+            len(substitute),
+            len(substitute) + 2,
+            len(printed),
+        )
+        + path_buffer
     )
-    created = subprocess.run(
-        ["powershell", "-NoProfile", "-NonInteractive", "-Command", command],
-        capture_output=True,
-        timeout=20,
-    )
-    assert created.returncode == 0, (created.stdout, created.stderr)
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.CreateFileW.restype = wintypes.HANDLE
+    kernel.CreateFileW.argtypes = [
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.HANDLE,
+    ]
+    kernel.DeviceIoControl.argtypes = [
+        wintypes.HANDLE,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        ctypes.POINTER(wintypes.DWORD),
+        wintypes.LPVOID,
+    ]
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+    handle = kernel.CreateFileW(str(junction), 0x40000000, 0, None, 3, 0x02200000, None)
+    assert handle != wintypes.HANDLE(-1).value, ctypes.get_last_error()
+    returned = wintypes.DWORD()
+    try:
+        storage = ctypes.create_string_buffer(buffer)
+        assert kernel.DeviceIoControl(
+            handle, 0x900A4, storage, len(buffer), None, 0, ctypes.byref(returned), None
+        ), ctypes.get_last_error()
+    finally:
+        kernel.CloseHandle(handle)
     before = target_file.read_bytes()
     try:
         with pytest.raises(ValueError, match="store_unavailable"):

@@ -562,6 +562,10 @@ def _q10_reconstruct_old_schema(connection, version):
     the old receipt hash, then v8 side tables are removed. No old actual_model
     is derived from attempt.model_requested.
     """
+    # Remove schema18 event guards only in this explicit mutable legacy
+    # fixture, before lowering its version. Production history is untouched.
+    connection.execute("DROP TRIGGER quick_scan_work_event_no_update")
+    connection.execute("DROP TRIGGER quick_scan_work_event_no_delete")
     guard = connection.execute(
         "SELECT sql FROM sqlite_master WHERE name='answer_checkpoint_no_update'"
     ).fetchone()[0]
@@ -792,7 +796,9 @@ def test_q10_attempt_response_and_frozen_permission_are_sql_immutable(tmp_path):
             connection.execute("UPDATE quick_scan_attempt_response SET model_resolved='forged'")
 
 
-def test_q10_durable_response_stores_only_sanitized_receipt_and_http_json_digest(tmp_path):
+def test_q10_durable_response_stores_only_sanitized_receipt_and_http_json_digest(
+    tmp_path,
+):
     store = _store(tmp_path, [1_800_000_000.0])
     item = _created(store)
     lease = store.claim(item["work_item_id"], lease_seconds=60)
@@ -882,7 +888,11 @@ def test_q10_same_request_key_cannot_change_frozen_permission(tmp_path):
     item = _created(store)
     lease = store.claim(item["work_item_id"], lease_seconds=60)
     first = _prepared(
-        store, item["work_item_id"], lease, model="model-a", model_resolution=_q10_alias_policy()
+        store,
+        item["work_item_id"],
+        lease,
+        model="model-a",
+        model_resolution=_q10_alias_policy(),
     )
     store.mark_send_intent(item["work_item_id"], lease, first["attempt_id"])
     store.record_attempt_outcome(
@@ -1131,7 +1141,11 @@ def test_q10_checkpoint_read_cannot_rebind_to_intermediate_attempt(tmp_path):
         connection.execute("DROP TRIGGER answer_checkpoint_no_update")
         connection.execute(
             "UPDATE answer_checkpoint SET attempt_id=?,payload_json=?,payload_sha256=?",
-            (first["attempt_id"], encoded, hashlib.sha256(encoded.encode("utf-8")).hexdigest()),
+            (
+                first["attempt_id"],
+                encoded,
+                hashlib.sha256(encoded.encode("utf-8")).hexdigest(),
+            ),
         )
         connection.execute(guard)
     with pytest.raises((ValueError, WorkConflictError), match="final attempt"):
@@ -1216,7 +1230,12 @@ def test_q10_unsent_repair_after_prior_response_remains_uncertain_without_replay
         "configured": True,
         "policy_id": "synthetic-repair-budget",
         "policy_version": "synthetic-repair-budget@v1",
-        "budget": {"currency": "USD", "max_cost": 20, "max_requests": 5, "max_cost_per_attempt": 2},
+        "budget": {
+            "currency": "USD",
+            "max_cost": 20,
+            "max_requests": 5,
+            "max_cost_per_attempt": 2,
+        },
         "cost_policy": {
             "pricing_basis": "verified_rate_card",
             "pricing_ref": "synthetic-rates",
@@ -1277,7 +1296,10 @@ def test_q10_unsent_repair_after_prior_response_remains_uncertain_without_replay
         "src.providers.llm_client.http_client_manager.get_sync_session", lambda: session
     )
     client = LLMClient(
-        "synthetic", model, "https://api.xiaomimimo.com/v1/chat/completions", provider_name="mimo"
+        "synthetic",
+        model,
+        "https://api.xiaomimimo.com/v1/chat/completions",
+        provider_name="mimo",
     )
     with bind_quick_scan_work(store, work_id, old_lease), bind_quick_scan_budget(store, policy):
         with bind_quick_scan_route(
@@ -2598,7 +2620,8 @@ def _jr2_legacy_v6_delivery(tmp_path, state):
             )
             if state == "delivered":
                 connection.execute(
-                    "UPDATE work_item SET status='delivered' WHERE work_item_id=?", (wid,)
+                    "UPDATE work_item SET status='delivered' WHERE work_item_id=?",
+                    (wid,),
                 )
     return store, wid, ack, clock
 
@@ -2775,7 +2798,9 @@ def _owner_uuid_identity_fixture(tmp_path):
     return load_identity_snapshot(str(path), expected_entity_id=dto["payload"]["entity_id"])
 
 
-def test_stockwiki_canonical_binding_snapshot_can_create_claim_without_rebinding(tmp_path):
+def test_stockwiki_canonical_binding_snapshot_can_create_claim_without_rebinding(
+    tmp_path,
+):
     identity = _owner_uuid_identity_fixture(tmp_path)
     store = _store(tmp_path, [1_800_000_000.0])
     original = _created(store, **identity, scope_id=identity["entity_id"])
@@ -2815,7 +2840,9 @@ def test_stockwiki_canonical_binding_snapshot_can_create_claim_without_rebinding
     assert store.get_item(original["work_item_id"])["status"] == "leased"
 
 
-def test_stockwiki_canonical_binding_keeps_membership_duplicates_and_provisional_guards(tmp_path):
+def test_stockwiki_canonical_binding_keeps_membership_duplicates_and_provisional_guards(
+    tmp_path,
+):
     refs = _CANONICAL_OWNER_BIND_REFS
     store = _store(tmp_path, [1_800_000_000.0])
     with pytest.raises(ValueError, match="unique"):

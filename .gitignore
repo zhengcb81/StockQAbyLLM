@@ -159,3 +159,6 @@ desktop.ini
 
 # C06 authority contract is source, not a generated result.
 !src/config/quick_scan_c06_authority.v3.schema.json
+
+# Explicit vendor HTTP identity contract; no credentials or company data
+!src/config/quick_scan_observation.v1.2.schema.json

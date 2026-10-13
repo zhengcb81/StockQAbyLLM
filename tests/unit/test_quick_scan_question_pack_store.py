@@ -157,7 +157,9 @@ def _count(store, table, condition="1=1"):
         return con.execute(f"SELECT COUNT(*) FROM {table} WHERE {condition}").fetchone()[0]
 
 
-def test_question_pack_three_members_have_one_physical_budget_and_independent_attempts(pack_store):
+def test_question_pack_three_members_have_one_physical_budget_and_independent_attempts(
+    pack_store,
+):
     store, _ = pack_store
     pack = _prepare(store, _members(store))
     assert len(pack["members"]) == 3
@@ -205,7 +207,9 @@ def test_question_pack_rejects_mixed_identity_or_scope_atomically(pack_store, ch
     assert _count(store, "quick_scan_question_pack") == 0
 
 
-def test_question_pack_rejects_duplicate_or_empty_members_before_any_attempt(pack_store):
+def test_question_pack_rejects_duplicate_or_empty_members_before_any_attempt(
+    pack_store,
+):
     store, _ = pack_store
     members = _members(store)
     for candidate in [[], [members[0], members[0]], members * 11]:
@@ -214,7 +218,9 @@ def test_question_pack_rejects_duplicate_or_empty_members_before_any_attempt(pac
     assert _count(store, "attempt") == 0
 
 
-def test_question_pack_expired_middle_member_rolls_back_prepare_and_send_intents(pack_store):
+def test_question_pack_expired_middle_member_rolls_back_prepare_and_send_intents(
+    pack_store,
+):
     store, clock = pack_store
     members = _members(store)
     clock[0] += 61
@@ -262,7 +268,9 @@ def test_question_pack_nested_existing_method_failure_rolls_back_whole_mark(
     assert store.get_question_pack(pack["pack_id"])["phase"] == "prepared"
 
 
-def test_question_pack_unknown_keeps_one_reserved_cost_and_all_members_unclaimable(pack_store):
+def test_question_pack_unknown_keeps_one_reserved_cost_and_all_members_unclaimable(
+    pack_store,
+):
     store, _ = pack_store
     members = _members(store)
     pack = _prepare(store, members)
@@ -291,7 +299,9 @@ def test_question_pack_unknown_keeps_one_reserved_cost_and_all_members_unclaimab
     assert _count(store, "quick_scan_budget_attempt") == 1
 
 
-def test_question_pack_partial_answer_saves_only_valid_member_and_cannot_reask_others(pack_store):
+def test_question_pack_partial_answer_saves_only_valid_member_and_cannot_reask_others(
+    pack_store,
+):
     store, clock = pack_store
     members = _members(store)
     pack = _prepare(store, members)
@@ -426,7 +436,7 @@ def test_question_pack_schema16_fixture_migration_preserves_original_and_old_row
     store, clock = pack_store
     fixture_members = _members(store)
     with closing(store._connect()) as con:
-        for statement in reversed(work_module._DDL_V17_ADDITIONS):
+        for statement in reversed(work_module._DDL_V17_ADDITIONS + work_module._DDL_V18_ADDITIONS):
             words = statement.split()
             con.execute(f"DROP {words[1]} {words[2]}")
         con.execute("PRAGMA user_version=16")
@@ -442,7 +452,7 @@ def test_question_pack_schema16_fixture_migration_preserves_original_and_old_row
     migrated = QuickScanWorkStore(target, clock=lambda: clock[0])
     assert store.path.read_bytes() == original_bytes
     with closing(migrated._connect()) as con:
-        assert con.execute("PRAGMA user_version").fetchone()[0] == 17
+        assert con.execute("PRAGMA user_version").fetchone()[0] == work_module.SCHEMA_VERSION
         assert {
             name: con.execute(f'SELECT * FROM "{name}"').fetchall() for name in old_rows
         } == old_rows
@@ -460,7 +470,9 @@ def test_question_pack_receipt_payload_hash_survives_sanitization():
     }
 
 
-def test_question_pack_post_rechecks_middle_lease_and_restart_never_marks_twice(pack_store):
+def test_question_pack_post_rechecks_middle_lease_and_restart_never_marks_twice(
+    pack_store,
+):
     store, clock = pack_store
     pack = _prepare(store, _members(store))
     _mark(store, pack)
@@ -474,7 +486,9 @@ def test_question_pack_post_rechecks_middle_lease_and_restart_never_marks_twice(
     assert store.get_quick_scan_budget_status("pack-policy")["requests"] == 1
 
 
-def test_question_pack_confirmed_auth_refusal_updates_three_attempts_and_one_zero_cost(pack_store):
+def test_question_pack_confirmed_auth_refusal_updates_three_attempts_and_one_zero_cost(
+    pack_store,
+):
     store, _ = pack_store
     pack = _prepare(store, _members(store))
     _mark(store, pack)
@@ -525,7 +539,9 @@ def test_question_pack_physical_settlement_failure_rolls_back_all_logical_outcom
     assert store.get_quick_scan_budget_status("pack-policy")["reserved_micros"] == 1000000
 
 
-def test_question_pack_existing_checkpoint_or_sent_attempt_cannot_join_new_pack(pack_store):
+def test_question_pack_existing_checkpoint_or_sent_attempt_cannot_join_new_pack(
+    pack_store,
+):
     store, _ = pack_store
     members = _members(store)
     pack = _prepare(store, members)
@@ -588,6 +604,7 @@ def test_question_pack_store_can_be_imported_first_in_a_fresh_offline_process():
         ],
         capture_output=True,
         text=True,
+        env=__import__("os").environ.copy(),
         timeout=30,
     )
     assert result.returncode == 0, result.stderr
@@ -622,3 +639,88 @@ def test_question_pack_missing_member_cannot_bypass_no_resend_using_single_forma
             allow_format_repair=True,
         )
     assert _count(store, "attempt") == 3
+
+
+def test_partial_pack_known_failures_finish_individually_without_repricing_or_reask(
+    pack_store,
+):
+    store, clock = pack_store
+    members = _members(store)
+    pack = _prepare(store, members)
+    _mark(store, pack)
+    receipt = _receipt()
+    store.record_question_pack_outcome(
+        pack["pack_id"],
+        outcome="response_available",
+        execution_receipt=receipt,
+        http_status_code=200,
+        actual_cost=0.02,
+        cost_source_ref="fixture-only",
+    )
+    first = pack["members"][0]
+    store.save_answer_checkpoint(
+        first["work_item_id"],
+        members[0]["lease"],
+        first["attempt_id"],
+        answer=dict(
+            entity_id="ENT_PACK_FIXTURE",
+            question_id="IQS_01",
+            status="scored",
+            score=8,
+            description="Synthetic valid member",
+        ),
+        execution_receipt=receipt,
+    )
+    budget = store.get_quick_scan_budget_status("pack-policy")
+    original_pack = store.get_question_pack(pack["pack_id"])
+    attempts = {m["work_item_id"]: store.list_attempts(m["work_item_id"]) for m in members}
+    for index, reason in ((1, "missing_question"), (2, "invalid_question")):
+        row = pack["members"][index]
+        assert (
+            store.fail_received_without_answer(
+                row["work_item_id"],
+                members[index]["lease"],
+                row["attempt_id"],
+                reason_code=reason,
+            )
+            == "failed"
+        )
+        assert store.claim(row["work_item_id"], lease_seconds=30) is None
+    assert store.get_item(first["work_item_id"])["status"] == "result_ready"
+    assert store.get_quick_scan_budget_status("pack-policy") == budget and budget["requests"] == 1
+    assert store.get_question_pack(pack["pack_id"]) == original_pack
+    assert attempts == {m["work_item_id"]: store.list_attempts(m["work_item_id"]) for m in members}
+    before = store.path.read_bytes()
+    with pytest.raises((WorkConflictError, LeaseFencedError)):
+        store.fail_received_without_answer(
+            first["work_item_id"],
+            members[0]["lease"],
+            first["attempt_id"],
+            reason_code="invalid_question",
+        )
+    assert store.path.read_bytes() == before
+
+
+def test_received_pack_without_cost_settlement_cannot_finish_logical_failure(
+    pack_store,
+):
+    store, clock = pack_store
+    members = _members(store)
+    pack = _prepare(store, members)
+    _mark(store, pack)
+    store.record_question_pack_outcome(
+        pack["pack_id"],
+        outcome="response_available",
+        execution_receipt=_receipt(),
+        http_status_code=200,
+    )
+    before = store.path.read_bytes()
+    row = pack["members"][0]
+    with pytest.raises(WorkConflictError, match="budget_unresolved"):
+        store.fail_received_without_answer(
+            row["work_item_id"],
+            members[0]["lease"],
+            row["attempt_id"],
+            reason_code="missing_question",
+        )
+    assert store.path.read_bytes() == before

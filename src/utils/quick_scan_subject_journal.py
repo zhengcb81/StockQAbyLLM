@@ -49,10 +49,18 @@ def bound_context(connection, item):
 
 
 def dispatch_request(
-    item, attempt, context, *, execution_attempt_id, provider_actual, provider_prompt_sha256
+    item,
+    attempt,
+    context,
+    *,
+    execution_attempt_id,
+    provider_actual,
+    provider_prompt_sha256,
 ):
     binding = validate_subject_binding(
-        context["subject_binding"], context["metadata"], identity_revision=item["identity_revision"]
+        context["subject_binding"],
+        context["metadata"],
+        identity_revision=item["identity_revision"],
     )
     if (
         not isinstance(execution_attempt_id, str)
@@ -63,7 +71,7 @@ def dispatch_request(
     if provider_actual not in {"mimo", "minimax", "deepseek", "openai"}:
         raise ValueError("subject_dispatch_actual_provider_required")
     metadata = context["metadata"]
-    return {
+    request = {
         "protocol": "stockwiki.subject_dispatch_request/1.1.0",
         "subject_ref": copy.deepcopy(binding["subject_ref"]),
         "identity_revision": item["identity_revision"],
@@ -95,6 +103,17 @@ def dispatch_request(
             )
         },
     }
+
+    if metadata["schema_version"] == "1.2.0":
+        request.update(
+            protocol="stockwiki.subject_dispatch_request/1.2.0",
+            execution_profile=dict(
+                profile_id="vendor-http-identity-v1",
+                observation_schema_version="1.2.0",
+                observation_schema_sha256=context["observation_schema_sha256"],
+            ),
+        )
+    return request
 
 
 def validate_receipt(receipt, expected, *, received_at):
@@ -165,7 +184,9 @@ def receipt_record(connection, row) -> dict:
     ).fetchone()
     if response is not None:
         guard_response(
-            connection, attempt["attempt_id"], strict_json_loads(response["receipt_json"])
+            connection,
+            attempt["attempt_id"],
+            strict_json_loads(response["receipt_json"]),
         )
     return {
         "receipt": receipt,
@@ -189,7 +210,8 @@ def guard_send(connection, item, attempt_id):
             raise WorkConflictError("subject_dispatch_context2_required")
         return
     row = connection.execute(
-        "SELECT * FROM quick_scan_subject_send_receipt WHERE attempt_id=?", (attempt_id,)
+        "SELECT * FROM quick_scan_subject_send_receipt WHERE attempt_id=?",
+        (attempt_id,),
     ).fetchone()
     if row is None:
         raise WorkConflictError("subject_dispatch_receipt_required")
@@ -198,7 +220,8 @@ def guard_send(connection, item, attempt_id):
 
 def guard_response(connection, attempt_id, receipt):
     row = connection.execute(
-        "SELECT receipt_json FROM quick_scan_subject_send_receipt WHERE attempt_id=?", (attempt_id,)
+        "SELECT receipt_json FROM quick_scan_subject_send_receipt WHERE attempt_id=?",
+        (attempt_id,),
     ).fetchone()
     if row is None:
         return

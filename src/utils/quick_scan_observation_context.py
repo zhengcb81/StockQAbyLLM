@@ -46,16 +46,27 @@ def _subject_version(context, *, bound=False):
     return context.get("schema") == (Q2 if bound else V2)
 
 
-@lru_cache(maxsize=1)
-def _resources():
+@lru_cache(maxsize=2)
+def _resources(version="1.1.0"):
+    if not isinstance(version, str) or version not in {"1.1.0", "1.2.0"}:
+        raise ValueError("unsupported observation execution profile")
     root = Path(__file__).resolve().parents[1] / "config"
-    observation = json.loads(
-        (root / "quick_scan_observation.schema.json").read_text(encoding="utf-8")
+    observation = strict_json_loads(
+        (
+            root
+            / (
+                "quick_scan_observation.schema.json"
+                if version == "1.1.0"
+                else "quick_scan_observation.v1.2.schema.json"
+            )
+        ).read_text(encoding="utf-8")
     )
-    answer = json.loads(
+    answer = strict_json_loads(
         (root / "quick_scan_answer_content.schema.json").read_text(encoding="utf-8")
     )
-    metrics = json.loads((root / "quick_scan_metric_registry.json").read_text(encoding="utf-8"))
+    metrics = strict_json_loads(
+        (root / "quick_scan_metric_registry.json").read_text(encoding="utf-8")
+    )
     registry = Registry().with_resources(
         [(schema["$id"], Resource.from_contents(schema)) for schema in (observation, answer)]
     )
@@ -79,7 +90,9 @@ def _validate(value, schema, registry):
 
 
 def _metadata(metadata):
-    observation, _, _, registry = _resources()
+    if not isinstance(metadata, dict):
+        raise ValueError("observation metadata must be an object")
+    observation, _, _, registry = _resources(metadata.get("schema_version"))
     absent = {"observation_id", "observed_at", "execution", "answer"}
     detached = sorted(absent & set(metadata))
     if detached:
@@ -92,7 +105,7 @@ def _metadata(metadata):
         "required": [key for key in observation["required"] if key not in absent],
     }
     _validate(metadata, schema, registry)
-    if metadata["schema_version"] != "1.1.0" or metadata["evidence_review_status"] != "unreviewed":
+    if metadata["evidence_review_status"] != "unreviewed":
         raise ValueError("new model observations require released metadata and unreviewed evidence")
     if metadata["task_mode"] == "comparison":
         if not metadata["comparison_group_id"]:
@@ -111,7 +124,22 @@ def _metadata(metadata):
 
 
 def _resource_hashes(document):
-    observation, answer, metrics, _ = _resources()
+    if "metadata" in document:
+        metadata_rows = [document["metadata"]]
+    else:
+        questions = document.get("questions")
+        if not isinstance(questions, dict) or not 1 <= len(questions) <= 1000:
+            raise ValueError("bounded nonempty question map required")
+        metadata_rows = [
+            row.get("metadata") if isinstance(row, dict) else None for row in questions.values()
+        ]
+    if any(not isinstance(row, dict) for row in metadata_rows):
+        raise ValueError("observation metadata must be an object")
+    versions = [row.get("schema_version") for row in metadata_rows]
+    version = versions[0]
+    if any(candidate != version for candidate in versions):
+        raise ValueError("mixed observation execution profiles")
+    observation, answer, metrics, _ = _resources(version)
     for field, resource in [
         ("observation_schema_sha256", observation),
         ("answer_schema_sha256", answer),
@@ -125,7 +153,10 @@ def validate_context_document(context: dict[str, Any], *, expected_sha256: str) 
     """Validate the owner-issued context shape/hash, never infer missing facts."""
     if not isinstance(context, dict) or set(context) != _CONTEXT_FIELDS:
         raise ValueError("observation context field set mismatch")
-    if context["schema"] not in {CONTEXT_SCHEMA, "stockqa.quick_scan_observation_context/2.0.0"}:
+    if context["schema"] not in {
+        CONTEXT_SCHEMA,
+        "stockqa.quick_scan_observation_context/2.0.0",
+    }:
         raise ValueError("unsupported observation context version")
     if _hash(expected_sha256, "context hash") != canonical_sha256(context):
         raise ValueError("observation context hash mismatch")
@@ -471,12 +502,73 @@ def validate_standard_answer(
     return copy.deepcopy(content)
 
 
+def _vendor_receipt_execution(checkpoint: dict, response: dict | None) -> dict:
+    """Project a verified durable response, never repair a historical checkpoint.
+
+    The caller reads this record from QuickScanWorkStore, and the store rebuilds
+    it again inside its sealing transaction. Hash consistency alone does not
+    authenticate an arbitrary caller's record or grant owner/financial status.
+    """
+    from .quick_scan_work_store import quick_scan_receipt_sha256
+
+    if not isinstance(response, dict) or not isinstance(response.get("receipt"), dict):
+        raise ValueError("vendor identity profile requires the durable response")
+    provenance = checkpoint["provenance"]
+    receipt = response["receipt"]
+    if (
+        provenance.get("model_resolution_binding") != "durable-response-v1"
+        or response.get("attempt_id") != checkpoint.get("attempt_id")
+        or "request_id" not in receipt
+        or receipt.get("response_json_basis") not in {"strict_http_json", "parsed_payload"}
+        or receipt.get("response_status") != "completed"
+        or type(receipt.get("http_status_code")) is not int
+        or not 200 <= receipt["http_status_code"] < 300
+    ):
+        raise ValueError("durable vendor response does not bind the checkpoint")
+    digest = quick_scan_receipt_sha256(receipt)
+    if response.get("receipt_sha256") != digest or provenance.get("receipt_sha256") != digest:
+        raise ValueError("durable vendor receipt hash mismatch")
+    triples = (
+        ("provider", "provider", "actual_provider"),
+        ("model_requested", "requested_model", "model_requested"),
+        ("model_resolved", "actual_model", "actual_model"),
+        ("response_id", "response_id", "response_id"),
+        ("provider_attempt_id", "attempt_id", "provider_attempt_id"),
+        ("response_sha256", "response_sha256", "response_sha256"),
+    )
+    if any(
+        response.get(column) != receipt.get(key) or provenance.get(field) != receipt.get(key)
+        for column, key, field in triples
+    ):
+        raise ValueError("mixed durable vendor response metadata")
+    if (
+        provenance.get("request_id") != receipt["request_id"]
+        or provenance.get("provider_prompt_sha256") != receipt.get("prompt_sha256")
+        or provenance.get("response_completed_at") != receipt.get("completed_at")
+    ):
+        raise ValueError("checkpoint differs from original vendor execution")
+    for key in ("request_payload_sha256", "response_sha256"):
+        _hash(receipt.get(key), key)
+    if (
+        "request_payload_sha256" in provenance
+        and provenance["request_payload_sha256"] != receipt["request_payload_sha256"]
+    ):
+        raise ValueError("checkpoint request hash differs from the durable receipt")
+    return {
+        "response_id": receipt["response_id"],
+        "request_payload_sha256": receipt["request_payload_sha256"],
+        "response_sha256": receipt["response_sha256"],
+        "receipt_sha256": digest,
+    }
+
+
 def build_observation(
     checkpoint_payload: dict[str, Any],
     *,
     context: dict[str, Any],
     standard_answer: dict[str, Any],
     started_at: str,
+    durable_response: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Assemble one immutable snapshot only from frozen inputs and actual execution."""
     if (
@@ -507,7 +599,10 @@ def build_observation(
         )
     if checkpoint_payload.get("checkpoint_schema") != "quick-scan-answer" or checkpoint_payload.get(
         "checkpoint_schema_version"
-    ) not in {1, 2}:
+    ) not in {
+        1,
+        2,
+    }:
         raise ValueError("unsupported answer checkpoint")
     work = checkpoint_payload["work"]
     scope_id = (
@@ -546,6 +641,8 @@ def build_observation(
     execution.update(
         started_at=started_at, model_revision=None
     )  # unknown, never a guessed revision
+    if metadata["schema_version"] == "1.2.0":
+        execution.update(_vendor_receipt_execution(checkpoint_payload, durable_response))
     observation = dict(
         copy.deepcopy(metadata),
         observed_at=execution["answered_at"],
@@ -569,6 +666,6 @@ def build_observation(
     ):
         raise ValueError("scored answer requires actual search proof")
     observation["observation_id"] = "obs_" + canonical_sha256(observation)
-    schema, _, _, registry = _resources()
+    schema, _, _, registry = _resources(metadata["schema_version"])
     _validate(observation, schema, registry)
     return observation

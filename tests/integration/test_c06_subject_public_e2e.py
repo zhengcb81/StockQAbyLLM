@@ -82,7 +82,11 @@ def owner_identity_request(identity, entity):
             },
             **{
                 k: source[k]
-                for k in ("source_namespace", "source_record_id", "source_canonical_name")
+                for k in (
+                    "source_namespace",
+                    "source_record_id",
+                    "source_canonical_name",
+                )
             },
         }
     receipts = IdentityReceiptStore(identity.paths)
@@ -102,7 +106,12 @@ def owner_identity_request(identity, entity):
             "security_attributes": {
                 s["security_id"]: {
                     k: s.get(k)
-                    for k in ("security_type", "share_class", "adr_ratio", "ordinary_security_ref")
+                    for k in (
+                        "security_type",
+                        "share_class",
+                        "adr_ratio",
+                        "ordinary_security_ref",
+                    )
                 }
                 for s in securities
             },
@@ -133,7 +142,8 @@ def invoke(command, tmp_path, label, **env_extra):
 
 
 @pytest.fixture
-def actual(tmp_path):
+def actual(tmp_path, request):
+    observation_version = getattr(request, "param", "1.1.0")
     seed = runpy.run_path(str(OWN / "sw/tests/test_c06_listing_authority.py"))["seeded"]
     identity, entity, listing = seed(tmp_path / "owner")
     initialized = invoke(
@@ -262,7 +272,7 @@ def actual(tmp_path):
         "versions": {
             "identity_schema": "2.1.0",
             "answer_schema": "1.0.0",
-            "observation_schema": "1.1.0",
+            "observation_schema": observation_version,
             "question_catalog": manifest["template_version"],
             "model_policy_schema": "2.0.0",
         },
@@ -284,6 +294,8 @@ def actual(tmp_path):
         str(release),
         "--output",
         str(tmp_path / "authority.json"),
+        "--observation-schema-version",
+        observation_version,
     ]
     for name, value in inputs.items():
         path = tmp_path / (name + ".json")
@@ -315,6 +327,9 @@ def test_actual_public_authority_owner_registration_client_checkpoint_and_import
     routes, current, config, authority, manifest, identity_file = actual
     assert authority["schema_version"] == "3.0.0"
     context = authority["observation_context"]
+    vendor_profile = authority["contract_versions"]["observation_schema"] == "1.2.0"
+    provider = "mimo" if vendor_profile else "openai"
+    model = "mimo-v2.6-pro" if vendor_profile else "fixture-model"
     q = next(q for q in manifest["questions"] if q["scope"] == scope)
     row = context["questions"][q["id"]]
     ref = row["subject_binding"]["subject_ref"]
@@ -350,6 +365,34 @@ def test_actual_public_authority_owner_registration_client_checkpoint_and_import
     body["summary"] = "Synthetic E2E supported body, no financial conclusion."
     body["evidence"][0]["url"] = "https://example.org/source"
     response.json.return_value["output"][1]["content"][0]["text"] = json.dumps(body)
+    if vendor_profile:
+        response.headers = {}
+        response.json.return_value = {
+            "id": "chatcmpl-SYNTHETIC-vendor-public-e2e",
+            "model": model,
+            "choices": [
+                {
+                    "finish_reason": "stop",
+                    "message": {
+                        "role": "assistant",
+                        "content": json.dumps(body),
+                        "annotations": [
+                            {
+                                "type": "url_citation",
+                                "url": "https://example.org/source",
+                                "title": "Synthetic citation",
+                            }
+                        ],
+                    },
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 100,
+                "completion_tokens": 80,
+                "total_tokens": 180,
+                "web_search_usage": {"tool_usage": 1},
+            },
+        }
     owner = SubjectBoundObservationStore(
         routes.identity.paths,
         contract=IqsSubjectContract(
@@ -377,19 +420,26 @@ def test_actual_public_authority_owner_registration_client_checkpoint_and_import
     monkeypatch.setattr(llm_client.http_client_manager, "get_sync_session", lambda: session)
     client = llm_client.LLMClient(
         api_key="synthetic-only",
-        model="fixture-model",
-        base_url="https://api.openai.com/v1/responses",
-        provider_name="openai",
+        model=model,
+        base_url=(
+            "https://api.xiaomimimo.com/v1"
+            if vendor_profile
+            else "https://api.openai.com/v1/responses"
+        ),
+        provider_name=provider,
     )
     with transport.bind_quick_scan_work(
         store, item["work_item_id"], lease
     ), transport.bind_quick_scan_route(
-        route_id="primary", provider="configured-provider-ref", model_requested="fixture-model"
+        route_id="primary", provider="configured-provider-ref", model_requested=model
     ), transport.bind_subject_dispatch_registrar(
         lambda request: register(config, current, request, process_env=dict(os.environ))
     ):
         result = client.send_search_request(q["prompt"], "Synthetic system prompt")
     assert session.post.call_count == 1
+    if vendor_profile:
+        posted = session.post.call_args.kwargs["json"]
+        assert result.execution_metadata["request_payload_sha256"] == canonical_sha256(posted)
     attempt = store.list_attempts(item["work_item_id"])[0]
     saved = store.save_answer_checkpoint(
         item["work_item_id"],
@@ -406,6 +456,12 @@ def test_actual_public_authority_owner_registration_client_checkpoint_and_import
         observation_context=context,
         standard_answer=body,
     )
+    if vendor_profile:
+        pre_request = store.get_subject_dispatch_receipt(attempt["attempt_id"])["receipt"][
+            "dispatch_request"
+        ]
+        assert pre_request["protocol"] == "stockwiki.subject_dispatch_request/1.2.0"
+        assert pre_request["execution_profile"]["profile_id"] == "vendor-http-identity-v1"
     from src.utils.quick_scan_delivery_seal import seal_result_delivery
 
     sealed = seal_result_delivery(store, item["work_item_id"], authority=authority)
@@ -413,6 +469,10 @@ def test_actual_public_authority_owner_registration_client_checkpoint_and_import
     delivery = store.get_result_delivery(item["work_item_id"])
     package = delivery["package"]
     original = package["items"][0]["observation"]
+    assert original["schema_version"] == ("1.2.0" if vendor_profile else "1.1.0")
+    if vendor_profile:
+        assert original["execution"]["request_id"] is None
+        assert original["execution"]["response_id"] == "chatcmpl-SYNTHETIC-vendor-public-e2e"
     original_hash = canonical_sha256(original)
     from stockwiki.quick_scan_import import import_package, verify_package_integrity
 
@@ -420,10 +480,63 @@ def test_actual_public_authority_owner_registration_client_checkpoint_and_import
     frozen_release = owner.contract.release_projection(
         json.loads(current["snapshot"]["manifest_raw"])
     )
+    if vendor_profile:
+        from stockwiki.paths import WorkspacePaths
+        from stockwiki.quick_scan_observations import ObservationImportError
+
+        unregistered = SubjectBoundObservationStore(
+            WorkspacePaths.from_root(tmp_path / "no-pre-owner"), contract=owner.contract
+        )
+        unregistered.migrate()
+        before_empty = unregistered.database_path.read_bytes()
+        with pytest.raises(ObservationImportError, match="subject_dispatch_preregister_required"):
+            import_package(
+                unregistered,
+                package,
+                frozen_release=frozen_release,
+                identity_store=routes.identity,
+            )
+        assert unregistered.database_path.read_bytes() == before_empty
+        assert unregistered.counts()["observations"] == unregistered.dispatch_count() == 0
+        with closing(sqlite3.connect(unregistered.database_path)) as con:
+            for table in ("quick_scan_import_item", "quick_scan_subject_binding"):
+                assert con.execute("SELECT COUNT(*) FROM " + table).fetchone()[0] == 0
     imported = import_package(
         owner, package, frozen_release=frozen_release, identity_store=routes.identity
     )
     assert imported["summary"] == {"accepted": 1}, imported
+    if vendor_profile:
+        from src.utils.quick_scan_execution_inspect import inspect_executions
+
+        proof_request = {
+            "protocol": "stockqa.execution_inspection_request/1.0.0",
+            "owner_store_id": owner.store_id,
+            "observations": [
+                {
+                    "work_item_id": item["work_item_id"],
+                    "observation_id": original["observation_id"],
+                    "payload_sha256": original_hash,
+                    "subject_ref": ref,
+                }
+            ],
+        }
+        before_work = store.path.read_bytes()
+        verified = inspect_executions(store.path, proof_request)
+        assert (
+            verified["observations"][original["observation_id"]]["execution"]
+            == original["execution"]
+        )
+        assert verified["financial_accuracy_proven"] is False
+        assert store.path.read_bytes() == before_work
+        for key, value in (
+            ("payload_sha256", "f" * 64),
+            ("work_item_id", "WORK_SYNTHETIC_wrong"),
+        ):
+            wrong = copy.deepcopy(proof_request)
+            wrong["observations"][0][key] = value
+            with pytest.raises((ValueError, KeyError)):
+                inspect_executions(store.path, wrong)
+            assert store.path.read_bytes() == before_work
     binding = owner.binding_for_observation(original["observation_id"])
     assert binding["binding"]["subject_ref"] == ref
     assert binding["binding"]["payload_sha256"] == original_hash
@@ -432,12 +545,29 @@ def test_actual_public_authority_owner_registration_client_checkpoint_and_import
     assert "analysis_subject" not in original
     assert list(Path(config["runs_dir"]).iterdir()) == []
     import query_contract as qc
+
+    if vendor_profile:
+        import query_vendor_contract as qc
     import subject_dispatch_contract as dc
     from stockwiki.quick_scan_query_v2 import QueryReader
 
     pre = store.get_subject_dispatch_receipt(attempt["attempt_id"])["receipt"]
     request = dc.query_request(pre["dispatch_request"], utc())
-    reader = QueryReader(routes.identity.paths, contract=qc, subject_contract=dc)
+    if vendor_profile:
+        from stockwiki.quick_scan_query_contract import IqsQueryContract
+
+        fixed_contract = IqsQueryContract(
+            OWN / "iqs",
+            runs_dir=tmp_path / "query-contract-runs",
+            process_env=dict(os.environ),
+        )
+        reader = QueryReader(
+            routes.identity.paths,
+            contract=fixed_contract,
+            subject_contract=fixed_contract.subject_contract,
+        )
+    else:
+        reader = QueryReader(routes.identity.paths, contract=qc, subject_contract=dc)
     response = reader.get_profiles(request)
     qc.validate_response(response, expected_request=request, expected_owner=reader.owner_context)
     assert (
@@ -495,6 +625,36 @@ def test_actual_public_authority_owner_registration_client_checkpoint_and_import
         PYTHONPATH=os.pathsep.join(str(OWN / path) for path in ("guard", "sw")),
     )
     assert replay["result"] == public_response["result"]
+    if vendor_profile:
+        fresh = copy.deepcopy(request)
+        fresh["payload"]["snapshot_id"] = None
+        query_input.write_text(json.dumps(fresh), encoding="utf-8")
+        before_owner = owner.database_path.read_bytes()
+        assessment = invoke(
+            [
+                sys.executable,
+                "-B",
+                "-X",
+                "utf8",
+                "-m",
+                "stockwiki.quick_scan_assessment_cli",
+                "--root",
+                config["stockwiki_workspace_root"],
+                "--iqs-code-root",
+                str(OWN / "iqs"),
+                "--request",
+                str(query_input),
+            ],
+            tmp_path,
+            "public-vendor-field-assessment",
+            PYTHONPATH=os.pathsep.join(str(OWN / path) for path in ("guard", "sw")),
+        )
+        assert (
+            assessment["assessment"]["observations"][original["observation_id"]]["check_level"]
+            == "unverified_model_output"
+        )
+        assert assessment["financial_accuracy_proven"] is False
+        assert owner.database_path.read_bytes() == before_owner
     # Current owner refresh must use the retained PRE-dispatch sidecar, rather
     # than demanding subject fields forbidden by the original answer schema.
     refresh = invoke(
@@ -521,9 +681,9 @@ def test_actual_public_authority_owner_registration_client_checkpoint_and_import
             "--now-utc",
             utc(),
             "--provider",
-            "openai",
+            provider,
             "--model",
-            "fixture-model",
+            model,
             "--ttl-hours",
             "48",
             "--c06-subject-bound",
@@ -561,8 +721,8 @@ def test_actual_public_authority_owner_registration_client_checkpoint_and_import
         manifest,
         clean_store,
         identity=load_identity_snapshot(identity_file, expected_entity_id=ref["entity_id"]),
-        provider="openai",
-        model="fixture-model",
+        provider=provider,
+        model=model,
         now=utc(),
         observation_context=context,
     )
@@ -573,7 +733,10 @@ def test_actual_public_authority_owner_registration_client_checkpoint_and_import
     assert reused.metadata["owner_observation_reference"]["new_work_created"] is False
     assert owner.dispatch_count() == 1 and session.post.call_count == 1
     untouched = copy.deepcopy(prepared.plan)
-    for key, value in [("identity_revision", 2), ("execution_attempt_id", "foreign-attempt")]:
+    for key, value in [
+        ("identity_revision", 2),
+        ("execution_attempt_id", "foreign-attempt"),
+    ]:
         descriptor = prepared.plan["reused_observations"][original["observation_id"]]
         if key == "identity_revision":
             descriptor["reuse_subject_binding"]["dispatch_receipt"]["dispatch_request"][key] = value
@@ -596,8 +759,8 @@ def test_actual_public_authority_owner_registration_client_checkpoint_and_import
             (read_json(s["manifest_raw"]), s)
             for s in routes.snapshots_for_subject(config["subject_key"])
         ],
-        provider="openai",
-        model="fixture-model",
+        provider=provider,
+        model=model,
         ttl_hours=48,
     )
     meta = _matching_meta(descriptor, **args)
@@ -605,11 +768,26 @@ def test_actual_public_authority_owner_registration_client_checkpoint_and_import
     deadline = parse_utc(meta["valid_until"])
     assert (
         freshness_status(
-            meta, (deadline - timedelta(microseconds=1)).isoformat().replace("+00:00", "Z")
+            meta,
+            (deadline - timedelta(microseconds=1)).isoformat().replace("+00:00", "Z"),
         )
         == "fresh"
     )
     assert freshness_status(meta, meta["valid_until"]) == "stale"
+    if vendor_profile:
+        untouched_plan = copy.deepcopy(prepared.plan)
+        for proof_field in (
+            "execution_response_id",
+            "execution_request_payload_sha256",
+            "execution_response_sha256",
+            "execution_receipt_sha256",
+        ):
+            prepared.plan = copy.deepcopy(untouched_plan)
+            entry = prepared.plan["reused_observations"][original["observation_id"]]
+            entry["reuse_subject_binding"]["binding"][proof_field] = "SYNTHETIC_FORGED"
+            with pytest.raises(OwnerRefreshRejected):
+                prepared.reference(question)
+        prepared.plan = untouched_plan
     for changes in ({"model": "different-model"}, {"provider": "minimax"}):
         assert _matching_meta(descriptor, **dict(args, **changes)) is None
     assert descriptor["payload"] == original and canonical_sha256(original) == original_hash
@@ -641,9 +819,9 @@ def test_actual_public_authority_owner_registration_client_checkpoint_and_import
         "--now-utc",
         utc(),
         "--provider",
-        "openai",
+        provider,
         "--model",
-        "fixture-model",
+        model,
         "--ttl-hours",
         "48",
         "--c06-subject-bound",
@@ -656,7 +834,8 @@ def test_actual_public_authority_owner_registration_client_checkpoint_and_import
             capture_output=True,
             timeout=45,
             env=dict(
-                os.environ, PYTHONPATH=os.pathsep.join(str(OWN / path) for path in ("guard", "sw"))
+                os.environ,
+                PYTHONPATH=os.pathsep.join(str(OWN / path) for path in ("guard", "sw")),
             ),
         )
         assert rejected.returncode == 2
@@ -673,7 +852,8 @@ def test_actual_public_authority_owner_registration_client_checkpoint_and_import
             capture_output=True,
             timeout=45,
             env=dict(
-                os.environ, PYTHONPATH=os.pathsep.join(str(OWN / path) for path in ("guard", "sw"))
+                os.environ,
+                PYTHONPATH=os.pathsep.join(str(OWN / path) for path in ("guard", "sw")),
             ),
         )
         assert rejected.returncode == 2

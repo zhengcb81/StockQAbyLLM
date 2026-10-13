@@ -12,6 +12,7 @@ import re
 import sqlite3
 import stat
 import tempfile
+import threading
 import time
 from contextlib import closing
 from datetime import datetime, timezone
@@ -33,8 +34,18 @@ from .quick_scan_result_outbox import (
 from .quick_scan_work_store import SCHEMA_VERSION, QuickScanWorkStore
 
 MAX_BYTES = 8 * 1024 * 1024
-ROOT_KEYS = {"stockwiki_code_root", "stockwiki_workspace_root", "iqs_code_root", "iqs_release_root"}
-PATH_KEYS = ROOT_KEYS | {"execution_inputs_root", "work_store", "budget_policy_file", "runs_dir"}
+ROOT_KEYS = {
+    "stockwiki_code_root",
+    "stockwiki_workspace_root",
+    "iqs_code_root",
+    "iqs_release_root",
+}
+PATH_KEYS = ROOT_KEYS | {
+    "execution_inputs_root",
+    "work_store",
+    "budget_policy_file",
+    "runs_dir",
+}
 CONFIG_KEYS = PATH_KEYS | {"protocol", "consumer_id"}
 BUNDLE_FILES = (
     "manifest.json",
@@ -162,6 +173,7 @@ class RefreshAdmissionService:
         # Use original methods without invoking the creating/migrating initializer.
         self.store = QuickScanWorkStore.__new__(QuickScanWorkStore)
         self.store.path, self.store.clock = Path(c["work_store"]), time.time
+        self.store._transaction_state = threading.local()
         self._ledger_ready()
 
     def _ledger_ready(self):
@@ -319,7 +331,8 @@ class RefreshAdmissionService:
             self._ledger_ready()
             existing = self._record(confirmation_id)
             proof = self.bridge.inspect(
-                confirmation_id, mode="current_permissions" if existing else "fresh_registration"
+                confirmation_id,
+                mode="current_permissions" if existing else "fresh_registration",
             )
             preview, policy = proof["preview"], proof["owner_policy"]
             bundles = self._proof_inputs(proof)
@@ -376,7 +389,10 @@ class RefreshAdmissionService:
                             )
                         )
                         continue
-                    if item["decision"] in {"dispatch_new_work", "dispatch_new_generation"}:
+                    if item["decision"] in {
+                        "dispatch_new_work",
+                        "dispatch_new_generation",
+                    }:
                         binding = session.binding(qid)
                     elif item["decision"] == "resume_existing_work":
                         work = session.existing_work(qid)

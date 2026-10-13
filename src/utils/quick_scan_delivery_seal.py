@@ -42,6 +42,7 @@ BLOCK_CONTEXT_CONFLICT = "c06_observation_context_conflict"
 BLOCK_RUN_SCAN = "c06_run_scan_unbound"
 BLOCK_STANDARD_ANSWER = "c06_standard_answer_unavailable"
 BLOCK_ATTEMPT = "c06_attempt_send_intent_unavailable"
+BLOCK_RECEIPT = "c06_durable_response_unavailable"
 HISTORICAL_READONLY = "historical_package_readonly"
 
 __all__ = [
@@ -52,6 +53,7 @@ __all__ = [
     "BLOCK_CONTEXT",
     "BLOCK_CONTEXT_CONFLICT",
     "BLOCK_RUN_SCAN",
+    "BLOCK_RECEIPT",
     "BLOCK_STANDARD_ANSWER",
     "HISTORICAL_READONLY",
     "seal_pending_deliveries",
@@ -119,6 +121,14 @@ def _complete_package(
     )
     if started_at is None:
         return None, BLOCK_ATTEMPT
+    durable_response = None
+    if bound["metadata"]["schema_version"] == "1.2.0":
+        try:
+            durable_response = store.get_attempt_response(checkpoint["attempt_id"])
+        except ValueError:
+            return None, BLOCK_RECEIPT
+        if durable_response is None:
+            return None, BLOCK_RECEIPT
     try:
         package = build_complete_c06_package(
             checkpoint["payload"],
@@ -126,6 +136,7 @@ def _complete_package(
             context=bound,
             standard_answer=standard["answer"],
             started_at=started_at,
+            durable_response=durable_response,
         )
     except MissingC06Fields as error:
         logger.warning("完整 C06 封存拒绝（%s）：%s", work_item_id, error)

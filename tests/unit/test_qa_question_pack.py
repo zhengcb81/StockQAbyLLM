@@ -155,7 +155,11 @@ def test_one_request_split_retains_each_logical_transport_and_uses_explicit_defa
         "thinking_enabled": True,
         "max_output_tokens": 8192,
     }
-    assert [x.question.question_id for x in batch.results] == ["CORE_01", "CORE_02", "CORE_03"]
+    assert [x.question.question_id for x in batch.results] == [
+        "CORE_01",
+        "CORE_02",
+        "CORE_03",
+    ]
     assert [x[0] for x in lc.saved] == ["CORE_01", "CORE_02", "CORE_03"]
     assert (
         batch.results[1].answer.metadata["execution"]["work_transport"]["work_attempt_id"]
@@ -181,7 +185,11 @@ def test_reference_and_hydration_are_before_claim_and_interrupt_consecutive_pack
     lc.references["CORE_02"] = QAResult(q(2), Answer("Original owner", 8, status="scored"))
     lc.checkpoints["CORE_04"] = {
         "payload": {
-            "answer": {"description": "Original checkpoint", "score": 8, "status": "scored"},
+            "answer": {
+                "description": "Original checkpoint",
+                "score": 8,
+                "status": "scored",
+            },
             "provenance": {"response_completed_at": "2026-09-01T00:00:00Z"},
         }
     }
@@ -266,7 +274,10 @@ def test_provider_contract_violation_fails_whole_group_without_saving(mode):
 def test_explicit_control_experiment_options_reach_pack_provider():
     e, p, lc = engine()
     e.process_questions(
-        [q(1), q(2)], question_pack_size=2, thinking_enabled=False, max_output_tokens=9000
+        [q(1), q(2)],
+        question_pack_size=2,
+        thinking_enabled=False,
+        max_output_tokens=9000,
     )
     assert p.calls[0][1] == {"thinking_enabled": False, "max_output_tokens": 9000}
 
@@ -324,7 +335,8 @@ def test_actual_lifecycle_client_group_store_and_checkpoints_only_valid_members(
     qids = ["IQS_01", "IQS_02"]
     questions = [
         Question(
-            text=next(x for x in MANIFEST["questions"] if x["id"] == qid)["prompt"], question_id=qid
+            text=next(x for x in MANIFEST["questions"] if x["id"] == qid)["prompt"],
+            question_id=qid,
         )
         for qid in qids
     ]
@@ -473,7 +485,10 @@ def test_actual_lifecycle_client_group_store_and_checkpoints_only_valid_members(
     session.post.side_effect = post
     monkeypatch.setattr(llm_client.http_client_manager, "get_sync_session", lambda: session)
     observed_errors = []
-    for obj, name in [(lc, "dispatch_question_pack_context"), (provider, "search_question_pack")]:
+    for obj, name in [
+        (lc, "dispatch_question_pack_context"),
+        (provider, "search_question_pack"),
+    ]:
         original = getattr(obj, name)
 
         def trace(*args, _original=original, **kwargs):
@@ -509,6 +524,8 @@ def test_actual_lifecycle_client_group_store_and_checkpoints_only_valid_members(
     checkpoints = [store.get_answer_checkpoint(rows[qid][0]["work_item_id"]) for qid in qids]
     assert checkpoints[0] is not None, [r.answer.text for r in batch.results]
     assert (checkpoints[1] is None) == partial
+    assert persisted[qids[0]]["status"] == "result_ready"
+    assert persisted[qids[1]]["status"] == ("failed" if partial else "result_ready")
     assert [r.answer.status for r in batch.results] == (
         ["scored", "error"] if partial else ["scored", "scored"]
     )
@@ -535,7 +552,9 @@ def test_actual_lifecycle_client_group_store_and_checkpoints_only_valid_members(
     assert session.post.call_count == 1, observed_errors
 
 
-def test_composed_approved_owner_session_keeps_native_context_and_outer_admission_guard(tmp_path):
+def test_composed_approved_owner_session_keeps_native_context_and_outer_admission_guard(
+    tmp_path,
+):
     """Synthetic object graph probes actual wrapper protocol, not a consent gold."""
     from types import SimpleNamespace
 
@@ -548,14 +567,16 @@ def test_composed_approved_owner_session_keeps_native_context_and_outer_admissio
     store = QuickScanWorkStore(tmp_path / "wrapper.sqlite")
     qid = "IQS_01"
     question = Question(
-        text=next(x for x in MANIFEST["questions"] if x["id"] == qid)["prompt"], question_id=qid
+        text=next(x for x in MANIFEST["questions"] if x["id"] == qid)["prompt"],
+        question_id=qid,
     )
     scopes = {qid: {"scope": "entity", "scope_id": "ENT_CONTEXT_FIXTURE"}}
     native = OwnerRefreshSession(
         Mock(assert_current=Mock()),
         {},
         dict(
-            fields=[{"field_id": qid, "decision": "dispatch_new_work"}], perimeter_sha256="d" * 64
+            fields=[{"field_id": qid, "decision": "dispatch_new_work"}],
+            perimeter_sha256="d" * 64,
         ),
         scopes,
         {},
@@ -593,3 +614,20 @@ def test_composed_approved_owner_session_keeps_native_context_and_outer_admissio
     with pytest.raises(ValueError):
         lc.assert_question_pack_ready([question])
     approved.check.assert_not_called()
+
+
+def test_explicit_member_rejection_carries_typed_reason_but_storage_error_does_not():
+    e, p, lc = engine()
+    e.answer_generator.generate_answer = lambda *a: Answer(
+        "Synthetic rejected body", None, status="error"
+    )
+    e.process_questions([q(1)], question_pack_size=3)
+    assert lc.failed == [("CORE_01", "answer_generator_rejected_member")] and not lc.saved
+    e, p, lc = engine()
+
+    def storage_failure(*a):
+        raise RuntimeError("Synthetic storage error")
+
+    lc.after_question = storage_failure
+    e.process_questions([q(1)], question_pack_size=3)
+    assert lc.failed == [("CORE_01", "RuntimeError")]
