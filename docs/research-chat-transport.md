@@ -46,3 +46,13 @@ S0 on 2026-10-15 qualified real DeepSeek and MiMo Pro thinking/tool round trips 
 observed prefix caching. Flash has protocol support here but was not re-probed in
 that run. This does not qualify financial answer accuracy, production owner
 integration, the full Lab RuntimePort adapter, checkpoint resume or invoice cost.
+
+
+Native controlled-generation compatibility (2026-10-15): DeepSeek chat uses
+`thinking.type=enabled` and `max_tokens`, distinct from its Responses API dialect.
+The owner comparison guard now validates these exact fields for
+`deepseek_chat_completions` with provider `deepseek`. Existing provider/model,
+cohort, approved target route, policy, pack-size and owner-scope checks still
+run before any send. This does not supply owner permission or a production
+RuntimePort; S0 and worker frozen inputs are unchanged. Synthetic native SQLite
+regressions cover single work and pack caps3/12 without creating HTTP attempts.

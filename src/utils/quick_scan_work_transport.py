@@ -834,6 +834,17 @@ def assert_controlled_generation_payload(payload, *, provider, protocol):
                 payload.get("thinking", {}).get("type")
             )
             tokens = payload.get("max_completion_tokens")
+        elif protocol == "deepseek_chat_completions" and provider == "deepseek":
+            native_thinking = payload.get("thinking")
+            thinking_type = (
+                native_thinking.get("type") if isinstance(native_thinking, dict) else None
+            )
+            thinking = (
+                {"enabled": True, "disabled": False}.get(thinking_type)
+                if isinstance(thinking_type, str)
+                else None
+            )
+            tokens = payload.get("max_tokens")
         elif protocol == "anthropic_messages":
             thinking = {"adaptive": True, "disabled": False}.get(
                 payload.get("thinking", {}).get("type")
