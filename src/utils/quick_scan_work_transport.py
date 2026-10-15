@@ -659,6 +659,12 @@ def bind_quick_scan_budget(
         _BUDGET_BINDING.reset(token)
 
 
+def require_budgeted_research_send() -> None:
+    """Research transport cannot silently take the legacy unmetered path."""
+    if _BUDGET_BINDING.get() is None or own_reservation_held():
+        raise QuickScanWorkPersistenceError("research_requires_durable_budget_binding")
+
+
 def _resolved_cost(
     binding: Optional[QuickScanBudgetBinding], receipt: Any
 ) -> tuple[Optional[object], Optional[str]]:
