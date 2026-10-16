@@ -94,6 +94,7 @@ class QuickScanBudgetBinding:
     store: QuickScanWorkStore
     policy: dict
     cost_resolver: Optional[Callable[[dict], Optional[dict]]] = None
+    independent_task: Optional[dict] = None
 
 
 @dataclass
@@ -645,13 +646,17 @@ def bind_quick_scan_budget(
     policy: dict,
     *,
     cost_resolver: Optional[Callable[[dict], Optional[dict]]] = None,
+    independent_task: Optional[dict] = None,
 ) -> Iterator[None]:
     """Bind the current immutable policy to the shared durable budget owner."""
     try:
         store.configure_quick_scan_budget(policy)
     except Exception as error:
         raise QuickScanBudgetDeferredError("budget_policy_unavailable") from error
-    binding = QuickScanBudgetBinding(store, policy, cost_resolver)
+    from src.utils.quick_scan_uncertain_seal import normalize_independent_task
+
+    task = normalize_independent_task(independent_task)
+    binding = QuickScanBudgetBinding(store, policy, cost_resolver, task)
     token = _BUDGET_BINDING.set(binding)
     try:
         yield
@@ -1216,6 +1221,13 @@ def begin_quick_scan_send(
         raise QuickScanWorkPersistenceError("HTTP requested model does not match frozen route")
     resolution = frozen_quick_scan_model_resolution(model_resolution)
     pack_binding = _QUESTION_PACK_BINDING.get()
+    bound_budget = _BUDGET_BINDING.get()
+    if (
+        bound_budget is not None
+        and bound_budget.independent_task is not None
+        and (work is not None or pack_binding is not None)
+    ):
+        raise QuickScanWorkPersistenceError("research_continuation_cannot_bind_owner_work")
     if pack_binding is not None:
         return _begin_question_pack_send(
             pack_binding,
@@ -1380,6 +1392,7 @@ def begin_quick_scan_send(
                 budget.store.reserve_budget_attempt(
                     budget.policy,
                     budget_attempt_id=budget_attempt_id,
+                    independent_task=budget.independent_task,
                     route_id=route.route_id,
                     provider=route.provider,
                     model_requested=route.model_requested,

@@ -42,8 +42,9 @@ from src.utils.quick_scan_refresh_admission_journal import (
     DDL_V16_ADDITIONS as _DDL_V16_ADDITIONS,
 )
 from src.utils.quick_scan_subject_journal import DDL_V15_ADDITIONS as _DDL_V15_ADDITIONS
+from src.utils.quick_scan_uncertain_seal import DDL_V20_ADDITIONS as _DDL_V20_ADDITIONS
 
-SCHEMA_VERSION = 19
+SCHEMA_VERSION = 20
 _SAFE_ID = re.compile(r"^[A-Za-z0-9_.-]{1,160}$")
 # Hyphens accepted per owner sign-off (2026-10-05 round-51): the W04
 # identity-export package issues ENT_<uuid> entity ids (e.g. the frozen
@@ -682,6 +683,7 @@ _DDL = (
     + _DDL_V17_ADDITIONS
     + _DDL_V18_ADDITIONS
     + _DDL_V19_ADDITIONS
+    + _DDL_V20_ADDITIONS
 )
 
 _RECEIPT_FIELDS = (
@@ -1243,6 +1245,8 @@ class QuickScanWorkStore:
                 cls._validate_schema(connection, schema_version=17)
             elif version == 18:
                 cls._validate_schema(connection, schema_version=18)
+            elif version == 19:
+                cls._validate_schema(connection, schema_version=19)
             elif version != SCHEMA_VERSION:
                 raise ValueError("unsupported quick-scan work database schema version")
             if 1 <= version < 8:
@@ -1290,6 +1294,10 @@ class QuickScanWorkStore:
                 connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             if 1 <= version < 19:
                 for statement in _DDL_V19_ADDITIONS:
+                    connection.execute(statement)
+                connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+            if 1 <= version < 20:
+                for statement in _DDL_V20_ADDITIONS:
                     connection.execute(statement)
                 connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             cls._validate_schema(connection, schema_version=SCHEMA_VERSION)
@@ -1568,6 +1576,12 @@ class QuickScanWorkStore:
                 expected[(match[1].lower(), match[2])] = statement
         if schema_version >= 19:
             for statement in _DDL_V19_ADDITIONS:
+                match = re.match(r"CREATE (TABLE|TRIGGER) ([A-Za-z_]+)", statement)
+                if match is None:
+                    raise ValueError("quick-scan work database schema mismatch")
+                expected[(match[1].lower(), match[2])] = statement
+        if schema_version >= 20:
+            for statement in _DDL_V20_ADDITIONS:
                 match = re.match(r"CREATE (TABLE|TRIGGER) ([A-Za-z_]+)", statement)
                 if match is None:
                     raise ValueError("quick-scan work database schema mismatch")
@@ -2152,6 +2166,7 @@ class QuickScanWorkStore:
         quota_group: str,
         now: float,
         model_resolution: Optional[dict] = None,
+        independent_task: Optional[dict] = None,
     ) -> dict:
         _safe(budget_attempt_id, "budget_attempt_id")
         if work_attempt_id is not None:
@@ -2178,9 +2193,19 @@ class QuickScanWorkStore:
             "model": model_requested,
         }:
             raise BudgetAdmissionError("budget_route_not_in_policy")
+        from src.utils.quick_scan_uncertain_seal import (
+            continuation_exclusion,
+            normalize_independent_task,
+        )
+
+        task = normalize_independent_task(independent_task)
+        if task is not None and work_attempt_id is not None:
+            raise BudgetAdmissionError("research_continuation_cannot_bind_owner_work")
+        exclusion = continuation_exclusion(connection, policy_id, task)
         unreconciled = connection.execute(
             "SELECT COUNT(*) FROM quick_scan_budget_attempt WHERE policy_id=? "
-            "AND status IN ('response_unpriced','failure_unpriced','outcome_uncertain')",
+            "AND status IN ('response_unpriced','failure_unpriced','outcome_uncertain') "
+            f"AND NOT ({exclusion})",
             (policy_id,),
         ).fetchone()[0]
         if unreconciled:
@@ -2201,7 +2226,8 @@ class QuickScanWorkStore:
             raise BudgetAdmissionError("budget_request_limit")
 
         in_flight = connection.execute(
-            "SELECT COUNT(*) FROM quick_scan_budget_attempt WHERE policy_id=? AND in_flight=1",
+            "SELECT COUNT(*) FROM quick_scan_budget_attempt WHERE policy_id=? AND in_flight=1 "
+            f"AND NOT ({exclusion})",
             (policy_id,),
         ).fetchone()[0]
         if in_flight >= current["max_in_flight_total"]:
@@ -2212,14 +2238,16 @@ class QuickScanWorkStore:
             raise BudgetAdmissionError("budget_route_limit_missing")
         group_active = connection.execute(
             "SELECT COUNT(*) FROM quick_scan_budget_attempt WHERE policy_id=? "
-            "AND quota_group=? AND in_flight=1",
+            "AND quota_group=? AND in_flight=1 "
+            f"AND NOT ({exclusion})",
             (policy_id, quota_group),
         ).fetchone()[0]
         if group_active >= group_limits[quota_group]:
             raise BudgetAdmissionError("dispatch_quota_group_capacity_full")
         route_active = connection.execute(
             "SELECT COUNT(*) FROM quick_scan_budget_attempt WHERE policy_id=? "
-            "AND route_id=? AND in_flight=1",
+            "AND route_id=? AND in_flight=1 "
+            f"AND NOT ({exclusion})",
             (policy_id, route_id),
         ).fetchone()[0]
         if route_active >= route_limits[route_id]:
@@ -2246,6 +2274,11 @@ class QuickScanWorkStore:
                 now,
             ),
         )
+        if task is not None:
+            connection.execute(
+                "INSERT INTO quick_scan_research_attempt VALUES (?,?,?)",
+                (budget_attempt_id, policy_id, task["task_id"]),
+            )
         if work_attempt_id is None:
             QuickScanWorkStore._freeze_resolution_tx(
                 connection,
@@ -2272,6 +2305,7 @@ class QuickScanWorkStore:
         model_requested: str,
         quota_group: str,
         model_resolution: Optional[dict] = None,
+        independent_task: Optional[dict] = None,
     ) -> dict:
         """Atomically reserve cost, request count, and global/group/route slots."""
         normalized = self.configure_quick_scan_budget(policy)
@@ -2287,6 +2321,7 @@ class QuickScanWorkStore:
                 quota_group=quota_group,
                 now=self._now(),
                 model_resolution=model_resolution,
+                independent_task=independent_task,
             )
 
     def begin_external_search(
@@ -2653,9 +2688,39 @@ class QuickScanWorkStore:
                 ).fetchone()
             )
 
-    def get_quick_scan_budget_status(self, policy_id: str) -> dict:
+    def amend_isolated_research_budget(
+        self,
+        *,
+        old_policy: dict,
+        new_policy: dict,
+        expected_policy_snapshot_sha256: str,
+        audit: dict,
+    ) -> dict:
+        """Explicit audited expansion under the existing research budget identity."""
+        from src.utils.quick_scan_uncertain_seal import amend_research_budget
+
+        return amend_research_budget(
+            self,
+            old_policy=old_policy,
+            new_policy=new_policy,
+            expected_policy_snapshot_sha256=expected_policy_snapshot_sha256,
+            audit=audit,
+        )
+
+    def seal_uncertain_budget_attempt(
+        self, budget_attempt_id: str, *, source_task: dict, audit: dict
+    ) -> dict:
+        """Record reviewed isolation, preserving unknown outcome and full reservation."""
+        from src.utils.quick_scan_uncertain_seal import seal_uncertain
+
+        return seal_uncertain(self, budget_attempt_id, source_task=source_task, audit=audit)
+
+    def get_quick_scan_budget_status(
+        self, policy_id: str, *, include_isolation: bool = False
+    ) -> dict:
         _safe(policy_id, "policy_id")
         with closing(self._connect()) as connection:
+            connection.execute("BEGIN")
             policy = connection.execute(
                 "SELECT * FROM quick_scan_budget_policy WHERE policy_id=?", (policy_id,)
             ).fetchone()
@@ -2671,7 +2736,7 @@ class QuickScanWorkStore:
                 "FROM quick_scan_budget_attempt WHERE policy_id=?",
                 (policy_id,),
             ).fetchone()
-            return {
+            result = {
                 "policy_id": policy["policy_id"],
                 "policy_version": policy["policy_version"],
                 "currency": policy["currency"],
@@ -2683,6 +2748,21 @@ class QuickScanWorkStore:
                 "in_flight": totals["in_flight"],
                 "unreconciled_attempts": totals["unreconciled"] or 0,
             }
+
+            if include_isolation:
+                sealed = connection.execute(
+                    "SELECT COUNT(*) FROM quick_scan_budget_attempt b "
+                    "JOIN quick_scan_uncertain_seal s USING(budget_attempt_id) "
+                    "WHERE b.policy_id=? AND b.status='outcome_uncertain' "
+                    "AND b.in_flight=1 AND b.actual_cost_micros IS NULL",
+                    (policy_id,),
+                ).fetchone()[0]
+                result.update(
+                    sealed_unknown_attempts=sealed,
+                    effective_in_flight=result["in_flight"] - sealed,
+                    blocking_unreconciled_attempts=result["unreconciled_attempts"] - sealed,
+                )
+            return result
 
     def create_or_attach(
         self,
