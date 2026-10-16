@@ -17,7 +17,7 @@ import uuid
 from typing import Any
 from urllib.parse import urlsplit
 
-from jsonschema import Draft202012Validator
+from jsonschema import Draft202012Validator, ValidationError
 
 from src.providers.llm_client import (
     LLMTransportAttemptError,
@@ -61,6 +61,107 @@ def _unique(pairs):
 
 def _count(value):
     return value if type(value) is int and value >= 0 else None
+
+
+_RESPONSE_VALIDATION_CODES = frozenset(
+    {
+        "research_actual_model_mismatch",
+        "research_choices_invalid",
+        "research_role_invalid",
+        "research_incomplete_output",
+        "research_final_content_invalid",
+        "research_tool_calls_invalid",
+        "research_tool_identity_invalid",
+        "research_reasoning_protocol_invalid",
+        "research_tool_arguments_object_required",
+    }
+)
+_SCHEMA_VALIDATORS = frozenset(
+    {
+        "type",
+        "required",
+        "additionalProperties",
+        "enum",
+        "const",
+        "minItems",
+        "maxItems",
+        "minLength",
+        "maxLength",
+        "minimum",
+        "maximum",
+        "exclusiveMinimum",
+        "exclusiveMaximum",
+        "multipleOf",
+        "pattern",
+        "format",
+        "anyOf",
+        "oneOf",
+        "allOf",
+        "not",
+        "uniqueItems",
+        "contains",
+        "minContains",
+        "maxContains",
+        "minProperties",
+        "maxProperties",
+        "dependentRequired",
+        "dependentSchemas",
+        "propertyNames",
+        "unevaluatedProperties",
+    }
+)
+
+
+def _declared_schema_fields(value):
+    fields: set[str] = set()
+    if isinstance(value, dict):
+        properties = value.get("properties")
+        if isinstance(properties, dict):
+            fields.update(
+                key
+                for key in properties
+                if isinstance(key, str) and key.isidentifier() and len(key) <= 80
+            )
+        for nested in value.values():
+            fields.update(_declared_schema_fields(nested))
+    elif isinstance(value, list):
+        for nested in value:
+            fields.update(_declared_schema_fields(nested))
+    return fields
+
+
+def _response_validation_diagnostic(error, fields):
+    """Stable code/schema path only; never format jsonschema's raw instance."""
+    if isinstance(error, ValidationError):
+        path = [
+            (
+                str(part)
+                if type(part) is int and 0 <= part < 100000
+                else part if isinstance(part, str) and part in fields else "unknown_field"
+            )
+            for part in list(error.absolute_path)[:24]
+        ]
+        return {
+            "code": "research_tool_arguments_schema_invalid",
+            "validator": error.validator if error.validator in _SCHEMA_VALIDATORS else "schema",
+            "field_path": "/".join(path),
+        }
+    if isinstance(error, json.JSONDecodeError):
+        return {"code": "research_tool_arguments_json_invalid"}
+    code = error.args[0] if len(error.args) == 1 and isinstance(error.args[0], str) else None
+    return {
+        "code": (
+            code if code in _RESPONSE_VALIDATION_CODES else "research_response_validation_failed"
+        )
+    }
+
+
+class ResearchResponseValidationError(LLMTransportAttemptError):
+    """A received/charged response failed protocol or strict schema validation."""
+
+    def __init__(self, failure_type, receipt, diagnostic):
+        super().__init__(failure_type, receipt)
+        self.validation_diagnostic = diagnostic
 
 
 def _usage(payload):
@@ -126,6 +227,7 @@ class ResearchChatSession:
         session_input_tokens=240000,
         session_output_tokens=48000,
         wall_seconds=900,
+        tool_argument_validation="strict",
     ):
         endpoint = urlsplit(client.base_url)
         allowed = {
@@ -159,6 +261,11 @@ class ResearchChatSession:
             raise ValueError("research_limits_invalid")
         if not isinstance(tools, list) or not 1 <= len(tools) <= 20:
             raise ValueError("research_function_tools_required")
+        if not isinstance(tool_argument_validation, str) or tool_argument_validation not in {
+            "strict",
+            "controller",
+        }:
+            raise ValueError("research_tool_argument_validation_invalid")
         self._validators: dict[str, Any] = {}
         for tool in tools:
             if not isinstance(tool, dict) or tool.get("type") != "function":
@@ -190,6 +297,10 @@ class ResearchChatSession:
             local_references(schema)
             Draft202012Validator.check_schema(schema)
             self._validators[name] = Draft202012Validator(schema)
+        if tool_argument_validation == "controller" and "submit_answers" not in self._validators:
+            raise ValueError("research_controller_submit_answers_required")
+        self._tool_argument_validation = tool_argument_validation
+        self._validation_fields = _declared_schema_fields(tools)
         self._endpoint, self._provider, self._model = (
             client.base_url,
             client.provider_name,
@@ -444,7 +555,12 @@ class ResearchChatSession:
                     object_pairs_hook=_unique,
                     parse_constant=lambda _: (_ for _ in ()).throw(ValueError("nonfinite_json")),
                 )
-                self._validators[name].validate(arguments)
+                if not isinstance(arguments, dict):
+                    raise ValueError("research_tool_arguments_object_required")
+                if not (
+                    self._tool_argument_validation == "controller" and name == "submit_answers"
+                ):
+                    self._validators[name].validate(arguments)
                 tools.append({"id": call_id, "name": name, "arguments": arguments})
                 seen.add(call_id)
             private: dict[str, Any] = {
@@ -459,7 +575,11 @@ class ResearchChatSession:
             self._messages = messages + [private]
             self._pending = tuple(tool["id"] for tool in tools)
         except Exception as error:
-            raise LLMTransportAttemptError(type(error).__name__, receipt) from None
+            raise ResearchResponseValidationError(
+                type(error).__name__,
+                receipt,
+                _response_validation_diagnostic(error, self._validation_fields),
+            ) from None
         if usage is not None:
             self._input_used += observation["prompt_tokens"]
             self._output_used += observation["output_tokens_including_reasoning"]
@@ -478,7 +598,7 @@ class ResearchChatSession:
                 ]
                 > 0
             )
-        return {
+        result = {
             "protocol": "stockqa.research-step/1.0.0",
             "content": content,
             "tool_calls": tools,
@@ -488,3 +608,6 @@ class ResearchChatSession:
             "elapsed_seconds": time.monotonic() - http_start,
             "stable_prefix_sha256": self.stable_prefix_sha256,
         }
+        if self._tool_argument_validation == "controller":
+            result["tool_argument_validation"] = "controller"
+        return result
