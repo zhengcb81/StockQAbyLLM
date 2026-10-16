@@ -12,6 +12,7 @@ from src.providers.llm_client import LLMClient, LLMTransportAttemptError
 from src.providers.llm_research_client import ResearchChatSession
 from src.utils.quick_scan_work_store import QuickScanWorkStore
 from src.utils.quick_scan_work_transport import (
+    QuickScanWorkUncertainError,
     bind_quick_scan_budget,
     bind_quick_scan_route,
 )
@@ -107,7 +108,7 @@ def transport(monkeypatch):
 
 
 @contextmanager
-def budget(tmp_path, *, cost=True, cap=6):
+def budget(tmp_path, *, cost=True, cap=6, sealed_prior_unknown=False, independent_task=None):
     store = QuickScanWorkStore(tmp_path / "ledger.sqlite")
     policy = {
         "configured": True,
@@ -149,7 +150,37 @@ def budget(tmp_path, *, cost=True, cap=6):
             "source_ref": "unit-test",
         }
 
-    with bind_quick_scan_budget(store, policy, cost_resolver=resolver), bind_quick_scan_route(
+    if sealed_prior_unknown:
+        snapshot = store.configure_quick_scan_budget(policy)["policy_snapshot_sha256"]
+        store.reserve_budget_attempt(
+            policy,
+            budget_attempt_id="DISPATCH_prior_unknown",
+            route_id="research",
+            provider="deepseek",
+            model_requested="deepseek-flash",
+            quota_group="test",
+        )
+        store.record_budget_outcome(
+            "DISPATCH_prior_unknown", outcome="unknown", http_status_code=None
+        )
+        store.seal_uncertain_budget_attempt(
+            "DISPATCH_prior_unknown",
+            source_task={"task_id": "prior-task", "task_sha256": "b" * 64},
+            audit={
+                "operator_ref": "synthetic-test-review",
+                "input_sha256": "a" * 64,
+                "events_sha256": "d" * 64,
+                "review_reason": "Synthetic prior process stopped; no retry; fee unknown retained",
+                "no_retry": True,
+                "original_process_stopped": True,
+                "policy_snapshot_sha256": snapshot,
+                "reserved_cost_micros": 500000,
+            },
+        )
+
+    with bind_quick_scan_budget(
+        store, policy, cost_resolver=resolver, independent_task=independent_task
+    ), bind_quick_scan_route(
         route_id="research",
         provider="deepseek",
         model_requested="deepseek-flash",
@@ -369,3 +400,59 @@ def test_tool_schema_cannot_trigger_hidden_remote_fetch(transport):
     with pytest.raises(ValueError, match="remote_schema"):
         ResearchChatSession(client(), system_prefix="rules", tools=tools)
     assert not transport[1]
+
+
+def test_explicit_independent_session_continues_after_sealed_old_unknown(tmp_path, transport):
+    transport[0].payloads = [response(tools=True), response()]
+    session = ResearchChatSession(client(), system_prefix="rules", tools=TOOLS)
+    task = {"task_id": "later-task", "task_sha256": "c" * 64}
+    with budget(tmp_path, sealed_prior_unknown=True, independent_task=task) as store:
+        with sqlite3.connect(store.path) as conn:
+            before = conn.execute(
+                "SELECT * FROM quick_scan_budget_attempt WHERE budget_attempt_id='DISPATCH_prior_unknown'"
+            ).fetchone()
+        session.step(user_context="read first")
+        result = session.step(tool_results={"call_1": '{"value":42}'})
+        assert result["content"] == '{"answer":42}'
+        status = store.get_quick_scan_budget_status("research-test", include_isolation=True)
+        assert status["requests"] == 3 and status["spent_micros"] == 2000
+        assert status["reserved_micros"] == 500000
+        assert status["unreconciled_attempts"] == 1 and status["in_flight"] == 1
+        assert status["blocking_unreconciled_attempts"] == 0
+        with sqlite3.connect(store.path) as conn:
+            assert (
+                before
+                == conn.execute(
+                    "SELECT * FROM quick_scan_budget_attempt WHERE budget_attempt_id='DISPATCH_prior_unknown'"
+                ).fetchone()
+            )
+    assert len(transport[1]) == 2
+
+
+def test_ordinary_research_binding_cannot_ignore_sealed_old_unknown(tmp_path, transport):
+    transport[0].payloads = [response()]
+    session = ResearchChatSession(client(), system_prefix="rules", tools=TOOLS)
+    with budget(tmp_path, sealed_prior_unknown=True) as store:
+        with pytest.raises(RuntimeError, match="budget_reconciliation_required"):
+            session.step(user_context="ordinary binding")
+        assert store.get_quick_scan_budget_status("research-test")["requests"] == 1
+    assert not transport[1]
+
+
+def test_independent_session_new_unknown_still_blocks_resend(tmp_path, transport):
+    transport[0].payloads = [response(), requests.ConnectionError("synthetic connection failure")]
+    session = ResearchChatSession(client(), system_prefix="rules", tools=TOOLS)
+    task = {"task_id": "later-task", "task_sha256": "c" * 64}
+    with budget(tmp_path, sealed_prior_unknown=True, independent_task=task) as store:
+        session.step(user_context="first success")
+        with pytest.raises(QuickScanWorkUncertainError):
+            session.step(user_context="next becomes unknown")
+        status = store.get_quick_scan_budget_status("research-test", include_isolation=True)
+        assert status["requests"] == 3 and status["spent_micros"] == 1000
+        assert status["reserved_micros"] == 1000000
+        assert (
+            status["unreconciled_attempts"] == 2 and status["blocking_unreconciled_attempts"] == 1
+        )
+        with pytest.raises(RuntimeError, match="inspection_or_new_admission"):
+            session.step(user_context="never resend unknown")
+    assert len(transport[1]) == 2

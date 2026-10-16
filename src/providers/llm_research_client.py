@@ -463,10 +463,21 @@ class ResearchChatSession:
         if usage is not None:
             self._input_used += observation["prompt_tokens"]
             self._output_used += observation["output_tokens_including_reasoning"]
+            independent_task = budget_binding.independent_task is not None
             status = budget_binding.store.get_quick_scan_budget_status(
-                budget_binding.policy["policy_id"]
+                budget_binding.policy["policy_id"],
+                **({"include_isolation": True} if independent_task else {}),
             )
-            self._blocked = status["unreconciled_attempts"] > 0
+            self._blocked = (
+                status[
+                    (
+                        "blocking_unreconciled_attempts"
+                        if independent_task
+                        else "unreconciled_attempts"
+                    )
+                ]
+                > 0
+            )
         return {
             "protocol": "stockqa.research-step/1.0.0",
             "content": content,
