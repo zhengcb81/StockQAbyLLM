@@ -222,17 +222,28 @@ class ResearchChatSession:
             self._api_key = None
             self._blocked = True
 
-    def step(self, *, user_context=None, tool_results=None):
+    def step(self, *, user_context=None, tool_results=None, continuation_context=None):
         if not self._lock.acquire(blocking=False):
             raise RuntimeError("research_session_step_already_running")
         try:
-            return self._step(user_context=user_context, tool_results=tool_results)
+            return self._step(
+                user_context=user_context,
+                tool_results=tool_results,
+                continuation_context=continuation_context,
+            )
         finally:
             self._lock.release()
 
-    def _step(self, *, user_context=None, tool_results=None):
+    def _step(self, *, user_context=None, tool_results=None, continuation_context=None):
         if self._blocked:
             raise RuntimeError("research_session_requires_inspection_or_new_admission")
+        if continuation_context is not None and (
+            not self._pending
+            or not isinstance(continuation_context, str)
+            or not continuation_context.strip()
+            or len(continuation_context) > 60000
+        ):
+            raise ValueError("research_continuation_context_invalid")
         messages = copy.deepcopy(self._messages)
         if self._pending:
             if (
@@ -246,6 +257,8 @@ class ResearchChatSession:
                 if not isinstance(text, str) or len(text) > 60000:
                     raise ValueError("research_tool_result_invalid")
                 messages.append({"role": "tool", "tool_call_id": call_id, "content": text})
+            if continuation_context is not None:
+                messages.append({"role": "user", "content": continuation_context})
         else:
             if (
                 tool_results is not None
