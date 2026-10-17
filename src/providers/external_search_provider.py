@@ -17,6 +17,7 @@ import time
 from typing import Any
 
 from src.config.quick_scan_search_policy import (
+    EXECUTION_POLICY_IDS,
     EXECUTION_POLICY_SCHEMA_ID,
     EXTERNAL_ENDPOINTS,
     SearchPolicy,
@@ -77,7 +78,7 @@ class ExternalSearchProvider:
         self.retrieval = copy.deepcopy(policy.retrieval)
         self.policy_sha256 = policy.policy_sha256
         self.execution_plans = (
-            execution_query_plans(policy) if policy.schema_id == EXECUTION_POLICY_SCHEMA_ID else ()
+            execution_query_plans(policy) if policy.schema_id in EXECUTION_POLICY_IDS else ()
         )
         kind = self.route["kind"]
         if self.route["endpoint"] != ENDPOINTS.get(kind):
@@ -203,6 +204,15 @@ class ExternalSearchProvider:
             or plan["locale"] != locale
         ):
             raise ValueError("external request binding does not match its frozen intent")
+        if (plan.get("operation", "search") == "fetch") != (self.route["kind"] == "deepseek_fetch"):
+            raise ValueError("external operation does not match route kind")
+        parent_entry = None
+        if self.route["kind"] == "deepseek_search" and not 1 <= len(query) <= 128:
+            raise ValueError("deepseek_query_length_invalid")
+        if self.route["kind"] == "deepseek_fetch":
+            from src.utils.quick_scan_external_journal import validate_fetch_parent
+
+            parent_entry = validate_fetch_parent(permit.budget_binding.store, operation)
         mcp_binding = None
         if self.route["kind"] == "zai_mcp_streamable":
             mcp_binding = permit.budget_binding.store.get_mcp_binding(operation["cache_key"])
@@ -229,7 +239,11 @@ class ExternalSearchProvider:
             method, data = "GET", {"params": params}
         else:
             headers["Authorization"] = "Bearer " + key
-            if kind == "tavily":
+            if kind == "deepseek_search":
+                body = {"query": query, "count": top_k, "need_content": False}
+            elif kind == "deepseek_fetch":
+                body = {"url": query}
+            elif kind == "tavily":
                 body = {
                     "query": query,
                     "max_results": top_k,
@@ -274,6 +288,7 @@ class ExternalSearchProvider:
             headers=headers,
             query=query,
             top_k=top_k,
+            fetch_parent_entry=parent_entry,
             mcp_search=operation if mcp_binding is not None else None,
         )
 
@@ -289,6 +304,7 @@ class ExternalSearchProvider:
         mcp_stage: dict | None = None,
         mcp_key: str | None = None,
         mcp_search: dict | None = None,
+        fetch_parent_entry: dict | None = None,
     ) -> dict[str, Any]:
         """Shared one-request transport; no implicit retries or control POSTs."""
         kind = self.route["kind"]
@@ -352,8 +368,13 @@ class ExternalSearchProvider:
                 code = error.get("code") if isinstance(error, dict) else None
                 if isinstance(code, str) and code in _ERROR_CODES:
                     receipt["provider_error_code"] = code
-                if status in (401, 403, 404) or (
-                    status == 429 and receipt.get("provider_error_code") in _ERROR_CODES
+                if (
+                    (
+                        kind.startswith("deepseek_")
+                        and status in {400, 401, 402, 403, 404, 408, 413, 429, 500, 504}
+                    )
+                    or status in (401, 403, 404)
+                    or (status == 429 and receipt.get("provider_error_code") in _ERROR_CODES)
                 ):
                     receipt["outcome"] = "confirmed_failure"
                 raise ExternalSearchTransportError(receipt)
@@ -407,8 +428,21 @@ class ExternalSearchProvider:
             receipt.update(
                 outcome="response_available",
                 parse_status=parsed["status"],
-                provider_result_count=len(parsed["entries"]),
+                provider_result_count=parsed.get("provider_result_count", len(parsed["entries"])),
             )
+            if kind == "deepseek_fetch" and parsed["status"] == "ok":
+                if fetch_parent_entry is None:
+                    raise ValueError("fetch_parent_missing")
+                parsed["entries"] = [
+                    dict(
+                        fetch_parent_entry,
+                        url=query,
+                        title=parsed["title"][:500] or fetch_parent_entry["title"],
+                        snippet=parsed["excerpt"],
+                        snippet_kind="fetched_excerpt",
+                        content_sha256=parsed["content_sha256"],
+                    )
+                ]
             # Short data only. Raw HTTP bytes exist in memory only for the
             # bounded parse and digest above; they never enter the journal.
             receipt["entries"] = [

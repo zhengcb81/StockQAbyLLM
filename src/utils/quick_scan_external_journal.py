@@ -12,8 +12,15 @@ import json
 import re
 from contextlib import closing
 from datetime import date, datetime, timezone
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import urlsplit
+
+from src.utils.quick_scan_prepaid_quota import (
+    accounted,
+    projection,
+    record_tx,
+    reserve_tx,
+)
 
 if TYPE_CHECKING:
     import sqlite3
@@ -22,6 +29,8 @@ if TYPE_CHECKING:
 
 MODEL_BUDGET_LABEL = "external_retrieval_v1"  # Internal budget label, never an answer model.
 ENDPOINTS = {
+    "deepseek_search": "https://api.deepseek.com/v1/tools/search",
+    "deepseek_fetch": "https://api.deepseek.com/v1/tools/fetch",
     "brave": "https://api.search.brave.com/res/v1/web/search",
     "tavily": "https://api.tavily.com/search",
     "zai_rest": "https://api.z.ai/api/paas/v4/web_search",
@@ -158,7 +167,18 @@ _RECEIPT_KEYS = frozenset(
         "failure_type",
     }
 )
-_ENTRY_KEYS = frozenset({"url", "title", "snippet", "publisher", "published_at", "query"})
+_ENTRY_KEYS = frozenset(
+    {
+        "url",
+        "title",
+        "snippet",
+        "publisher",
+        "published_at",
+        "query",
+        "snippet_kind",
+        "content_sha256",
+    }
+)
 _WORK_KEYS = (
     "entity_id",
     "question_id",
@@ -218,6 +238,7 @@ def _cache_key(context: dict) -> str:
             "route": context["route"],
             "search_policy_sha256": context["search_policy_sha256"],
             "budget_policy_id": context["budget"]["policy_id"],
+            **({"research_task": context["research_task"]} if "research_task" in context else {}),
         }
     )
 
@@ -262,9 +283,18 @@ def _hash(value: Any) -> str:
 def _plan(value: Any) -> dict:
     if (
         not isinstance(value, dict)
-        or set(value) != _PLAN_KEYS
+        or set(value)
+        != (
+            _PLAN_KEYS | {"operation", "source_operation_id", "source_receipt_sha256"}
+            if value.get("schema_version") == "quick_scan_external_plan/1.2.0"
+            else _PLAN_KEYS
+        )
         or value["schema_version"]
-        not in {"quick_scan_external_plan/1.0.0", "quick_scan_external_plan/1.1.0"}
+        not in {
+            "quick_scan_external_plan/1.0.0",
+            "quick_scan_external_plan/1.1.0",
+            "quick_scan_external_plan/1.2.0",
+        }
     ):
         raise ValueError("invalid frozen external plan")
     result: dict = strict_search_json(_canonical(value))
@@ -302,7 +332,28 @@ def _plan(value: Any) -> dict:
     ):
         raise ValueError("invalid external plan questions")
     bindings = result["entity_domain_bindings"]
-    if result["schema_version"] == "quick_scan_external_plan/1.1.0":
+    if result["schema_version"] == "quick_scan_external_plan/1.2.0":
+        if result["operation"] == "fetch":
+            from src.providers.external_search_parsers import validate_fetch_url
+
+            validate_fetch_url(result["query"])
+            _hash(result["source_receipt_sha256"])
+            if (
+                not isinstance(result["source_operation_id"], str)
+                or re.fullmatch(r"SEARCH_[a-f0-9]{64}", result["source_operation_id"]) is None
+                or result["top_k"] != 1
+            ):
+                raise ValueError("invalid fetch parent binding")
+        elif (
+            result["operation"] != "search"
+            or result["source_operation_id"] is not None
+            or result["source_receipt_sha256"] is not None
+        ):
+            raise ValueError("invalid search operation")
+    if result["schema_version"] in {
+        "quick_scan_external_plan/1.1.0",
+        "quick_scan_external_plan/1.2.0",
+    }:
         # Runtime import preserves standalone store/migration processes.
         from src.config.quick_scan_search_policy import (
             validate_external_domain_bindings,
@@ -359,7 +410,11 @@ def _receipt(value: Any, context: dict, budget_attempt_id: str) -> dict:
         raise ValueError("invalid external receipt HTTP status")
     if outcome == "response_available" and (status is None or not 200 <= status < 300):
         raise ValueError("external success requires a 2xx response")
-    if outcome == "confirmed_failure" and (status not in (401, 403, 404, 429)):
+    if outcome == "confirmed_failure" and status not in (
+        {400, 401, 402, 403, 404, 408, 413, 429, 500, 504}
+        if route["provider"].startswith("deepseek_")
+        else {401, 403, 404, 429}
+    ):
         raise ValueError("external failure is not a confirmed rejection")
     if result.get("request_id") is not None:
         _text(result["request_id"], 300)
@@ -411,6 +466,14 @@ def _receipt(value: Any, context: dict, budget_attempt_id: str) -> dict:
             url = urlsplit(_text(entry.get("url"), 2048))
             if url.scheme != "https" or not url.hostname or url.username or url.password:
                 raise ValueError("unsafe external result URL")
+            if "snippet_kind" in entry and entry["snippet_kind"] not in {
+                "provider_summary",
+                "search_snippet",
+                "fetched_excerpt",
+            }:
+                raise ValueError("invalid snippet provenance")
+            if "content_sha256" in entry:
+                _hash(entry["content_sha256"])
             for name in ("title", "snippet", "publisher"):
                 text = entry.get(name)
                 if text is not None and (not isinstance(text, str) or len(text) > 500):
@@ -433,6 +496,12 @@ def read_record(connection: "sqlite3.Connection", row: "sqlite3.Row") -> dict:
     if _canonical(context) != row["context_json"] or _digest(context) != row["context_sha256"]:
         raise ValueError("external operation context hash mismatch")
     _plan(context["plan"])
+    if "research_task" in context:
+        from src.utils.quick_scan_external_continuation import validate_context
+
+        validate_context(
+            connection, context, context["research_task"], existing_operation_id=row["operation_id"]
+        )
     route = context["route"]
     if route["endpoint"] != ENDPOINTS.get(route["provider"]):
         raise ValueError("external operation endpoint mismatch")
@@ -521,6 +590,7 @@ def read_record(connection: "sqlite3.Connection", row: "sqlite3.Row") -> dict:
         "context": context,
         "plan": context["plan"],
         "budget": dict(budget),
+        "quota_accounting": projection(connection, row["budget_attempt_id"]),
         "result": result,
         "dispatch": None if dispatch is None else dict(dispatch),
     }
@@ -543,7 +613,7 @@ def validate_tables(connection: "sqlite3.Connection") -> None:
 def _reusable(record: dict, now: float) -> None:
     from src.utils.quick_scan_work_store import BudgetAdmissionError
 
-    if record["budget"]["status"] != "settled" or record["result"] is None:
+    if not accounted(record) or record["result"] is None:
         raise BudgetAdmissionError("external_search_unresolved")
     result = record["result"]
     receipt = result["receipt"]
@@ -571,8 +641,14 @@ def _request_context(
     adapter_version: str,
     search_policy_sha256: str,
     endpoint: str,
+    independent_task: dict | None = None,
 ) -> dict:
     frozen = _plan(plan)
+    operation = frozen.get("operation", "search")
+    if operation not in {"search", "fetch"} or (
+        (operation == "fetch") != (provider == "deepseek_fetch")
+    ):
+        raise ValueError("external operation does not match route kind")
     _hash(search_policy_sha256)
     if endpoint != ENDPOINTS.get(provider):
         raise ValueError("external endpoint protocol mismatch")
@@ -591,7 +667,7 @@ def _request_context(
         or item["question_id"] not in frozen["question_ids"]
     ):
         raise ValueError("external plan work binding mismatch")
-    return {
+    context: dict[str, Any] = {
         "work_item_id": work_item_id,
         "work_fingerprint": {name: item[name] for name in _WORK_KEYS},
         "plan": frozen,
@@ -602,6 +678,52 @@ def _request_context(
             for name in ("policy_id", "policy_version", "policy_snapshot_sha256")
         },
     }
+    if independent_task is not None:
+        from src.utils.quick_scan_external_continuation import validate_context
+        from src.utils.quick_scan_uncertain_seal import normalize_independent_task
+
+        context["research_task"] = normalize_independent_task(independent_task)
+        validate_context(
+            connection,
+            context,
+            context["research_task"],
+            existing_operation_id="SEARCH_" + _digest(context),
+        )
+    return context
+
+
+def validate_fetch_parent(store: "QuickScanWorkStore", record: dict) -> dict:
+    """Resolve exact paid search evidence through its owner, never caller lists."""
+    plan = record["plan"]
+    if (
+        record["context"]["route"]["provider"] != "deepseek_fetch"
+        or plan.get("operation") != "fetch"
+    ):
+        raise ValueError("fetch_operation_required")
+    parent = store.get_external_search(plan["source_operation_id"])
+    _reusable(parent, store._now())
+    result = parent["result"]
+    if (
+        parent["context"]["route"]["provider"] == "deepseek_fetch"
+        or result["receipt_sha256"] != plan["source_receipt_sha256"]
+        or _identity_basis(parent["context"]) != _identity_basis(record["context"])
+        or parent["context"]["work_fingerprint"]["generation"]
+        != record["context"]["work_fingerprint"]["generation"]
+        or any(
+            parent["plan"][key] != plan[key]
+            for key in (
+                "entity_id",
+                "identity_snapshot_sha256",
+                "question_manifest_sha256",
+                "information_as_of",
+            )
+        )
+    ):
+        raise ValueError("fetch_parent_binding_mismatch")
+    entries = [entry for entry in result["receipt"]["entries"] if entry["url"] == plan["query"]]
+    if len(entries) != 1:
+        raise ValueError("fetch_url_not_in_actual_search")
+    return cast(dict, entries[0])
 
 
 def _resumable_unsent(record: dict, work_item_id: str, lease: "Lease") -> bool:
@@ -631,8 +753,13 @@ def _assert_no_unknown_scope(connection: "sqlite3.Connection", context: dict) ->
             "SELECT terminal_outcome FROM quick_scan_budget_terminal WHERE budget_attempt_id=?",
             (old["budget_attempt_id"],),
         ).fetchone()
-        if old["budget"]["status"] != "settled" or terminal is None or terminal[0] == "unknown":
-            raise BudgetAdmissionError("external_search_unresolved")
+        if not accounted(old) or (
+            old.get("quota_accounting") is None and (terminal is None or terminal[0] == "unknown")
+        ):
+            from src.utils.quick_scan_external_continuation import may_exclude
+
+            if not may_exclude(connection, context, old["budget_attempt_id"]):
+                raise BudgetAdmissionError("external_search_unresolved")
         # Changing only the scan generation/query cannot make an observed
         # under-declared price bound trustworthy. A changed, admitted pricing
         # policy gets a different shared budget version; historical fees stay.
@@ -688,6 +815,7 @@ def begin(
     adapter_version: str,
     search_policy_sha256: str,
     endpoint: str,
+    independent_task: dict | None = None,
 ) -> dict:
     normalized = store.configure_quick_scan_budget(policy)
     now = store._now()
@@ -705,6 +833,7 @@ def begin(
             adapter_version=adapter_version,
             search_policy_sha256=search_policy_sha256,
             endpoint=endpoint,
+            independent_task=independent_task,
         )
         operation_id = "SEARCH_" + _digest(context)
         cache_key, corpus_key = _cache_key(context), _corpus_key(context)
@@ -733,7 +862,9 @@ def begin(
             model_requested=MODEL_BUDGET_LABEL,
             quota_group=quota_group,
             now=now,
+            independent_task=context.get("research_task"),
         )
+        reserve_tx(connection, budget_attempt_id, context, "search_tool")
         connection.execute(
             "INSERT INTO quick_scan_external_operation (operation_id,cache_key,corpus_key,work_item_id,budget_attempt_id,lease_epoch,lease_token,context_json,context_sha256,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
             (
@@ -780,6 +911,17 @@ def consume(store: "QuickScanWorkStore", operation_id: str, *, budget_attempt_id
             Lease(row["lease_token"], row["lease_epoch"]),
             store._now(),
         )
+        if record["context"]["route"]["provider"].startswith("deepseek_"):
+            # Account-level gate, independent of key/route aliases. Atomic with
+            # dispatch: every process using this existing owner shares it.
+            last = connection.execute(
+                "SELECT MAX(d.sent_at) FROM quick_scan_external_dispatch d JOIN quick_scan_external_operation o USING(operation_id) WHERE json_extract(o.context_json,'$.route.provider')=?",
+                (record["context"]["route"]["provider"],),
+            ).fetchone()[0]
+            if last is not None and store._now() - last < 0.2:
+                from src.utils.quick_scan_work_store import BudgetAdmissionError
+
+                raise BudgetAdmissionError("deepseek_account_rate_wait")
         connection.execute(
             "INSERT INTO quick_scan_external_dispatch (operation_id,sent_at) VALUES (?,?)",
             (operation_id, store._now()),
@@ -888,6 +1030,14 @@ def record_result(
                 now,
                 int(late),
             ),
+        )
+        record_tx(
+            connection,
+            row["budget_attempt_id"],
+            receipt=safe,
+            receipt_sha256=_digest(safe),
+            now=now,
+            category="search_tool",
         )
         return read_record(connection, row)
 
@@ -1002,7 +1152,7 @@ def read_use(connection: "sqlite3.Connection", row: "sqlite3.Row") -> dict:
         result = record["result"]
         if (
             result is None
-            or record["budget"]["status"] != "settled"
+            or not accounted(record)
             or result["receipt"]["outcome"] != "response_available"
             or record["context"]["search_policy_sha256"] != meta["search_policy_sha256"]
             or record["plan"]["question_manifest_sha256"] != meta["question_manifest_sha256"]

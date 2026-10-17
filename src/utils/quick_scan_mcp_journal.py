@@ -25,6 +25,12 @@ from src.utils.quick_scan_external_journal import (
     _resumable_unsent,
     strict_search_json,
 )
+from src.utils.quick_scan_prepaid_quota import (
+    accounted,
+    projection,
+    record_tx,
+    reserve_tx,
+)
 
 if TYPE_CHECKING:
     import sqlite3
@@ -187,7 +193,7 @@ def _control(value: Any, stage: str, receipt: dict) -> dict | None:
 def _ready(record: dict, now: float) -> bool:
     result = record["result"]
     return bool(
-        record["budget"]["status"] == "settled"
+        accounted(record)
         and result is not None
         and not result["late"]
         and result["control"] is not None
@@ -326,9 +332,13 @@ def read_record(connection: "sqlite3.Connection", row: "sqlite3.Row") -> dict:
             or set(charge) != {"actual_cost_micros", "cost_source_ref"}
         ):
             raise ValueError("MCP result hash/binding mismatch")
-        if budget["status"] == "settled" and (
-            charge["actual_cost_micros"] != budget["actual_cost_micros"]
-            or charge["cost_source_ref"] != budget["cost_source_ref"]
+        if (
+            budget["status"] == "settled"
+            and projection(connection, budget_id) is None
+            and (
+                charge["actual_cost_micros"] != budget["actual_cost_micros"]
+                or charge["cost_source_ref"] != budget["cost_source_ref"]
+            )
         ):
             raise ValueError("MCP result ledger binding mismatch")
         result = {
@@ -347,6 +357,7 @@ def read_record(connection: "sqlite3.Connection", row: "sqlite3.Row") -> dict:
         "plan": context["plan"],
         "message": message,
         "budget": dict(budget),
+        "quota_accounting": projection(connection, budget_id),
         "dispatch": None if dispatch is None else dict(dispatch),
         "result": result,
     }
@@ -370,7 +381,10 @@ def assert_no_unknown_scope(connection: "sqlite3.Connection", context: dict) -> 
             "SELECT terminal_outcome FROM quick_scan_budget_terminal WHERE budget_attempt_id=?",
             (record["budget_attempt_id"],),
         ).fetchone()
-        if record["budget"]["status"] != "settled" or terminal is None or terminal[0] == "unknown":
+        if not accounted(record) or (
+            record.get("quota_accounting") is None
+            and (terminal is None or terminal[0] == "unknown")
+        ):
             raise BudgetAdmissionError("mcp_control_unresolved")
 
 
@@ -406,7 +420,7 @@ def begin(
             if _resumable_unsent(record, work_item_id, lease):
                 return {**record, "send_required": True}
             if (
-                record["budget"]["status"] != "settled"
+                not accounted(record)
                 or record["result"] is None
                 or record["result"]["receipt"]["outcome"] == "unknown"
             ):
@@ -453,6 +467,7 @@ def begin(
             quota_group=context["route"]["quota_group"],
             now=now,
         )
+        reserve_tx(connection, budget_id, context, "protocol_control")
         connection.execute(
             "INSERT INTO quick_scan_mcp_stage (stage_id,sequence_key,stage,work_item_id,budget_attempt_id,lease_epoch,lease_token,metadata_json,metadata_sha256,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
             (
@@ -589,6 +604,14 @@ def record_result(
                 now,
                 int(late),
             ),
+        )
+        record_tx(
+            connection,
+            row["budget_attempt_id"],
+            receipt=safe,
+            receipt_sha256=_digest(safe),
+            now=now,
+            category="protocol_control",
         )
         return read_record(connection, row)
 

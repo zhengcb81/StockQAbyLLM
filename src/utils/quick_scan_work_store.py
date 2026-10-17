@@ -35,6 +35,7 @@ from src.utils.quick_scan_mcp_journal import DDL_V13_ADDITIONS as _DDL_V13_ADDIT
 from src.utils.quick_scan_owner_refresh_journal import (
     DDL_V14_ADDITIONS as _DDL_V14_ADDITIONS,
 )
+from src.utils.quick_scan_prepaid_quota import DDL_V21_ADDITIONS as _DDL_V21_ADDITIONS
 from src.utils.quick_scan_question_pack_journal import (
     DDL_V17_ADDITIONS as _DDL_V17_ADDITIONS,
 )
@@ -44,7 +45,21 @@ from src.utils.quick_scan_refresh_admission_journal import (
 from src.utils.quick_scan_subject_journal import DDL_V15_ADDITIONS as _DDL_V15_ADDITIONS
 from src.utils.quick_scan_uncertain_seal import DDL_V20_ADDITIONS as _DDL_V20_ADDITIONS
 
-SCHEMA_VERSION = 20
+_MCP_GUARD_OLD = next(
+    s
+    for s in _DDL_V13_ADDITIONS
+    if s.startswith("CREATE TRIGGER quick_scan_mcp_search_insert_guard ")
+)
+_MCP_GUARD_V21 = _MCP_GUARD_OLD.replace(
+    "AND b.status='settled'",
+    "AND (b.status='settled' OR EXISTS(SELECT 1 FROM quick_scan_quota_proof qp WHERE qp.budget_attempt_id=b.budget_attempt_id))",
+)
+_DDL_V21_ADDITIONS += (_MCP_GUARD_V21,)
+from src.utils.quick_scan_external_continuation import (
+    DDL_V22_ADDITIONS as _DDL_V22_ADDITIONS,
+)
+
+SCHEMA_VERSION = 22
 _SAFE_ID = re.compile(r"^[A-Za-z0-9_.-]{1,160}$")
 # Hyphens accepted per owner sign-off (2026-10-05 round-51): the W04
 # identity-export package issues ENT_<uuid> entity ids (e.g. the frozen
@@ -676,7 +691,7 @@ _DDL = (
     + _DDL_V9_ADDITIONS
     + _DDL_V10_ADDITIONS
     + _DDL_V12_ADDITIONS
-    + _DDL_V13_ADDITIONS
+    + tuple(s for s in _DDL_V13_ADDITIONS if s != _MCP_GUARD_OLD)
     + _DDL_V14_ADDITIONS
     + _DDL_V15_ADDITIONS
     + _DDL_V16_ADDITIONS
@@ -684,6 +699,8 @@ _DDL = (
     + _DDL_V18_ADDITIONS
     + _DDL_V19_ADDITIONS
     + _DDL_V20_ADDITIONS
+    + _DDL_V21_ADDITIONS
+    + _DDL_V22_ADDITIONS
 )
 
 _RECEIPT_FIELDS = (
@@ -1247,6 +1264,10 @@ class QuickScanWorkStore:
                 cls._validate_schema(connection, schema_version=18)
             elif version == 19:
                 cls._validate_schema(connection, schema_version=19)
+            elif version == 20:
+                cls._validate_schema(connection, schema_version=20)
+            elif version == 21:
+                cls._validate_schema(connection, schema_version=21)
             elif version != SCHEMA_VERSION:
                 raise ValueError("unsupported quick-scan work database schema version")
             if 1 <= version < 8:
@@ -1298,6 +1319,15 @@ class QuickScanWorkStore:
                 connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             if 1 <= version < 20:
                 for statement in _DDL_V20_ADDITIONS:
+                    connection.execute(statement)
+                connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+            if 1 <= version < 21:
+                connection.execute("DROP TRIGGER quick_scan_mcp_search_insert_guard")
+                for statement in _DDL_V21_ADDITIONS:
+                    connection.execute(statement)
+                connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+            if 1 <= version < 22:
+                for statement in _DDL_V22_ADDITIONS:
                     connection.execute(statement)
                 connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             cls._validate_schema(connection, schema_version=SCHEMA_VERSION)
@@ -1586,11 +1616,33 @@ class QuickScanWorkStore:
                 if match is None:
                     raise ValueError("quick-scan work database schema mismatch")
                 expected[(match[1].lower(), match[2])] = statement
+        if schema_version >= 21:
+            for statement in _DDL_V21_ADDITIONS:
+                match = re.match(r"CREATE (TABLE|TRIGGER) ([A-Za-z_]+)", statement)
+                if match is None:
+                    raise ValueError("quota schema mismatch")
+                expected[(match[1].lower(), match[2])] = statement
+        if schema_version >= 22:
+            for statement in _DDL_V22_ADDITIONS:
+                match = re.match(r"CREATE (TABLE|TRIGGER) ([A-Za-z_]+)", statement)
+                if match is None:
+                    raise ValueError("quick-scan work database schema mismatch")
+                expected[(match[1].lower(), match[2])] = statement
         if actual.keys() != expected.keys() or any(
             _normalized_sql(actual[key]) != _normalized_sql(statement)
             for key, statement in expected.items()
         ):
             raise ValueError("quick-scan work database schema mismatch")
+        if schema_version >= 22:
+            from src.utils.quick_scan_external_continuation import (
+                validate_tables as validate_continuation_tables,
+            )
+
+            validate_continuation_tables(connection)
+        if schema_version >= 21:
+            from src.utils.quick_scan_prepaid_quota import validate_tables
+
+            validate_tables(connection)
         if connection.execute("PRAGMA quick_check").fetchone()[0] != "ok":
             raise ValueError("quick-scan work database integrity check failed")
         if connection.execute("PRAGMA foreign_key_check").fetchone() is not None:
@@ -2205,7 +2257,8 @@ class QuickScanWorkStore:
         unreconciled = connection.execute(
             "SELECT COUNT(*) FROM quick_scan_budget_attempt WHERE policy_id=? "
             "AND status IN ('response_unpriced','failure_unpriced','outcome_uncertain') "
-            f"AND NOT ({exclusion})",
+            f"AND NOT ({exclusion}) "
+            "AND budget_attempt_id NOT IN (SELECT budget_attempt_id FROM quick_scan_quota_proof)",
             (policy_id,),
         ).fetchone()[0]
         if unreconciled:
@@ -2324,6 +2377,24 @@ class QuickScanWorkStore:
                 independent_task=independent_task,
             )
 
+    def configure_prepaid_search_quota(self, budget_policy, search_policy):
+        from src.utils.quick_scan_prepaid_quota import configure
+
+        return configure(self, budget_policy, search_policy)
+
+    def register_external_research_continuation(
+        self, *, policy: dict, independent_task: dict, registration: dict
+    ) -> dict:
+        """Admit only the reviewed undispatched difference of a sealed research task."""
+        from src.utils.quick_scan_external_continuation import register
+
+        return cast(
+            dict,
+            register(
+                self, policy=policy, independent_task=independent_task, registration=registration
+            ),
+        )
+
     def begin_external_search(
         self,
         work_item_id: str,
@@ -2337,6 +2408,7 @@ class QuickScanWorkStore:
         adapter_version: str,
         search_policy_sha256: str,
         endpoint: str,
+        independent_task: Optional[dict] = None,
     ) -> dict:
         """Reserve a linked external intent in the existing Q09 transaction."""
         from src.utils.quick_scan_external_journal import begin
@@ -2353,6 +2425,7 @@ class QuickScanWorkStore:
             adapter_version=adapter_version,
             search_policy_sha256=search_policy_sha256,
             endpoint=endpoint,
+            independent_task=independent_task,
         )
 
     def begin_mcp_stage(
@@ -2410,6 +2483,7 @@ class QuickScanWorkStore:
         adapter_version: str,
         search_policy_sha256: str,
         endpoint: str,
+        independent_task: Optional[dict] = None,
     ) -> Optional[dict]:
         """Read a matching intent/result without reserving another request."""
         from src.utils.quick_scan_external_journal import lookup
@@ -2426,6 +2500,7 @@ class QuickScanWorkStore:
             adapter_version=adapter_version,
             search_policy_sha256=search_policy_sha256,
             endpoint=endpoint,
+            independent_task=independent_task,
         )
 
     def consume_external_search(self, operation_id: str, *, budget_attempt_id: str) -> None:
@@ -2648,6 +2723,14 @@ class QuickScanWorkStore:
             ).fetchone()
             if row is None:
                 raise KeyError("unknown budget attempt")
+            quota_proof = connection.execute(
+                "SELECT 1 FROM quick_scan_quota_proof WHERE budget_attempt_id=?",
+                (budget_attempt_id,),
+            ).fetchone()
+            if quota_proof is not None and resolved_outcome != "completed":
+                raise WorkConflictError(
+                    "observed prepaid response cannot be reclassified as not sent or failed"
+                )
             if row["status"] == "settled":
                 prior_terminal = connection.execute(
                     "SELECT terminal_outcome FROM quick_scan_budget_terminal "
@@ -2749,6 +2832,20 @@ class QuickScanWorkStore:
                 "unreconciled_attempts": totals["unreconciled"] or 0,
             }
 
+            quota = connection.execute(
+                "SELECT COUNT(*) FROM quick_scan_quota_proof p JOIN quick_scan_budget_attempt b USING(budget_attempt_id) WHERE b.policy_id=? AND b.status='response_unpriced'",
+                (policy_id,),
+            ).fetchone()[0]
+            result["quota_accounted_attempts"] = quota
+            result["blocking_unreconciled_attempts"] = result["unreconciled_attempts"] - quota
+            result["cash_actual_complete"] = result["unreconciled_attempts"] == 0
+            result["quota_accounts"] = [
+                dict(row)
+                for row in connection.execute(
+                    "SELECT r.account_group,SUM(COALESCE(p.actual_quota_micros,0)) AS used_quota_micros,SUM(CASE WHEN p.budget_attempt_id IS NULL THEN r.reserved_quota_micros ELSE 0 END) AS held_quota_micros FROM quick_scan_quota_reservation r JOIN quick_scan_budget_attempt b USING(budget_attempt_id) LEFT JOIN quick_scan_quota_proof p USING(budget_attempt_id) WHERE b.policy_id=? GROUP BY r.account_group",
+                    (policy_id,),
+                )
+            ]
             if include_isolation:
                 sealed = connection.execute(
                     "SELECT COUNT(*) FROM quick_scan_budget_attempt b "
@@ -2760,7 +2857,7 @@ class QuickScanWorkStore:
                 result.update(
                     sealed_unknown_attempts=sealed,
                     effective_in_flight=result["in_flight"] - sealed,
-                    blocking_unreconciled_attempts=result["unreconciled_attempts"] - sealed,
+                    blocking_unreconciled_attempts=result["unreconciled_attempts"] - sealed - quota,
                 )
             return result
 

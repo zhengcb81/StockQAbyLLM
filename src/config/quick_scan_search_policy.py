@@ -37,10 +37,17 @@ __all__ = [
 
 POLICY_SCHEMA_ID = "stockqa.quick_scan_search_policy/1.0.0"
 EXECUTION_POLICY_SCHEMA_ID = "stockqa.quick_scan_search_policy/1.1.0"
+QUOTA_POLICY_SCHEMA_ID = "stockqa.quick_scan_search_policy/1.3.0"
+TOOLS_POLICY_SCHEMA_ID = "stockqa.quick_scan_search_policy/1.2.0"
+EXECUTION_POLICY_IDS = frozenset(
+    {EXECUTION_POLICY_SCHEMA_ID, TOOLS_POLICY_SCHEMA_ID, QUOTA_POLICY_SCHEMA_ID}
+)
 _SCHEMA_PATH = Path(__file__).resolve().parent / "quick_scan_search_policy.schema.json"
 _EXECUTION_SCHEMA_PATH = _SCHEMA_PATH.with_name("quick_scan_search_policy_v1_1.schema.json")
 EXTERNAL_ENDPOINTS = MappingProxyType(
     {
+        "deepseek_search": "https://api.deepseek.com/v1/tools/search",
+        "deepseek_fetch": "https://api.deepseek.com/v1/tools/fetch",
         "brave": "https://api.search.brave.com/res/v1/web/search",
         "tavily": "https://api.tavily.com/search",
         "zai_rest": "https://api.z.ai/api/paas/v4/web_search",
@@ -76,7 +83,15 @@ def _require(condition: bool, reason: str) -> None:
 
 
 def _schema(version: str = "1.0.0") -> dict[str, Any]:
-    path = _EXECUTION_SCHEMA_PATH if version == "1.1.0" else _SCHEMA_PATH
+    path = (
+        _SCHEMA_PATH.with_name("quick_scan_search_policy_v1_3.schema.json")
+        if version == "1.3.0"
+        else (
+            _SCHEMA_PATH.with_name("quick_scan_search_policy_v1_2.schema.json")
+            if version == "1.2.0"
+            else _EXECUTION_SCHEMA_PATH if version == "1.1.0" else _SCHEMA_PATH
+        )
+    )
     document = strict_search_json(path.read_text(encoding="utf-8"))
     if not isinstance(document, dict):
         raise SearchPolicyRejected("policy schema artifact is invalid")
@@ -133,7 +148,7 @@ def assert_policy_frozen(policy: SearchPolicy) -> None:
     """
     if not isinstance(policy, SearchPolicy):
         raise SearchPolicyRejected("policy_not_frozen")
-    if policy.schema_id == EXECUTION_POLICY_SCHEMA_ID and not policy._integrity_sha256:
+    if policy.schema_id in EXECUTION_POLICY_IDS and not policy._integrity_sha256:
         raise SearchPolicyRejected("policy_not_frozen")
     if policy._integrity_sha256:
         try:
@@ -256,11 +271,63 @@ def _validate_execution_shape(document: dict[str, Any]) -> None:
     )
 
 
+def _validate_quota_shape(document):
+    if next(Draft7Validator(_schema("1.3.0")).iter_errors(document), None) is not None:
+        raise SearchPolicyRejected("quota_policy_schema_invalid")
+    base = copy.deepcopy(document)
+    base["schema_version"] = "1.2.0"
+    for route in base["external_routes"]:
+        if "prepaid_quota" in route:
+            from src.utils.quick_scan_prepaid_quota import validate_config
+
+            validate_config(route.pop("prepaid_quota"))
+            route["metering"]["charge_policy"] = "all_http_requests"
+            route["metering"]["usage_unit"] = "http_requests"
+    _validate_tools_shape(base)
+
+
+def _validate_tools_shape(document: dict[str, Any]) -> None:
+    """New tools are opt-in; validate common fields via unchanged legacy rules."""
+    if next(Draft7Validator(_schema("1.2.0")).iter_errors(document), None) is not None:
+        raise SearchPolicyRejected("tools_policy_schema_invalid")
+    base = copy.deepcopy(document)
+    base["schema_version"] = "1.1.0"
+    for route in base["external_routes"]:
+        if route["kind"].startswith("deepseek_"):
+            route["kind"] = "brave"
+        if route["metering"]["charge_policy"] == "successful_nonempty_only":
+            route["metering"]["charge_policy"] = "successful_search_only"
+    for query in base["execution_plan"]["queries"]:
+        for key in ("operation", "source_operation_id", "source_receipt_sha256"):
+            query.pop(key)
+    _validate_execution_shape(base)
+    kinds = {route["kind"] for route in document["external_routes"]}
+    for query in document["execution_plan"]["queries"]:
+        if query["operation"] == "fetch":
+            from src.providers.external_search_parsers import validate_fetch_url
+
+            validate_fetch_url(query["query"])
+            _require(
+                query["top_k"] == 1
+                and isinstance(query["source_operation_id"], str)
+                and isinstance(query["source_receipt_sha256"], str),
+                "fetch_parent_binding_required",
+            )
+            _require("deepseek_fetch" in kinds, "fetch_route_required")
+        else:
+            _require(
+                query["source_operation_id"] is None and query["source_receipt_sha256"] is None,
+                "search_cannot_have_fetch_parent",
+            )
+            if "deepseek_search" in kinds:
+                _require(1 <= len(query["query"]) <= 128, "deepseek_query_length_invalid")
+
+
 def execution_query_plans(policy: SearchPolicy) -> tuple[dict[str, Any], ...]:
     """Return isolated journal-ready queries from one admitted frozen plan."""
     assert_policy_frozen(policy)
     plan = policy.execution_plan
-    if policy.schema_id != EXECUTION_POLICY_SCHEMA_ID or plan is None:
+    if policy.schema_id not in EXECUTION_POLICY_IDS or plan is None:
         raise SearchPolicyRejected("frozen_execution_plan_required")
     common = {
         key: copy.deepcopy(plan[key])
@@ -274,7 +341,11 @@ def execution_query_plans(policy: SearchPolicy) -> tuple[dict[str, Any], ...]:
         )
     }
     common.update(
-        schema_version="quick_scan_external_plan/1.1.0",
+        schema_version=(
+            "quick_scan_external_plan/1.2.0"
+            if policy.schema_id in {TOOLS_POLICY_SCHEMA_ID, QUOTA_POLICY_SCHEMA_ID}
+            else "quick_scan_external_plan/1.1.0"
+        ),
         ttl_seconds=policy.retrieval["search_ttl_seconds"],
         company_limit=policy.retrieval["max_company_evidence_unicode_characters"],
         snippet_limit=policy.retrieval["max_snippet_unicode_characters"],
@@ -295,6 +366,47 @@ def _admit(
         return False, "credential_env_unset"
     if route["cost_bound_verified"] is not True:
         return False, "cost_bound_unverified"
+    if "prepaid_quota" in route:
+        from src.utils.quick_scan_prepaid_quota import validate_config
+
+        try:
+            validate_config(route["prepaid_quota"])
+        except ValueError:
+            return False, "invalid_prepaid_quota"
+        pricing, metering = route["pricing"], route["metering"]
+        try:
+            source_date_valid = (
+                date.fromisoformat(metering["source_checked_at"]).isoformat()
+                == metering["source_checked_at"]
+            )
+        except ValueError:
+            source_date_valid = False
+        if not source_date_valid or any(
+            not metering[k].strip() or any(ord(c) < 32 for c in metering[k])
+            for k in ("source_ref", "pricing_ref")
+        ):
+            return False, "pricing_reference_unverified"
+        if metering["max_usage_units_per_request"] != 1:
+            return False, "prepaid_single_tool_call_required"
+        if route["dispatch"]["max_in_flight"] > route["dispatch"]["quota_group_max_in_flight"]:
+            return False, "external_concurrency_bound_invalid"
+        if (
+            route["kind"] != "zai_mcp_streamable"
+            or route["endpoint"] != EXTERNAL_ENDPOINTS["zai_mcp_streamable"]
+            or metering["charge_policy"] != "prepaid_quota"
+            or metering["usage_unit"] != "glm_coding_plan_credits"
+            or pricing.get("unit_cost_micros") is not None
+            or type(pricing.get("per_request_cap_micros")) is not int
+            or pricing["per_request_cap_micros"] <= 0
+            or metering.get("rejected_request_cost_micros") is not None
+        ):
+            return False, "prepaid_quota_not_cash_pricing"
+        if require_storage_rights and (
+            route["storage_rights"]["confirmed"] is not True
+            or not route["storage_rights"]["entitlement_ref"]
+        ):
+            return False, "storage_rights_unconfirmed"
+        return True, "admitted_prepaid_quota_cash_reserved"
     if (
         route["kind"] == "zai_mcp_streamable"
         and route.get("metering", {}).get("charge_policy") != "all_http_requests"
@@ -313,6 +425,15 @@ def _admit(
             or not storage["entitlement_ref"].strip()
         ):
             return False, "storage_rights_unconfirmed"
+    if route["kind"].startswith("deepseek_"):
+        if (
+            route["credential_env"] != "DEEPSEEK_API_KEY"
+            or route.get("metering", {}).get("charge_policy") != "successful_nonempty_only"
+            or route["dispatch"]["quota_group"] != "deepseek_tools_" + route["kind"].split("_")[1]
+            or route["dispatch"]["max_in_flight"] != 1
+            or route["dispatch"]["quota_group_max_in_flight"] != 1
+        ):
+            return False, "deepseek_tools_admission_invalid"
     if "metering" in route:
         if route["endpoint"] != EXTERNAL_ENDPOINTS.get(route["kind"]):
             return False, "external_endpoint_protocol_mismatch"
@@ -348,6 +469,7 @@ def _admit(
         expected = {
             "all_http_requests": ("per_request", "http_requests"),
             "successful_search_only": ("per_search", "search_calls"),
+            "successful_nonempty_only": ("per_search", "search_calls"),
             "provider_usage": ("per_search", "credits"),
         }
         if (pricing["basis"], metering["usage_unit"]) != expected.get(charge):
@@ -363,6 +485,12 @@ def _admit(
 
 def _validate_shape(document: dict[str, Any]) -> None:
     """Stable legacy checks followed by complete versioned schema validation."""
+    if document.get("schema_version") == "1.3.0":
+        _validate_quota_shape(document)
+        return
+    if document.get("schema_version") == "1.2.0":
+        _validate_tools_shape(document)
+        return
     if document.get("schema_version") == "1.1.0":
         _validate_execution_shape(document)
         return
@@ -566,7 +694,15 @@ def load_search_policy(path: str | Path, *, allow_cached_recovery: bool = False)
 
     _validate_shape(document)
     version = document["schema_version"]
-    schema_id = EXECUTION_POLICY_SCHEMA_ID if version == "1.1.0" else POLICY_SCHEMA_ID
+    schema_id = (
+        QUOTA_POLICY_SCHEMA_ID
+        if version == "1.3.0"
+        else (
+            TOOLS_POLICY_SCHEMA_ID
+            if version == "1.2.0"
+            else EXECUTION_POLICY_SCHEMA_ID if version == "1.1.0" else POLICY_SCHEMA_ID
+        )
+    )
     if _schema(version).get("$id") != schema_id:
         raise SearchPolicyRejected("policy_schema_artifact_id_mismatch")
 
@@ -591,7 +727,9 @@ def load_search_policy(path: str | Path, *, allow_cached_recovery: bool = False)
         ok, reason = _admit(
             route,
             require_storage_rights=require_storage_rights,
-            require_credentials=not (allow_cached_recovery and version == "1.1.0"),
+            require_credentials=not (
+                allow_cached_recovery and version in {"1.1.0", "1.2.0", "1.3.0"}
+            ),
         )
         if ok:
             admitted.append(route["route_id"])
@@ -641,7 +779,7 @@ def policy_receipt(
         "mode": policy.mode,
         "admitted_routes": list(policy.admitted),
         "route_rejections": list(policy.rejections),
-        "execution_plan_ready": policy.schema_id == EXECUTION_POLICY_SCHEMA_ID
+        "execution_plan_ready": policy.schema_id in EXECUTION_POLICY_IDS
         and policy.execution_plan is not None,
         "external_dispatch_enabled": enabled,
         "external_dispatch_reason": (

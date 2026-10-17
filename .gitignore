@@ -162,3 +162,5 @@ desktop.ini
 
 # Explicit vendor HTTP identity contract; no credentials or company data
 !src/config/quick_scan_observation.v1.2.schema.json
+!src/config/quick_scan_search_policy_v1_2.schema.json
+!src/config/quick_scan_search_policy_v1_3.schema.json

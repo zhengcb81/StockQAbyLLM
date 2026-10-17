@@ -267,6 +267,8 @@ def test_offline_parsers_classify_success_business_error_and_parse_failure() -> 
         "tavily",
         "zai_rest",
         "zai_mcp_streamable",
+        "deepseek_search",
+        "deepseek_fetch",
     }
 
 

@@ -20,6 +20,7 @@ from src.utils.quick_scan_external_journal import (
     _identity_basis,
     _reusable,
 )
+from src.utils.quick_scan_prepaid_quota import accounted
 from src.utils.quick_scan_work_store import (
     Lease,
     QuickScanWorkStore,
@@ -259,7 +260,11 @@ def build_external_question_context(
         if result["recorded_at"] > now:
             raise ValueError("external retrieval time is in the future")
         price = resolver(result["receipt"])
-        if (
+        if record.get("quota_accounting") is not None:
+            route = next(r for r in policy.routes if r["route_id"] == result["receipt"]["route_id"])
+            if "prepaid_quota" not in route:
+                raise ValueError("quota proof does not match frozen policy")
+        elif (
             price is None
             or result["charge"]["actual_cost_micros"]
             != _cost_to_micros(price["actual_cost"], "actual_cost", allow_zero=True)
@@ -300,6 +305,8 @@ def build_external_question_context(
                     "binding": binding,
                     "retrieved_at": retrieved_at,
                     "operation_id": record["operation_id"],
+                    "snippet_kind": entry.get("snippet_kind"),
+                    "content_sha256": entry.get("content_sha256"),
                 },
             )
     # Normalise each query through the existing evidence owner. Its legacy
@@ -336,6 +343,9 @@ def build_external_question_context(
                 operation_id=origin["operation_id"],
                 query_id=query_id,
             )
+            for optional in ("snippet_kind", "content_sha256"):
+                if origin.get(optional) is not None:
+                    provenance[optional] = origin[optional]
             source = by_url.setdefault(
                 entry["url"],
                 {
@@ -412,11 +422,18 @@ def _eligible_priced_record(record: dict[str, Any], policy: SearchPolicy, now: f
     from src.utils.quick_scan_work_store import BudgetAdmissionError
 
     result = record["result"]
-    if result is None or record["budget"]["status"] != "settled":
+    if result is None or not accounted(record):
         raise ExternalRetrievalBlocked("external_search_unresolved")
     receipt = result["receipt"]
     price = ExternalSearchCostResolver(policy)(receipt)
-    if (
+    if record.get("quota_accounting") is not None:
+        route = next(r for r in policy.routes if r["route_id"] == receipt["route_id"])
+        if (
+            "prepaid_quota" not in route
+            or record["context"]["search_policy_sha256"] != policy.policy_sha256
+        ):
+            raise ValueError("quota proof does not match frozen policy")
+    elif (
         price is None
         or result["charge"]["actual_cost_micros"]
         != _cost_to_micros(price["actual_cost"], "actual_cost", allow_zero=True)
@@ -486,7 +503,7 @@ def _settle_mcp_controls(
             )
             _observe_search_health(
                 receipt,
-                price,
+                stage.get("quota_accounting") or price,
                 health_store,
                 decision,
                 group_id=group_id,
@@ -495,7 +512,7 @@ def _settle_mcp_controls(
                 rate_limit_cooldown_seconds=rate_limit_cooldown_seconds,
             )
         if (
-            stage["budget"]["status"] != "settled"
+            not accounted(stage)
             or stage["result"] is None
             or stage["result"]["receipt"]["outcome"] == "unknown"
         ):
@@ -503,12 +520,16 @@ def _settle_mcp_controls(
         price = resolver(stage["result"]["receipt"])
         from src.utils.quick_scan_work_store import _cost_to_micros
 
-        if price is None or stage["result"]["charge"] != {
-            "actual_cost_micros": _cost_to_micros(
-                price["actual_cost"], "actual_cost", allow_zero=True
-            ),
-            "cost_source_ref": price["source_ref"],
-        }:
+        if stage.get("quota_accounting") is None and (
+            price is None
+            or stage["result"]["charge"]
+            != {
+                "actual_cost_micros": _cost_to_micros(
+                    price["actual_cost"], "actual_cost", allow_zero=True
+                ),
+                "cost_source_ref": price["source_ref"],
+            }
+        ):
             raise ValueError("MCP control pricing proof differs from frozen policy")
         if not _ready(stage, store._now()):
             return False
@@ -527,6 +548,8 @@ def _observe_search_health(
     rate_limit_cooldown_seconds: int,
 ) -> None:
     code, retry_after = receipt.get("provider_error_code"), receipt.get("retry_after_seconds")
+    if receipt.get("route_kind", "").startswith("deepseek_") and receipt["http_status_code"] == 402:
+        code = "insufficient_funds"
     if code in {
         "insufficient_quota",
         "quota_exceeded",
@@ -539,7 +562,7 @@ def _observe_search_health(
             unknown_reset_cooldown_seconds=unknown_reset_cooldown_seconds,
             retry_after_seconds=retry_after,
         )
-    elif receipt["http_status_code"] == 429:
+    elif receipt["http_status_code"] in {429, 408, 500, 504}:
         health_store.rate_limited(
             route_id,
             cooldown_seconds=retry_after or rate_limit_cooldown_seconds,
@@ -608,12 +631,15 @@ def retrieve_external_question_context(
     if not required:
         raise ValueError("external policy has no frozen queries for this question")
     shared = build_shared_external_budget_policy(model_policy, policy)
+    store.configure_prepaid_search_quota(shared, policy)
     resolver = ExternalSearchCostResolver(policy)
     operation_ids = []
     for plan in required:
         last_reason = "external_evidence_insufficient"
         for route_id in policy.admitted:  # Loader preserves the user's search priority.
             route = next(route for route in policy.routes if route["route_id"] == route_id)
+            if (plan.get("operation") == "fetch") != (route["kind"] == "deepseek_fetch"):
+                continue
             group_id = route["dispatch"]["quota_group"]
             request = dict(
                 policy=shared,
@@ -694,7 +720,7 @@ def retrieve_external_question_context(
                     )
                     _observe_search_health(
                         receipt,
-                        price,
+                        operation.get("quota_accounting") or price,
                         health_store,
                         decision,
                         group_id=group_id,

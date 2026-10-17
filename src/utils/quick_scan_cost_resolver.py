@@ -265,17 +265,32 @@ class ExternalSearchCostResolver:
         ):
             return None
         if (outcome == "response_available" and not 200 <= status < 300) or (
-            outcome == "confirmed_failure" and status not in {401, 403, 404, 429}
+            outcome == "confirmed_failure"
+            and status
+            not in (
+                {400, 401, 402, 403, 404, 408, 413, 429, 500, 504}
+                if route["kind"].startswith("deepseek_")
+                else {401, 403, 404, 429}
+            )
         ):
             return None
         metering, pricing = route["metering"], route["pricing"]
         charge_policy = metering["charge_policy"]
+        if charge_policy == "prepaid_quota":
+            return None  # Credits are accounted by the native journal, never cash.
         micros = None
         if charge_policy == "all_http_requests":
             micros = pricing["unit_cost_micros"]
         elif charge_policy == "successful_search_only":
             if outcome == "response_available" and receipt.get("parse_status") in {"ok", "empty"}:
                 micros = pricing["unit_cost_micros"]
+            elif outcome == "confirmed_failure":
+                micros = metering["rejected_request_cost_micros"]
+        elif charge_policy == "successful_nonempty_only":
+            if outcome == "response_available" and receipt.get("parse_status") in {"ok", "empty"}:
+                count = receipt.get("provider_result_count")
+                if type(count) is int and count >= 0:
+                    micros = pricing["unit_cost_micros"] if count else 0
             elif outcome == "confirmed_failure":
                 micros = metering["rejected_request_cost_micros"]
         elif charge_policy == "provider_usage":

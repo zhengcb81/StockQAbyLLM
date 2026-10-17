@@ -9,8 +9,11 @@ and a body that cannot be decoded is a ``parse_failure`` — never a fabricated
 
 from __future__ import annotations
 
+import hashlib
+import ipaddress
 import json
 from typing import Any, Mapping
+from urllib.parse import unquote, urlsplit
 
 __all__ = [
     "DEFAULT_MAX_IN_MEMORY_BYTES",
@@ -105,7 +108,19 @@ def _candidate(
 ) -> dict[str, Any] | None:
     if not isinstance(url, str) or not url.strip():
         return None
-    if not url.startswith(("http://", "https://")):
+    if any(ord(c) < 32 for c in url):
+        return None
+    url = url.strip()
+    # The durable receipt accepts HTTPS short records only. Reject individual
+    # unsafe candidates here, before a paid response reaches journal validation.
+    if len(url) > 2048 or any(ord(c) < 32 for c in url):
+        return None
+    try:
+        parts = urlsplit(url)
+        if parts.scheme != "https" or not parts.hostname or parts.username or parts.password:
+            return None
+        parts.port  # malformed port syntax must not escape the response parser
+    except (ValueError, UnicodeError):
         return None
     clean_title = title if isinstance(title, str) else ""
     clean_snippet = snippet if isinstance(snippet, str) else ""
@@ -115,17 +130,30 @@ def _candidate(
         "title": clean_title.strip(),
         "url": url.strip(),
         "snippet": clean_snippet.strip(),
-        "published_at": published_at if isinstance(published_at, str) and published_at else None,
+        "published_at": (
+            published_at
+            if isinstance(published_at, str)
+            and published_at.strip()
+            and len(published_at) <= 100
+            and not any(ord(c) < 32 for c in published_at)
+            else None
+        ),
         "publisher": (
             publisher.strip() if isinstance(publisher, str) and publisher.strip() else None
         ),
     }
 
 
-def _finalize(candidates: list[dict[str, Any]], *, route: str) -> ParsedCandidates:
+def _finalize(
+    candidates: list[dict[str, Any]], *, route: str, raw_count: int | None = None
+) -> ParsedCandidates:
     if not candidates:
-        return _result("empty", route=route)
-    return ParsedCandidates({"status": "ok", "entries": candidates, "route": route})
+        result = _result("empty", route=route)
+    else:
+        result = ParsedCandidates({"status": "ok", "entries": candidates, "route": route})
+    if raw_count is not None:
+        result["provider_result_count"] = raw_count
+    return result
 
 
 def parse_brave(payload: Any, **limits: Any) -> ParsedCandidates:
@@ -158,7 +186,7 @@ def parse_brave(payload: Any, **limits: Any) -> ParsedCandidates:
         )
         if candidate is not None:
             entries.append(candidate)
-    return _finalize(entries, route="brave")
+    return _finalize(entries, route="brave", raw_count=len(results))
 
 
 def parse_tavily(payload: Any, **limits: Any) -> ParsedCandidates:
@@ -186,7 +214,7 @@ def parse_tavily(payload: Any, **limits: Any) -> ParsedCandidates:
         )
         if candidate is not None:
             entries.append(candidate)
-    return _finalize(entries, route="tavily")
+    return _finalize(entries, route="tavily", raw_count=len(results))
 
 
 def _zai_entries(document: Mapping) -> list[Mapping[str, Any]] | None:
@@ -233,7 +261,7 @@ def parse_zai_rest(payload: Any, **limits: Any) -> ParsedCandidates:
         )
         if candidate is not None:
             entries.append(candidate)
-    return _finalize(entries, route="zai_rest")
+    return _finalize(entries, route="zai_rest", raw_count=len(results))
 
 
 def parse_zai_mcp_streamable(payload: Any, **limits: Any) -> ParsedCandidates:
@@ -271,12 +299,14 @@ def parse_zai_mcp_streamable(payload: Any, **limits: Any) -> ParsedCandidates:
     if not texts:
         return _result("empty", route="zai_mcp_streamable")
     entries: list[dict[str, Any]] = []
+    raw_count = 0
     for text in texts:
         try:
             decoded = unwrap_json_text(text, **limits)
         except ValueError:
             return _result("parse_failure", route="zai_mcp_streamable", error="tool_text_not_json")
         items = decoded if isinstance(decoded, list) else [decoded]
+        raw_count += len(items)
         for item in items:
             if not isinstance(item, Mapping):
                 continue
@@ -289,11 +319,130 @@ def parse_zai_mcp_streamable(payload: Any, **limits: Any) -> ParsedCandidates:
             )
             if candidate is not None:
                 entries.append(candidate)
-    return _finalize(entries, route="zai_mcp_streamable")
+    return _finalize(entries, route="zai_mcp_streamable", raw_count=raw_count)
+
+
+def validate_fetch_url(url: Any, *, allow_document_links: bool = False) -> str:
+    """Only exact public HTTPS page URLs, never local/binary/document targets."""
+    if (
+        not isinstance(url, str)
+        or not 1 <= len(url) <= 2000
+        or any(ord(c) < 33 or c == "\\" for c in url)
+    ):
+        raise ValueError("unsafe_fetch_url")
+    try:
+        parts = urlsplit(url)
+        host = parts.hostname
+        if (
+            parts.scheme != "https"
+            or not host
+            or parts.username is not None
+            or parts.password is not None
+            or parts.port not in {None, 443}
+            or parts.fragment
+            or "%" in parts.netloc
+            or "." not in host
+            or host.endswith(".")
+            or host.endswith((".local", ".localhost", ".internal"))
+        ):
+            raise ValueError("unsafe_fetch_url")
+        try:
+            address = ipaddress.ip_address(host)
+        except ValueError:
+            address = None
+        if address is not None:  # refuse all IP literals, including public ones
+            raise ValueError("unsafe_fetch_url")
+        path = unquote(parts.path).lower()
+        if not allow_document_links and any(
+            ext in unquote(url).lower()
+            for ext in (
+                ".pdf",
+                ".doc",
+                ".xls",
+                ".ppt",
+                ".zip",
+                ".exe",
+                ".png",
+                ".jpg",
+                ".jpeg",
+                ".gif",
+                ".mp4",
+                ".bin",
+            )
+        ):
+            raise ValueError("fetch_document_or_binary_forbidden")
+        if any(part in {".", ".."} for part in path.split("/")):
+            raise ValueError("unsafe_fetch_url")
+    except (ValueError, UnicodeError):
+        raise ValueError("unsafe_fetch_url") from None
+    return url
+
+
+def parse_deepseek_search(payload: Any, **limits: Any) -> ParsedCandidates:
+    try:
+        document = unwrap_json_text(payload, **limits)
+    except ValueError:
+        return _result("parse_failure", route="deepseek_search")
+    if not isinstance(document, Mapping):
+        return _result("parse_failure", route="deepseek_search")
+    if "error" in document:
+        return _result("business_error", route="deepseek_search")
+    results = document.get("results")
+    if not isinstance(results, list):
+        return _result("parse_failure", route="deepseek_search")
+    entries = []
+    for item in results:
+        if not isinstance(item, Mapping):
+            return _result("parse_failure", route="deepseek_search")
+        try:
+            validate_fetch_url(item.get("url"), allow_document_links=True)
+        except ValueError:
+            continue
+        summary = item.get("summary")
+        use_summary = isinstance(summary, str) and bool(summary.strip())
+        candidate = _candidate(
+            title=item.get("title"),
+            url=item.get("url"),
+            snippet=summary if use_summary else item.get("snippet"),
+            published_at=item.get("date"),
+            publisher=item.get("site_name"),
+        )
+        if candidate is not None:
+            candidate["snippet"] = candidate["snippet"][:500]
+            candidate["snippet_kind"] = "provider_summary" if use_summary else "search_snippet"
+            entries.append(candidate)
+    # Provider result count, not filtered count, controls reference billing.
+    result = _finalize(entries, route="deepseek_search")
+    result["provider_result_count"] = len(results)
+    return result
+
+
+def parse_deepseek_fetch(payload: Any, **limits: Any) -> ParsedCandidates:
+    try:
+        document = unwrap_json_text(payload, **limits)
+    except ValueError:
+        return _result("parse_failure", route="deepseek_fetch")
+    if isinstance(document, Mapping) and "error" in document:
+        return _result("business_error", route="deepseek_fetch")
+    if not isinstance(document, Mapping) or not isinstance(document.get("content"), str):
+        return _result("parse_failure", route="deepseek_fetch")
+    content = document["content"]
+    if content.startswith(("%PDF", "PK\x03\x04")) or "\x00" in content:
+        return _result("parse_failure", route="deepseek_fetch")
+    result = _result("ok" if content else "empty", route="deepseek_fetch")
+    result.update(
+        provider_result_count=int(bool(content)),
+        excerpt=content[:500],
+        content_sha256=hashlib.sha256(content.encode("utf-8")).hexdigest(),
+        title=document.get("title") if isinstance(document.get("title"), str) else "",
+    )
+    return result
 
 
 PARSERS = {
     "brave": parse_brave,
+    "deepseek_search": parse_deepseek_search,
+    "deepseek_fetch": parse_deepseek_fetch,
     "tavily": parse_tavily,
     "zai_rest": parse_zai_rest,
     "zai_mcp_streamable": parse_zai_mcp_streamable,
