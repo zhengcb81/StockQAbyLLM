@@ -108,7 +108,15 @@ def current_policy(config_path, request, *, ledger_path, budget_policy_file, pro
     policy = result["owner_policy"]
     schemas = [
         _read((Path(source["iqs_code_root"]) / "schemas/quick_scan" / name).read_bytes())
-        for name in ("refresh-v1.4.schema.json", "query-v2.schema.json", "query-v2.6.schema.json")
+        for name in (
+            (
+                "refresh-v1.5.schema.json"
+                if request.get("protocol") == "iqs.refresh_request/1.5.0"
+                else "refresh-v1.4.schema.json"
+            ),
+            "query-v2.schema.json",
+            "query-v2.6.schema.json",
+        )
     ]
     registry = Registry().with_resources((s["$id"], Resource.from_contents(s)) for s in schemas)
     for field, definition in ((policy, "OwnerPolicy"), (request, "Request")):

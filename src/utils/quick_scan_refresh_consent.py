@@ -193,6 +193,7 @@ class RefreshConsentClient:
             "iqs.refresh_request/1.2.0": "refresh-v1.2.schema.json",
             "iqs.refresh_request/1.3.0": "refresh-v1.3.schema.json",
             "iqs.refresh_request/1.4.0": "refresh-v1.4.schema.json",
+            "iqs.refresh_request/1.5.0": "refresh-v1.5.schema.json",
         }.get(dialect)
         if refresh_name is None:
             raise ValueError("unsupported explicit refresh dialect")

@@ -81,7 +81,7 @@ class ReadOnlyWorkView(QuickScanWorkStore):
 def inspect_refresh(
     path, request, *, policy, schema_version="1.0.0", admission_config=None, budget_policy_file=None
 ):
-    if schema_version not in {"1.0.0", "1.1.0", "1.2.0", "1.3.0", "1.4.0"}:
+    if schema_version not in {"1.0.0", "1.1.0", "1.2.0", "1.3.0", "1.4.0", "1.5.0"}:
         raise ValueError("refresh_inspection_schema_unsupported")
     required = {
         "entity_id",
@@ -94,7 +94,7 @@ def inspect_refresh(
     }
     if schema_version in {"1.2.0", "1.3.0"}:
         required |= {"cohort_id", "work_decision_refs"}
-    if schema_version == "1.4.0":
+    if schema_version in {"1.4.0", "1.5.0"}:
         required |= {"cohort_id", "continuation_decision_ref", "refresh_request"}
     if not isinstance(request, dict) or set(request) != required:
         raise ValueError("refresh_inspection_request_invalid")
@@ -121,7 +121,7 @@ def inspect_refresh(
     ):
         raise ValueError("refresh_inspection_scope_invalid")
     exposure_control = None
-    if schema_version == "1.4.0":
+    if schema_version in {"1.4.0", "1.5.0"}:
         if admission_config is None or budget_policy_file is None:
             raise ValueError("refresh_exposure_native_deployment_required")
         from .quick_scan_owner_budget_continuation import accepted_control
@@ -285,7 +285,7 @@ def inspect_refresh(
                     raise ValueError("refresh_control_scope_incomplete")
             allowed_currencies = (
                 {"USD", "CNY"}
-                if schema_version in {"1.1.0", "1.2.0", "1.3.0", "1.4.0"}
+                if schema_version in {"1.1.0", "1.2.0", "1.3.0", "1.4.0", "1.5.0"}
                 else {"USD"}
             )
             if status["currency"] not in allowed_currencies:
@@ -352,6 +352,12 @@ def inspect_refresh(
                 )
                 from .quick_scan_owner_budget_continuation import cell_key
 
+                if schema_version == "1.5.0":
+                    from .quick_scan_owner_budget_continuation_v15 import (
+                        assert_independent,
+                    )
+
+                    assert_independent(connection, exposure_control)
                 already_allocated = (
                     connection.execute(
                         "SELECT 1 FROM quick_scan_owner_continuation_cell WHERE policy_id=? AND cell_key=?",
@@ -366,7 +372,7 @@ def inspect_refresh(
                     ),
                     max_http_requests=max_new,
                     planned_physical_requests=physical,
-                    retained_unreconciled_attempts=2,
+                    retained_unreconciled_attempts=len(refs),
                     cash_actual_complete=False,
                     budget_available=blockers == 0
                     and capacity_available

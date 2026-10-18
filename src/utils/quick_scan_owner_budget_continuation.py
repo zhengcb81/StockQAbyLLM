@@ -77,7 +77,7 @@ def _utc(value):
 def future_request_core(request):
     if (
         not isinstance(request, dict)
-        or request.get("protocol") != "iqs.refresh_request/1.4.0"
+        or request.get("protocol") not in {"iqs.refresh_request/1.4.0", "iqs.refresh_request/1.5.0"}
         or "continuation_review_ref" in request
     ):
         raise ValueError("owner_exposure_request_dialect_invalid")
@@ -112,8 +112,16 @@ ATTEMPT_FIELDS = (
 )
 
 
-def exposure_snapshot(path, policy, attempt_ids):
+def exposure_snapshot(path, policy, attempt_ids=None, *, dialect="1.4.0"):
     """Read-only before quote; no original row, schema or cost is changed."""
+    if dialect == "1.5.0":
+        from .quick_scan_owner_budget_continuation_v15 import (
+            exposure_snapshot as project,
+        )
+
+        return project(path, policy, attempt_ids)
+    if dialect != "1.4.0":
+        raise ValueError("owner_exposure_snapshot_dialect_unsupported")
     from .quick_scan_work_store import _budget_policy_projection
 
     if (
@@ -198,6 +206,10 @@ def exposure_snapshot(path, policy, attempt_ids):
 
 
 def cell_key(cell):
+    if "execution_profile" in cell:
+        from .quick_scan_owner_budget_continuation_v15 import semantic_cell
+
+        return digest(semantic_cell(cell))
     # Task/work/generation/label cannot make the same approved comparison new.
     semantic = {
         k: v for k, v in cell.items() if k not in {"cell_id", "generation", "manifest_raw_sha256"}
@@ -207,6 +219,15 @@ def cell_key(cell):
 
 
 def validate_control(value):
+    if (
+        isinstance(value, dict)
+        and value.get("protocol") == "stockqa.owner_budget_continuation/1.1.0"
+    ):
+        from .quick_scan_owner_budget_continuation_v15 import (
+            validate_control as validate,
+        )
+
+        return validate(value)
     fields = {
         "protocol",
         "mode",
@@ -256,7 +277,8 @@ def validate_control(value):
         raise ValueError("owner_exposure_validity_invalid")
     core = value["future_request_core"]
     if (
-        future_request_core(core) != core
+        core.get("protocol") != "iqs.refresh_request/1.4.0"
+        or future_request_core(core) != core
         or core.get("cohort_id") != value["cohort_id"]
         or core.get("consumer_id") != value["consumer_id"]
     ):
@@ -329,7 +351,10 @@ def validate_control(value):
 
 def accepted_control(owner_policy, request, ledger_path, *, now):
     """Pure binding checks only. Its caller must read a native current policy."""
-    if owner_policy.get("protocol") != "stockwiki.refresh_owner_policy/1.4.0":
+    if owner_policy.get("protocol") not in {
+        "stockwiki.refresh_owner_policy/1.4.0",
+        "stockwiki.refresh_owner_policy/1.5.0",
+    }:
         raise ValueError("owner_exposure_explicit_policy_required")
     accepted = owner_policy.get("budget_exposure_acceptance")
     if not isinstance(accepted, dict) or set(accepted) != {"continuation_decision_ref", "control"}:
@@ -338,8 +363,14 @@ def accepted_control(owner_policy, request, ledger_path, *, now):
     if request.get("continuation_decision_ref") != accepted["continuation_decision_ref"]:
         raise ValueError("owner_exposure_reference_not_in_native_policy")
     control = validate_control(accepted["control"])
+    dialect = owner_policy["protocol"].split("/")[-1]
+    if request.get("protocol") != "iqs.refresh_request/" + dialect or control[
+        "protocol"
+    ] != "stockqa.owner_budget_continuation/" + ("1.1.0" if dialect == "1.5.0" else "1.0.0"):
+        raise ValueError("owner_exposure_policy_control_dialect_mismatch")
     if owner_policy.get("provider") != "mimo" or any(
-        c["provider"] != "mimo" or c["controls"]["strategy_id"] != "free_agent"
+        c["provider"] != "mimo"
+        or c["controls"]["strategy_id"] != ("module_packs" if dialect == "1.5.0" else "free_agent")
         for c in control["cells"]
     ):
         raise ValueError("owner_exposure_supported_carrier_required")
@@ -360,6 +391,12 @@ def accepted_control(owner_policy, request, ledger_path, *, now):
 
 def validate_retained_rows(connection, control, policy_id):
     """Never erase old cash/request/reservation facts or accept a future unknown."""
+    if control.get("protocol") == "stockqa.owner_budget_continuation/1.1.0":
+        from .quick_scan_owner_budget_continuation_v15 import (
+            validate_retained_rows as validate,
+        )
+
+        return validate(connection, control, policy_id)
     source = control["snapshot"]
     if source["policy_id"] != policy_id:
         raise ValueError("owner_exposure_policy_mismatch")
@@ -421,15 +458,25 @@ def register_cells(connection, proof, items, specifications, bundles, *, ledger_
     ApprovedRefreshSession and a current native permission read at each POST.
     """
     request = proof["request"]
-    if request.get("protocol") != "iqs.refresh_request/1.4.0":
+    if request.get("protocol") not in {"iqs.refresh_request/1.4.0", "iqs.refresh_request/1.5.0"}:
         return
     ref, control = accepted_control(proof["owner_policy"], request, ledger_path, now=now)
     validate_retained_rows(connection, control, control["snapshot"]["policy_id"])
+    if request["protocol"] == "iqs.refresh_request/1.5.0":
+        from .quick_scan_owner_budget_continuation_v15 import assert_independent
+
+        assert_independent(
+            connection, control, confirmation_id=proof["confirmation"]["confirmation_id"]
+        )
     qmap = {q["id"]: q for bundle in bundles.values() for q in bundle["manifest"]["questions"]}
     itemmap = {i["question_id"]: i for i in items}
     specmap = {i["question_id"]: i for i in specifications}
     if len(itemmap) != len(items) or len(specmap) != len(specifications):
         raise ValueError("owner_exposure_single_subject_action_required")
+    if request["protocol"] == "iqs.refresh_request/1.5.0":
+        from .quick_scan_owner_budget_continuation_v15 import validate_original_bindings
+
+        validate_original_bindings(control["cells"][0], qmap, bundles)
     covered = set()
     for cell in control["cells"]:
         members = []
@@ -530,7 +577,10 @@ def reserve_projection(
 ):
     """Native original send transaction: only its original bound owner may opt in."""
     session = _current_session()
-    if session is None or session.proof["request"].get("protocol") != "iqs.refresh_request/1.4.0":
+    if session is None or session.proof["request"].get("protocol") not in {
+        "iqs.refresh_request/1.4.0",
+        "iqs.refresh_request/1.5.0",
+    }:
         return None
     session.check()
     # Never accept a caller-selected namespace/policy or JSON authority.
@@ -613,7 +663,10 @@ def assert_payload(store, work_ids, payload, *, provider, protocol):
     from contextlib import closing
 
     session = _current_session()
-    if session is None or session.proof["request"].get("protocol") != "iqs.refresh_request/1.4.0":
+    if session is None or session.proof["request"].get("protocol") not in {
+        "iqs.refresh_request/1.4.0",
+        "iqs.refresh_request/1.5.0",
+    }:
         return
     session.check()
     ref, control = accepted_control(
@@ -651,7 +704,10 @@ NO_EXTERNAL_SEARCH_POLICY = {
 
 
 def assert_research_task(owner, task, *, search_service):
-    if owner.proof["request"].get("protocol") != "iqs.refresh_request/1.4.0":
+    if owner.proof["request"].get("protocol") not in {
+        "iqs.refresh_request/1.4.0",
+        "iqs.refresh_request/1.5.0",
+    }:
         return
     _, control = accepted_control(
         owner.proof["owner_policy"],
@@ -659,6 +715,10 @@ def assert_research_task(owner, task, *, search_service):
         owner.service.store.path,
         now=owner.service.store._now(),
     )
+    if owner.proof["request"]["protocol"] == "iqs.refresh_request/1.5.0":
+        from .quick_scan_owner_budget_continuation_v15 import assert_profile_task
+
+        assert_profile_task(control["cells"][0], task)
     if (
         search_service is not None
         or task.limits.get("max_search_queries_per_session") != 0

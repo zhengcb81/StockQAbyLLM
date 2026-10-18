@@ -24,7 +24,7 @@ def main(argv=None):
     parser.add_argument("--request", type=Path, required=True)
     parser.add_argument(
         "--schema-version",
-        choices=("1.0.0", "1.1.0", "1.2.0", "1.3.0", "1.4.0"),
+        choices=("1.0.0", "1.1.0", "1.2.0", "1.3.0", "1.4.0", "1.5.0"),
         default="1.0.0",
     )
     parser.add_argument(

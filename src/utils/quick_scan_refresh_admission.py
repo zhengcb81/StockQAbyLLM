@@ -486,7 +486,8 @@ class RefreshAdmissionService:
                 references=references,
                 continuation=(
                     {"proof": proof, "bundles": bundles}
-                    if proof["request"]["protocol"] == "iqs.refresh_request/1.4.0"
+                    if proof["request"]["protocol"]
+                    in {"iqs.refresh_request/1.4.0", "iqs.refresh_request/1.5.0"}
                     else None
                 ),
             )

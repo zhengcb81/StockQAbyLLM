@@ -33,9 +33,10 @@ def setup_continuation(
     provider="openai",
     selected_question_count=1,
     information_cutoff=None,
+    route_id=None,
 ):
-    assert refresh_version == "1.4.0"
-    if information_cutoff not in (None, "2026-10-13"):
+    assert refresh_version in {"1.4.0", "1.5.0"}
+    if refresh_version == "1.4.0" and information_cutoff not in (None, "2026-10-13"):
         raise ValueError("synthetic fixture unsupported information cutoff")
     routes, current, config, authority, manifest, identity_file = actual
     selected = [row for row in manifest["questions"] if row["scope"] == "entity"][
@@ -70,42 +71,54 @@ def setup_continuation(
     )
     policy = policy or _policy(model="fixture-model")
     ledger = QuickScanWorkStore(ledger_path or tmp_path / "executor.sqlite")
-    ledger.configure_quick_scan_budget(policy)
-    from decimal import Decimal
+    selected_route = (
+        next((row for row in policy["routes"] if row["id"] == route_id), None)
+        if route_id is not None
+        else policy["routes"][0]
+    )
+    if (
+        selected_route is None
+        or refresh_version == "1.5.0"
+        and (ledger_path is None or route_id is None)
+    ):
+        raise ValueError("v15 fixture requires original existing ledger and explicit route")
+    if refresh_version == "1.4.0":
+        ledger.configure_quick_scan_budget(policy)
+        from decimal import Decimal
 
-    for ordinal in range(98):
-        route = policy["routes"][0]
-        original_id = "DISPATCH_settled_" + str(ordinal)
-        ledger.reserve_budget_attempt(
-            policy,
-            budget_attempt_id=original_id,
-            route_id=route["id"],
-            provider=route["provider_config_ref"],
-            model_requested=route["model"],
-            quota_group=route["quota_group"],
+        for ordinal in range(98):
+            route = policy["routes"][0]
+            original_id = "DISPATCH_settled_" + str(ordinal)
+            ledger.reserve_budget_attempt(
+                policy,
+                budget_attempt_id=original_id,
+                route_id=route["id"],
+                provider=route["provider_config_ref"],
+                model_requested=route["model"],
+                quota_group=route["quota_group"],
+            )
+            ledger.record_budget_outcome(
+                original_id,
+                outcome="response_available",
+                http_status_code=200,
+                actual_cost=Decimal("0.001"),
+                cost_source_ref="synthetic-original-rate",
+            )
+        for suffix, route in (("unknown", policy["routes"][1]), ("response", policy["routes"][0])):
+            ledger.reserve_budget_attempt(
+                policy,
+                budget_attempt_id="DISPATCH_legacy_" + suffix,
+                route_id=route["id"],
+                provider=route["provider_config_ref"],
+                model_requested=route["model"],
+                quota_group=route["quota_group"],
+            )
+        ledger.record_budget_outcome(
+            "DISPATCH_legacy_unknown", outcome="unknown", http_status_code=None
         )
         ledger.record_budget_outcome(
-            original_id,
-            outcome="response_available",
-            http_status_code=200,
-            actual_cost=Decimal("0.001"),
-            cost_source_ref="synthetic-original-rate",
+            "DISPATCH_legacy_response", outcome="response_available", http_status_code=200
         )
-    for suffix, route in (("unknown", policy["routes"][1]), ("response", policy["routes"][0])):
-        ledger.reserve_budget_attempt(
-            policy,
-            budget_attempt_id="DISPATCH_legacy_" + suffix,
-            route_id=route["id"],
-            provider=route["provider_config_ref"],
-            model_requested=route["model"],
-            quota_group=route["quota_group"],
-        )
-    ledger.record_budget_outcome(
-        "DISPATCH_legacy_unknown", outcome="unknown", http_status_code=None
-    )
-    ledger.record_budget_outcome(
-        "DISPATCH_legacy_response", outcome="response_available", http_status_code=200
-    )
     budget_file = tmp_path / "budget.json"
     budget_file.write_text(json.dumps(policy), encoding="utf-8")
     base = [
@@ -132,7 +145,7 @@ def setup_continuation(
         universe_id="admit-pool",
         field_ids=selected_fields,
         provider=provider,
-        model=policy["routes"][0]["model"],
+        model=selected_route["model"],
         ttl_hours=48,
         routes=[
             dict(
@@ -147,11 +160,11 @@ def setup_continuation(
             work_store=str(ledger.path),
             budget_policy_file=str(budget_file),
             policy_id=policy["policy_id"],
-            route_id=policy["routes"][0]["id"],
-            provider_config_ref=policy["routes"][0]["provider_config_ref"],
+            route_id=selected_route["id"],
+            provider_config_ref=selected_route["provider_config_ref"],
         ),
     )
-    if refresh_version in {"1.1.0", "1.4.0"}:
+    if refresh_version in {"1.1.0", "1.4.0", "1.5.0"}:
         owner_policy["qa"]["quote_schema_version"] = refresh_version
     paths = routes.identity.paths
     paths.config_dir.mkdir(parents=True, exist_ok=True)
@@ -159,7 +172,7 @@ def setup_continuation(
     policy_file.write_text(json.dumps(owner_policy), encoding="utf-8")
     request = dict(
         message_type="request",
-        schema_version="2.6.0" if refresh_version in {"1.1.0", "1.4.0"} else "2.0.0",
+        schema_version="2.6.0" if refresh_version in {"1.1.0", "1.4.0", "1.5.0"} else "2.0.0",
         request_id="admit-query",
         consumer_id="invest-quick-scan",
         operation="get_profiles",
@@ -250,17 +263,55 @@ def setup_continuation(
     native_questions = {
         row["id"]: row for row in json.loads(raw_manifest.read_bytes())["questions"]
     }
+    execution = None
+    if refresh_version == "1.5.0":
+        from iqs_company_agent_lab.scan_profile import build_scan_profile
+
+        full_manifest = json.loads(raw_manifest.read_bytes())
+        versions = {row["module_id"]: row["version"] for row in full_manifest["module_locks"]}
+        profile_questions = [
+            dict(
+                question_id=qid,
+                question=native_questions[qid],
+                question_object_sha256=digest(native_questions[qid]),
+                module_id=native_questions[qid]["module_id"],
+                module_version=versions[native_questions[qid]["module_id"]],
+            )
+            for qid in refresh["question_ids"]
+        ]
+        execution = build_scan_profile(
+            profile_questions,
+            information_cutoff=request["payload"]["information_cutoff"],
+            route_id=selected_route["id"],
+            group_keys={
+                qid: (
+                    ref["entity_id"],
+                    None,
+                    ref["scope"],
+                    ref["scope_id"],
+                    ref["perimeter_sha256"],
+                )
+                for qid in refresh["question_ids"]
+            },
+            max_questions_per_pack=selected_question_count,
+        )
+        refresh["execution_profile_sha256"] = digest(execution)
     clock = datetime.now(timezone.utc)
     control = dict(
-        protocol="stockqa.owner_budget_continuation/1.0.0",
+        protocol="stockqa.owner_budget_continuation/"
+        + ("1.1.0" if refresh_version == "1.5.0" else "1.0.0"),
         mode="explicit_repeat_exposure",
         reference_scope="unknown_reference_scope",
         purpose="independent_comparison",
         consumer_id="invest-quick-scan",
         cohort_id=refresh["cohort_id"],
         ledger_path=str(ledger.path.resolve()),
-        snapshot=exposure_snapshot(
-            ledger.path, policy, ["DISPATCH_legacy_unknown", "DISPATCH_legacy_response"]
+        snapshot=(
+            exposure_snapshot(ledger.path, policy, dialect="1.5.0")
+            if refresh_version == "1.5.0"
+            else exposure_snapshot(
+                ledger.path, policy, ["DISPATCH_legacy_unknown", "DISPATCH_legacy_response"]
+            )
         ),
         future_request_core=future_request_core(refresh),
         cells=[
@@ -272,15 +323,15 @@ def setup_continuation(
                 },
                 subject_ref=ref,
                 provider=provider,
-                model=policy["routes"][0]["model"],
-                route_id=policy["routes"][0]["id"],
-                quota_group=policy["routes"][0]["quota_group"],
+                model=selected_route["model"],
+                route_id=selected_route["id"],
+                quota_group=selected_route["quota_group"],
                 generation=1,
                 manifest_raw_sha256=hashlib.sha256(raw_manifest.read_bytes()).hexdigest(),
                 controls=dict(
                     thinking_enabled=True,
-                    max_output_tokens=4096,
-                    strategy_id="free_agent",
+                    max_output_tokens=16384 if refresh_version == "1.5.0" else 4096,
+                    strategy_id="module_packs" if refresh_version == "1.5.0" else "free_agent",
                     search_policy_sha256=digest(NO_EXTERNAL_SEARCH_POLICY),
                     replicate_ordinal=1,
                 ),
@@ -296,6 +347,10 @@ def setup_continuation(
         stop_evidence_ref="synthetic-source-local-process-stopped-not-real-provider-proof",
         additional_risk_hold_micros=0,
     )
+    if execution is not None:
+        control["cells"][0].update(
+            execution_profile=execution, execution_profile_sha256=digest(execution)
+        )
     owner_policy["budget_exposure_acceptance"] = dict(
         continuation_decision_ref=refresh["continuation_decision_ref"], control=control
     )
