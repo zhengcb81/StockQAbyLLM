@@ -63,7 +63,10 @@ from src.utils.quick_scan_owner_budget_continuation import (
 )
 from src.utils.quick_scan_research_output import DDL_V23_ADDITIONS as _DDL_V23_ADDITIONS
 
-SCHEMA_VERSION = 24
+SCHEMA_VERSION = 25
+# v25 is a table-copy migration, not an additive DDL release; the historical
+# fixture helper still asks every later version for its additions tuple.
+_DDL_V25_ADDITIONS: tuple[str, ...] = ()
 _SAFE_ID = re.compile(r"^[A-Za-z0-9_.-]{1,160}$")
 # Hyphens accepted per owner sign-off (2026-10-05 round-51): the W04
 # identity-export package issues ENT_<uuid> entity ids (e.g. the frozen
@@ -655,6 +658,8 @@ _DDL_CHECKPOINT_V11 = _DDL_V2_ADDITIONS[0].replace(
     "CHECK (checkpoint_schema_version IN (1,2))",
 )
 
+_DDL_CHECKPOINT_V25 = _DDL_CHECKPOINT_V11.replace("IN (1,2)", "IN (1,2,3)")
+
 # Preserve the historical receipt hash recipe. Native event metadata has its
 # own immutable binding to the actual HTTP response, never fabricated at resume.
 _DDL_V12_ADDITIONS = (
@@ -684,7 +689,7 @@ _DDL_V18_ADDITIONS = (
 
 _DDL = (
     _DDL_V1
-    + (_DDL_CHECKPOINT_V11,)
+    + (_DDL_CHECKPOINT_V25,)
     + _DDL_V2_ADDITIONS[1:]
     + _DDL_V3_ADDITIONS
     + _DDL_V4_ADDITIONS
@@ -1306,6 +1311,8 @@ class QuickScanWorkStore:
                 cls._validate_schema(connection, schema_version=22)
             elif version == 23:
                 cls._validate_schema(connection, schema_version=23)
+            elif version == 24:
+                cls._validate_schema(connection, schema_version=24)
             elif version != SCHEMA_VERSION:
                 raise ValueError("unsupported quick-scan work database schema version")
             if 1 <= version < 8:
@@ -1376,11 +1383,27 @@ class QuickScanWorkStore:
                 for statement in _DDL_V24_ADDITIONS:
                     connection.execute(statement)
                 connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+            if 1 <= version < 25:
+                cls._apply_v25_migration(connection)
+                connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             cls._validate_schema(connection, schema_version=SCHEMA_VERSION)
             connection.execute("COMMIT")
         except Exception:
             connection.execute("ROLLBACK")
             raise
+
+    @staticmethod
+    def _apply_v25_migration(connection: sqlite3.Connection) -> None:
+        """Expand only the checkpoint version constraint; old row/JSON bytes survive."""
+        connection.execute(
+            "CREATE TEMP TABLE checkpoint_v25_original AS SELECT * FROM answer_checkpoint"
+        )
+        connection.execute("DROP TABLE answer_checkpoint")
+        connection.execute(_DDL_CHECKPOINT_V25)
+        connection.execute("INSERT INTO answer_checkpoint SELECT * FROM checkpoint_v25_original")
+        for statement in _DDL_V2_ADDITIONS[1:]:
+            connection.execute(statement)
+        connection.execute("DROP TABLE checkpoint_v25_original")
 
     @staticmethod
     def _apply_v11_migration(connection: sqlite3.Connection) -> None:
@@ -1466,7 +1489,9 @@ class QuickScanWorkStore:
             expected.update(
                 {
                     ("table", "answer_checkpoint"): (
-                        _DDL_CHECKPOINT_V11 if schema_version >= 11 else _DDL_V2_ADDITIONS[0]
+                        _DDL_CHECKPOINT_V25
+                        if schema_version >= 25
+                        else (_DDL_CHECKPOINT_V11 if schema_version >= 11 else _DDL_V2_ADDITIONS[0])
                     ),
                     ("trigger", "answer_checkpoint_no_update"): _DDL_V2_ADDITIONS[1],
                     ("trigger", "answer_checkpoint_no_delete"): _DDL_V2_ADDITIONS[2],
@@ -2498,7 +2523,10 @@ class QuickScanWorkStore:
         return cast(
             dict,
             register(
-                self, policy=policy, independent_task=independent_task, registration=registration
+                self,
+                policy=policy,
+                independent_task=independent_task,
+                registration=registration,
             ),
         )
 
@@ -3968,6 +3996,15 @@ class QuickScanWorkStore:
         ).hexdigest()
         if expected_hash != row["payload_sha256"]:
             raise ValueError("answer checkpoint hash mismatch")
+        if row["checkpoint_schema_version"] == 3:
+            from typing import Any, cast
+
+            from .quick_scan_saved_research_publication import validate_checkpoint
+
+            return cast(
+                "dict[Any, Any]",
+                validate_checkpoint(connection, row, payload, validate_status=validate_status),
+            )
         if (
             not isinstance(payload, dict)
             or payload.get("checkpoint_schema") != "quick-scan-answer"
@@ -4418,7 +4455,9 @@ class QuickScanWorkStore:
             ).fetchone()
             return self._checkpoint_record(connection, row)
 
-    def get_answer_checkpoint(self, work_item_id: str) -> Optional[dict]:
+    def get_answer_checkpoint(
+        self, work_item_id: str, *, allow_research: bool = False
+    ) -> Optional[dict]:
         _safe(work_item_id, "work_item_id")
         with closing(self._connect()) as connection:
             self._item(connection, work_item_id)
@@ -4428,6 +4467,8 @@ class QuickScanWorkStore:
                 "JOIN attempt a ON a.attempt_id=c.attempt_id WHERE c.work_item_id=?",
                 (work_item_id,),
             ).fetchone()
+            if row is not None and row["checkpoint_schema_version"] == 3 and not allow_research:
+                raise WorkConflictError("research_only_checkpoint_does_not_satisfy_verified_search")
             return None if row is None else self._checkpoint_record(connection, row)
 
     @staticmethod
@@ -4526,6 +4567,7 @@ class QuickScanWorkStore:
         source_urls: list,
         observation_context: Optional[dict],
         standard_answer: Optional[dict],
+        research_only: bool = False,
     ) -> dict:
         """Validate the frozen context and (when present) the body BEFORE any write."""
         if observation_context is None:
@@ -4549,6 +4591,7 @@ class QuickScanWorkStore:
                 metadata=context_document["questions"][question_id]["metadata"],
                 normalized_answer=normalized_answer,
                 source_urls=source_urls,
+                research_only=research_only,
             )
             standard_encoded = canonical_bytes(standard_answer).decode("utf-8")
         context_encoded = canonical_bytes(context_document).decode("utf-8")
@@ -5273,7 +5316,9 @@ class QuickScanWorkStore:
                 "complete observation differs from the durable body/context/original attempt"
             )
 
-    def prepare_result_delivery(self, work_item_id: str, package: dict) -> dict:
+    def prepare_result_delivery(
+        self, work_item_id: str, package: dict, *, publisher_authority: object = None
+    ) -> dict:
         """Seal a complete one-item package supplied by a verified C06 adapter."""
         from .quick_scan_result_outbox import (
             canonical_bytes,
@@ -5306,6 +5351,10 @@ class QuickScanWorkStore:
             if checkpoint_row is None:
                 raise WorkConflictError("result-ready work has no answer checkpoint")
             checkpoint = self._checkpoint_record(connection, checkpoint_row, validate_status=True)
+            if checkpoint["checkpoint_schema_version"] == 3:
+                from .quick_scan_saved_research_publication import require_publisher
+
+                require_publisher(self, connection, work_item_id, publisher_authority)
             validate_checkpoint_binding(validated, checkpoint)
             self._assert_complete_observation_binding(
                 connection,
@@ -5676,7 +5725,9 @@ class QuickScanWorkStore:
             )
             return {**binding, "binding_sha256": binding_sha256}
 
-    def begin_result_delivery(self, work_item_id: str) -> dict:
+    def begin_result_delivery(
+        self, work_item_id: str, *, publisher_authority: object = None
+    ) -> dict:
         """Commit send intent before returning the exact immutable bytes once."""
         _safe(work_item_id, "work_item_id")
         now = self._now()
@@ -5686,6 +5737,9 @@ class QuickScanWorkStore:
                 raise WorkConflictError("delivery is not safely dispatchable")
             self._result_delivery_record(row, connection=connection)
             self._consumer_binding_for_delivery(connection, row, required=True)
+            from .quick_scan_saved_research_publication import require_publisher
+
+            require_publisher(self, connection, work_item_id, publisher_authority)
             item = self._item(connection, work_item_id)
             if item["status"] != "result_ready":
                 raise WorkConflictError("delivery work item is not result-ready")

@@ -80,7 +80,7 @@ def _complete_package(
     authority: dict[str, Any],
 ) -> tuple[dict[str, Any] | None, str | None]:
     """Build the complete package for one checkpoint, or name the missing input."""
-    checkpoint = store.get_answer_checkpoint(work_item_id)
+    checkpoint = store.get_answer_checkpoint(work_item_id, allow_research=True)
     if checkpoint is None:
         return None, BLOCK_ADAPTER
     stored = store.get_observation_context(work_item_id)
@@ -173,6 +173,7 @@ def seal_result_delivery(
     work_item_id: str,
     *,
     authority: dict[str, Any] | None,
+    publisher_authority: object = None,
 ) -> dict[str, Any]:
     """Seal the checkpoint of one result-ready work item, or durably block it.
 
@@ -184,6 +185,14 @@ def seal_result_delivery(
     """
     from src.utils.quick_scan_result_outbox import canonical_bytes
 
+    checkpoint = store.get_answer_checkpoint(work_item_id, allow_research=True)
+    if checkpoint is not None and checkpoint["checkpoint_schema_version"] == 3:
+        from contextlib import closing
+
+        from .quick_scan_saved_research_publication import require_publisher
+
+        with closing(store._connect()) as connection:
+            require_publisher(store, connection, work_item_id, publisher_authority)
     existing = store.get_result_delivery(work_item_id)
     sealed = existing is not None and existing.get("package") is not None
 
@@ -239,7 +248,9 @@ def seal_result_delivery(
                 "supersedes_revision": superseded.get("supersedes_revision"),
                 "supersedes_package_id": superseded.get("supersedes_package_id"),
             }
-        record = store.prepare_result_delivery(work_item_id, package)
+        record = store.prepare_result_delivery(
+            work_item_id, package, publisher_authority=publisher_authority
+        )
         logger.info("C06 完整包已封存（%s）→ %s", work_item_id, record["package_id"])
         revisions = store.list_delivery_revisions(work_item_id)
         return {
@@ -263,7 +274,7 @@ def seal_result_delivery(
             "state": existing["state"],
         }
 
-    checkpoint = store.get_answer_checkpoint(work_item_id)
+    checkpoint = store.get_answer_checkpoint(work_item_id, allow_research=True)
     if checkpoint is None:
         raise ValueError("result-ready work item has no answer checkpoint")
 

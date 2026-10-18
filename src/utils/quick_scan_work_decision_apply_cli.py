@@ -21,7 +21,10 @@ def main(argv=None):
     parser.add_argument("--iqs-release-root", type=Path, required=True)
     parser.add_argument("--consumer-id", required=True)
     parser.add_argument("--confirmation-id", required=True)
-    parser.add_argument("--refresh-schema-version", choices=["1.0.0", "1.1.0", "1.2.0", "1.3.0"])
+    parser.add_argument(
+        "--refresh-schema-version",
+        choices=["1.0.0", "1.1.0", "1.2.0", "1.3.0", "1.5.0"],
+    )
     args = parser.parse_args(argv)
     try:
         config = dict(
@@ -43,7 +46,20 @@ def main(argv=None):
         inspected = authority.inspect_confirmation()
         request = inspected["request"]["decision_request"]
         store = QuickScanWorkStore(args.ledger)
-        if request["kind"] == "known_response_resolution":
+        if request["kind"] == "publish_saved_research":
+            from .quick_scan_c06_authority import load_c06_authority
+            from .quick_scan_saved_research_publication import publish_saved_research
+
+            cap = inspected["publication_capability"]
+            result = publish_saved_research(
+                store,
+                Path(cap["task_bundle"]["path"]).read_bytes(),
+                sdk_id=cap["native_sdk_id"],
+                idempotency_key=request["idempotency_key"],
+                owner_authority=authority,
+                c06_authority=load_c06_authority(cap["c06_authority"]["path"]),
+            )
+        elif request["kind"] == "known_response_resolution":
             proof = request["physical"]
             result = store.resolve_known_response(
                 request["work_item_id"],

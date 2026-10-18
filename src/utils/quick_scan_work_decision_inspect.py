@@ -186,7 +186,32 @@ def _inspect(path, value, *, policy, clock, derive, comparison_target=None):
             con.rollback()
 
 
-def inspect_work_decision(path, request, *, policy, clock=None, comparison_target=None):
+def inspect_work_decision(
+    path,
+    request,
+    *,
+    policy,
+    clock=None,
+    comparison_target=None,
+    saved_research_task=None,
+    saved_research_deployment=None,
+):
+    if request.get("kind") == "publish_saved_research":
+        if comparison_target is not None or saved_research_task is None:
+            raise ValueError("saved_research_fixed_task_required")
+        from pathlib import Path
+
+        from .quick_scan_saved_research_publication import inspect_publication
+
+        return inspect_publication(
+            path,
+            request,
+            policy=policy,
+            task_bundle=Path(saved_research_task).read_bytes(),
+            deployment=saved_research_deployment,
+        )
+    if saved_research_task is not None:
+        raise ValueError("saved_research_task_not_applicable_to_legacy_action")
     return _inspect(
         path,
         request,
@@ -197,5 +222,30 @@ def inspect_work_decision(path, request, *, policy, clock=None, comparison_targe
     )
 
 
-def derive_work_decision(path, intent, *, policy, clock=None):
+def derive_work_decision(
+    path, intent, *, policy, clock=None, saved_research_task=None, saved_research_deployment=None
+):
+    if intent.get("kind") == "publish_saved_research":
+        if set(intent) != {"kind", "sdk_id", "idempotency_key"} or saved_research_task is None:
+            raise ValueError("saved_research_exact_intent_required")
+        from pathlib import Path
+
+        from .quick_scan_saved_research_publication import (
+            derive_publication,
+            inspect_publication,
+            native_dependencies,
+        )
+
+        native_dependencies(saved_research_deployment)
+        view = ReadOnlyWorkView(path)
+        bundle = Path(saved_research_task).read_bytes()
+        value = derive_publication(
+            view,
+            bundle,
+            sdk_id=intent["sdk_id"],
+            idempotency_key=intent["idempotency_key"],
+        )
+        return inspect_publication(path, value["request"], policy=policy, task_bundle=bundle)
+    if saved_research_task is not None:
+        raise ValueError("saved_research_task_not_applicable_to_legacy_action")
     return _inspect(path, intent, policy=policy, clock=clock, derive=True)

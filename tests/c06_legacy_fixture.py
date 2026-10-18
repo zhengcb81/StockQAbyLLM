@@ -20,3 +20,15 @@ def remove_c06_additions(connection, *, after_version=13):
     if module.SCHEMA_VERSION >= 21:
         # v21 replaced a v13 trigger rather than adding a distinct name.
         connection.execute(module._MCP_GUARD_OLD)
+    if module.SCHEMA_VERSION >= 25 and after_version < 25:
+        # v25 widened a CHECK constraint by table copy, which the additive loop
+        # cannot undo. Recreate the pre-v25 checkpoint table with its old rows.
+        connection.execute(
+            "CREATE TEMP TABLE checkpoint_before_v25 AS SELECT * FROM answer_checkpoint"
+        )
+        connection.execute("DROP TABLE answer_checkpoint")
+        connection.execute(module._DDL_CHECKPOINT_V11)
+        for statement in module._DDL_V2_ADDITIONS[1:]:
+            connection.execute(statement)
+        connection.execute("INSERT INTO answer_checkpoint SELECT * FROM checkpoint_before_v25")
+        connection.execute("DROP TABLE checkpoint_before_v25")

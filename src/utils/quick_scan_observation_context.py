@@ -434,6 +434,7 @@ def validate_standard_answer(
     metadata: dict[str, Any],
     normalized_answer: dict[str, Any],
     source_urls: list[str],
+    research_only: bool = False,
 ) -> dict[str, Any]:
     """Validate the model's actual body and provenance; add no answer defaults."""
     _, schema, metrics, registry = _resources()
@@ -452,7 +453,9 @@ def validate_standard_answer(
     successful = content["status"] == "scored"
     if successful != (content["score"] is not None):
         raise ValueError("standard answer score/status conflict")
-    if not successful and content["metrics"]:
+    if research_only and (successful or content["score"] is not None):
+        raise ValueError("research-only publication cannot assert a score")
+    if not successful and content["metrics"] and not research_only:
         raise ValueError("unavailable answer cannot assert metrics")
     cutoff = metadata["information_cutoff"]
     for key in ("information_as_of", "period_end"):
@@ -602,6 +605,7 @@ def build_observation(
     ) not in {
         1,
         2,
+        3,
     }:
         raise ValueError("unsupported answer checkpoint")
     work = checkpoint_payload["work"]
@@ -623,6 +627,7 @@ def build_observation(
         metadata=metadata,
         normalized_answer=checkpoint_payload["answer"],
         source_urls=provenance["source_urls"],
+        research_only=checkpoint_payload["checkpoint_schema_version"] == 3,
     )
     execution = {
         key: provenance.get(source)

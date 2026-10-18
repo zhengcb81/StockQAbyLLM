@@ -20,10 +20,17 @@ def main(argv=None):
     operation.add_argument("--request", type=Path)
     operation.add_argument("--intent", type=Path)
     parser.add_argument("--comparison-target", type=Path)
+    parser.add_argument("--saved-research-task", type=Path)
+    parser.add_argument("--saved-research-deployment", type=Path)
     args = parser.parse_args(argv)
     try:
         function = inspect_work_decision if args.request else derive_work_decision
         options = {}
+        if args.saved_research_task:
+            if args.saved_research_deployment is None:
+                raise ValueError("saved_research_fixed_deployment_required")
+            options["saved_research_task"] = args.saved_research_task
+            options["saved_research_deployment"] = read(args.saved_research_deployment)
         if args.comparison_target:
             if not args.request:
                 raise ValueError("comparison_target_requires_exact_request")

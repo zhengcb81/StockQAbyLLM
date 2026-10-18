@@ -259,12 +259,21 @@ def validate_checkpoint_binding(package: dict, checkpoint: dict) -> None:
     if (
         payload.get("checkpoint_schema") != "quick-scan-answer"
         or type(payload.get("checkpoint_schema_version")) is not int
-        or payload.get("checkpoint_schema_version") not in {1, 2}
+        or payload.get("checkpoint_schema_version") not in {1, 2, 3}
         or not isinstance(work, dict)
         or not isinstance(saved_answer, dict)
         or not isinstance(provenance, dict)
     ):
         raise ValueError("checkpoint binding fields are missing")
+    research_only = payload["checkpoint_schema_version"] == 3
+    if research_only and (
+        provenance.get("execution_kind") != "research_no_verified_search"
+        or provenance.get("search_status") != "unverified"
+        or provenance.get("search_receipt_id") is not None
+        or saved_answer.get("status") == "scored"
+        or saved_answer.get("score") is not None
+    ):
+        raise ValueError("research checkpoint cannot acquire search or score qualification")
     if payload["checkpoint_schema_version"] == 2:
         # The store re-reads durable retrieval and answer rows before exposing
         # this checkpoint. Here bind that projection without rewriting the
@@ -395,7 +404,10 @@ def validate_checkpoint_binding(package: dict, checkpoint: dict) -> None:
             receipt_sha256=provenance.get("receipt_sha256"),
         )
     if not isinstance(execution, dict) or any(
-        not (vendor12 and key == "request_id" and value is None)
+        not (
+            (vendor12 and key == "request_id" or research_only and key == "search_receipt_id")
+            and value is None
+        )
         and (not isinstance(value, str) or not value.strip())
         for key, value in expected_execution.items()
     ):

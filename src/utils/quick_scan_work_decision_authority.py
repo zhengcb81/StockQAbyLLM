@@ -100,7 +100,7 @@ class StockWikiWorkDecisionAuthority(OwnerWorkDecisionAuthority):
             or not re.fullmatch("rc1_[a-f0-9]{64}", confirmation_id)
             or not isinstance(consumer_id, str)
             or not re.fullmatch("[A-Za-z0-9_.:-]{1,160}", consumer_id)
-            or refresh_schema_version not in {None, "1.0.0", "1.1.0", "1.2.0", "1.3.0"}
+            or refresh_schema_version not in {None, "1.0.0", "1.1.0", "1.2.0", "1.3.0", "1.5.0"}
         ):
             raise OwnerRefreshRejected("owner_work_trusted_deployment_required")
         self.owner = owner
@@ -185,6 +185,20 @@ class StockWikiWorkDecisionAuthority(OwnerWorkDecisionAuthority):
             con.execute("BEGIN")
             if con.execute("PRAGMA user_version").fetchone()[0] < 19:
                 return False
+            if request["kind"] == "publish_saved_research":
+                for member in request["publication"]["members"]:
+                    checkpoint = view.get_answer_checkpoint(
+                        member["work_item_id"], allow_research=True
+                    )
+                    if (
+                        checkpoint is None
+                        or checkpoint["checkpoint_schema_version"] != 3
+                        or checkpoint["payload"]["publication"]["request"] != request
+                        or checkpoint["payload"]["publication"]["grant"]["confirmation_id"]
+                        != self.confirmation_id
+                    ):
+                        return False
+                return True
             row = con.execute(
                 "SELECT * FROM quick_scan_owner_work_decision WHERE work_item_id=? AND idempotency_key=?",
                 (request["work_item_id"], request["idempotency_key"]),
@@ -229,6 +243,7 @@ class StockWikiWorkDecisionAuthority(OwnerWorkDecisionAuthority):
             "stockwiki.refresh_owner_policy/1.1.0": "1.1.0",
             "stockwiki.refresh_owner_policy/1.2.0": "1.2.0",
             "stockwiki.refresh_owner_policy/1.3.0": "1.3.0",
+            "stockwiki.refresh_owner_policy/1.5.0": "1.5.0",
         }
         if protocol not in versions:
             raise ValueError("owner_work_refresh_version_unsupported")
@@ -240,11 +255,14 @@ class StockWikiWorkDecisionAuthority(OwnerWorkDecisionAuthority):
             "1.1.0": "refresh-v1.1.schema.json",
             "1.2.0": "refresh-v1.2.schema.json",
             "1.3.0": "refresh-v1.3.schema.json",
+            "1.5.0": "refresh-v1.5.schema.json",
         }[version]
         names = [
             name,
             "refresh-v1.schema.json",
             "refresh-v1.1.schema.json",
+            "refresh-v1.2.schema.json",
+            "refresh-v1.3.schema.json",
             "query-v2.schema.json",
             "query-v2.6.schema.json",
         ]
@@ -255,7 +273,7 @@ class StockWikiWorkDecisionAuthority(OwnerWorkDecisionAuthority):
             ("Request", value["request"]["permission_request"]),
         ]:
             chosen = schemas[0]
-            if kind == "Request" and version in {"1.2.0", "1.3.0"}:
+            if kind == "Request" and version in {"1.2.0", "1.3.0", "1.5.0"}:
                 chosen = next(
                     s
                     for s in schemas
@@ -269,10 +287,20 @@ class StockWikiWorkDecisionAuthority(OwnerWorkDecisionAuthority):
             ).validate(document)
 
     def _validate(self, value):
+        publication = (
+            isinstance(value, dict)
+            and value.get("protocol") == "stockwiki.work_decision_inspection/1.1.0"
+        )
         if (
             not isinstance(value, dict)
-            or set(value) != WIRE_FIELDS
-            or value["protocol"] != "stockwiki.work_decision_inspection/1.0.0"
+            or set(value)
+            != (WIRE_FIELDS | {"publication_capability"} if publication else WIRE_FIELDS)
+            or value["protocol"]
+            != (
+                "stockwiki.work_decision_inspection/1.1.0"
+                if publication
+                else "stockwiki.work_decision_inspection/1.0.0"
+            )
             or value["authority"] != "native_owner_account_and_control_namespace"
             or value["admission_mode"] not in {"fresh_registration", "current_permissions"}
             or any(
@@ -289,14 +317,24 @@ class StockWikiWorkDecisionAuthority(OwnerWorkDecisionAuthority):
         if (
             not isinstance(outer, dict)
             or set(outer) != {"protocol", "consumer_id", "decision_request", "permission_request"}
-            or outer["protocol"] != "stockwiki.work_decision_request/1.0.0"
+            or outer["protocol"]
+            != (
+                "stockwiki.work_decision_request/1.1.0"
+                if publication
+                else "stockwiki.work_decision_request/1.0.0"
+            )
             or outer["consumer_id"] != self.consumer_id
             or not isinstance(outer["decision_request"], dict)
             or not isinstance(receipt, dict)
             or set(receipt) != CONFIRMATION_FIELDS
             or receipt["protocol"] != "stockwiki.work_decision_confirmation_record/1.0.0"
             or receipt["confirmation_id"] != self.confirmation_id
-            or receipt["method"] != "native_owner_terminal"
+            or receipt["method"]
+            not in (
+                {"native_owner_terminal", "native_owner_delegated_agent"}
+                if publication
+                else {"native_owner_terminal"}
+            )
             or not isinstance(state, dict)
             or set(state) != STATE_FIELDS
         ):
@@ -305,8 +343,14 @@ class StockWikiWorkDecisionAuthority(OwnerWorkDecisionAuthority):
         request = outer["decision_request"]
         permission = outer["permission_request"]
         physical = request["physical"]
-        if request["kind"] not in {"known_response_resolution", "retry_decision"}:
+        if request["kind"] not in (
+            {"publish_saved_research"}
+            if publication
+            else {"known_response_resolution", "retry_decision"}
+        ):
             raise ValueError("owner_work_action_kind_invalid")
+        if policy["protocol"] == "stockwiki.refresh_owner_policy/1.5.0" and not publication:
+            raise ValueError("owner_work_publication_dialect_required")
         key = request["idempotency_key"]
         if not isinstance(key, str) or not re.fullmatch("[A-Za-z0-9_.:-]{1,160}", key):
             raise ValueError("owner_work_action_id_invalid")
@@ -408,6 +452,68 @@ class StockWikiWorkDecisionAuthority(OwnerWorkDecisionAuthority):
             or set(permission["field_ids"]) != {i["field_id"] for i in state["items"]}
         ):
             raise ValueError("owner_work_current_subject_fields_mismatch")
+        if publication:
+            self._validate_publication(value)
+
+    def _validate_publication(self, value):
+        request = value["request"]["decision_request"]
+        cap = value["publication_capability"]
+        keys = {
+            "protocol",
+            "purpose",
+            "enabled",
+            "owner_principal",
+            "consumer_id",
+            "action_id",
+            "task_bundle",
+            "native_sdk_id",
+            "expected_request_sha256",
+            "expires_at",
+            "confirmation_method",
+            "c06_authority",
+            "deployment",
+        }
+        if (
+            not isinstance(cap, dict)
+            or set(cap) != keys
+            or cap["protocol"] != "stockwiki.saved_research_publication_capability/1.0.0"
+            or cap["purpose"] != "research_no_verified_search"
+            or cap["enabled"] is not True
+            or cap["owner_principal"] != value["principal"]
+            or cap["consumer_id"] != self.consumer_id
+            or cap["action_id"] != request["idempotency_key"]
+            or cap["expected_request_sha256"] != canonical_sha256(request)
+            or cap["native_sdk_id"] != request["publication"]["native_sdk_id"]
+            or cap["confirmation_method"] != value["confirmation"]["method"]
+            or _utc(cap["expires_at"]) <= _utc(self.clock())
+        ):
+            raise ValueError("owner_work_publication_capability_not_current")
+        for key, expected in [
+            ("task_bundle", "task_bundle_sha256"),
+            ("c06_authority", "c06_authority_sha256"),
+        ]:
+            ref = cap[key]
+            if (
+                not isinstance(ref, dict)
+                or set(ref) != {"path", "sha256"}
+                or not Path(ref["path"]).is_absolute()
+                or hashlib.sha256(Path(ref["path"]).read_bytes()).hexdigest() != ref["sha256"]
+                or ref["sha256"] != request["publication"][expected]
+            ):
+                raise ValueError("owner_work_publication_original_source_changed")
+        from .quick_scan_saved_research_publication import inspect_publication
+
+        native = inspect_publication(
+            self.work_store,
+            request,
+            policy=_read(self.budget_policy_file.read_bytes()),
+            task_bundle=Path(cap["task_bundle"]["path"]).read_bytes(),
+            deployment=cap["deployment"],
+        )
+        if native["request"] != request or set(
+            i["question_id"] for i in value["owner_state"]["items"]
+        ) != set(request["publication"]["question_ids"]):
+            raise ValueError("owner_work_publication_members_changed")
 
     @staticmethod
     def _comparison_target(value):

@@ -22,7 +22,7 @@ from src.utils.quick_scan_work_store import (
 
 # Keep every previously supported read-only schema. Inspection must not migrate
 # an owner's v22 database merely because the writer now knows v23.
-READ_ONLY_SCHEMA_VERSIONS = frozenset({18, 22, 23, SCHEMA_VERSION})
+READ_ONLY_SCHEMA_VERSIONS = frozenset({18, 22, 23, 24, SCHEMA_VERSION})
 
 
 class _Borrowed:
