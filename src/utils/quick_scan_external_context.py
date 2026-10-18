@@ -141,9 +141,11 @@ def _origin_binding(url: str, bindings: list[dict[str, Any]]) -> dict[str, Any] 
             return None
     except ValueError:
         return None
+    host = parts.hostname[4:] if parts.hostname.startswith("www.") else parts.hostname
     for binding in bindings:
         prefix = binding["path_prefix"]
-        if parts.hostname == binding["host"] and (
+        bound_host = binding["host"][4:] if binding["host"].startswith("www.") else binding["host"]
+        if host == bound_host and (
             prefix == "/"
             or path == prefix
             or path.startswith(prefix if prefix.endswith("/") else prefix + "/")
