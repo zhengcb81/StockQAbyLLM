@@ -670,6 +670,11 @@ def reserve_projection(
     if budget_attempt_id.startswith("DISPATCH_"):
         # External search dispatch is bounded by its own policy/exposure and the
         # shared budget row; the answer-model exposure cell does not own its route.
+        # Only the journal's explicit work-item-bound search path may take this
+        # exemption: a model send minted with a DISPATCH_ id must never bypass the
+        # owner exposure projection.
+        if work_item_id is None and _current_session() is not None:
+            raise ValueError("owner_exposure_search_dispatch_work_item_required")
         return None
     session = _current_session()
     if session is None or session.proof["request"].get("protocol") not in {
