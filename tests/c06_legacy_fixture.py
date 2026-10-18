@@ -7,7 +7,7 @@ from src.utils import quick_scan_work_store as module
 
 def remove_c06_additions(connection, *, after_version=13):
     """Keep all earlier schema and rows; never run against an owner workspace."""
-    assert after_version in (13, 14, 15, 18)
+    assert after_version in (13, 14, 15, 18, 19)
     # A historical fixture must remove every later additive release; lowering
     # only the pragma while retaining newer tables is not an old database.
     for version in range(module.SCHEMA_VERSION, after_version, -1):

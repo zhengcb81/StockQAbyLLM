@@ -349,16 +349,12 @@ class IsolationTests(unittest.TestCase):
         self.assertEqual(len(self.rows()), 2)
 
     def test_schema19_native_migration_preserves_every_old_row(self):
-        from src.utils.quick_scan_work_store import _DDL, _DDL_V20_ADDITIONS
+        from src.utils.quick_scan_work_store import SCHEMA_VERSION
+        from tests.c06_legacy_fixture import remove_c06_additions
 
         path = Path(self.temp.name) / "legacy19.sqlite"
-        with closing(sqlite3.connect(path)) as c:
-            for statement in _DDL[: -len(_DDL_V20_ADDITIONS)]:
-                c.execute(statement)
-            c.execute("PRAGMA user_version=19")
-            c.commit()
-        # Populate with the native API, then remove only the schema20 empty
-        # research metadata to reconstruct a genuine schema19 unknown ledger.
+        # Populate through the native API, then remove all later empty additive
+        # metadata using the shared disposable historical-fixture builder.
         native = QuickScanWorkStore(path)
         native.configure_quick_scan_budget(self.policy)
         native.reserve_budget_attempt(
@@ -371,13 +367,7 @@ class IsolationTests(unittest.TestCase):
         )
         native.record_budget_outcome("DISPATCH_old", outcome="unknown", http_status_code=None)
         with closing(sqlite3.connect(path)) as c:
-            for table in [
-                "quick_scan_research_budget_amendment",
-                "quick_scan_uncertain_seal",
-                "quick_scan_research_attempt",
-                "quick_scan_research_task",
-            ]:
-                c.execute("DROP TABLE " + table)
+            remove_c06_additions(c, after_version=19)
             c.execute("PRAGMA user_version=19")
             c.commit()
             c.row_factory = sqlite3.Row
@@ -395,7 +385,7 @@ class IsolationTests(unittest.TestCase):
             self.assertEqual(
                 before, {t: c.execute(f"SELECT * FROM {t}").fetchall() for t in tables}
             )
-            self.assertEqual(c.execute("PRAGMA user_version").fetchone()[0], 20)
+            self.assertEqual(c.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION)
             self.assertEqual(c.execute("PRAGMA foreign_key_check").fetchall(), [])
         self.assertEqual(
             migrated.get_quick_scan_budget_status(self.policy["policy_id"])["reserved_micros"],

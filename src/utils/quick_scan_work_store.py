@@ -58,9 +58,12 @@ _DDL_V21_ADDITIONS += (_MCP_GUARD_V21,)
 from src.utils.quick_scan_external_continuation import (
     DDL_V22_ADDITIONS as _DDL_V22_ADDITIONS,
 )
+from src.utils.quick_scan_owner_budget_continuation import (
+    DDL_V24_ADDITIONS as _DDL_V24_ADDITIONS,
+)
 from src.utils.quick_scan_research_output import DDL_V23_ADDITIONS as _DDL_V23_ADDITIONS
 
-SCHEMA_VERSION = 23
+SCHEMA_VERSION = 24
 _SAFE_ID = re.compile(r"^[A-Za-z0-9_.-]{1,160}$")
 # Hyphens accepted per owner sign-off (2026-10-05 round-51): the W04
 # identity-export package issues ENT_<uuid> entity ids (e.g. the frozen
@@ -703,6 +706,7 @@ _DDL = (
     + _DDL_V21_ADDITIONS
     + _DDL_V22_ADDITIONS
     + _DDL_V23_ADDITIONS
+    + _DDL_V24_ADDITIONS
 )
 
 _RECEIPT_FIELDS = (
@@ -1278,6 +1282,8 @@ class QuickScanWorkStore:
                 cls._validate_schema(connection, schema_version=21)
             elif version == 22:
                 cls._validate_schema(connection, schema_version=22)
+            elif version == 23:
+                cls._validate_schema(connection, schema_version=23)
             elif version != SCHEMA_VERSION:
                 raise ValueError("unsupported quick-scan work database schema version")
             if 1 <= version < 8:
@@ -1342,6 +1348,10 @@ class QuickScanWorkStore:
                 connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             if 1 <= version < 23:
                 for statement in _DDL_V23_ADDITIONS:
+                    connection.execute(statement)
+                connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+            if 1 <= version < 24:
+                for statement in _DDL_V24_ADDITIONS:
                     connection.execute(statement)
                 connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             cls._validate_schema(connection, schema_version=SCHEMA_VERSION)
@@ -1647,6 +1657,12 @@ class QuickScanWorkStore:
                 match = re.match(r"CREATE (TABLE|TRIGGER) ([A-Za-z_]+)", statement)
                 if match is None:
                     raise ValueError("research output schema mismatch")
+                expected[(match[1].lower(), match[2])] = statement
+        if schema_version >= 24:
+            for statement in _DDL_V24_ADDITIONS:
+                match = re.match(r"CREATE (TABLE|TRIGGER) ([A-Za-z_]+)", statement)
+                if match is None:
+                    raise ValueError("owner exposure schema mismatch")
                 expected[(match[1].lower(), match[2])] = statement
         if actual.keys() != expected.keys() or any(
             _normalized_sql(actual[key]) != _normalized_sql(statement)
@@ -2285,6 +2301,38 @@ class QuickScanWorkStore:
         if task is not None and work_attempt_id is not None:
             raise BudgetAdmissionError("research_continuation_cannot_bind_owner_work")
         exclusion = continuation_exclusion(connection, policy_id, task)
+        from src.utils.quick_scan_owner_budget_continuation import reserve_projection
+
+        try:
+            owner_projection = reserve_projection(
+                connection,
+                budget_attempt_id=budget_attempt_id,
+                work_attempt_id=work_attempt_id,
+                policy_id=policy_id,
+                route_id=route_id,
+                provider=provider,
+                model_requested=model_requested,
+                quota_group=quota_group,
+                now=now,
+            )
+        except ValueError as error:
+            raise BudgetAdmissionError(str(error)) from error
+        extra_risk_hold = 0
+        if owner_projection is not None:
+            if task is not None:
+                raise BudgetAdmissionError("owner_exposure_cannot_mix_research_task")
+            quoted = [
+                connection.execute("SELECT quote(?)", (ref,)).fetchone()[0]
+                for ref in owner_projection["excluded_refs"]
+            ]
+            exclusion = "budget_attempt_id IN (" + ",".join(quoted) + ")"
+        # Holds are conservative capacity reservations, never fabricated cash.
+        from src.utils.quick_scan_owner_budget_continuation import risk_hold_total
+
+        try:
+            extra_risk_hold = risk_hold_total(connection, policy_id)
+        except ValueError as error:
+            raise BudgetAdmissionError(str(error)) from error
         unreconciled = connection.execute(
             "SELECT COUNT(*) FROM quick_scan_budget_attempt WHERE policy_id=? "
             "AND status IN ('response_unpriced','failure_unpriced','outcome_uncertain') "
@@ -2302,16 +2350,22 @@ class QuickScanWorkStore:
             (policy_id,),
         ).fetchone()
         if (
-            totals["spent"] + totals["reserved"] + current["max_cost_per_attempt_micros"]
+            totals["spent"]
+            + totals["reserved"]
+            + extra_risk_hold
+            + current["max_cost_per_attempt_micros"]
             > current["max_cost_micros"]
         ):
             raise BudgetAdmissionError("budget_cost_limit")
         if totals["requests"] >= current["max_requests"]:
             raise BudgetAdmissionError("budget_request_limit")
 
+        # Retained old unknowns keep their original in-flight capacity too.
+        # Only the reconciliation pause is narrowly excepted by owner policy.
+        capacity_exclusion = "0" if owner_projection is not None else exclusion
         in_flight = connection.execute(
             "SELECT COUNT(*) FROM quick_scan_budget_attempt WHERE policy_id=? AND in_flight=1 "
-            f"AND NOT ({exclusion})",
+            f"AND NOT ({capacity_exclusion})",
             (policy_id,),
         ).fetchone()[0]
         if in_flight >= current["max_in_flight_total"]:
@@ -2323,7 +2377,7 @@ class QuickScanWorkStore:
         group_active = connection.execute(
             "SELECT COUNT(*) FROM quick_scan_budget_attempt WHERE policy_id=? "
             "AND quota_group=? AND in_flight=1 "
-            f"AND NOT ({exclusion})",
+            f"AND NOT ({capacity_exclusion})",
             (policy_id, quota_group),
         ).fetchone()[0]
         if group_active >= group_limits[quota_group]:
@@ -2331,7 +2385,7 @@ class QuickScanWorkStore:
         route_active = connection.execute(
             "SELECT COUNT(*) FROM quick_scan_budget_attempt WHERE policy_id=? "
             "AND route_id=? AND in_flight=1 "
-            f"AND NOT ({exclusion})",
+            f"AND NOT ({capacity_exclusion})",
             (policy_id, route_id),
         ).fetchone()[0]
         if route_active >= route_limits[route_id]:

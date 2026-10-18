@@ -5,6 +5,7 @@ The quote is a conservative shared-budget ceiling, not a model price forecast.
 Approval/paid dispatch must separately recheck and reserve via original Q09.
 """
 
+import json
 import sqlite3
 import stat
 import time
@@ -21,7 +22,7 @@ from src.utils.quick_scan_work_store import (
 
 # Keep every previously supported read-only schema. Inspection must not migrate
 # an owner's v22 database merely because the writer now knows v23.
-READ_ONLY_SCHEMA_VERSIONS = frozenset({18, 22, SCHEMA_VERSION})
+READ_ONLY_SCHEMA_VERSIONS = frozenset({18, 22, 23, SCHEMA_VERSION})
 
 
 class _Borrowed:
@@ -77,8 +78,10 @@ class ReadOnlyWorkView(QuickScanWorkStore):
         raise ValueError("refresh_inspection_is_read_only")
 
 
-def inspect_refresh(path, request, *, policy, schema_version="1.0.0"):
-    if schema_version not in {"1.0.0", "1.1.0", "1.2.0", "1.3.0"}:
+def inspect_refresh(
+    path, request, *, policy, schema_version="1.0.0", admission_config=None, budget_policy_file=None
+):
+    if schema_version not in {"1.0.0", "1.1.0", "1.2.0", "1.3.0", "1.4.0"}:
         raise ValueError("refresh_inspection_schema_unsupported")
     required = {
         "entity_id",
@@ -91,6 +94,8 @@ def inspect_refresh(path, request, *, policy, schema_version="1.0.0"):
     }
     if schema_version in {"1.2.0", "1.3.0"}:
         required |= {"cohort_id", "work_decision_refs"}
+    if schema_version == "1.4.0":
+        required |= {"cohort_id", "continuation_decision_ref", "refresh_request"}
     if not isinstance(request, dict) or set(request) != required:
         raise ValueError("refresh_inspection_request_invalid")
     normalized = _budget_policy_projection(policy)
@@ -115,6 +120,38 @@ def inspect_refresh(path, request, *, policy, schema_version="1.0.0"):
         )
     ):
         raise ValueError("refresh_inspection_scope_invalid")
+    exposure_control = None
+    if schema_version == "1.4.0":
+        if admission_config is None or budget_policy_file is None:
+            raise ValueError("refresh_exposure_native_deployment_required")
+        from .quick_scan_owner_budget_continuation import accepted_control
+        from .quick_scan_owner_budget_permissions import current_policy
+
+        native_policy = current_policy(
+            admission_config,
+            request["refresh_request"],
+            ledger_path=path,
+            budget_policy_file=budget_policy_file,
+        )
+        if (
+            request["continuation_decision_ref"]
+            != request["refresh_request"]["continuation_decision_ref"]
+            or request["cohort_id"] != request["refresh_request"]["cohort_id"]
+        ):
+            raise ValueError("refresh_exposure_native_action_mismatch")
+        _, exposure_control = accepted_control(
+            native_policy, request["refresh_request"], path, now=time.time()
+        )
+        if native_policy["qa"]["provider_config_ref"] != request["provider_config_ref"]:
+            raise ValueError("owner_exposure_original_route_alias_mismatch")
+        if any(
+            c["route_id"] != request["route_id"]
+            or c["provider"] != native_policy["provider"]
+            or c["model"] != request["model"]
+            or c["subject_ref"]["entity_id"] != request["entity_id"]
+            for c in exposure_control["cells"]
+        ):
+            raise ValueError("refresh_exposure_native_target_mismatch")
     view = ReadOnlyWorkView(path)
     with closing(view._connect()) as connection:
         connection.execute("BEGIN")
@@ -247,7 +284,9 @@ def inspect_refresh(path, request, *, policy, schema_version="1.0.0"):
                 if seen != set(request["question_ids"]):
                     raise ValueError("refresh_control_scope_incomplete")
             allowed_currencies = (
-                {"USD", "CNY"} if schema_version in {"1.1.0", "1.2.0", "1.3.0"} else {"USD"}
+                {"USD", "CNY"}
+                if schema_version in {"1.1.0", "1.2.0", "1.3.0", "1.4.0"}
+                else {"USD"}
             )
             if status["currency"] not in allowed_currencies:
                 raise ValueError("refresh_executor_currency_unsupported")
@@ -274,6 +313,67 @@ def inspect_refresh(path, request, *, policy, schema_version="1.0.0"):
                     and remaining >= normalized["max_cost_per_attempt_micros"]
                 ),
             )
+            if exposure_control is not None:
+                if version != SCHEMA_VERSION:
+                    raise ValueError("owner_exposure_writer_schema_required")
+                from .quick_scan_owner_budget_continuation import (
+                    risk_hold_total,
+                    validate_retained_rows,
+                )
+
+                refs = validate_retained_rows(connection, exposure_control, request["policy_id"])
+                marks = ",".join("?" for _ in refs)
+                blockers = connection.execute(
+                    "SELECT COUNT(*) FROM quick_scan_budget_attempt WHERE policy_id=? AND status IN ('response_unpriced','failure_unpriced','outcome_uncertain') AND budget_attempt_id NOT IN ("
+                    + marks
+                    + ")",
+                    (request["policy_id"], *refs),
+                ).fetchone()[0]
+                risk_hold = risk_hold_total(
+                    connection,
+                    request["policy_id"],
+                    prospective_ref=request["continuation_decision_ref"],
+                    prospective_control=exposure_control,
+                )
+                remaining = max(0, remaining - risk_hold)
+                physical = len(exposure_control["cells"])
+                max_new = min(requests, exposure_control["max_new_http_requests"])
+                cell = exposure_control["cells"][0]
+                group_limits = json.loads(stored["quota_group_limits_json"])
+                route_limits = json.loads(stored["route_limits_json"])
+                capacities = connection.execute(
+                    "SELECT COALESCE(SUM(in_flight),0),COALESCE(SUM(CASE WHEN quota_group=? THEN in_flight ELSE 0 END),0),COALESCE(SUM(CASE WHEN route_id=? THEN in_flight ELSE 0 END),0) FROM quick_scan_budget_attempt WHERE policy_id=?",
+                    (cell["quota_group"], cell["route_id"], request["policy_id"]),
+                ).fetchone()
+                capacity_available = (
+                    capacities[0] < stored["max_in_flight_total"]
+                    and capacities[1] < group_limits[cell["quota_group"]]
+                    and capacities[2] < route_limits[cell["route_id"]]
+                )
+                from .quick_scan_owner_budget_continuation import cell_key
+
+                already_allocated = (
+                    connection.execute(
+                        "SELECT 1 FROM quick_scan_owner_continuation_cell WHERE policy_id=? AND cell_key=?",
+                        (request["policy_id"], cell_key(cell)),
+                    ).fetchone()
+                    is not None
+                )
+
+                quote.update(
+                    max_cost_micros=min(
+                        remaining, max_new * normalized["max_cost_per_attempt_micros"]
+                    ),
+                    max_http_requests=max_new,
+                    planned_physical_requests=physical,
+                    retained_unreconciled_attempts=2,
+                    cash_actual_complete=False,
+                    budget_available=blockers == 0
+                    and capacity_available
+                    and not already_allocated
+                    and max_new >= physical
+                    and remaining >= physical * normalized["max_cost_per_attempt_micros"],
+                )
             return dict(
                 protocol="stockqa.refresh_inspection/" + schema_version,
                 request_sha256=canonical_sha256(request),

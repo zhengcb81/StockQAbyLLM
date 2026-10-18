@@ -160,6 +160,9 @@ class OwnerResearchServices:
             raise OwnerResearchRejected("original_information_cutoff_required")
         for question in self.questions.values():
             self.lifecycle.question_pack_group_key(question)
+        from .quick_scan_owner_budget_continuation import assert_research_task
+
+        assert_research_task(self.owner, self.task, search_service=self.search_service)
 
     def bind_task_owner_binding(self, binding):
         self._assert_registered_inputs()

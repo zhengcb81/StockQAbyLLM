@@ -849,6 +849,9 @@ def assert_controlled_generation_payload(payload, *, provider, protocol):
         store, work_ids = work.store, [work.work_item_id]
     else:
         return
+    from .quick_scan_owner_budget_continuation import assert_payload
+
+    assert_payload(store, work_ids, payload, provider=provider, protocol=protocol)
     bindings = [store.get_owner_refresh_binding(work_id) for work_id in work_ids]
     controlled = [
         record["binding"]

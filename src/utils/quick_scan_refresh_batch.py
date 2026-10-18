@@ -108,7 +108,7 @@ def attach_owner_refresh_batch(store, specifications, *, run_id, scan_id, rechec
 
 
 def register_refresh_action(
-    store, specifications, *, action, run_id, scan_id, recheck, references=None
+    store, specifications, *, action, run_id, scan_id, recheck, references=None, continuation=None
 ):
     """Internal atomic action registration, never an authentication endpoint.
 
@@ -132,6 +132,18 @@ def register_refresh_action(
                 raise ValueError("refresh_admission_idempotency_conflict")
             recheck("current_permissions")
             recheck("current_permissions")
+            if continuation is not None:
+                from .quick_scan_owner_budget_continuation import register_cells
+
+                register_cells(
+                    connection,
+                    continuation["proof"],
+                    existing["receipt"]["items"],
+                    specifications,
+                    continuation["bundles"],
+                    ledger_path=store.path,
+                    now=store._now(),
+                )
             return existing["receipt"]
         recheck("fresh_registration")
         view = _TransactionView(store, connection)
@@ -148,5 +160,17 @@ def register_refresh_action(
         else:
             recheck("current_permissions")
         receipt = journal.publish(connection, value, items, registered_at=store._now())
+        if continuation is not None:
+            from .quick_scan_owner_budget_continuation import register_cells
+
+            register_cells(
+                connection,
+                continuation["proof"],
+                items,
+                specifications,
+                continuation["bundles"],
+                ledger_path=store.path,
+                now=store._now(),
+            )
         recheck("current_permissions")
     return receipt

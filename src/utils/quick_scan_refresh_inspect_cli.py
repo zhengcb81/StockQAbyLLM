@@ -24,8 +24,13 @@ def main(argv=None):
     parser.add_argument("--request", type=Path, required=True)
     parser.add_argument(
         "--schema-version",
-        choices=("1.0.0", "1.1.0", "1.2.0", "1.3.0"),
+        choices=("1.0.0", "1.1.0", "1.2.0", "1.3.0", "1.4.0"),
         default="1.0.0",
+    )
+    parser.add_argument(
+        "--admission-config",
+        type=Path,
+        help="Fixed owner deployment reference supplied by native owner policy1.4 only",
     )
     args = parser.parse_args(argv)
     try:
@@ -34,6 +39,8 @@ def main(argv=None):
             read(args.request),
             policy=read(args.policy),
             schema_version=args.schema_version,
+            admission_config=args.admission_config,
+            budget_policy_file=args.policy,
         )
         print(json.dumps(result, ensure_ascii=False, allow_nan=False))
         return 0

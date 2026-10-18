@@ -484,6 +484,11 @@ class RefreshAdmissionService:
                 scan_id=scan_id,
                 recheck=recheck,
                 references=references,
+                continuation=(
+                    {"proof": proof, "bundles": bundles}
+                    if proof["request"]["protocol"] == "iqs.refresh_request/1.4.0"
+                    else None
+                ),
             )
             committed = self._record(confirmation_id)
             if committed is None or canonical_bytes(committed["receipt"]) != canonical_bytes(

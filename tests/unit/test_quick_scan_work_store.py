@@ -607,6 +607,7 @@ def _q10_reconstruct_old_schema(connection, version):
     # Reconstruct an actual old schema, including removal of later empty
     # retrieval tables. Keeping them while lowering user_version is not v7.
     for table in (
+        "quick_scan_owner_continuation_cell",  # schema24; synthetic legacy fixture only
         "quick_scan_research_intent",
         "quick_scan_research_turn",  # schema23 children before registration
         "quick_scan_research_session",
