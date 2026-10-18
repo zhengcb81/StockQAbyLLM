@@ -437,7 +437,7 @@ def accepted_control(owner_policy, request, ledger_path, *, now):
         raise ValueError("owner_exposure_policy_control_dialect_mismatch")
     if owner_policy.get("provider") != "mimo" or any(
         c["provider"] != "mimo"
-        or c["controls"]["strategy_id"] != ("module_packs" if dialect == "1.5.0" else "free_agent")
+        or c["controls"]["strategy_id"] not in {"free_agent", "module_packs"}
         for c in control["cells"]
     ):
         raise ValueError("owner_exposure_supported_carrier_required")
@@ -470,7 +470,15 @@ def validate_retained_rows(connection, control, policy_id):
     policy = connection.execute(
         "SELECT * FROM quick_scan_budget_policy WHERE policy_id=?", (policy_id,)
     ).fetchone()
-    if policy is None or policy["policy_snapshot_sha256"] != source["policy_snapshot_sha256"]:
+    if policy is None:
+        raise ValueError("owner_exposure_budget_policy_changed")
+    if (
+        not (
+            source.get("protocol") == "stockqa.owner_exposure_snapshot/1.2.0"
+            and source.get("fresh_budget") is True
+        )
+        and policy["policy_snapshot_sha256"] != source["policy_snapshot_sha256"]
+    ):
         raise ValueError("owner_exposure_budget_policy_changed")
     if (
         source.get("protocol") == "stockqa.owner_exposure_snapshot/1.2.0"
@@ -481,7 +489,7 @@ def validate_retained_rows(connection, control, policy_id):
         totals = connection.execute(
             "SELECT COUNT(*), COALESCE(SUM(request_counted),0), "
             "COALESCE(SUM(reserved_cost_micros),0), COALESCE(SUM(actual_cost_micros),0) "
-            "FROM quick_scan_budget_attempt WHERE policy_id=?",
+            "FROM quick_scan_budget_attempt WHERE policy_id=? AND budget_attempt_id NOT LIKE 'DISPATCH_%'",
             (policy_id,),
         ).fetchone()
         if totals[0] != 0 or totals[1] != 0 or totals[2] != 0 or totals[3] != 0:
@@ -656,8 +664,13 @@ def reserve_projection(
     model_requested,
     quota_group,
     now,
+    work_item_id=None,
 ):
     """Native original send transaction: only its original bound owner may opt in."""
+    if budget_attempt_id.startswith("DISPATCH_"):
+        # External search dispatch is bounded by its own policy/exposure and the
+        # shared budget row; the answer-model exposure cell does not own its route.
+        return None
     session = _current_session()
     if session is None or session.proof["request"].get("protocol") not in {
         "iqs.refresh_request/1.4.0",
@@ -687,6 +700,12 @@ def reserve_projection(
                 (pack_id,),
             )
         ]
+    elif budget_attempt_id.startswith("DISPATCH_"):
+        row = connection.execute(
+            "SELECT work_item_id FROM quick_scan_external_operation WHERE budget_attempt_id=?",
+            (budget_attempt_id,),
+        ).fetchone()
+        members = [work_item_id] if work_item_id else ([] if row is None else [row[0]])
     else:
         raise ValueError("owner_exposure_new_send_requires_original_work")
     if not members or not set(members) <= {
@@ -828,7 +847,15 @@ def assert_research_task(owner, task, *, search_service):
         != owner.proof["request"]["source_query"]["payload"]["information_cutoff"]
         or {q["question_id"] for q in task.questions}
         != {q for c in cells for q in c["question_ids"]}
-        or any(c["controls"]["strategy_id"] != task.raw.get("strategy_id") for c in cells)
+        or any(
+            c["controls"]["strategy_id"]
+            != (
+                "module_packs"
+                if task.raw.get("protocol") == "iqs.company-scan-task/1.0.0"
+                else "free_agent"
+            )
+            for c in cells
+        )
     ):
         raise ValueError("owner_exposure_registered_task_controls_mismatch")
 

@@ -862,6 +862,7 @@ def begin(
             model_requested=MODEL_BUDGET_LABEL,
             quota_group=quota_group,
             now=now,
+            work_item_id=work_item_id,
             independent_task=context.get("research_task"),
         )
         reserve_tx(connection, budget_attempt_id, context, "search_tool")

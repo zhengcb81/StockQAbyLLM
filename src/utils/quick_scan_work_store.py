@@ -2312,6 +2312,7 @@ class QuickScanWorkStore:
         quota_group: str,
         now: float,
         model_resolution: Optional[dict] = None,
+        work_item_id: Optional[str] = None,
         independent_task: Optional[dict] = None,
     ) -> dict:
         _safe(budget_attempt_id, "budget_attempt_id")
@@ -2361,6 +2362,7 @@ class QuickScanWorkStore:
                 model_requested=model_requested,
                 quota_group=quota_group,
                 now=now,
+                work_item_id=work_item_id,
             )
         except ValueError as error:
             raise BudgetAdmissionError(str(error)) from error
