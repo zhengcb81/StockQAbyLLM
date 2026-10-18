@@ -239,6 +239,7 @@ def test_v22_migration_preserves_original_receipt_without_backfill(tmp_path, tra
         )
     with sqlite3.connect(store.path) as conn:
         original = conn.execute("SELECT * FROM quick_scan_attempt_response").fetchall()
+        conn.execute("DROP TABLE quick_scan_owner_continuation_cell")
         conn.execute("DROP TABLE quick_scan_research_intent")
         conn.execute("DROP TABLE quick_scan_research_turn")
         conn.execute("DROP TABLE quick_scan_research_session")
@@ -247,7 +248,7 @@ def test_v22_migration_preserves_original_receipt_without_backfill(tmp_path, tra
     reopened = QuickScanWorkStore(store.path)
     assert reopened.get_research_visible_output(result["receipt"]["attempt_id"]) is None
     with sqlite3.connect(store.path) as conn:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 23
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 24
         assert conn.execute("SELECT * FROM quick_scan_attempt_response").fetchall() == original
     assert len(transport[1]) == 1
 

@@ -709,6 +709,24 @@ _DDL = (
     + _DDL_V24_ADDITIONS
 )
 
+_RESEARCH_VALIDATION_CODES = frozenset(
+    {
+        "research_actual_model_mismatch",
+        "research_choices_invalid",
+        "research_role_invalid",
+        "research_incomplete_output",
+        "research_final_content_invalid",
+        "research_tool_calls_invalid",
+        "research_tool_identity_invalid",
+        "research_reasoning_protocol_invalid",
+        "research_tool_arguments_object_required",
+        "research_tool_arguments_schema_invalid",
+        "research_tool_arguments_json_invalid",
+        "research_response_validation_failed",
+    }
+)
+
+
 _RECEIPT_FIELDS = (
     "request_payload_sha256",
     "research_visible_output_sha256",
@@ -729,6 +747,7 @@ _RECEIPT_FIELDS = (
     "prompt_sha256",
     "search_receipt_id",
     "failure_type",
+    "research_validation_code",
     "provider_error_code",
     "retry_after_seconds",
     "completed_at",
@@ -757,6 +776,9 @@ def _sanitized_receipt(receipt: object) -> dict:
             "research_intent_binding_sha256",
         }:
             if isinstance(value, str) and _HEX_SHA256.fullmatch(value):
+                result[key] = value
+        elif key == "research_validation_code":
+            if isinstance(value, str) and value in _RESEARCH_VALIDATION_CODES:
                 result[key] = value
         elif key == "usage":
             usage = _canonical_usage(value)

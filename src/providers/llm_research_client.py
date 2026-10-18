@@ -609,6 +609,11 @@ class ResearchChatSession:
         except Exception as error:
             # A malformed answer still consumed its physical request and tokens,
             # but cannot acquire a replayable visible-output artifact.
+            diagnostic = _response_validation_diagnostic(error, self._validation_fields)
+            # Persist a bounded code before native bookkeeping can replace the
+            # exception with an uncertainty barrier. No provider text or field
+            # names enter the durable receipt through this diagnostic.
+            receipt["research_validation_code"] = diagnostic["code"]
             if reported_model != self._model and permit.question_pack_binding is not None:
                 # The original pack journal must not classify a foreign model
                 # as response_available. Its existing unknown/failure path can
@@ -630,7 +635,7 @@ class ResearchChatSession:
             raise ResearchResponseValidationError(
                 type(error).__name__,
                 receipt,
-                _response_validation_diagnostic(error, self._validation_fields),
+                diagnostic,
             ) from None
         from src.utils.quick_scan_research_output import visible_output_sha256
 
