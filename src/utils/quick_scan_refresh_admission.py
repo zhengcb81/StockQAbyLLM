@@ -400,14 +400,20 @@ class RefreshAdmissionService:
                             reuse_observation_id=None,
                             existing_work_status=source["status"],
                         )
-                    for key in (
-                        "decision",
-                        "generation",
-                        "reuse_observation_id",
-                        "existing_work_status",
-                    ):
+                    for key in ("decision", "generation", "reuse_observation_id"):
                         if planned.get(key) != item.get(key):
-                            raise AdmissionRejected("refresh_admission_plan_changed")
+                            raise AdmissionRejected(
+                                "refresh_admission_plan_changed:"
+                                + key
+                                + ":"
+                                + str(planned.get(key))
+                                + "!="
+                                + str(item.get(key))
+                            )
+                    # existing_work_status is a preview-time snapshot, not an
+                    # authority input: the same dispatch decision can observe a
+                    # different freshness status after the preview (for example
+                    # when an observation import or cleanup lands in between).
                     if item["decision"] == "reuse":
                         result = session.reference(bundle["questions"][qid])
                         if result is None:
