@@ -1,5 +1,6 @@
 """Original SQLite budget semantics, synthetic unit data, no production authority."""
 
+import copy
 import json
 import sqlite3
 from contextlib import closing
@@ -619,3 +620,64 @@ def test_fresh_snapshot_rejects_explicit_refs(fresh):
             fresh=True,
             owner_ack_ref="owner-test-ack",
         )
+
+
+def test_search_exposure_task_requires_matching_service(monkeypatch):
+    exposure = {
+        "protocol": "iqs.search_exposure/1.0.0",
+        "consumer_id": "invest-quick-scan",
+        "search_policy_ref": "policy.json",
+        "search_policy_sha256": "a" * 64,
+        "max_search_queries_per_session": 2,
+        "max_search_cost_micros": 50000,
+        "routes": [
+            {
+                "route_id": "brave",
+                "provider": "brave",
+                "credential_env": "BRAVE_API_KEY",
+                "enabled": True,
+                "max_queries": 2,
+            }
+        ],
+        "storage_rights": {"confirmed": True, "entitlement_ref": "owner-terms"},
+        "approved_by": "owner",
+        "approved_at": "2026-10-18T12:00:00Z",
+    }
+    control = {
+        "cells": [
+            {
+                "question_ids": ["Q"],
+                "controls": {
+                    "strategy_id": "free_agent",
+                    "search_policy_sha256": continuation.digest(exposure),
+                },
+            }
+        ]
+    }
+    monkeypatch.setattr(continuation, "accepted_control", lambda *a, **k: ("ref", control))
+    owner = SimpleNamespace(
+        proof={
+            "owner_policy": {},
+            "request": {
+                "protocol": "iqs.refresh_request/1.4.0",
+                "source_query": {"payload": {"information_cutoff": "2026-10-13"}},
+            },
+        },
+        service=SimpleNamespace(store=SimpleNamespace(path="unused", _now=lambda: "now")),
+    )
+    task = SimpleNamespace(
+        limits={"max_search_queries_per_session": 2},
+        raw={
+            "information_cutoff": "2026-10-13",
+            "strategy_id": "free_agent",
+            "execution_profile": {"search_exposure": exposure},
+        },
+        questions=[{"question_id": "Q"}],
+    )
+    continuation.assert_research_task(owner, task, search_service=object())
+    with pytest.raises(ValueError, match="registered_search_exposure_required"):
+        continuation.assert_research_task(owner, task, search_service=None)
+    mismatched = copy.deepcopy(task)
+    mismatched.raw["execution_profile"]["search_exposure"]["max_search_queries_per_session"] = 1
+    with pytest.raises(ValueError, match="registered_search_exposure_required"):
+        continuation.assert_research_task(owner, mismatched, search_service=object())

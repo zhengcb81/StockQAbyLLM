@@ -798,18 +798,34 @@ def assert_research_task(owner, task, *, search_service):
         from .quick_scan_owner_budget_continuation_v15 import assert_profile_task
 
         assert_profile_task(control["cells"][0], task)
+    cells = control["cells"]
+    no_search = digest(NO_EXTERNAL_SEARCH_POLICY)
+    hashes = {c["controls"]["search_policy_sha256"] for c in cells}
+    search_hashes = hashes - {no_search}
+    profile = task.raw.get("execution_profile")
+    exposure = profile.get("search_exposure") if isinstance(profile, dict) else None
+    if search_hashes and no_search in hashes:
+        raise ValueError("owner_exposure_registered_task_controls_mismatch")
+    if search_hashes:
+        if (
+            len(search_hashes) != 1
+            or not isinstance(exposure, dict)
+            or digest(exposure) not in search_hashes
+            or search_service is None
+            or type(exposure.get("max_search_queries_per_session")) is not int
+            or exposure["max_search_queries_per_session"] < 1
+            or task.limits.get("max_search_queries_per_session")
+            != exposure["max_search_queries_per_session"]
+        ):
+            raise ValueError("owner_exposure_registered_search_exposure_required")
+    elif search_service is not None or task.limits.get("max_search_queries_per_session") != 0:
+        raise ValueError("owner_exposure_registered_task_controls_mismatch")
     if (
-        search_service is not None
-        or task.limits.get("max_search_queries_per_session") != 0
-        or task.raw.get("information_cutoff")
+        task.raw.get("information_cutoff")
         != owner.proof["request"]["source_query"]["payload"]["information_cutoff"]
         or {q["question_id"] for q in task.questions}
-        != {q for c in control["cells"] for q in c["question_ids"]}
-        or any(
-            c["controls"]["strategy_id"] != task.raw.get("strategy_id")
-            or c["controls"]["search_policy_sha256"] != digest(NO_EXTERNAL_SEARCH_POLICY)
-            for c in control["cells"]
-        )
+        != {q for c in cells for q in c["question_ids"]}
+        or any(c["controls"]["strategy_id"] != task.raw.get("strategy_id") for c in cells)
     ):
         raise ValueError("owner_exposure_registered_task_controls_mismatch")
 
