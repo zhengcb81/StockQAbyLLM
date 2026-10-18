@@ -112,8 +112,59 @@ ATTEMPT_FIELDS = (
 )
 
 
-def exposure_snapshot(path, policy, attempt_ids=None, *, dialect="1.4.0"):
+def _fresh_exposure_snapshot(path, policy, *, owner_ack_ref):
+    """Owner-explicit fresh budget: zero retained attempts, no prior cash state."""
+    from .quick_scan_work_store import _budget_policy_projection
+
+    if not isinstance(owner_ack_ref, str) or not owner_ack_ref.strip():
+        raise ValueError("owner_exposure_fresh_ack_required")
+    normalized = _budget_policy_projection(policy)
+    path = Path(path)
+    if path.is_symlink() or any(p.is_symlink() for p in path.parents):
+        raise ValueError("owner_exposure_ledger_redirected")
+    db = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)
+    db.row_factory = sqlite3.Row
+    try:
+        db.execute("PRAGMA query_only=ON")
+        db.execute("BEGIN")
+        stored = db.execute(
+            "SELECT * FROM quick_scan_budget_policy WHERE policy_id=?", (normalized["policy_id"],)
+        ).fetchone()
+        if (
+            stored is None
+            or stored["policy_snapshot_sha256"] != normalized["policy_snapshot_sha256"]
+        ):
+            raise ValueError("owner_exposure_policy_changed")
+        totals = db.execute(
+            "SELECT COUNT(*), COALESCE(SUM(request_counted),0), COALESCE(SUM(reserved_cost_micros),0), "
+            "COALESCE(SUM(actual_cost_micros),0) FROM quick_scan_budget_attempt WHERE policy_id=?",
+            (normalized["policy_id"],),
+        ).fetchone()
+        if totals[0] != 0 or totals[1] != 0 or totals[2] != 0 or totals[3] != 0:
+            raise ValueError("owner_exposure_fresh_budget_not_empty")
+        return {
+            "protocol": "stockqa.owner_exposure_snapshot/1.2.0",
+            "policy_id": normalized["policy_id"],
+            "policy_snapshot_sha256": normalized["policy_snapshot_sha256"],
+            "attempts": [],
+            "requests": 0,
+            "reserved_micros": 0,
+            "spent_micros": 0,
+            "cash_actual_complete": False,
+            "fresh_budget": True,
+            "owner_ack_ref": owner_ack_ref,
+        }
+    finally:
+        db.rollback()
+        db.close()
+
+
+def exposure_snapshot(
+    path, policy, attempt_ids=None, *, dialect="1.4.0", fresh=False, owner_ack_ref=None
+):
     """Read-only before quote; no original row, schema or cost is changed."""
+    if fresh:
+        return _fresh_exposure_snapshot(path, policy, owner_ack_ref=owner_ack_ref)
     if dialect == "1.5.0":
         from .quick_scan_owner_budget_continuation_v15 import (
             exposure_snapshot as project,
@@ -340,7 +391,19 @@ def validate_control(value):
     if set(core.get("question_ids", [])) != {q for c in cells for q in c["question_ids"]}:
         raise ValueError("owner_exposure_cell_question_scope_mismatch")
     snap = value["snapshot"]
-    if (
+    if isinstance(snap, dict) and snap.get("protocol") == "stockqa.owner_exposure_snapshot/1.2.0":
+        if (
+            snap.get("fresh_budget") is not True
+            or not isinstance(snap.get("owner_ack_ref"), str)
+            or not snap["owner_ack_ref"].strip()
+            or snap.get("attempts") != []
+            or snap.get("requests") != 0
+            or snap.get("reserved_micros") != 0
+            or snap.get("spent_micros") != 0
+            or snap.get("cash_actual_complete") is not False
+        ):
+            raise ValueError("owner_exposure_fresh_snapshot_invalid")
+    elif (
         not isinstance(snap, dict)
         or snap.get("protocol") != "stockqa.owner_exposure_snapshot/1.0.0"
         or snap.get("cash_actual_complete") is not False
@@ -405,6 +468,18 @@ def validate_retained_rows(connection, control, policy_id):
     ).fetchone()
     if policy is None or policy["policy_snapshot_sha256"] != source["policy_snapshot_sha256"]:
         raise ValueError("owner_exposure_budget_policy_changed")
+    if (
+        source.get("protocol") == "stockqa.owner_exposure_snapshot/1.2.0"
+        and source.get("fresh_budget") is True
+    ):
+        if source.get("attempts") != []:
+            raise ValueError("owner_exposure_fresh_snapshot_invalid")
+        count = connection.execute(
+            "SELECT COUNT(*) FROM quick_scan_budget_attempt WHERE policy_id=?", (policy_id,)
+        ).fetchone()[0]
+        if count:
+            raise ValueError("owner_exposure_fresh_budget_not_empty")
+        return []
     attempts = source.get("attempts")
     if not isinstance(attempts, list) or len(attempts) != 2:
         raise ValueError("owner_exposure_exact_sources_required")

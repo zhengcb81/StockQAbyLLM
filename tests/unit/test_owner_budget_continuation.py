@@ -543,3 +543,59 @@ def test_unsupported_carrier_is_rejected_before_quote_or_any_new_send(
         )
     with closing(original[0]._connect()) as db:
         assert db.execute("SELECT COUNT(*) FROM quick_scan_budget_attempt").fetchone()[0] == 2
+
+
+@pytest.fixture
+def fresh(tmp_path):
+    store = QuickScanWorkStore(
+        tmp_path / "fresh.sqlite",
+        clock=lambda: datetime(2026, 10, 18, 12, tzinfo=timezone.utc).timestamp(),
+    )
+    policy = fixture.policy(**dict({"cost": 30, "requests": 20, "concurrency": 3}))
+    store.configure_quick_scan_budget(policy)
+    return store, policy
+
+
+def test_fresh_snapshot_is_explicit_and_empty(fresh):
+    store, policy = fresh
+    before = store.path.read_bytes()
+    got = exposure_snapshot(store.path, policy, fresh=True, owner_ack_ref="owner-test-ack")
+    assert store.path.read_bytes() == before
+    assert got["protocol"] == "stockqa.owner_exposure_snapshot/1.2.0"
+    assert got["fresh_budget"] is True and got["owner_ack_ref"] == "owner-test-ack"
+    assert got["attempts"] == [] and got["requests"] == 0 and got["reserved_micros"] == 0
+
+
+def test_fresh_snapshot_requires_owner_ack(fresh):
+    store, policy = fresh
+    with pytest.raises(ValueError, match="owner_exposure_fresh_ack_required"):
+        exposure_snapshot(store.path, policy, fresh=True)
+
+
+def test_fresh_snapshot_rejects_non_empty_policy(fresh):
+    store, policy = fresh
+    store.reserve_budget_attempt(
+        policy,
+        budget_attempt_id="DISPATCH_fresh_unknown",
+        route_id="route",
+        provider="fixture",
+        model_requested="fixture-model",
+        quota_group="group",
+    )
+    with pytest.raises(ValueError, match="owner_exposure_fresh_budget_not_empty"):
+        exposure_snapshot(store.path, policy, fresh=True, owner_ack_ref="owner-test-ack")
+
+
+def test_fresh_retained_rows_are_empty(fresh):
+    store, policy = fresh
+    snap = exposure_snapshot(store.path, policy, fresh=True, owner_ack_ref="owner-test-ack")
+    with closing(sqlite3.connect(store.path)) as db:
+        db.row_factory = sqlite3.Row
+        assert (
+            continuation.validate_retained_rows(
+                db,
+                {"protocol": "stockqa.owner_budget_continuation/1.0.0", "snapshot": snap},
+                policy["policy_id"],
+            )
+            == []
+        )
