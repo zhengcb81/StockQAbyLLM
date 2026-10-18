@@ -5317,7 +5317,12 @@ class QuickScanWorkStore:
             )
 
     def prepare_result_delivery(
-        self, work_item_id: str, package: dict, *, publisher_authority: object = None
+        self,
+        work_item_id: str,
+        package: dict,
+        *,
+        publisher_authority: object = None,
+        preauthorized_grant: dict | None = None,
     ) -> dict:
         """Seal a complete one-item package supplied by a verified C06 adapter."""
         from .quick_scan_result_outbox import (
@@ -5354,7 +5359,13 @@ class QuickScanWorkStore:
             if checkpoint["checkpoint_schema_version"] == 3:
                 from .quick_scan_saved_research_publication import require_publisher
 
-                require_publisher(self, connection, work_item_id, publisher_authority)
+                require_publisher(
+                    self,
+                    connection,
+                    work_item_id,
+                    publisher_authority,
+                    preauthorized_grant=preauthorized_grant,
+                )
             validate_checkpoint_binding(validated, checkpoint)
             self._assert_complete_observation_binding(
                 connection,

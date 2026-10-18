@@ -402,7 +402,10 @@ def publish_saved_research(
                 packages.append(delivered["package_id"])
                 continue
             outbox = store.prepare_result_delivery(
-                wid, package, publisher_authority=owner_authority
+                wid,
+                package,
+                publisher_authority=owner_authority,
+                preauthorized_grant=grant,
             )
             store.bind_result_delivery_consumer(
                 wid,
@@ -565,16 +568,31 @@ def PathForRead(connection):
     return Path(connection.execute("PRAGMA database_list").fetchone()[2])
 
 
-def require_publisher(store, connection, work_item_id, authority):
+def require_publisher(store, connection, work_item_id, authority, *, preauthorized_grant=None):
     row = connection.execute(
         "SELECT payload_json,checkpoint_schema_version FROM answer_checkpoint WHERE work_item_id=?",
         (work_item_id,),
     ).fetchone()
     if row is None or row["checkpoint_schema_version"] != 3:
         return None
-    request = strict_json_loads(row["payload_json"])["publication"]["request"]
+    payload = strict_json_loads(row["payload_json"])
+    request = payload["publication"]["request"]
+    if preauthorized_grant is not None:
+        # Inside the publishing transaction the publisher was already authorized
+        # for this exact request. A fresh owner round-trip here would spawn a
+        # reader while this connection holds the write lock, so compare against
+        # the grant that is being committed instead.
+        stored = payload["publication"]["grant"]
+        if preauthorized_grant != stored or stored.get("request_sha256") != canonical_sha256(
+            request
+        ):
+            _reject("current_publisher_authority_changed")
+        confirmation = getattr(authority, "confirmation_id", None)
+        if confirmation is not None and stored.get("confirmation_id") != confirmation:
+            _reject("current_publisher_authority_changed")
+        return request
     grant = _authorize(authority, request, store._now())
-    if grant != strict_json_loads(row["payload_json"])["publication"]["grant"]:
+    if grant != payload["publication"]["grant"]:
         _reject("current_publisher_authority_changed")
     return request
 
