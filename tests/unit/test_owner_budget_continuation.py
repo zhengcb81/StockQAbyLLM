@@ -599,3 +599,23 @@ def test_fresh_retained_rows_are_empty(fresh):
             )
             == []
         )
+
+
+def test_fresh_snapshot_rejects_other_dialect(fresh):
+    store, policy = fresh
+    with pytest.raises(ValueError, match="owner_exposure_fresh_dialect_unsupported"):
+        exposure_snapshot(
+            store.path, policy, dialect="1.5.0", fresh=True, owner_ack_ref="owner-test-ack"
+        )
+
+
+def test_fresh_snapshot_rejects_explicit_refs(fresh):
+    store, policy = fresh
+    with pytest.raises(ValueError, match="owner_exposure_fresh_refs_forbidden"):
+        exposure_snapshot(
+            store.path,
+            policy,
+            ["DISPATCH_a", "DISPATCH_b"],
+            fresh=True,
+            owner_ack_ref="owner-test-ack",
+        )

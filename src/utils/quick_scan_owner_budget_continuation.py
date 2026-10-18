@@ -164,6 +164,10 @@ def exposure_snapshot(
 ):
     """Read-only before quote; no original row, schema or cost is changed."""
     if fresh:
+        if dialect != "1.4.0":
+            raise ValueError("owner_exposure_fresh_dialect_unsupported")
+        if attempt_ids not in (None, []):
+            raise ValueError("owner_exposure_fresh_refs_forbidden")
         return _fresh_exposure_snapshot(path, policy, owner_ack_ref=owner_ack_ref)
     if dialect == "1.5.0":
         from .quick_scan_owner_budget_continuation_v15 import (
