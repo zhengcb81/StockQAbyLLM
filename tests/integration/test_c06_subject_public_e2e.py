@@ -143,7 +143,17 @@ def invoke(command, tmp_path, label, *, timeout=80, **env_extra):
 
 @pytest.fixture
 def actual(tmp_path, request):
-    observation_version = getattr(request, "param", "1.1.0")
+    parameters = getattr(request, "param", "1.1.0")
+    if isinstance(parameters, dict):
+        if (
+            set(parameters) != {"observation_version", "information_cutoff"}
+            or parameters["information_cutoff"] != "2026-10-13"
+        ):
+            raise ValueError("explicit registered synthetic fixture parameters required")
+        observation_version = parameters["observation_version"]
+        information_cutoff = parameters["information_cutoff"]
+    else:
+        observation_version, information_cutoff = parameters, None
     seed = runpy.run_path(str(OWN / "sw/tests/test_c06_listing_authority.py"))["seeded"]
     identity, entity, listing = seed(tmp_path / "owner")
     initialized = invoke(
@@ -175,7 +185,7 @@ def actual(tmp_path, request):
         "primary_issuer_id": entity["entity_id"],
         "anchor_listing_id": None,
         "scope_kind": "standalone_issuer",
-        "scope_as_of": utc(),
+        "scope_as_of": information_cutoff + "T00:00:00Z" if information_cutoff else utc(),
         "perimeter_coverage": "not_applicable",
         "memberships": [
             {
@@ -220,7 +230,7 @@ def actual(tmp_path, request):
             "ticker": listing["ticker"],
             "exchange": listing["exchange_mic"],
             "security_id": listing["security_id"],
-            "as_of": now[:10],
+            "as_of": information_cutoff or now[:10],
             "verified_facts": [],
         },
     }
