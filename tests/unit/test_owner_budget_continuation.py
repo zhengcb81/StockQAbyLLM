@@ -577,7 +577,7 @@ def test_fresh_snapshot_rejects_non_empty_policy(fresh):
     store, policy = fresh
     store.reserve_budget_attempt(
         policy,
-        budget_attempt_id="DISPATCH_fresh_unknown",
+        budget_attempt_id="ATTEMPT_fresh_unknown",
         route_id="route",
         provider="fixture",
         model_requested="fixture-model",
@@ -585,6 +585,21 @@ def test_fresh_snapshot_rejects_non_empty_policy(fresh):
     )
     with pytest.raises(ValueError, match="owner_exposure_fresh_budget_not_empty"):
         exposure_snapshot(store.path, policy, fresh=True, owner_ack_ref="owner-test-ack")
+
+
+def test_fresh_snapshot_counts_dispatch_search_spend(fresh):
+    store, policy = fresh
+    store.reserve_budget_attempt(
+        policy,
+        budget_attempt_id="DISPATCH_fresh_search_spend",
+        route_id="route",
+        provider="fixture",
+        model_requested="fixture-model",
+        quota_group="group",
+    )
+    snap = exposure_snapshot(store.path, policy, fresh=True, owner_ack_ref="owner-test-ack")
+    assert snap["attempts"] == [] and snap["requests"] == 0
+    assert snap["reserved_micros"] > 0
 
 
 def test_fresh_retained_rows_are_empty(fresh):

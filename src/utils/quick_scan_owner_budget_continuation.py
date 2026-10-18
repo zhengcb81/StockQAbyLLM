@@ -136,11 +136,18 @@ def _fresh_exposure_snapshot(path, policy, *, owner_ack_ref):
         ):
             raise ValueError("owner_exposure_policy_changed")
         totals = db.execute(
-            "SELECT COUNT(*), COALESCE(SUM(request_counted),0), COALESCE(SUM(reserved_cost_micros),0), "
-            "COALESCE(SUM(actual_cost_micros),0) FROM quick_scan_budget_attempt WHERE policy_id=?",
+            "SELECT COUNT(*), COALESCE(SUM(request_counted),0) FROM quick_scan_budget_attempt "
+            "WHERE policy_id=? AND budget_attempt_id NOT LIKE 'DISPATCH_%'",
             (normalized["policy_id"],),
         ).fetchone()
-        if totals[0] != 0 or totals[1] != 0 or totals[2] != 0 or totals[3] != 0:
+        spend = db.execute(
+            "SELECT COALESCE(SUM(reserved_cost_micros),0), COALESCE(SUM(actual_cost_micros),0) "
+            "FROM quick_scan_budget_attempt WHERE policy_id=?",
+            (normalized["policy_id"],),
+        ).fetchone()
+        if totals[0] != 0 or totals[1] != 0:
+            raise ValueError("owner_exposure_fresh_budget_not_empty")
+        if spend[0] + spend[1] > normalized["max_cost_micros"]:
             raise ValueError("owner_exposure_fresh_budget_not_empty")
         return {
             "protocol": "stockqa.owner_exposure_snapshot/1.2.0",
@@ -148,8 +155,8 @@ def _fresh_exposure_snapshot(path, policy, *, owner_ack_ref):
             "policy_snapshot_sha256": normalized["policy_snapshot_sha256"],
             "attempts": [],
             "requests": 0,
-            "reserved_micros": 0,
-            "spent_micros": 0,
+            "reserved_micros": spend[0],
+            "spent_micros": spend[1],
             "cash_actual_complete": False,
             "fresh_budget": True,
             "owner_ack_ref": owner_ack_ref,
@@ -487,12 +494,18 @@ def validate_retained_rows(connection, control, policy_id):
         if source.get("attempts") != []:
             raise ValueError("owner_exposure_fresh_snapshot_invalid")
         totals = connection.execute(
-            "SELECT COUNT(*), COALESCE(SUM(request_counted),0), "
-            "COALESCE(SUM(reserved_cost_micros),0), COALESCE(SUM(actual_cost_micros),0) "
+            "SELECT COUNT(*), COALESCE(SUM(request_counted),0) "
             "FROM quick_scan_budget_attempt WHERE policy_id=? AND budget_attempt_id NOT LIKE 'DISPATCH_%'",
             (policy_id,),
         ).fetchone()
-        if totals[0] != 0 or totals[1] != 0 or totals[2] != 0 or totals[3] != 0:
+        if totals[0] != 0 or totals[1] != 0:
+            raise ValueError("owner_exposure_fresh_budget_not_empty")
+        spend = connection.execute(
+            "SELECT COALESCE(SUM(reserved_cost_micros),0), COALESCE(SUM(actual_cost_micros),0) "
+            "FROM quick_scan_budget_attempt WHERE policy_id=?",
+            (policy_id,),
+        ).fetchone()
+        if spend[0] + spend[1] > policy["max_cost_micros"]:
             raise ValueError("owner_exposure_fresh_budget_not_empty")
         return []
     attempts = source.get("attempts")
