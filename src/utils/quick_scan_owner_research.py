@@ -28,6 +28,49 @@ class OwnerResearchRejected(ValueError):
     """Bounded original-owner refusal; never a retry permission."""
 
 
+def _native_batch_scope(store, task, entries, sdk_id):
+    """Read original task/intent/receipt/member bindings on every cache intake."""
+    if task.raw.get("protocol") != "iqs.company-scan-task/1.0.0":
+        return None
+    from contextlib import closing
+    from importlib import import_module
+
+    batch_response_scope = import_module("iqs_agent_runtime_lab.receiptmap").batch_response_scope
+
+    from src.utils.quick_scan_research_intent import get_intent_response
+
+    if batch_response_scope(task) is None:
+        return None
+    with closing(store._connect()) as connection:
+        rows = connection.execute(
+            "SELECT i.intent_sha256 FROM quick_scan_research_intent i "
+            "JOIN quick_scan_attempt_response r ON r.attempt_id=i.native_attempt_id "
+            "WHERE i.task_sha256=? AND json_extract(r.receipt_json,'$.attempt_id')=?",
+            (canonical_sha256(task.raw), sdk_id),
+        ).fetchall()
+    if len(rows) != 1:
+        raise OwnerResearchRejected("batch_original_native_intent_required")
+    original = get_intent_response(store, canonical_sha256(task.raw), rows[0][0])
+    if (
+        original is None
+        or original.get("native_receipt") is None
+        or original["native_receipt"].get("attempt_id") != sdk_id
+    ):
+        raise OwnerResearchRejected("batch_original_native_receipt_required")
+    members = original["work_item_ids"]
+    selected = [
+        qid
+        for qid in task.question_ids
+        if entries.get(qid, {}).get("kind") == "work" and entries[qid]["work_item_id"] in members
+    ]
+    if len(selected) != len(members) or set(members) != {
+        entries[q]["work_item_id"] for q in selected
+    }:
+        raise OwnerResearchRejected("batch_original_native_members_required")
+    batch_response_scope(task, selected)
+    return selected
+
+
 class OwnerResearchServices:
     """Production service adapter requiring a real registered native action.
 
@@ -238,6 +281,25 @@ class OwnerResearchServices:
                 raise OwnerResearchRejected("runtime_question_scope_mismatch")
             if "intent" in envelope and envelope["intent"].get("question_ids") != selected:
                 raise OwnerResearchRejected("runtime_question_intent_mismatch")
+            if self.task.raw.get("protocol") == "iqs.company-scan-task/1.0.0":
+                from importlib import import_module
+
+                batch_response_scope = import_module(
+                    "iqs_agent_runtime_lab.receiptmap"
+                ).batch_response_scope
+
+                profile = batch_response_scope(self.task, selected)
+                if profile is not None and (
+                    dynamic.get("execution_profile") != profile
+                    or dynamic.get("execution_profile_sha256")
+                    != self.task.raw["execution_profile_sha256"]
+                    or envelope.get("intent", {})
+                    .get("payload", {})
+                    .get("allowed_tools", {})
+                    .get("tool_names")
+                    != []
+                ):
+                    raise OwnerResearchRejected("runtime_original_batch_response_contract_required")
 
     @contextmanager
     def generation_scope(self, envelope):
@@ -546,6 +608,20 @@ class OwnerResearchServices:
             ),
         )
         output = visible["visible_output"]
+        selected = _native_batch_scope(
+            self.store, self.task, self.owner.entries, native["attempt_id"]
+        )
+        projected = (
+            output
+            if selected is None
+            else mapping.project_batch_response(
+                self.task,
+                selected,
+                content=output["content"],
+                tool_calls=output["tool_calls"],
+                finish_reason=output["finish_reason"],
+            )
+        )
         saved = mapping.build_model_receipt(
             attempt_ref=ref,
             planned_model=native["requested_model"],
@@ -554,10 +630,10 @@ class OwnerResearchServices:
             started_at_utc=started,
             ended_at_utc=ended,
             duration_ms=duration,
-            final_content=output["content"] or None,
-            tool_calls=mapping.tool_calls_to_receipt(output["tool_calls"]),
+            final_content=projected["content"] or None,
+            tool_calls=mapping.tool_calls_to_receipt(projected["tool_calls"]),
             usage=mapping.normalize_native_usage(observation),
-            finish_reason=output["finish_reason"],
+            finish_reason=projected["finish_reason"],
             session_handle=None,
         )
         validation.validate_model_receipt(saved)

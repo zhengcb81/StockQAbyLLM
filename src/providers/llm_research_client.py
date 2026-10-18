@@ -231,6 +231,7 @@ class ResearchChatSession:
         session_output_tokens=48000,
         wall_seconds=900,
         tool_argument_validation="strict",
+        response_channel="tools",
     ):
         endpoint = urlsplit(client.base_url)
         allowed = {
@@ -262,8 +263,16 @@ class ResearchChatSession:
             or max_output_tokens > 16384
         ):
             raise ValueError("research_limits_invalid")
-        if not isinstance(tools, list) or not 1 <= len(tools) <= 20:
+        if response_channel not in {"tools", "final_json"}:
+            raise ValueError("research_response_channel_invalid")
+        if (
+            not isinstance(tools, list)
+            or len(tools) > 20
+            or (response_channel == "tools" and not tools)
+            or (response_channel == "final_json" and tools)
+        ):
             raise ValueError("research_function_tools_required")
+        self._response_channel = response_channel
         if not isinstance(tool_argument_validation, str) or tool_argument_validation not in {
             "strict",
             "controller",
@@ -407,6 +416,10 @@ class ResearchChatSession:
             "thinking": {"type": "enabled"},
             "tool_choice": "auto",
         }
+        if self._response_channel == "final_json":
+            # The original typed batch channel declares no executable tools.
+            body.pop("tools")
+            body.pop("tool_choice")
         protocol = (
             "mimo_chat_completions" if self._provider == "mimo" else "deepseek_chat_completions"
         )
