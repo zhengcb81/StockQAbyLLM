@@ -307,7 +307,7 @@ class RefreshAdmissionService:
     def read_registered(self, confirmation_id):
         """Authenticate an existing action; never register from a replay read."""
         if not isinstance(confirmation_id, str) or not re.fullmatch(
-            "rc1_[a-f0-9]{64}", confirmation_id
+            "rc[12]_[a-f0-9]{64}", confirmation_id
         ):
             raise AdmissionRejected("refresh_admission_confirmation_id_invalid")
         self._ledger_ready()
@@ -324,7 +324,7 @@ class RefreshAdmissionService:
 
     def admit(self, confirmation_id):
         if not isinstance(confirmation_id, str) or not re.fullmatch(
-            "rc1_[a-f0-9]{64}", confirmation_id
+            "rc[12]_[a-f0-9]{64}", confirmation_id
         ):
             raise AdmissionRejected("refresh_admission_confirmation_id_invalid")
         try:

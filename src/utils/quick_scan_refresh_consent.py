@@ -112,7 +112,7 @@ class RefreshConsentClient:
     def inspect(self, confirmation_id, *, mode):
         if (
             not isinstance(confirmation_id, str)
-            or not re.fullmatch("rc1_[a-f0-9]{64}", confirmation_id)
+            or not re.fullmatch("rc[12]_[a-f0-9]{64}", confirmation_id)
             or mode not in {"fresh_registration", "current_permissions"}
         ):
             raise OwnerRefreshRejected("refresh_consent_inspection_request_invalid")
@@ -170,9 +170,13 @@ class RefreshConsentClient:
         return copy.deepcopy(result)
 
     def _validate(self, result, confirmation_id, mode):
+        delegated = confirmation_id.startswith("rc2_")
+        inspection_protocol = "stockwiki.refresh_approval_inspection/" + (
+            "1.2.0" if delegated else "1.1.0"
+        )
         if (
             set(result) != WIRE_FIELDS
-            or result["protocol"] != "stockwiki.refresh_approval_inspection/1.1.0"
+            or result["protocol"] != inspection_protocol
             or result["authority"] != "native_owner_account_and_control_namespace"
             or result["inspection_mode"] != mode
             or type(result["API_requests"]) is not int
@@ -210,9 +214,11 @@ class RefreshConsentClient:
         policy = result["owner_policy"]
         state = result["owner_state"]
         if (
-            receipt["protocol"] != "stockwiki.refresh_confirmation_record/1.0.0"
+            receipt["protocol"]
+            != "stockwiki.refresh_confirmation_record/" + ("2.0.0" if delegated else "1.0.0")
             or receipt["confirmation_id"] != confirmation_id
-            or receipt["method"] != "native_owner_terminal"
+            or receipt["method"]
+            != ("native_owner_delegated_agent" if delegated else "native_owner_terminal")
             or receipt["record_sha256"]
             != canonical_sha256({k: v for k, v in receipt.items() if k != "record_sha256"})
             or receipt["owner_principal"] != policy["owner_principal"]
@@ -273,3 +279,13 @@ class RefreshConsentClient:
             and now >= _utc(preview["expires_at"])
         ):
             raise ValueError("native consent expired or future")
+
+        if delegated:
+            from .quick_scan_delegated_consent import validate_delegated_native
+
+            validate_delegated_native(
+                result,
+                workspace_root=self.owner.config["stockwiki_workspace_root"],
+                budget_policy_file=self.budget_policy_file,
+                now=self.clock(),
+            )

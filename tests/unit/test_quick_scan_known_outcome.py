@@ -19,11 +19,13 @@ from src.utils import quick_scan_subject_journal as subject
 from src.utils.quick_scan_refresh_inspect import inspect_refresh
 from src.utils.quick_scan_result_outbox import canonical_sha256
 from src.utils.quick_scan_work_store import (
+    SCHEMA_VERSION,
     Lease,
     LeaseFencedError,
     QuickScanWorkStore,
     WorkConflictError,
 )
+from tests.c06_legacy_fixture import remove_c06_additions
 from tests.unit.test_c06_subject_send import receipt as subject_receipt
 from tests.unit.test_c06_subject_send import v2
 from tests.unit.test_quick_scan_question_pack_store import (
@@ -642,19 +644,16 @@ def test_journal_rows_are_immutable_and_cannot_hide_source_tampering(tmp_path):
 def test_version18_migration_preserves_original_rows_and_does_not_backfill_decisions(tmp_path):
     store, clock, members, pack, receipt, _, _ = fixture(tmp_path)
     before = immutable(store)
-    from src.utils.quick_scan_known_outcome_journal import DDL_V19_ADDITIONS
 
     with closing(sqlite3.connect(store.path)) as con:
-        for sql in reversed(DDL_V19_ADDITIONS):
-            parts = sql.split()
-            con.execute("DROP " + parts[1] + " " + parts[2])
+        remove_c06_additions(con, after_version=18)
         con.execute("PRAGMA user_version=18")
         con.commit()
     reopened = QuickScanWorkStore(store.path, clock=lambda: clock[0])
     assert immutable(reopened) == before
     assert reopened.get_owner_retry_decision(members[0]["work_item_id"]) is None
     with closing(sqlite3.connect(store.path)) as con:
-        assert con.execute("PRAGMA user_version").fetchone()[0] == 19
+        assert con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         assert (
             con.execute(
                 "SELECT COUNT(*) FROM sqlite_master WHERE name IN ('quick_scan_work_event_no_delete','quick_scan_work_event_no_update')"
@@ -666,12 +665,9 @@ def test_version18_migration_preserves_original_rows_and_does_not_backfill_decis
 
 def test_public_read_only_quote_keeps_version18_compatible_without_hidden_migration(tmp_path):
     store, clock, members, pack, receipt, policy, _ = fixture(tmp_path, currency="USD")
-    from src.utils.quick_scan_known_outcome_journal import DDL_V19_ADDITIONS
 
     with closing(sqlite3.connect(store.path)) as con:
-        for sql in reversed(DDL_V19_ADDITIONS):
-            parts = sql.split()
-            con.execute("DROP " + parts[1] + " " + parts[2])
+        remove_c06_additions(con, after_version=18)
         con.execute("PRAGMA user_version=18")
         con.commit()
     entity = store.get_item(members[0]["work_item_id"])["entity_id"]

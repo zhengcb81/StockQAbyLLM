@@ -10,6 +10,7 @@ import pytest
 from src.utils.quick_scan_refresh_admission_journal import DDL_V16_ADDITIONS, read
 from src.utils.quick_scan_refresh_batch import register_refresh_action
 from src.utils.quick_scan_work_store import SCHEMA_VERSION, QuickScanWorkStore
+from tests.c06_legacy_fixture import remove_c06_additions
 from tests.unit.test_quick_scan_refresh_batch import counts, specs
 
 
@@ -131,17 +132,15 @@ def test_v15_migration_preserves_existing_work_and_future_or_broken_schema_rejec
         store, specs(), run_id="RUN_OLD", scan_id="SCAN_OLD", recheck=lambda: None
     )
     with store._transaction() as con:
-        for statement in reversed(DDL_V16_ADDITIONS):
-            tokens = statement.split()
-            con.execute("DROP " + tokens[1] + " " + tokens[2])
+        remove_c06_additions(con, after_version=15)
         con.execute("PRAGMA user_version=15")
     migrated = QuickScanWorkStore(path)
-    assert SCHEMA_VERSION == 16
+    assert SCHEMA_VERSION >= 16
     assert all(migrated.get_item(i["work_item_id"])["status"] == "pending" for i in old["items"])
     with migrated._transaction() as con:
-        assert con.execute("PRAGMA user_version").fetchone()[0] == 16
+        assert con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         assert con.execute("SELECT COUNT(*) FROM quick_scan_refresh_admission").fetchone()[0] == 0
-        con.execute("PRAGMA user_version=17")
+        con.execute("PRAGMA user_version=" + str(SCHEMA_VERSION + 1))
     with pytest.raises(ValueError, match="unsupported"):
         QuickScanWorkStore(path)
 
@@ -175,15 +174,13 @@ def test_failed_v15_migration_rolls_back_schema_and_preserves_original_bytes(tmp
     path = tmp_path / "work.sqlite"
     store = QuickScanWorkStore(path)
     with store._transaction() as con:
-        for statement in reversed(DDL_V16_ADDITIONS):
-            tokens = statement.split()
-            con.execute("DROP " + tokens[1] + " " + tokens[2])
+        remove_c06_additions(con, after_version=15)
         con.execute("PRAGMA user_version=15")
     before = path.read_bytes()
     original = QuickScanWorkStore._validate_schema
 
     def validate(cls, connection, *, schema_version=SCHEMA_VERSION):
-        if schema_version == 16:
+        if schema_version == SCHEMA_VERSION:
             raise ValueError("synthetic migration validation fault")
         return original(connection, schema_version=schema_version)
 

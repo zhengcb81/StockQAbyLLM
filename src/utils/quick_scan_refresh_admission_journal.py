@@ -83,7 +83,7 @@ def _references(values):
 def inputs(action, specifications, run_id, scan_id, references=None):
     if not isinstance(action, dict) or set(action) != ACTION_FIELDS:
         raise ValueError("refresh_admission_action_invalid")
-    for name, prefix in [("confirmation_id", "rc1_"), ("preview_id", "rv1_")]:
+    for name, prefix in [("confirmation_id", "rc[12]_"), ("preview_id", "rv1_")]:
         if not isinstance(action[name], str) or not re.fullmatch(
             prefix + "[a-f0-9]{64}", action[name]
         ):

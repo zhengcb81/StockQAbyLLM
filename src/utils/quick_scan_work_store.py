@@ -2866,21 +2866,33 @@ class QuickScanWorkStore:
                 "unreconciled_attempts": totals["unreconciled"] or 0,
             }
 
-            quota = connection.execute(
-                "SELECT COUNT(*) FROM quick_scan_quota_proof p JOIN quick_scan_budget_attempt b USING(budget_attempt_id) WHERE b.policy_id=? AND b.status='response_unpriced'",
-                (policy_id,),
-            ).fetchone()[0]
+            # The public read-only inspector explicitly supports historical
+            # v18. Its verified schema predates quota/seal metadata. Missing
+            # those capabilities does not settle or release any unknown fee.
+            legacy_v18 = connection.execute("PRAGMA user_version").fetchone()[0] == 18
+            if legacy_v18:
+                self._validate_schema(connection, schema_version=18)
+                quota = 0
+                quota_accounts = []
+            else:
+                quota = connection.execute(
+                    "SELECT COUNT(*) FROM quick_scan_quota_proof p JOIN quick_scan_budget_attempt b USING(budget_attempt_id) WHERE b.policy_id=? AND b.status='response_unpriced'",
+                    (policy_id,),
+                ).fetchone()[0]
+                quota_accounts = [
+                    dict(row)
+                    for row in connection.execute(
+                        "SELECT r.account_group,SUM(COALESCE(p.actual_quota_micros,0)) AS used_quota_micros,SUM(CASE WHEN p.budget_attempt_id IS NULL THEN r.reserved_quota_micros ELSE 0 END) AS held_quota_micros FROM quick_scan_quota_reservation r JOIN quick_scan_budget_attempt b USING(budget_attempt_id) LEFT JOIN quick_scan_quota_proof p USING(budget_attempt_id) WHERE b.policy_id=? GROUP BY r.account_group",
+                        (policy_id,),
+                    )
+                ]
             result["quota_accounted_attempts"] = quota
             result["blocking_unreconciled_attempts"] = result["unreconciled_attempts"] - quota
             result["cash_actual_complete"] = result["unreconciled_attempts"] == 0
-            result["quota_accounts"] = [
-                dict(row)
-                for row in connection.execute(
-                    "SELECT r.account_group,SUM(COALESCE(p.actual_quota_micros,0)) AS used_quota_micros,SUM(CASE WHEN p.budget_attempt_id IS NULL THEN r.reserved_quota_micros ELSE 0 END) AS held_quota_micros FROM quick_scan_quota_reservation r JOIN quick_scan_budget_attempt b USING(budget_attempt_id) LEFT JOIN quick_scan_quota_proof p USING(budget_attempt_id) WHERE b.policy_id=? GROUP BY r.account_group",
-                    (policy_id,),
-                )
-            ]
+            result["quota_accounts"] = quota_accounts
             if include_isolation:
+                if legacy_v18:
+                    raise ValueError("budget_isolation_unavailable_for_legacy_schema")
                 sealed = connection.execute(
                     "SELECT COUNT(*) FROM quick_scan_budget_attempt b "
                     "JOIN quick_scan_uncertain_seal s USING(budget_attempt_id) "
