@@ -220,3 +220,52 @@ def test_original24_readonly_derive_does_not_migrate_or_change_bytes():
     assert len(result["members"]) == 2
     assert path.read_bytes() == before
     assert not any(path.with_name(path.name + s).exists() for s in ("-wal", "-shm", "-journal"))
+
+
+def test_preauthorized_grant_must_equal_the_stored_publication_grant(owned_store):
+    from src.utils.quick_scan_saved_research_publication import (
+        publish_saved_research,
+        require_publisher,
+    )
+
+    bundle, authority = source_inputs()
+    owner = synthetic_authority()
+    result = publish_saved_research(
+        owned_store,
+        bundle,
+        sdk_id="4d46a825-728f-4372-8947-26ec3737ff3f",
+        idempotency_key="publish-preauthorized",
+        owner_authority=owner,
+        c06_authority=authority,
+    )
+    work_item_id = result["work_item_ids"][0]
+    with closing(owned_store._connect()) as connection:
+        connection.execute("BEGIN")
+        try:
+            with pytest.raises(Exception, match="current_publisher_authority_changed"):
+                require_publisher(
+                    owned_store,
+                    connection,
+                    work_item_id,
+                    owner,
+                    preauthorized_grant={"confirmation_id": "rc1_" + "c" * 64},
+                )
+        finally:
+            connection.rollback()
+
+
+def test_require_publisher_without_a_checkpoint_returns_none(owned_store):
+    from src.utils.quick_scan_saved_research_publication import require_publisher
+
+    with closing(owned_store._connect()) as connection:
+        assert require_publisher(owned_store, connection, "WORK_missing", object()) is None
+
+
+def test_apply_cli_exposes_no_preauthorized_grant_option():
+    import inspect
+
+    from src.utils import quick_scan_work_decision_apply_cli as cli
+
+    source = inspect.getsource(cli.main)
+    assert "preauthorized_grant" not in source
+    assert "--grant" not in source
