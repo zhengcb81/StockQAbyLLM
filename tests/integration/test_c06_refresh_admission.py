@@ -28,10 +28,35 @@ from tests.integration.test_c06_subject_public_e2e import OWN, actual, invoke, u
 from tests.unit.test_quick_scan_budget import _policy
 
 
-def setup_admission(actual, tmp_path, *, policy=None, ledger_path=None, refresh_version="1.0.0"):
+def setup_admission(
+    actual,
+    tmp_path,
+    *,
+    policy=None,
+    ledger_path=None,
+    refresh_version="1.0.0",
+    provider="openai",
+    selected_question_count=1,
+    information_cutoff=None,
+):
     assert refresh_version in {"1.0.0", "1.1.0"}
+    if information_cutoff not in (None, "2026-10-13"):
+        raise ValueError("synthetic fixture unsupported information cutoff")
     routes, current, config, authority, manifest, identity_file = actual
-    q = next(row for row in manifest["questions"] if row["scope"] == "entity")
+    selected = [row for row in manifest["questions"] if row["scope"] == "entity"][
+        :selected_question_count
+    ]
+    if (
+        type(selected_question_count) is not int
+        or not 1 <= selected_question_count <= 12
+        or len(selected) != selected_question_count
+    ):
+        raise ValueError("synthetic fixture selected question count invalid")
+    q = selected[0]
+    selected_fields = [
+        authority["observation_context"]["questions"][row["id"]]["metadata"]["field_id"]
+        for row in selected
+    ]
     metadata = authority["observation_context"]["questions"][q["id"]]
     ref, field = (
         metadata["subject_binding"]["subject_ref"],
@@ -78,8 +103,8 @@ def setup_admission(actual, tmp_path, *, policy=None, ledger_path=None, refresh_
         owner_principal=principal,
         allowed_consumer_ids=["invest-quick-scan"],
         universe_id="admit-pool",
-        field_ids=[field],
-        provider="openai",
+        field_ids=selected_fields,
+        provider=provider,
         model=policy["routes"][0]["model"],
         ttl_hours=48,
         routes=[
@@ -114,8 +139,8 @@ def setup_admission(actual, tmp_path, *, policy=None, ledger_path=None, refresh_
         requested_at=utc(),
         payload=dict(
             subject_refs=[ref],
-            field_ids=[field],
-            information_cutoff=utc()[:10],
+            field_ids=selected_fields,
+            information_cutoff=information_cutoff or utc()[:10],
             include_history=True,
             model_filter=None,
             snapshot_id=None,
@@ -150,7 +175,7 @@ def setup_admission(actual, tmp_path, *, policy=None, ledger_path=None, refresh_
         requested_at=utc(),
         source_query=request,
         subject_refs=[ref],
-        field_ids=[field],
+        field_ids=selected_fields,
         origin_task_id="synthetic-admission",
         reason="missing field",
     )
@@ -222,6 +247,7 @@ def setup_admission(actual, tmp_path, *, policy=None, ledger_path=None, refresh_
     deployment_file.write_text(json.dumps(deployment), encoding="utf-8")
     return dict(
         q=q,
+        selected_questions=selected,
         ref=ref,
         ledger=ledger,
         consent=consent,
