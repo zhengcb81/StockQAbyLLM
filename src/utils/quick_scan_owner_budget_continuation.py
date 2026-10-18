@@ -478,10 +478,13 @@ def validate_retained_rows(connection, control, policy_id):
     ):
         if source.get("attempts") != []:
             raise ValueError("owner_exposure_fresh_snapshot_invalid")
-        count = connection.execute(
-            "SELECT COUNT(*) FROM quick_scan_budget_attempt WHERE policy_id=?", (policy_id,)
-        ).fetchone()[0]
-        if count:
+        totals = connection.execute(
+            "SELECT COUNT(*), COALESCE(SUM(request_counted),0), "
+            "COALESCE(SUM(reserved_cost_micros),0), COALESCE(SUM(actual_cost_micros),0) "
+            "FROM quick_scan_budget_attempt WHERE policy_id=?",
+            (policy_id,),
+        ).fetchone()
+        if totals[0] != 0 or totals[1] != 0 or totals[2] != 0 or totals[3] != 0:
             raise ValueError("owner_exposure_fresh_budget_not_empty")
         return []
     attempts = source.get("attempts")
