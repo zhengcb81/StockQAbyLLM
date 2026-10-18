@@ -323,7 +323,7 @@ def setup_continuation(
     (paths.config_dir / "quick_scan_delegation_install.json").write_text(
         json.dumps(install), encoding="utf-8"
     )
-    grant = invoke(base + ["--install-delegation"], tmp_path, "delegated-install")
+    grant = invoke(base + ["--install-delegation"], tmp_path, "delegated-install", timeout=180)
     confirmed = invoke(
         base
         + [
@@ -336,6 +336,7 @@ def setup_continuation(
         ],
         tmp_path,
         "delegated-confirm",
+        timeout=180,
     )
     from stockwiki.quick_scan_refresh_delegation import DelegatedConfirmationStore
 

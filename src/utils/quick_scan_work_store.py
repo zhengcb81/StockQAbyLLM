@@ -3118,35 +3118,132 @@ class QuickScanWorkStore:
                 self._event(connection, work_item_id, "attached_run", epoch, now)
             return dict(self._item(connection, work_item_id))
 
+    def _claim_pending_in_transaction(
+        self, connection, work_item_id, seconds, now
+    ) -> Optional[Lease]:
+        """Shared original claim transition; its caller owns the SQLite transaction."""
+        row = self._item(connection, work_item_id)
+        if row["status"] != "pending":
+            return None
+        token = uuid.uuid4().hex
+        epoch = row["lease_epoch"] + 1
+        changed = connection.execute(
+            "UPDATE work_item SET status='leased', lease_token=?, lease_epoch=?, "
+            "lease_expires_at=?, updated_at=? WHERE work_item_id=? AND status='pending' "
+            "AND lease_epoch=?",
+            (token, epoch, now + seconds, now, work_item_id, row["lease_epoch"]),
+        ).rowcount
+        if changed != 1:
+            raise LeaseFencedError("quick-scan work claim lost race")
+        self._event(
+            connection,
+            work_item_id,
+            "claimed",
+            epoch,
+            now,
+            old="pending",
+            new="leased",
+        )
+        return Lease(token, epoch)
+
     def claim(self, work_item_id: str, *, lease_seconds: float) -> Optional[Lease]:
         """Claim only pending work; expired leases require explicit recovery first."""
         _safe(work_item_id, "work_item_id")
         seconds = _positive_number(lease_seconds, "lease_seconds", maximum=86400)
         now = self._now()
         with self._transaction() as connection:
-            row = self._item(connection, work_item_id)
-            if row["status"] != "pending":
-                return None
-            token = uuid.uuid4().hex
-            epoch = row["lease_epoch"] + 1
-            changed = connection.execute(
-                "UPDATE work_item SET status='leased', lease_token=?, lease_epoch=?, "
-                "lease_expires_at=?, updated_at=? WHERE work_item_id=? AND status='pending' "
-                "AND lease_epoch=?",
-                (token, epoch, now + seconds, now, work_item_id, row["lease_epoch"]),
-            ).rowcount
-            if changed != 1:
-                raise LeaseFencedError("quick-scan work claim lost race")
-            self._event(
-                connection,
-                work_item_id,
-                "claimed",
-                epoch,
-                now,
-                old="pending",
-                new="leased",
-            )
-            return Lease(token, epoch)
+            return self._claim_pending_in_transaction(connection, work_item_id, seconds, now)
+
+    def claim_refresh_action_batch(
+        self,
+        *,
+        confirmation_id,
+        expected_input_sha256,
+        work_item_ids,
+        run_id,
+        scan_id,
+        lease_seconds,
+        dispatch_deadline=None,
+    ):
+        """Claim exact existing admitted work atomically; no owner/network authority.
+
+        The original approved session separately checks current native permission.
+        This primitive never creates work, recovers a lease or reserves a request.
+        Original transport still authenticates current permission before every POST.
+        """
+        from .quick_scan_refresh_admission_journal import read_record
+        from .quick_scan_result_outbox import canonical_sha256
+
+        _safe(confirmation_id, "confirmation_id")
+        _sha256(expected_input_sha256, "expected_input_sha256")
+        _safe(run_id, "run_id")
+        _safe(scan_id, "scan_id")
+        seconds = _positive_number(lease_seconds, "lease_seconds", maximum=86400)
+        if (
+            not isinstance(work_item_ids, (list, tuple))
+            or not 1 <= len(work_item_ids) <= 30
+            or any(not isinstance(v, str) for v in work_item_ids)
+            or len(set(work_item_ids)) != len(work_item_ids)
+        ):
+            raise ValueError("refresh_batch_exact_work_ids_required")
+        for work_id in work_item_ids:
+            _safe(work_id, "work_item_id")
+        if dispatch_deadline is not None and (
+            type(dispatch_deadline) not in (int, float)
+            or not math.isfinite(dispatch_deadline)
+            or dispatch_deadline <= 0
+        ):
+            raise ValueError("refresh_batch_deadline_invalid")
+        with self._transaction() as connection:
+            record = read_record(connection, confirmation_id)
+            if record is None or canonical_sha256(record["inputs"]) != expected_input_sha256:
+                raise WorkConflictError("refresh_batch_original_action_changed")
+            admitted = {row["work_item_id"] for row in record["receipt"]["items"]}
+            if not set(work_item_ids) <= admitted:
+                raise WorkConflictError("refresh_batch_work_not_registered")
+            pending = []
+            for work_id in work_item_ids:
+                row = self._item(connection, work_id)
+                if row["status"] != "pending":
+                    raise WorkConflictError("refresh_batch_work_not_pending")
+                later = connection.execute(
+                    "SELECT 1 FROM work_item WHERE entity_id=? AND question_id=? "
+                    "AND scope=? AND scope_id=? AND generation>? LIMIT 1",
+                    (
+                        row["entity_id"],
+                        row["question_id"],
+                        row["scope"],
+                        row["scope_id"],
+                        row["generation"],
+                    ),
+                ).fetchone()
+                if later is not None:
+                    raise WorkConflictError("refresh_batch_work_superseded")
+                pending.append(row)
+            if dispatch_deadline is not None and time.monotonic() >= dispatch_deadline:
+                raise WorkConflictError("refresh_batch_dispatch_deadline_reached")
+            now = self._now()
+            result = []
+            for row in pending:
+                added = connection.execute(
+                    "INSERT OR IGNORE INTO work_run_ref (work_item_id,run_id,scan_id,attached_at) VALUES (?,?,?,?)",
+                    (row["work_item_id"], run_id, scan_id, now),
+                ).rowcount
+                if added:
+                    self._event(
+                        connection,
+                        row["work_item_id"],
+                        "attached_run",
+                        row["lease_epoch"],
+                        now,
+                    )
+                lease = self._claim_pending_in_transaction(
+                    connection, row["work_item_id"], seconds, now
+                )
+                if lease is None:
+                    raise LeaseFencedError("refresh_batch_claim_lost_race")
+                result.append({"work_item_id": row["work_item_id"], "lease": lease})
+            return result
 
     def prepare_attempt(
         self,

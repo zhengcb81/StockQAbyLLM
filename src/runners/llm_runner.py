@@ -303,6 +303,57 @@ class QuickScanWorkLifecycle:
             return old, bound["binding"], None
         return None, None, "owner_refresh_" + action
 
+    def before_registered_questions(self, questions):
+        """Explicit approved-action batch path; the singleton API is unchanged."""
+        from src.utils.quick_scan_refresh_execution import ApprovedRefreshSession
+        from src.utils.quick_scan_result_outbox import canonical_bytes
+
+        owner = self._owner_refresh
+        if (
+            not self._transport_managed
+            or not isinstance(owner, ApprovedRefreshSession)
+            or owner.service.store is not self._store
+        ):
+            raise ValueError("owner_batch_original_approved_transport_required")
+        if (
+            not isinstance(questions, (list, tuple))
+            or not 1 <= len(questions) <= 30
+            or any(not isinstance(q, Question) or not q.question_id for q in questions)
+            or len({q.question_id for q in questions}) != len(questions)
+        ):
+            raise ValueError("owner_batch_exact_questions_required")
+        if self._deadline is not None and time.monotonic() > self._deadline:
+            raise ValueError("owner_batch_dispatch_deadline_reached")
+        keys = [self.question_pack_group_key(q) for q in questions]
+        if len(set(keys)) != 1 or (keys[0][2] == "security" and len(keys) > 1):
+            raise ValueError("owner_batch_subject_scope_mismatch")
+        for question in questions:
+            entry = owner.entries.get(question.question_id)
+            if entry is None or entry["kind"] != "work":
+                raise ValueError("owner_batch_registered_question_required")
+            spec = entry["specification"]
+            scope, scope_id, generation = self._dispatch_binding(question.question_id)
+            if (
+                spec["entity_id"] != self._entity_id
+                or (scope, scope_id, generation)
+                != (spec["scope"], spec["scope_id"], spec["generation"])
+                or spec["question_fingerprint"]
+                != hashlib.sha256(question.text.strip().encode("utf-8")).hexdigest()
+                or any(
+                    canonical_bytes(spec[k]) != canonical_bytes(v)
+                    for k, v in self._identity.items()
+                    if k in spec
+                )
+            ):
+                raise ValueError("owner_batch_frozen_work_scope_mismatch")
+        return owner.claim_registered_question_batch(
+            [q.question_id for q in questions],
+            run_id=self._run_id,
+            scan_id=self._scan_id,
+            lease_seconds=self._lease_seconds,
+            dispatch_deadline=self._deadline,
+        )
+
     def before_question(self, question: Question) -> Dict[str, Any]:
         # Q09 step3: the time cap stops NEW dispatch only — no claim, no
         # request, and the work item stays pending (already-claimed work

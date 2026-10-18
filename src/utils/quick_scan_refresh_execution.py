@@ -308,6 +308,66 @@ class ApprovedRefreshSession:
             self._policy_check()
         self.native.check()
 
+    def claim_registered_question_batch(
+        self,
+        question_ids,
+        *,
+        run_id,
+        scan_id,
+        lease_seconds,
+        dispatch_deadline=None,
+    ):
+        """One fresh owner check for one exact native atomic claim action.
+
+        This does not bind or memoize permission for transport. Every subsequent
+        SDK POST retains its separate original current-owner/budget checks.
+        """
+        if (
+            not isinstance(question_ids, (list, tuple))
+            or not 1 <= len(question_ids) <= 30
+            or any(not isinstance(qid, str) for qid in question_ids)
+            or len(set(question_ids)) != len(question_ids)
+        ):
+            raise AdmissionRejected("refresh_batch_exact_questions_required")
+        if any(
+            qid not in self.entries
+            or self.entries[qid]["kind"] != "work"
+            or qid in self.deferred
+            or self.fields[qid]["decision"]
+            not in {
+                "dispatch_new_work",
+                "dispatch_new_generation",
+                "resume_existing_work",
+            }
+            for qid in question_ids
+        ):
+            raise AdmissionRejected("refresh_batch_registered_work_scope_required")
+        registered = {
+            item["work_item_id"]: spec
+            for spec, item in zip(
+                self.record["inputs"]["specifications"], self.record["receipt"]["items"]
+            )
+        }
+        if any(
+            self.entries[qid]["specification"]["question_id"] != qid
+            or self.entries[qid]["work_item_id"] not in registered
+            or canonical_bytes(self.entries[qid]["specification"])
+            != canonical_bytes(registered[self.entries[qid]["work_item_id"]])
+            for qid in question_ids
+        ):
+            raise AdmissionRejected("refresh_batch_original_entry_changed")
+        self.check()
+        result = self.service.store.claim_refresh_action_batch(
+            confirmation_id=self.proof["confirmation"]["confirmation_id"],
+            expected_input_sha256=canonical_sha256(self.record["inputs"]),
+            work_item_ids=[self.entries[qid]["work_item_id"] for qid in question_ids],
+            run_id=run_id,
+            scan_id=scan_id,
+            lease_seconds=lease_seconds,
+            dispatch_deadline=dispatch_deadline,
+        )
+        return [dict(claimed=True, reason="claimed", **handle) for handle in result]
+
     def assert_execution_controls(self, *, pack_size, thinking_enabled, max_output_tokens):
         if self.proof["request"]["protocol"] not in {
             "iqs.refresh_request/1.2.0",

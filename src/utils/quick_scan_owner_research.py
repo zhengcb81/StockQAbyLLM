@@ -47,6 +47,7 @@ class OwnerResearchServices:
         search_service=None,
         native_session=False,
         native_max_turns=24,
+        owner_batch_claim=False,
     ):
         if not isinstance(lifecycle, QuickScanWorkLifecycle) or not isinstance(client, LLMClient):
             raise OwnerResearchRejected("original_lifecycle_and_client_required")
@@ -93,6 +94,9 @@ class OwnerResearchServices:
             or not 1 <= native_max_turns <= 32
         ):
             raise OwnerResearchRejected("native_session_controls_invalid")
+        if type(owner_batch_claim) is not bool or owner_batch_claim and native_session:
+            raise OwnerResearchRejected("owner_batch_claim_controls_invalid")
+        self.owner_batch_claim = self._owner_batch_claim_snapshot = owner_batch_claim
         self.native_session, self.native_max_turns = native_session, native_max_turns
         task_cap = getattr(task, "limits", {}).get("max_model_requests_per_session")
         if task_cap is not None:
@@ -178,7 +182,9 @@ class OwnerResearchServices:
 
     def _assert_registered_inputs(self):
         if (
-            canonical_sha256(self.task.raw) != self._task_sha256
+            type(self.owner_batch_claim) is not bool
+            or self.owner_batch_claim != self._owner_batch_claim_snapshot
+            or canonical_sha256(self.task.raw) != self._task_sha256
             or self.task.questions != self._questions_snapshot
             or self.task.company_doc != self._company_snapshot
             or self.task.company_ref != self._company_ref_snapshot
@@ -254,21 +260,35 @@ class OwnerResearchServices:
             and not self.native_session
         ):
             raise OwnerResearchRejected("native_multiturn_registration_required")
-        for qid in selected:
-            if qid not in self._handles:
-                question = self.questions[qid]
-                handle = self.lifecycle.before_question(question)
-                if handle.get("claimed") is not True:
-                    # Earlier claims stay native leased work. Never release or
-                    # re-create them just to make a later request go through.
-                    raise OwnerResearchRejected(
-                        "original_work_not_dispatchable:" + str(handle.get("reason"))
-                    )
-                self._handles[qid] = handle
+        unclaimed = [qid for qid in selected if qid not in self._handles]
+        if self.owner_batch_claim and unclaimed:
+            if len(unclaimed) != len(selected):
+                raise OwnerResearchRejected("owner_batch_partial_handle_set")
+            # One indivisible original admitted-work claim. No permission proof
+            # is retained for the unchanged original transport/POST guards.
+            handles = self.lifecycle.before_registered_questions(
+                [self.questions[qid] for qid in selected]
+            )
+            self._handles.update(zip(selected, handles))
+        else:
+            for qid in selected:
+                if qid not in self._handles:
+                    question = self.questions[qid]
+                    handle = self.lifecycle.before_question(question)
+                    if handle.get("claimed") is not True:
+                        # Earlier claims stay native leased work. Never release or
+                        # re-create them just to make a later request go through.
+                        raise OwnerResearchRejected(
+                            "original_work_not_dispatchable:" + str(handle.get("reason"))
+                        )
+                    self._handles[qid] = handle
         self._active = True
         try:
             with ExitStack() as stack:
-                policy, budget_route = self.lifecycle._budget_policy, self.lifecycle._budget_route
+                policy, budget_route = (
+                    self.lifecycle._budget_policy,
+                    self.lifecycle._budget_route,
+                )
                 if not isinstance(policy, dict) or not isinstance(budget_route, dict):
                     raise OwnerResearchRejected("approved_native_budget_route_required")
                 handles = [self._handles[qid] for qid in selected]
@@ -437,7 +457,12 @@ class OwnerResearchServices:
                         **response,
                         "native_attempt": {
                             key: attempt[key]
-                            for key in ("attempt_id", "phase", "send_intent_at", "completed_at")
+                            for key in (
+                                "attempt_id",
+                                "phase",
+                                "send_intent_at",
+                                "completed_at",
+                            )
                         },
                     }
         return None
@@ -450,7 +475,8 @@ class OwnerResearchServices:
         visible = self.store.get_research_visible_output(response["receipt"]["attempt_id"])
         if ref not in self._observations:
             self._observations[ref] = dict(
-                runtime_attempt_ref=ref, native_receipt=copy.deepcopy(response["receipt"])
+                runtime_attempt_ref=ref,
+                native_receipt=copy.deepcopy(response["receipt"]),
             )
             self._replayed_refs[ref] = True
         saved = (
@@ -590,7 +616,10 @@ class OwnerResearchServices:
         from src.utils.quick_scan_research_session import find_attempt_for_task_intent
 
         original = find_attempt_for_task_intent(
-            self.store, entry["work_item_id"], self._task_sha256, canonical_sha256(intent)
+            self.store,
+            entry["work_item_id"],
+            self._task_sha256,
+            canonical_sha256(intent),
         )
         if original is None:
             return None
