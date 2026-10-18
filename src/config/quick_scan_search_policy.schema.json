@@ -101,6 +101,8 @@
               "brave",
               "tavily",
               "deepseek",
+              "deepseek_search",
+              "deepseek_fetch",
               "zai_rest",
               "zai_mcp_streamable"
             ]
