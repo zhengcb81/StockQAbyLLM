@@ -436,9 +436,21 @@ def test_question_pack_schema16_fixture_migration_preserves_original_and_old_row
     store, clock = pack_store
     fixture_members = _members(store)
     with closing(store._connect()) as con:
-        for statement in reversed(work_module._DDL_V17_ADDITIONS + work_module._DDL_V18_ADDITIONS):
+        later = (
+            work_module._DDL_V17_ADDITIONS
+            + work_module._DDL_V18_ADDITIONS
+            + work_module._DDL_V19_ADDITIONS
+            + work_module._DDL_V20_ADDITIONS
+            + work_module._DDL_V21_ADDITIONS
+            + work_module._DDL_V22_ADDITIONS
+            + work_module._DDL_V23_ADDITIONS
+        )
+        for statement in reversed(later):
             words = statement.split()
             con.execute(f"DROP {words[1]} {words[2]}")
+        # v21 replaced this pre-existing v13 guard. Exact v16 needs its
+        # original SQL too, not merely fewer table names and a lowered pragma.
+        con.execute(work_module._MCP_GUARD_OLD)
         con.execute("PRAGMA user_version=16")
         old_rows = {
             row[0]: con.execute(f'SELECT * FROM "{row[0]}"').fetchall()

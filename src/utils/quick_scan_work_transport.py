@@ -198,6 +198,60 @@ class QuickScanSendAttempt:
         http_status_code: Optional[int],
         request_id: Optional[str],
         receipt: Any,
+        research_visible_output: Optional[dict] = None,
+    ) -> None:
+        from .quick_scan_research_intent import anchor_original_receipt
+
+        anchor_original_receipt(self, receipt)
+        if research_visible_output is None:
+            return self._record_response(
+                http_status_code=http_status_code, request_id=request_id, receipt=receipt
+            )
+        store = (
+            self.binding.store
+            if self.binding is not None
+            else (
+                self.question_pack_binding.store
+                if self.question_pack_binding is not None
+                else self.budget_binding.store if self.budget_binding is not None else None
+            )
+        )
+        if store is None:
+            raise QuickScanWorkPersistenceError("research visible output requires native store")
+        from src.utils.quick_scan_research_output import persist
+
+        try:
+            # _transaction joins the SAME store thread-local SQLite connection;
+            # original work/pack/budget methods use nested savepoints, not a
+            # second connection. Output insertion failure rolls everything back.
+            uncertain = None
+            with store._transaction() as connection:
+                try:
+                    self._record_response(
+                        http_status_code=http_status_code, request_id=request_id, receipt=receipt
+                    )
+                except QuickScanWorkUncertainError as error:
+                    # Original late/expired-lease paths retain their received
+                    # receipt and native charge. Commit that evidence, but do
+                    # not make an uncertain logical outcome replay-safe.
+                    uncertain = error
+                else:
+                    persist(store, connection, self.attempt_id, research_visible_output)
+            if uncertain is not None:
+                raise uncertain
+        except (QuickScanWorkPersistenceError, QuickScanWorkUncertainError):
+            raise
+        except Exception as error:
+            raise QuickScanWorkPersistenceError(
+                "could not persist research visible output", receipt
+            ) from error
+
+    def _record_response(
+        self,
+        *,
+        http_status_code: Optional[int],
+        request_id: Optional[str],
+        receipt: Any,
     ) -> None:
         if not self._consumed:
             raise QuickScanWorkPersistenceError("HTTP response arrived without a consumed permit")
@@ -292,6 +346,9 @@ class QuickScanSendAttempt:
     def record_failure(self, receipt: Any) -> None:
         if not self._consumed:
             raise QuickScanWorkPersistenceError("transport failed without a consumed permit")
+        from .quick_scan_research_intent import anchor_original_receipt
+
+        anchor_original_receipt(self, receipt)
         safe = _sanitized_receipt(receipt)
         status = safe.get("http_status_code")
         provider_code = safe.get("provider_error_code")
@@ -1182,6 +1239,37 @@ def _begin_question_pack_send(
         ) from error
 
 
+def _prompt_contains_external_context(prompt: str, system_prompt: str, external: dict) -> bool:
+    suffix = _EXTERNAL_DATA_LABEL + external["encoded"]
+    if not system_prompt.endswith(_EXTERNAL_SYSTEM_RULE):
+        return False
+    if prompt.endswith(suffix):
+        return True  # Original single-prompt native clients.
+    try:
+        messages = json.loads(prompt)
+        canonical = json.dumps(
+            messages, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
+        )
+        return (
+            canonical == prompt
+            and isinstance(messages, list)
+            and len(messages) >= 2
+            and isinstance(messages[0], dict)
+            and messages[0].get("role") == "system"
+            and messages[0].get("content") == system_prompt
+            and isinstance(messages[-1], dict)
+            and messages[-1].get("role") == "user"
+            and isinstance(messages[-1].get("content"), str)
+            and messages[-1]["content"].endswith(suffix)
+        )
+    except (ValueError, TypeError):
+        return False
+
+
+from .quick_scan_research_intent import bind_native_send
+
+
+@bind_native_send
 def begin_quick_scan_send(
     prompt: str,
     system_prompt: str,
@@ -1207,9 +1295,8 @@ def begin_quick_scan_send(
 
     work = _WORK_BINDING.get()
     external = _validate_external_binding()
-    if external is not None and (
-        not prompt.endswith(_EXTERNAL_DATA_LABEL + external["encoded"])
-        or not system_prompt.endswith(_EXTERNAL_SYSTEM_RULE)
+    if external is not None and not _prompt_contains_external_context(
+        prompt, system_prompt, external
     ):
         raise QuickScanWorkPersistenceError("actual prompt omits the bound external context")
     route = _ROUTE_BINDING.get()
@@ -1288,6 +1375,9 @@ def begin_quick_scan_send(
             request_cache_key = (
                 "REQ_" + hashlib.sha256(request_identity.encode("utf-8")).hexdigest()
             )
+            from .quick_scan_research_session import active_id, active_intent_sha256
+
+            research_session_id = active_id(work.store, work.work_item_id, work.lease)
             prepared = work.store.prepare_attempt(
                 work.work_item_id,
                 work.lease,
@@ -1298,6 +1388,14 @@ def begin_quick_scan_send(
                 prompt_sha256=prompt_sha256,
                 allow_format_repair=_FORMAT_REPAIR.get(),
                 model_resolution=resolution,
+                **(
+                    {
+                        "research_session_id": research_session_id,
+                        "research_intent_sha256": active_intent_sha256(),
+                    }
+                    if research_session_id is not None
+                    else {}
+                ),
             )
             if external is not None:
                 work.store.record_external_context_use_intent(

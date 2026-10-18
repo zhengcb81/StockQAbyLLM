@@ -31,7 +31,10 @@ from src.providers.model_resolution import model_resolution_sha256
 from src.utils.http_client import http_client_manager
 from src.utils.quick_scan_work_transport import (
     assert_controlled_generation_payload,
+    attach_external_use_proof,
     begin_quick_scan_send,
+    external_answer_search_mode,
+    render_external_request,
     require_budgeted_research_send,
 )
 
@@ -310,6 +313,7 @@ class ResearchChatSession:
         self._resolution = copy.deepcopy(client.model_resolution)
         self._lock = threading.Lock()
         self._tools = copy.deepcopy(tools)
+        self._system_prefix = system_prefix
         self._messages: list[dict[str, Any]] = [{"role": "system", "content": system_prefix}]
         self._pending = ()
         self._blocked = False
@@ -378,6 +382,23 @@ class ResearchChatSession:
             ):
                 raise ValueError("research_user_context_required")
             messages.append({"role": "user", "content": user_context})
+        if external_answer_search_mode() is not None:
+            if external_answer_search_mode() != "external_context_only":
+                from src.utils.quick_scan_work_transport import (
+                    QuickScanWorkPersistenceError,
+                )
+
+                raise QuickScanWorkPersistenceError("research_native_hybrid_search_unsupported")
+            # Reuse the original native untrusted-context renderer. On tool-only
+            # rounds an explicit user continuation carries the same frozen
+            # evidence, so the durable use proof describes actual sent bytes.
+            if messages[-1]["role"] != "user":
+                messages.append({"role": "user", "content": "Continue using the bound evidence."})
+            rendered, system, _ = render_external_request(
+                messages[-1]["content"], self._system_prefix
+            )
+            messages[-1]["content"] = rendered
+            messages[0]["content"] = system
         body = {
             "model": self._model,
             "messages": messages,
@@ -500,15 +521,13 @@ class ResearchChatSession:
             "response_sha256": digest,
             "response_json_basis": basis,
         }
+        if external_answer_search_mode() is not None:
+            # No native search is claimed. This is the original external-only
+            # receipt classification required by its verified use journal.
+            receipt["search_status"] = "unverified"
         receipt["model_resolution_sha256"] = model_resolution_sha256(resolution)
         if usage is not None:
             receipt["usage"] = usage
-        # A malformed answer still consumed this physical request and its tokens.
-        permit.record_response(
-            http_status_code=_response_status_code(response),
-            request_id=receipt["request_id"],
-            receipt=receipt,
-        )
         try:
             if reported_model != self._model:
                 raise ValueError("research_actual_model_mismatch")
@@ -572,14 +591,63 @@ class ResearchChatSession:
                 if not isinstance(message["reasoning_content"], (str, type(None))):
                     raise ValueError("research_reasoning_protocol_invalid")
                 private["reasoning_content"] = message["reasoning_content"]
+            from src.utils.quick_scan_research_output import (
+                normalize as normalize_visible_output,
+            )
+
+            normalize_visible_output(
+                {"content": content, "tool_calls": tools, "finish_reason": finish}
+            )
+            # Endpoint credentials are never a visible answer artifact even if
+            # a broken provider echoes them into otherwise valid output.
+            if self._api_key and self._api_key in _encode(
+                {"content": content, "tool_calls": tools, "finish_reason": finish}
+            ):
+                raise ValueError("research_visible_credential_forbidden")
             self._messages = messages + [private]
             self._pending = tuple(tool["id"] for tool in tools)
         except Exception as error:
+            # A malformed answer still consumed its physical request and tokens,
+            # but cannot acquire a replayable visible-output artifact.
+            if reported_model != self._model and permit.question_pack_binding is not None:
+                # The original pack journal must not classify a foreign model
+                # as response_available. Its existing unknown/failure path can
+                # still retain the actually received receipt and known charge.
+                from src.utils.quick_scan_work_transport import (
+                    QuickScanWorkUncertainError,
+                )
+
+                try:
+                    permit.record_failure(receipt)
+                except QuickScanWorkUncertainError:
+                    pass  # Durable unknown barrier retained; no resend/output.
+            else:
+                permit.record_response(
+                    http_status_code=_response_status_code(response),
+                    request_id=receipt["request_id"],
+                    receipt=receipt,
+                )
             raise ResearchResponseValidationError(
                 type(error).__name__,
                 receipt,
                 _response_validation_diagnostic(error, self._validation_fields),
             ) from None
+        from src.utils.quick_scan_research_output import visible_output_sha256
+
+        receipt["research_visible_output_sha256"] = visible_output_sha256(
+            {"content": content, "tool_calls": tools, "finish_reason": finish}
+        )
+        receipt["response_status"] = "completed"
+        permit.record_response(
+            http_status_code=_response_status_code(response),
+            request_id=receipt["request_id"],
+            receipt=receipt,
+            research_visible_output={
+                "content": content,
+                "tool_calls": tools,
+                "finish_reason": finish,
+            },
+        )
         if usage is not None:
             self._input_used += observation["prompt_tokens"]
             self._output_used += observation["output_tokens_including_reasoning"]
@@ -608,6 +676,20 @@ class ResearchChatSession:
             "elapsed_seconds": time.monotonic() - http_start,
             "stable_prefix_sha256": self.stable_prefix_sha256,
         }
+        if external_answer_search_mode() is not None:
+            metadata = copy.deepcopy(receipt)
+            # This proof is a public projection, never injected into the native
+            # immutable provider receipt or the visible-output payload.
+            attach_external_use_proof(permit, metadata)
+            if not isinstance(metadata.get("external_context_use"), dict):
+                from src.utils.quick_scan_work_transport import (
+                    QuickScanWorkPersistenceError,
+                )
+
+                raise QuickScanWorkPersistenceError(
+                    "research_external_use_proof_unavailable", receipt
+                )
+            result["execution_metadata"] = metadata
         if self._tool_argument_validation == "controller":
             result["tool_argument_validation"] = "controller"
         return result

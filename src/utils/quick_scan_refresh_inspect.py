@@ -19,6 +19,10 @@ from src.utils.quick_scan_work_store import (
     _budget_policy_projection,
 )
 
+# Keep every previously supported read-only schema. Inspection must not migrate
+# an owner's v22 database merely because the writer now knows v23.
+READ_ONLY_SCHEMA_VERSIONS = frozenset({18, 22, SCHEMA_VERSION})
+
 
 class _Borrowed:
     def __init__(self, connection):
@@ -61,7 +65,7 @@ class ReadOnlyWorkView(QuickScanWorkStore):
         try:
             connection.execute("PRAGMA query_only=ON")
             version = connection.execute("PRAGMA user_version").fetchone()[0]
-            if version not in {18, SCHEMA_VERSION}:
+            if version not in READ_ONLY_SCHEMA_VERSIONS:
                 raise ValueError("refresh_executor_schema_unavailable")
             self._validate_schema(connection, schema_version=version)
         except Exception:
@@ -117,7 +121,7 @@ def inspect_refresh(path, request, *, policy, schema_version="1.0.0"):
         # Bind schema and rows to the same native read transaction. A schema
         # change after the initial connection check must not be overlooked.
         version = connection.execute("PRAGMA user_version").fetchone()[0]
-        if version not in {18, SCHEMA_VERSION}:
+        if version not in READ_ONLY_SCHEMA_VERSIONS:
             raise ValueError("refresh_executor_schema_unavailable")
         view._validate_schema(connection, schema_version=version)
         view._inspection_connection = connection

@@ -835,6 +835,9 @@ def test_public_provider_preserves_native_receipt_and_projects_actual_external_u
         "synthetic-test-only",
     )
     provider.parser, provider.max_retries, provider.format_repair_budget = LLMResponseParser(), 1, 0
+    # This explicit no-constructor provider fixture must supply the generation
+    # option attributes initialized by the actual released constructor.
+    provider.thinking_enabled, provider.max_output_tokens = None, None
     provider.client = LLMClient(provider.api_key, model, url, provider_name="openai")
     raw = sync.post.return_value.json.return_value
     answer = json.loads(raw["output"][-1]["content"][0]["text"])
@@ -3611,9 +3614,11 @@ def test_native_event_journal_v11_upgrade_preserves_http_cash_and_does_not_inven
     from src.utils.quick_scan_work_store import QuickScanWorkStore
 
     args, _, attempt_id, search, sync, clock = _native_event_answer(tmp_path, monkeypatch)
+    # Capture the current-reader budget before deliberately removing tables;
+    # the manually downgraded fixture is reopened/migrated before newer reads.
+    cash = args["store"].get_quick_scan_budget_status("q09-fixture")
     _install_native_event_v11(args["store"])
     before = args["store"].get_attempt_response(attempt_id)
-    cash = args["store"].get_quick_scan_budget_status("q09-fixture")
     with closing(args["store"]._connect()) as connection:
         original = tuple(connection.execute("SELECT * FROM quick_scan_attempt_response").fetchone())
     reopened = QuickScanWorkStore(args["store"].path, clock=lambda: clock[0])

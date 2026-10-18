@@ -58,8 +58,9 @@ _DDL_V21_ADDITIONS += (_MCP_GUARD_V21,)
 from src.utils.quick_scan_external_continuation import (
     DDL_V22_ADDITIONS as _DDL_V22_ADDITIONS,
 )
+from src.utils.quick_scan_research_output import DDL_V23_ADDITIONS as _DDL_V23_ADDITIONS
 
-SCHEMA_VERSION = 22
+SCHEMA_VERSION = 23
 _SAFE_ID = re.compile(r"^[A-Za-z0-9_.-]{1,160}$")
 # Hyphens accepted per owner sign-off (2026-10-05 round-51): the W04
 # identity-export package issues ENT_<uuid> entity ids (e.g. the frozen
@@ -701,10 +702,13 @@ _DDL = (
     + _DDL_V20_ADDITIONS
     + _DDL_V21_ADDITIONS
     + _DDL_V22_ADDITIONS
+    + _DDL_V23_ADDITIONS
 )
 
 _RECEIPT_FIELDS = (
     "request_payload_sha256",
+    "research_visible_output_sha256",
+    "research_intent_binding_sha256",
     "provider",
     "request_id",
     "response_id",
@@ -743,7 +747,11 @@ def _sanitized_receipt(receipt: object) -> dict:
                 result[key] = _canonical_source_urls(value)
             except ValueError:
                 continue
-        elif key == "request_payload_sha256":
+        elif key in {
+            "request_payload_sha256",
+            "research_visible_output_sha256",
+            "research_intent_binding_sha256",
+        }:
             if isinstance(value, str) and _HEX_SHA256.fullmatch(value):
                 result[key] = value
         elif key == "usage":
@@ -1268,6 +1276,8 @@ class QuickScanWorkStore:
                 cls._validate_schema(connection, schema_version=20)
             elif version == 21:
                 cls._validate_schema(connection, schema_version=21)
+            elif version == 22:
+                cls._validate_schema(connection, schema_version=22)
             elif version != SCHEMA_VERSION:
                 raise ValueError("unsupported quick-scan work database schema version")
             if 1 <= version < 8:
@@ -1328,6 +1338,10 @@ class QuickScanWorkStore:
                 connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             if 1 <= version < 22:
                 for statement in _DDL_V22_ADDITIONS:
+                    connection.execute(statement)
+                connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+            if 1 <= version < 23:
+                for statement in _DDL_V23_ADDITIONS:
                     connection.execute(statement)
                 connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             cls._validate_schema(connection, schema_version=SCHEMA_VERSION)
@@ -1627,6 +1641,12 @@ class QuickScanWorkStore:
                 match = re.match(r"CREATE (TABLE|TRIGGER) ([A-Za-z_]+)", statement)
                 if match is None:
                     raise ValueError("quick-scan work database schema mismatch")
+                expected[(match[1].lower(), match[2])] = statement
+        if schema_version >= 23:
+            for statement in _DDL_V23_ADDITIONS:
+                match = re.match(r"CREATE (TABLE|TRIGGER) ([A-Za-z_]+)", statement)
+                if match is None:
+                    raise ValueError("research output schema mismatch")
                 expected[(match[1].lower(), match[2])] = statement
         if actual.keys() != expected.keys() or any(
             _normalized_sql(actual[key]) != _normalized_sql(statement)
@@ -2133,6 +2153,17 @@ class QuickScanWorkStore:
                 (attempt_id,),
             ).fetchone()
             return None if row is None else self._response_record(connection, row)
+
+    def get_research_visible_output(self, reference: str) -> Optional[dict]:
+        """Verify a visible-only original by native physical or SDK attempt ref.
+
+        Absence is unavailable, never permission to resend. A corrupt or
+        ambiguous record raises instead of returning replay-safe content.
+        """
+        from src.utils.quick_scan_research_output import read
+
+        with closing(self._connect()) as connection:
+            return read(self, connection, reference)
 
     def configure_quick_scan_budget(self, policy: dict) -> dict:
         """Persist a secret-free budget/dispatch snapshot without resetting spend."""
@@ -2803,7 +2834,10 @@ class QuickScanWorkStore:
     ) -> dict:
         _safe(policy_id, "policy_id")
         with closing(self._connect()) as connection:
-            connection.execute("BEGIN")
+            # ReadOnlyWorkView lends the original inspect snapshot. Starting a
+            # second transaction breaks the public owner admission path.
+            if not connection.in_transaction:
+                connection.execute("BEGIN")
             policy = connection.execute(
                 "SELECT * FROM quick_scan_budget_policy WHERE policy_id=?", (policy_id,)
             ).fetchone()
@@ -3038,8 +3072,10 @@ class QuickScanWorkStore:
         prompt_sha256: str,
         allow_format_repair: bool = False,
         model_resolution: Optional[dict] = None,
+        research_session_id: Optional[str] = None,
+        research_intent_sha256: Optional[str] = None,
     ) -> dict:
-        """Freeze one transport attempt under a current lease, before POST."""
+        """Freeze one native send; explicit research turns retain all guards."""
         if type(allow_format_repair) is not bool:
             raise ValueError("allow_format_repair must be a boolean")
         for label, value in (
@@ -3059,10 +3095,37 @@ class QuickScanWorkStore:
                 "SELECT * FROM attempt WHERE work_item_id=? ORDER BY ordinal DESC LIMIT 1",
                 (work_item_id,),
             ).fetchone()
-            if previous is not None and previous["phase"] not in {
-                "confirmed_failure",
-                "abandoned_unsent",
-            }:
+            research_turn_index = None
+            if research_session_id is None and research_intent_sha256 is not None:
+                raise WorkConflictError("research intent requires original registration")
+            if research_session_id is not None:
+                if allow_format_repair:
+                    raise WorkConflictError("research session cannot masquerade as format repair")
+                from .quick_scan_research_session import guard_turn
+
+                research_turn_index = guard_turn(
+                    self,
+                    connection,
+                    item,
+                    lease,
+                    previous,
+                    session_id=research_session_id,
+                    route_id=route_id,
+                    provider=provider,
+                    model_requested=model_requested,
+                    request_cache_key=request_cache_key,
+                    model_resolution=model_resolution,
+                    intent_sha256=research_intent_sha256,
+                )
+            if (
+                research_turn_index is None
+                and previous is not None
+                and previous["phase"]
+                not in {
+                    "confirmed_failure",
+                    "abandoned_unsent",
+                }
+            ):
                 if connection.execute(
                     "SELECT 1 FROM quick_scan_question_pack_member WHERE attempt_id=?",
                     (previous["attempt_id"],),
@@ -3159,6 +3222,17 @@ class QuickScanWorkStore:
                 budget_only=False,
                 now=now,
             )
+            if research_turn_index is not None:
+                from .quick_scan_research_session import attach_turn
+
+                attach_turn(
+                    connection,
+                    research_session_id,
+                    research_turn_index,
+                    attempt_id,
+                    request_cache_key,
+                    research_intent_sha256,
+                )
             self._event(
                 connection,
                 work_item_id,

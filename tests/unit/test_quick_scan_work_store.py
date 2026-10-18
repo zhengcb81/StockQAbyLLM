@@ -607,6 +607,15 @@ def _q10_reconstruct_old_schema(connection, version):
     # Reconstruct an actual old schema, including removal of later empty
     # retrieval tables. Keeping them while lowering user_version is not v7.
     for table in (
+        "quick_scan_research_intent",
+        "quick_scan_research_turn",  # schema23 children before registration
+        "quick_scan_research_session",
+        "quick_scan_research_visible_output",  # schema23, synthetic rows only
+        "quick_scan_external_research_admission",  # schema22
+        "quick_scan_quota_proof",  # schema21, child tables first
+        "quick_scan_quota_reservation",
+        "quick_scan_quota_route",
+        "quick_scan_quota_account",
         "quick_scan_research_budget_amendment",  # schema20, synthetic rows only
         "quick_scan_uncertain_seal",
         "quick_scan_research_attempt",

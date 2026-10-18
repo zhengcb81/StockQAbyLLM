@@ -12,7 +12,7 @@ from contextlib import closing
 from pathlib import Path
 
 from src.utils.quick_scan_external_journal import _digest
-from src.utils.quick_scan_work_store import Lease, QuickScanWorkStore
+from src.utils.quick_scan_work_store import SCHEMA_VERSION, Lease, QuickScanWorkStore
 
 
 def fixture(root):
@@ -541,6 +541,10 @@ class ContinuationTests(unittest.TestCase):
                     "SELECT * FROM quick_scan_budget_attempt ORDER BY budget_attempt_id"
                 )
             ]
+            connection.execute("DROP TABLE quick_scan_research_intent")
+            connection.execute("DROP TABLE quick_scan_research_turn")
+            connection.execute("DROP TABLE quick_scan_research_session")
+            connection.execute("DROP TABLE quick_scan_research_visible_output")
             connection.execute("DROP TRIGGER quick_scan_external_research_admission_no_update")
             connection.execute("DROP TRIGGER quick_scan_external_research_admission_no_delete")
             connection.execute("DROP TABLE quick_scan_external_research_admission")
@@ -548,7 +552,9 @@ class ContinuationTests(unittest.TestCase):
             connection.commit()
         QuickScanWorkStore(path, clock=lambda: 1000.0)
         with closing(sqlite3.connect(path)) as connection:
-            self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], 22)
+            self.assertEqual(
+                connection.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION
+            )
             self.assertEqual(
                 original,
                 [
