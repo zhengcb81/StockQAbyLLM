@@ -108,7 +108,8 @@ def get_intent_response(store, task_sha256, intent_sha256):
         if original_pack["request_payload_sha256"] != row["request_payload_sha256"]:
             raise ValueError("native_research_intent_original_pack_payload_mismatch")
     else:
-        assert single is not None  # Exactly one original ownership path above.
+        if single is None:
+            raise ValueError("native_research_intent_original_single_missing")
         actual = [single["work_item_id"]]
     if members != actual:
         raise ValueError("native_research_intent_original_members_mismatch")

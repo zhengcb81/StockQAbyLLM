@@ -466,6 +466,16 @@ _OWN_RESERVATION: contextvars.ContextVar[bool] = contextvars.ContextVar(
 )
 
 
+@contextmanager
+def bind_own_reservation() -> Iterator[None]:
+    """Scope the Q09 own-reservation flag to one dispatch context."""
+    token = _OWN_RESERVATION.set(True)
+    try:
+        yield
+    finally:
+        _OWN_RESERVATION.reset(token)
+
+
 def own_reservation_held() -> bool:
     """Q09: True while THIS dispatch already holds its own mark-time budget
     reservation. The cascade's preferred-route busy WAIT must not deadlock on

@@ -496,8 +496,8 @@ class ResearchChatSession:
                     _, failed_usage = _usage(_canonical_http_json(response)[0])
                     if failed_usage is not None:
                         receipt["usage"] = failed_usage
-                except Exception:
-                    pass
+                except (TypeError, ValueError, KeyError, IndexError) as usage_error:
+                    receipt["usage_parse_error"] = type(usage_error).__name__
             receipt["request_payload_sha256"] = _sha(body)
             permit.record_failure(receipt)
             raise LLMTransportAttemptError(type(error).__name__, receipt) from None

@@ -324,7 +324,7 @@ def inspect_refresh(
                 refs = validate_retained_rows(connection, exposure_control, request["policy_id"])
                 marks = ",".join("?" for _ in refs)
                 blockers = connection.execute(
-                    "SELECT COUNT(*) FROM quick_scan_budget_attempt WHERE policy_id=? AND status IN ('response_unpriced','failure_unpriced','outcome_uncertain') AND budget_attempt_id NOT IN ("
+                    "SELECT COUNT(*) FROM quick_scan_budget_attempt WHERE policy_id=? AND status IN ('response_unpriced','failure_unpriced','outcome_uncertain') AND budget_attempt_id NOT IN ("  # nosec B608
                     + marks
                     + ")",
                     (request["policy_id"], *refs),

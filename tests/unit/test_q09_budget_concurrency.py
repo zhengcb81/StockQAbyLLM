@@ -646,3 +646,24 @@ def test_runner_glue_reserves_before_dispatch(tmp_path: Path, monkeypatch) -> No
     assert rows == 1, rows
     totals = store.get_quick_scan_budget_status("quick-scan-test-policy")
     assert totals["requests"] >= 1, totals
+
+
+def test_own_reservation_flag_is_context_scoped(tmp_path: Path) -> None:
+    """The Q09 flag must not leak out of a dispatch context (CI order bug)."""
+    from src.utils.quick_scan_work_transport import (
+        bind_own_reservation,
+        own_reservation_held,
+    )
+
+    assert own_reservation_held() is False
+    with bind_own_reservation():
+        assert own_reservation_held() is True
+    assert own_reservation_held() is False
+
+    policy = _policy(max_cost=10, max_per_attempt=3)
+    store = _store(tmp_path, policy)
+    lc = _lifecycle(store, policy=policy, route=_route(policy))
+    handle = lc.before_question(_q("IQS_05", "问题 IQS_05"))
+    assert handle["claimed"] is True
+    # Reserving a budget attempt must not mutate process-wide routing state.
+    assert own_reservation_held() is False

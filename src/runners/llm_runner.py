@@ -482,12 +482,6 @@ class QuickScanWorkLifecycle:
                 budget_policy=self._budget_policy,
                 budget_route=self._budget_route,
             )
-            if self._budget_policy is not None:
-                # Q09: we now hold our own route slot — the cascade's busy
-                # wait must not deadlock on it (admission stays authoritative).
-                from src.utils.quick_scan_work_transport import _OWN_RESERVATION
-
-                _OWN_RESERVATION.set(True)
         except Exception as exc:  # noqa: BLE001
             logger.warning("attempt prepare/intent 失败（%s），本题不派发", exc)
             return {
@@ -593,6 +587,7 @@ class QuickScanWorkLifecycle:
         from contextlib import ExitStack, nullcontext
 
         from src.utils.quick_scan_work_transport import (
+            bind_own_reservation,
             bind_quick_scan_route,
             bind_quick_scan_work,
         )
@@ -626,6 +621,8 @@ class QuickScanWorkLifecycle:
             context.enter_context(
                 bind_quick_scan_work(self._store, handle["work_item_id"], handle["lease"])
             )
+            if self._budget_policy is not None:
+                context.enter_context(bind_own_reservation())
             context.enter_context(
                 bind_quick_scan_route(
                     route_id=self._route_id,
@@ -923,12 +920,6 @@ class QuickScanWorkLifecycle:
         if self._transport_managed:
             self._save_transport_checkpoint(handle, result)
             return
-        try:
-            from src.utils.quick_scan_work_transport import _OWN_RESERVATION
-
-            _OWN_RESERVATION.set(False)
-        except Exception as exc:  # noqa: BLE001
-            logger.debug("own-reservation flag reset skipped (%s)", exc)
         # Q07 layering (r2 P2-r2-1: no absolute claims): with a
         # checkpoint-quality receipt the store closes the attempt
         # (response_available) and persists the answer. EVERY deterministic
@@ -1089,12 +1080,6 @@ class QuickScanWorkLifecycle:
                             "Received member could not finish under its current lease; native recovery remains required"
                         )
             return
-        try:
-            from src.utils.quick_scan_work_transport import _OWN_RESERVATION
-
-            _OWN_RESERVATION.set(False)
-        except Exception as exc:  # noqa: BLE001
-            logger.debug("own-reservation flag reset skipped (%s)", exc)
         try:
             # P0-3: confirmed_failure requires a recognized provider refusal
             # (store rejects unclassified failures); without transport evidence

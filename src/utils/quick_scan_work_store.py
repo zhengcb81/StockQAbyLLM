@@ -2367,14 +2367,16 @@ class QuickScanWorkStore:
         except ValueError as error:
             raise BudgetAdmissionError(str(error)) from error
         extra_risk_hold = 0
+        extra_params: tuple = ()
         if owner_projection is not None:
             if task is not None:
                 raise BudgetAdmissionError("owner_exposure_cannot_mix_research_task")
-            quoted = [
-                connection.execute("SELECT quote(?)", (ref,)).fetchone()[0]
-                for ref in owner_projection["excluded_refs"]
-            ]
-            exclusion = "budget_attempt_id IN (" + ",".join(quoted) + ")"
+            excluded = tuple(owner_projection["excluded_refs"])
+            exclusion = "0"
+            if excluded:
+                # Only '?' placeholders are built here; all ids stay bound params.
+                exclusion = "budget_attempt_id IN (" + ",".join("?" for _ in excluded) + ")"
+                extra_params = excluded
         # Holds are conservative capacity reservations, never fabricated cash.
         from src.utils.quick_scan_owner_budget_continuation import risk_hold_total
 
@@ -2383,11 +2385,11 @@ class QuickScanWorkStore:
         except ValueError as error:
             raise BudgetAdmissionError(str(error)) from error
         unreconciled = connection.execute(
-            "SELECT COUNT(*) FROM quick_scan_budget_attempt WHERE policy_id=? "
+            "SELECT COUNT(*) FROM quick_scan_budget_attempt WHERE policy_id=? "  # nosec B608
             "AND status IN ('response_unpriced','failure_unpriced','outcome_uncertain') "
             f"AND NOT ({exclusion}) "
             "AND budget_attempt_id NOT IN (SELECT budget_attempt_id FROM quick_scan_quota_proof)",
-            (policy_id,),
+            (policy_id, *extra_params),
         ).fetchone()[0]
         if unreconciled:
             raise BudgetAdmissionError("budget_reconciliation_required")
@@ -2413,7 +2415,7 @@ class QuickScanWorkStore:
         # Only the reconciliation pause is narrowly excepted by owner policy.
         capacity_exclusion = "0" if owner_projection is not None else exclusion
         in_flight = connection.execute(
-            "SELECT COUNT(*) FROM quick_scan_budget_attempt WHERE policy_id=? AND in_flight=1 "
+            "SELECT COUNT(*) FROM quick_scan_budget_attempt WHERE policy_id=? AND in_flight=1 "  # nosec B608
             f"AND NOT ({capacity_exclusion})",
             (policy_id,),
         ).fetchone()[0]
@@ -2424,7 +2426,7 @@ class QuickScanWorkStore:
         if quota_group not in group_limits or route_id not in route_limits:
             raise BudgetAdmissionError("budget_route_limit_missing")
         group_active = connection.execute(
-            "SELECT COUNT(*) FROM quick_scan_budget_attempt WHERE policy_id=? "
+            "SELECT COUNT(*) FROM quick_scan_budget_attempt WHERE policy_id=? "  # nosec B608
             "AND quota_group=? AND in_flight=1 "
             f"AND NOT ({capacity_exclusion})",
             (policy_id, quota_group),
@@ -2432,7 +2434,7 @@ class QuickScanWorkStore:
         if group_active >= group_limits[quota_group]:
             raise BudgetAdmissionError("dispatch_quota_group_capacity_full")
         route_active = connection.execute(
-            "SELECT COUNT(*) FROM quick_scan_budget_attempt WHERE policy_id=? "
+            "SELECT COUNT(*) FROM quick_scan_budget_attempt WHERE policy_id=? "  # nosec B608
             "AND route_id=? AND in_flight=1 "
             f"AND NOT ({capacity_exclusion})",
             (policy_id, route_id),

@@ -335,7 +335,7 @@ def amend_research_budget(
         )
         assignments = ",".join(column + "=?" for column in columns.values())
         connection.execute(
-            "UPDATE quick_scan_budget_policy SET "
+            "UPDATE quick_scan_budget_policy SET "  # nosec B608
             + assignments
             + ",updated_at=? WHERE policy_id=?",
             tuple(new[key] for key in columns) + (store._now(), old["policy_id"]),
