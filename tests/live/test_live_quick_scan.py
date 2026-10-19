@@ -201,10 +201,10 @@ def test_live_openai_search_runs_public_company_through_cli_and_cleans_local_art
 @pytest.mark.live
 @pytest.mark.skipif(
     os.environ.get("STOCKQA_RUN_LIVE_E2E") != "1" or not os.environ.get("MINIMAX_API_KEY"),
-    reason="Set STOCKQA_RUN_LIVE_E2E=1 and MINIMAX_API_KEY for one MiniMax-M3 search E2E",
+    reason="Set STOCKQA_RUN_LIVE_E2E=1 and MINIMAX_API_KEY for one MiniMax-M3.1-Flash search E2E",
 )
 def test_live_minimax_search_runs_public_company_through_cli_and_cleans_local_artifacts():
-    """One public CLI question through MiniMax-M3 with a real search-call receipt."""
+    """One public CLI question through MiniMax-M3.1-Flash with a real search-call receipt."""
     repo_root = Path(__file__).resolve().parents[2]
     original_cwd = Path.cwd()
 
@@ -245,7 +245,7 @@ def test_live_minimax_search_runs_public_company_through_cli_and_cleans_local_ar
                         "minimax": {
                             "enabled": True,
                             "api_key": "",
-                            "model": "MiniMax-M3",
+                            "model": "MiniMax-M3.1-Flash",
                             "base_url": "https://api.minimaxi.com/v1/responses",
                             "max_retries": 1,
                             "format_repair_budget": 0,
@@ -337,7 +337,7 @@ def test_live_minimax_search_runs_public_company_through_cli_and_cleans_local_ar
         }
         assert (answer["score"] is None) == (answer["status"] != "scored")
         assert receipt["provider"] == "minimax"
-        assert receipt["requested_model"] == "MiniMax-M3"
+        assert receipt["requested_model"] == "MiniMax-M3.1-Flash"
         safe_receipt_summary = {
             "http_status_code": receipt["http_status_code"],
             "response_status": receipt["response_status"],
@@ -356,7 +356,7 @@ def test_live_minimax_search_runs_public_company_through_cli_and_cleans_local_ar
             "response_id_present": bool(receipt["response_id"]),
             "attempt_id_present": bool(receipt["attempt_id"]),
         }
-        assert receipt["actual_model"] == "MiniMax-M3", safe_receipt_summary
+        assert receipt["actual_model"] == "MiniMax-M3.1-Flash", safe_receipt_summary
         assert receipt["search_status"] == "executed", safe_receipt_summary
         assert receipt["response_id"]
         assert receipt["attempt_id"]
@@ -382,7 +382,7 @@ def test_live_minimax_search_runs_public_company_through_cli_and_cleans_local_ar
 @pytest.mark.live
 @pytest.mark.skipif(
     os.environ.get("STOCKQA_RUN_LIVE_E2E") != "1" or not os.environ.get("MINIMAX_API_KEY"),
-    reason="Set STOCKQA_RUN_LIVE_E2E=1 and MINIMAX_API_KEY for one MiniMax-M3 Anthropic E2E",
+    reason="Set STOCKQA_RUN_LIVE_E2E=1 and MINIMAX_API_KEY for one MiniMax-M3.1-Flash Anthropic E2E",
 )
 def test_live_minimax_anthropic_search_runs_public_company_through_cli_and_cleans_local_artifacts():
     """Exercise the configured MiniMax Anthropic Messages search route end to end."""
@@ -433,7 +433,7 @@ def test_live_minimax_anthropic_search_runs_public_company_through_cli_and_clean
                         "minimax": {
                             "enabled": True,
                             "api_key": "",
-                            "model": "MiniMax-M3",
+                            "model": "MiniMax-M3.1-Flash",
                             "base_url": endpoint,
                             "max_retries": 1,
                             "format_repair_budget": 0,
@@ -539,8 +539,8 @@ def test_live_minimax_anthropic_search_runs_public_company_through_cli_and_clean
         else:
             assert answer["score"] is None, safe_summary_text
         assert receipt["provider"] == "minimax", safe_summary_text
-        assert receipt["requested_model"] == "MiniMax-M3"
-        assert receipt["actual_model"] == "MiniMax-M3", safe_summary_text
+        assert receipt["requested_model"] == "MiniMax-M3.1-Flash"
+        assert receipt["actual_model"] == "MiniMax-M3.1-Flash", safe_summary_text
         request_id = receipt.get("request_id")
         assert request_id is None or (
             isinstance(request_id, str) and bool(request_id.strip())

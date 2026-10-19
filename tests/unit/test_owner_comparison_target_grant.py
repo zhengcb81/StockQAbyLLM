@@ -20,7 +20,7 @@ from tests.unit.test_quick_scan_known_outcome import (
 def target():
     return dict(
         provider="minimax",
-        model="MiniMax-M3",
+        model="MiniMax-M3.1-Flash",
         route_id="minimax-target",
         provider_config_ref="minimax-config",
         policy_id="pack-policy",
@@ -73,7 +73,7 @@ def test_explicit_new_target_document_preserves_old_source_and_fees_and_only_all
         source_work=work,
         subject_ref=document["request"]["physical"]["subject_binding"]["subject_ref"],
         provider="minimax",
-        model="MiniMax-M3",
+        model="MiniMax-M3.1-Flash",
         now=clock[0],
         cohort_id="B01_SYNTHETIC_MINIMAX",
     )
@@ -87,7 +87,7 @@ def test_explicit_new_target_document_preserves_old_source_and_fees_and_only_all
             source_work=work,
             subject_ref=document["request"]["physical"]["subject_binding"]["subject_ref"],
             provider="minimax",
-            model="MiniMax-M3-other",
+            model="MiniMax-M3.1-Flash-other",
             now=clock[0],
             cohort_id="B01_SYNTHETIC_MINIMAX",
         )
@@ -129,7 +129,7 @@ def test_legacy_grant_keeps_exact_original_document_shape_and_source_route_const
             source_work=work,
             subject_ref=document["request"]["physical"]["subject_binding"]["subject_ref"],
             provider="minimax",
-            model="MiniMax-M3",
+            model="MiniMax-M3.1-Flash",
             now=clock[0],
             cohort_id="B01_SYNTHETIC_MINIMAX",
         )

@@ -687,7 +687,7 @@ class TestOrderedSearchProviderCascade:
         accepted.metadata["execution"]["provider"] = "minimax"
         accepted.metadata["execution"]["response_id"] = "resp-minimax"
         primary = _provider("primary", "model-a", failed)
-        backup = _provider("backup", "MiniMax-M3", accepted)
+        backup = _provider("backup", "MiniMax-M3.1-Flash", accepted)
 
         result = _ordered_cascade(primary, backup).search_question(
             Question("Moat?", question_id="IQS_05")

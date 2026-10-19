@@ -142,7 +142,7 @@ def _response(
     return response
 
 
-def _minimax_response(*, searched=True, cited=True, actual_model="MiniMax-M3"):
+def _minimax_response(*, searched=True, cited=True, actual_model="MiniMax-M3.1-Flash"):
     response = _response(searched=searched)
     payload = response.json.return_value
     payload["model"] = actual_model
@@ -157,7 +157,7 @@ def _minimax_response(*, searched=True, cited=True, actual_model="MiniMax-M3"):
 
 
 def _minimax_provider_config(
-    *, base_url="https://api.minimaxi.com/v1/responses", model="MiniMax-M3"
+    *, base_url="https://api.minimaxi.com/v1/responses", model="MiniMax-M3.1-Flash"
 ):
     return {
         "minimax": {
@@ -177,7 +177,7 @@ def _minimax_anthropic_response():
     response.status_code = 200
     response.json.return_value = {
         "id": "msg_mm_cli_01",
-        "model": "MiniMax-M3",
+        "model": "MiniMax-M3.1-Flash",
         "stop_reason": "end_turn",
         "base_resp": {"status_code": 0},
         "content": [
@@ -706,7 +706,7 @@ def test_public_cli_mixed_vendor_fallback_separates_actual_provider_from_route_a
 ):
     monkeypatch.delenv("MINIMAX_API_KEY", raising=False)
     policy = _ordered_policy()
-    policy["models"][1]["model"] = "MiniMax-M3"
+    policy["models"][1]["model"] = "MiniMax-M3.1-Flash"
     providers = _ordered_provider_configs()
     providers["backup"]["base_url"] = "https://api.minimaxi.com/v1/responses"
     exit_code, output_file, session = _invoke(
@@ -748,7 +748,7 @@ def test_public_cli_mixed_vendor_fallback_separates_actual_provider_from_route_a
 @pytest.mark.parametrize(
     ("provider_name", "base_url", "model"),
     [
-        ("openai", "https://api.minimaxi.com/v1/responses", "MiniMax-M3"),
+        ("openai", "https://api.minimaxi.com/v1/responses", "MiniMax-M3.1-Flash"),
         ("minimax", "https://api.openai.com/v1/responses", "gpt-4.1-mini"),
     ],
 )
@@ -1393,8 +1393,8 @@ def test_public_cli_minimax_search_receipt_scores_with_completed_event_and_citat
     assert result["answers"]["IQS_05"]["score"] == 8
     receipt = result["execution_receipts"]["IQS_05"]
     assert receipt["provider"] == "minimax"
-    assert receipt["requested_model"] == "MiniMax-M3"
-    assert receipt["actual_model"] == "MiniMax-M3"
+    assert receipt["requested_model"] == "MiniMax-M3.1-Flash"
+    assert receipt["actual_model"] == "MiniMax-M3.1-Flash"
     assert receipt["search_status"] == "executed"
     assert receipt["response_id"] == "resp_e2e_01"
     assert receipt["attempt_id"]
@@ -1422,8 +1422,8 @@ def test_public_cli_minimax_anthropic_search_receipt_scores_with_correlated_serv
     assert result["answers"]["IQS_05"]["score"] == 8
     receipt = result["execution_receipts"]["IQS_05"]
     assert receipt["provider"] == "minimax"
-    assert receipt["requested_model"] == "MiniMax-M3"
-    assert receipt["actual_model"] == "MiniMax-M3"
+    assert receipt["requested_model"] == "MiniMax-M3.1-Flash"
+    assert receipt["actual_model"] == "MiniMax-M3.1-Flash"
     assert receipt["request_id"] is None
     assert receipt["response_id"] == "msg_mm_cli_01"
     assert receipt["attempt_id"]
@@ -1470,8 +1470,8 @@ def test_public_cli_minimax_anthropic_refuses_score_without_bound_search_result(
 @pytest.mark.parametrize(
     "searched,cited,actual_model",
     [
-        (False, True, "MiniMax-M3"),
-        (True, False, "MiniMax-M3"),
+        (False, True, "MiniMax-M3.1-Flash"),
+        (True, False, "MiniMax-M3.1-Flash"),
         (True, True, "wrong-model"),
     ],
 )
@@ -1496,7 +1496,7 @@ def test_public_cli_minimax_refuses_score_without_correlated_search_receipt(
 @pytest.mark.parametrize(
     "base_url,model",
     [
-        ("https://api.minimax.cn/v1/chat/completions", "MiniMax-M3"),
+        ("https://api.minimax.cn/v1/chat/completions", "MiniMax-M3.1-Flash"),
         ("https://api.minimaxi.com/v1/responses", "MiniMax-M2.7"),
     ],
 )

@@ -17,14 +17,14 @@
     },
     "minimax": {
       "name": "MiniMax",
-      "enabled": false,
+      "enabled": true,
       "api_key": "",
       "_api_key_note": "推荐使用环境变量: MINIMAX_API_KEY",
-      "base_url": "https://api.minimax.chat/v1/text/chatcompletion",
-      "model": "abab6.5s-chat",
+      "base_url": "https://api.minimaxi.com/v1/chat/completions",
+      "model": "MiniMax-M3.1-Flash",
       "timeout": 60,
       "max_retries": 3,
-      "description": "MiniMax API - 备用"
+      "description": "MiniMax API - 使用 MiniMax-M3.1-Flash"
     },
     "glm": {
       "name": "智谱GLM",

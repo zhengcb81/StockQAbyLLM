@@ -15,13 +15,13 @@ def configured():
     policy = dict(
         protocol="stockwiki.refresh_owner_policy/1.3.0",
         provider="minimax",
-        model="MiniMax-M3",
+        model="MiniMax-M3.1-Flash",
         qa=dict(route_id="target", provider_config_ref="minimax-config", policy_id="budget"),
     )
     session.proof["owner_policy"] = policy
     target = dict(
         provider="minimax",
-        model="MiniMax-M3",
+        model="MiniMax-M3.1-Flash",
         route_id="target",
         provider_config_ref="minimax-config",
         policy_id="budget",
@@ -42,7 +42,7 @@ def configured():
             dict(
                 id="target",
                 provider_config_ref="minimax-config",
-                model="MiniMax-M3",
+                model="MiniMax-M3.1-Flash",
                 eligible=True,
             ),
         ],

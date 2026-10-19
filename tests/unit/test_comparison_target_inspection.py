@@ -15,7 +15,9 @@ def prepared(tmp_path, monkeypatch):
     policy = _policy()
     policy["budget"]["currency"] = "CNY"
     route = copy.deepcopy(policy["routes"][0])
-    route.update(id="minimax-target", provider_config_ref="minimax-config", model="MiniMax-M3")
+    route.update(
+        id="minimax-target", provider_config_ref="minimax-config", model="MiniMax-M3.1-Flash"
+    )
     policy["routes"].append(route)
     monkeypatch.setattr(original, "_policy", lambda: copy.deepcopy(policy))
     store, clock, members, pack, receipt, _, _ = original.fixture(tmp_path)
@@ -84,7 +86,7 @@ def test_wrong_target_or_resealed_source_never_becomes_authority(tmp_path, monke
     elif fault == "extra":
         route["approved"] = True
     elif fault == "source_model":
-        requested["physical"]["model_requested"] = "MiniMax-M3"
+        requested["physical"]["model_requested"] = "MiniMax-M3.1-Flash"
     else:
         requested["physical"]["actual_cost_micros"] = 1
     before = store.path.read_bytes()

@@ -42,7 +42,7 @@ class _ResponseStub:
 def _quick_scan_payload() -> dict:
     return {
         "id": "resp_1",
-        "model": "MiniMax-M3",
+        "model": "MiniMax-M3.1-Flash",
         "status": "completed",
         "output": [
             {
@@ -89,7 +89,7 @@ def _envelope(metadata: dict) -> dict:
         entity_id="ENT_TEST",
         company_name="测试公司",
         provider_name="minimax",
-        requested_model="MiniMax-M3",
+        requested_model="MiniMax-M3.1-Flash",
     )
 
 
@@ -245,7 +245,7 @@ def test_responses_receipt_carries_sources_and_source_urls_unchanged() -> None:
     parsed = _parse_search_response(
         _ResponseStub(_quick_scan_payload()),
         provider="minimax",
-        requested_model="MiniMax-M3",
+        requested_model="MiniMax-M3.1-Flash",
     )
     metadata = parsed.execution_metadata
     call = metadata["web_search_calls"][0]

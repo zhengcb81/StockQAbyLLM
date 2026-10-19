@@ -93,11 +93,11 @@ def test_q10_registered_openai_alias_preserves_both_models(monkeypatch):
             "synthetic-requested",
             "https://api.openai.com/v1/responses",
         ),
-        ("minimax", "responses", "MiniMax-M3", "https://api.minimax.io/v1/responses"),
+        ("minimax", "responses", "MiniMax-M3.1-Flash", "https://api.minimax.io/v1/responses"),
         (
             "minimax",
             "anthropic_messages",
-            "MiniMax-M3",
+            "MiniMax-M3.1-Flash",
             "https://api.minimax.io/anthropic/v1/messages",
         ),
         (
@@ -1027,7 +1027,7 @@ def _minimax_search_response(
     event=True,
     event_status="completed",
     source="citation",
-    actual_model="MiniMax-M3",
+    actual_model="MiniMax-M3.1-Flash",
     response_id="resp_mm_01",
     response_status="completed",
 ):
@@ -1100,7 +1100,7 @@ def _minimax_anthropic_response(
     *,
     blocks=None,
     response_id="msg_mm_anthropic_01",
-    actual_model="MiniMax-M3",
+    actual_model="MiniMax-M3.1-Flash",
     stop_reason="end_turn",
     base_resp_status=0,
 ):
@@ -1155,7 +1155,7 @@ def test_sync_redirect_with_fake_completed_search_body_is_not_verified(mock_mana
 
     client = LLMClient(
         "offline-fixture-key",
-        "MiniMax-M3",
+        "MiniMax-M3.1-Flash",
         "https://api.minimaxi.com/v1/responses",
         provider_name="minimax",
     )
@@ -1196,7 +1196,7 @@ async def test_async_redirect_with_fake_completed_search_body_is_not_verified(
 
     client = AsyncLLMClient(
         "offline-fixture-key",
-        "MiniMax-M3",
+        "MiniMax-M3.1-Flash",
         "https://api.minimaxi.com/v1/responses",
         provider_name="minimax",
     )
@@ -1225,7 +1225,7 @@ def test_minimax_search_requires_event_and_same_response_source(mock_manager, so
     session.post.return_value = _minimax_search_response(source=source)
     mock_manager.get_sync_session.return_value = session
     result = LLMClient(
-        "fixture-key", "MiniMax-M3", "https://api.minimaxi.com/v1/responses"
+        "fixture-key", "MiniMax-M3.1-Flash", "https://api.minimaxi.com/v1/responses"
     ).send_search_request("Microsoft")
     assert result.search_verified
     assert result.execution_metadata["provider"] == "minimax"
@@ -1255,7 +1255,7 @@ def test_minimax_responses_payload_keeps_system_text_out_of_input(mock_manager):
     mock_manager.get_sync_session.return_value = session
 
     LLMClient(
-        "fixture-key", "MiniMax-M3", "https://api.minimaxi.com/v1/responses"
+        "fixture-key", "MiniMax-M3.1-Flash", "https://api.minimaxi.com/v1/responses"
     ).send_search_request("Microsoft")
 
     payload = session.post.call_args.kwargs["json"]
@@ -1282,14 +1282,14 @@ def test_minimax_anthropic_messages_search_binds_tool_result_and_keeps_null_requ
     }
     mock_manager.get_sync_session.return_value = session
     endpoint = "https://api.minimaxi.com/anthropic/v1/messages"
-    client = LLMClient("fixture-key", "MiniMax-M3", endpoint, provider_name="minimax")
+    client = LLMClient("fixture-key", "MiniMax-M3.1-Flash", endpoint, provider_name="minimax")
 
     result = client.send_search_request("Example issuer question", "Investment analyst.")
 
     assert result.search_verified
     assert result.request_id is None
     assert result.response_id == "msg_mm_anthropic_01"
-    assert result.actual_model == "MiniMax-M3"
+    assert result.actual_model == "MiniMax-M3.1-Flash"
     assert result.source_urls == ("https://example.com/annual-report",)
     assert result.content == '{"score":8,"description":"Grounded answer."}'
     metadata = result.execution_metadata
@@ -1342,11 +1342,11 @@ def test_minimax_anthropic_messages_search_binds_tool_result_and_keeps_null_requ
 @pytest.mark.parametrize(
     ("actual_model", "response_id", "stop_reason", "base_resp_status"),
     [
-        ("MiniMax-M3", "msg_mm_anthropic_01", "max_tokens", 0),
+        ("MiniMax-M3.1-Flash", "msg_mm_anthropic_01", "max_tokens", 0),
         ("MiniMax-M2.7", "msg_mm_anthropic_01", "end_turn", 0),
-        ("MiniMax-M3", None, "end_turn", 0),
-        ("MiniMax-M3", "msg_mm_anthropic_01", "end_turn", 1004),
-        ("MiniMax-M3", "msg_mm_anthropic_01", "end_turn", False),
+        ("MiniMax-M3.1-Flash", None, "end_turn", 0),
+        ("MiniMax-M3.1-Flash", "msg_mm_anthropic_01", "end_turn", 1004),
+        ("MiniMax-M3.1-Flash", "msg_mm_anthropic_01", "end_turn", False),
     ],
     ids=[
         "truncated",
@@ -1370,7 +1370,7 @@ def test_minimax_anthropic_incomplete_or_mismatched_response_never_verifies(
     mock_manager.get_sync_session.return_value = session
     result = LLMClient(
         "fixture-key",
-        "MiniMax-M3",
+        "MiniMax-M3.1-Flash",
         "https://api.minimaxi.com/anthropic/v1/messages",
         provider_name="minimax",
     ).send_search_request("Example issuer question")
@@ -1400,7 +1400,7 @@ def test_minimax_anthropic_unknown_server_tool_prevents_search_verification(
 
     result = LLMClient(
         "fixture-key",
-        "MiniMax-M3",
+        "MiniMax-M3.1-Flash",
         "https://api.minimaxi.com/anthropic/v1/messages",
         provider_name="minimax",
     ).send_search_request("Example issuer question")
@@ -1444,7 +1444,7 @@ def test_minimax_anthropic_multiple_search_calls_exceed_one_call_policy(mock_man
 
     result = LLMClient(
         "fixture-key",
-        "MiniMax-M3",
+        "MiniMax-M3.1-Flash",
         "https://api.minimaxi.com/anthropic/v1/messages",
         provider_name="minimax",
     ).send_search_request("Example issuer question")
@@ -1470,7 +1470,7 @@ def test_minimax_anthropic_malformed_present_base_resp_never_verifies(
 
     result = LLMClient(
         "fixture-key",
-        "MiniMax-M3",
+        "MiniMax-M3.1-Flash",
         "https://api.minimaxi.com/anthropic/v1/messages",
         provider_name="minimax",
     ).send_search_request("Example issuer question")
@@ -1489,7 +1489,7 @@ def test_minimax_anthropic_absent_optional_base_resp_can_verify(mock_manager):
 
     result = LLMClient(
         "fixture-key",
-        "MiniMax-M3",
+        "MiniMax-M3.1-Flash",
         "https://api.minimaxi.com/anthropic/v1/messages",
         provider_name="minimax",
     ).send_search_request("Example issuer question")
@@ -1555,7 +1555,7 @@ def test_minimax_anthropic_requires_correlated_search_result_sources(mock_manage
     mock_manager.get_sync_session.return_value = session
     result = LLMClient(
         "fixture-key",
-        "MiniMax-M3",
+        "MiniMax-M3.1-Flash",
         "https://api.minimaxi.com/anthropic/v1/messages",
         provider_name="minimax",
     ).send_search_request("Example issuer question")
@@ -1579,7 +1579,7 @@ def test_minimax_anthropic_requires_correlated_search_result_sources(mock_manage
 def test_minimax_search_capabilities_are_limited_to_allowlisted_routes(base_url, expected_support):
     assert (
         LLMClient(
-            "fixture-key", "MiniMax-M3", base_url, provider_name="minimax"
+            "fixture-key", "MiniMax-M3.1-Flash", base_url, provider_name="minimax"
         ).supports_web_search
         is expected_support
     )
@@ -1604,7 +1604,7 @@ def test_minimax_search_fails_closed_without_correlated_evidence(mock_manager, k
     session.post.return_value = _minimax_search_response(**kwargs)
     mock_manager.get_sync_session.return_value = session
     result = LLMClient(
-        "fixture-key", "MiniMax-M3", "https://api.minimaxi.com/v1/responses"
+        "fixture-key", "MiniMax-M3.1-Flash", "https://api.minimaxi.com/v1/responses"
     ).send_search_request("Microsoft")
     assert not result.search_verified
     assert result.execution_metadata["search_status"] == "unverified"
@@ -1626,7 +1626,7 @@ def test_minimax_citation_is_attributed_to_the_preceding_completed_call(mock_man
     session.post.return_value = response
     mock_manager.get_sync_session.return_value = session
     result = LLMClient(
-        "fixture-key", "MiniMax-M3", "https://api.minimaxi.com/v1/responses"
+        "fixture-key", "MiniMax-M3.1-Flash", "https://api.minimaxi.com/v1/responses"
     ).send_search_request("Microsoft")
     assert result.search_verified
     assert result.execution_metadata["search_receipt_id"] == "ws_mm_01"
@@ -1652,7 +1652,7 @@ def test_minimax_citation_after_incomplete_search_is_not_reused(mock_manager):
     session.post.return_value = response
     mock_manager.get_sync_session.return_value = session
     result = LLMClient(
-        "fixture-key", "MiniMax-M3", "https://api.minimaxi.com/v1/responses"
+        "fixture-key", "MiniMax-M3.1-Flash", "https://api.minimaxi.com/v1/responses"
     ).send_search_request("Microsoft")
     assert not result.search_verified
     assert result.source_urls == ()
@@ -1661,13 +1661,13 @@ def test_minimax_citation_after_incomplete_search_is_not_reused(mock_manager):
 @pytest.mark.parametrize(
     "url,model",
     [
-        ("https://api.example.invalid/v1/responses", "MiniMax-M3"),
-        ("https://api.minimaxi.com/v1/chat/completions", "MiniMax-M3"),
-        ("https://api.minimaxi.com:8443/v1/responses", "MiniMax-M3"),
-        ("https://user:pass@api.minimaxi.com/v1/responses", "MiniMax-M3"),
+        ("https://api.example.invalid/v1/responses", "MiniMax-M3.1-Flash"),
+        ("https://api.minimaxi.com/v1/chat/completions", "MiniMax-M3.1-Flash"),
+        ("https://api.minimaxi.com:8443/v1/responses", "MiniMax-M3.1-Flash"),
+        ("https://user:pass@api.minimaxi.com/v1/responses", "MiniMax-M3.1-Flash"),
         ("https://api.minimaxi.com/v1/responses", "MiniMax-M2.7"),
-        ("https://api.minimax.cn/v1/messages", "MiniMax-M3"),
-        ("https://api.minimax.cn/anthropic/v1/messages", "MiniMax-M3"),
+        ("https://api.minimax.cn/v1/messages", "MiniMax-M3.1-Flash"),
+        ("https://api.minimax.cn/anthropic/v1/messages", "MiniMax-M3.1-Flash"),
     ],
 )
 @patch("src.providers.llm_client.http_client_manager")
@@ -1682,7 +1682,7 @@ def test_minimax_unsupported_host_or_model_never_sends(mock_manager, url, model)
 @pytest.mark.parametrize(
     "configured_provider,url,model",
     [
-        ("openai", "https://api.minimaxi.com/v1/responses", "MiniMax-M3"),
+        ("openai", "https://api.minimaxi.com/v1/responses", "MiniMax-M3.1-Flash"),
         ("minimax", "https://api.openai.com/v1/responses", "gpt-4.1-mini"),
     ],
 )
@@ -1708,7 +1708,7 @@ def test_minimax_http_failure_keeps_sanitized_provider_attempt(mock_manager, sta
     response.raise_for_status.side_effect = requests.HTTPError("secret response body")
     session.post.return_value = response
     mock_manager.get_sync_session.return_value = session
-    client = LLMClient("fixture-key", "MiniMax-M3", "https://api.minimaxi.com/v1/responses")
+    client = LLMClient("fixture-key", "MiniMax-M3.1-Flash", "https://api.minimaxi.com/v1/responses")
     with pytest.raises(LLMTransportAttemptError) as raised:
         client.send_search_request("private prompt")
     receipt = raised.value.attempt_receipt
@@ -1722,7 +1722,9 @@ def test_minimax_http_failure_keeps_sanitized_provider_attempt(mock_manager, sta
 @pytest.mark.asyncio
 @patch("src.providers.llm_client.http_client_manager")
 async def test_async_minimax_search_uses_same_receipt_semantics(mock_manager):
-    client = AsyncLLMClient("fixture-key", "MiniMax-M3", "https://api.minimaxi.com/v1/responses")
+    client = AsyncLLMClient(
+        "fixture-key", "MiniMax-M3.1-Flash", "https://api.minimaxi.com/v1/responses"
+    )
     http_client = AsyncMock()
     http_client.post.return_value = _minimax_search_response(source="citation")
     mock_manager.get_async_client = AsyncMock(return_value=http_client)
@@ -1737,7 +1739,7 @@ async def test_async_minimax_search_uses_same_receipt_semantics(mock_manager):
 @patch("src.providers.llm_client.http_client_manager")
 async def test_async_minimax_anthropic_search_uses_same_receipt_semantics(mock_manager):
     endpoint = "https://api.minimaxi.com/anthropic/v1/messages"
-    client = AsyncLLMClient("fixture-key", "MiniMax-M3", endpoint, provider_name="minimax")
+    client = AsyncLLMClient("fixture-key", "MiniMax-M3.1-Flash", endpoint, provider_name="minimax")
     http_client = AsyncMock()
     http_client.post.return_value = _minimax_anthropic_response()
     mock_manager.get_async_client = AsyncMock(return_value=http_client)
@@ -2068,7 +2070,7 @@ _B01_THINKING_ROUTES = [
     (
         "minimax",
         "anthropic_messages",
-        "MiniMax-M3",
+        "MiniMax-M3.1-Flash",
         "https://api.minimax.io/anthropic/v1/messages",
     ),
 ]
@@ -2176,7 +2178,7 @@ def test_b01_thinking_unsupported_responses_reject_before_budget(monkeypatch, as
         "src.providers.llm_client.http_client_manager.get_async_client", async_session
     )
     cls = AsyncLLMClient if asynchronous else LLMClient
-    client = cls("synthetic", "MiniMax-M3", "https://api.minimax.io/v1/responses")
+    client = cls("synthetic", "MiniMax-M3.1-Flash", "https://api.minimax.io/v1/responses")
     with pytest.raises(SearchCapabilityUnavailable, match="thinking"):
         if asynchronous:
             asyncio.run(client.send_search_request_async("synthetic", thinking_enabled=True))

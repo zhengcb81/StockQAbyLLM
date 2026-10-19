@@ -420,7 +420,7 @@ def test_fallback_attempts_share_work_and_response_needs_future_checkpoint(tmp_p
         failure_category="rate_limited",
         provider_error_code="rate_limit_exceeded",
     )
-    second = _prepared(store, work_id, lease, provider="minimax", model="MiniMax-M3")
+    second = _prepared(store, work_id, lease, provider="minimax", model="MiniMax-M3.1-Flash")
     assert second["attempt_id"] != first["attempt_id"]
     store.mark_send_intent(work_id, lease, second["attempt_id"])
     store.record_attempt_outcome(
@@ -1880,7 +1880,7 @@ def test_same_request_key_cannot_change_model_or_prompt(tmp_path):
             lease,
             route_id="route-1",
             provider="minimax",
-            model_requested="MiniMax-M3",
+            model_requested="MiniMax-M3.1-Flash",
             request_cache_key=first["request_cache_key"],
             prompt_sha256="e" * 64,
         )
@@ -2111,7 +2111,7 @@ def test_unknown_attempt_never_releases_for_fallback_or_new_claim(tmp_path):
     assert store.get_item(work_id)["status"] == "uncertain"
     assert store.claim(work_id, lease_seconds=60) is None
     with pytest.raises(LeaseFencedError):
-        _prepared(store, work_id, lease, provider="minimax", model="MiniMax-M3")
+        _prepared(store, work_id, lease, provider="minimax", model="MiniMax-M3.1-Flash")
 
 
 def test_late_old_lease_receipt_is_retained_without_state_overwrite(tmp_path):

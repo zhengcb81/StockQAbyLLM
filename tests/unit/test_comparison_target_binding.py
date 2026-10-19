@@ -23,7 +23,7 @@ def material(tmp_path, monkeypatch):
         source_work=source,
         subject_ref=subject,
         provider="minimax",
-        model="MiniMax-M3",
+        model="MiniMax-M3.1-Flash",
         now=clock[0],
         cohort_id="SYNTHETIC_CROSS_MODEL",
     )["owner_control"]
@@ -41,7 +41,7 @@ def material(tmp_path, monkeypatch):
         scope_id=source["scope_id"],
         identity_revision=source["identity_revision"],
         provider="minimax",
-        model="MiniMax-M3",
+        model="MiniMax-M3.1-Flash",
     )
     keys = (
         "entity_id",
@@ -129,7 +129,7 @@ def test_actual_target_route_and_payload_checked_before_attempt(tmp_path, monkey
     route = dict(
         route_id="minimax-target",
         provider="minimax-config",
-        model_requested="MiniMax-M3",
+        model_requested="MiniMax-M3.1-Flash",
     )
     if fault in {"route", "config", "model"}:
         route[{"route": "route_id", "config": "provider", "model": "model_requested"}[fault]] = (
@@ -137,7 +137,7 @@ def test_actual_target_route_and_payload_checked_before_attempt(tmp_path, monkey
         )
     if fault == "policy":
         policy["policy_id"] = "FOREIGN"
-    data = dict(model="MiniMax-M3", thinking={"type": "adaptive"}, max_tokens=32768)
+    data = dict(model="MiniMax-M3.1-Flash", thinking={"type": "adaptive"}, max_tokens=32768)
     if fault == "thinking":
         data["thinking"] = {"type": "disabled"}
     with ExitStack() as contexts:

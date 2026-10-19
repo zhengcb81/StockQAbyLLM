@@ -292,7 +292,7 @@ class TestQABatchResult:
         batch = QABatchResult(total_questions=2)
         for question_id, transport_provider, model in (
             ("IQS_05", "openai", "gpt-4.1-mini"),
-            ("IQS_06", "minimax", "MiniMax-M3"),
+            ("IQS_06", "minimax", "MiniMax-M3.1-Flash"),
         ):
             batch.add_result(
                 QAResult(

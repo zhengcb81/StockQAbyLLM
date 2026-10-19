@@ -8,11 +8,13 @@
 import hashlib
 import json
 import math
+import os
 import re
 import uuid
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
+from pathlib import Path
 from typing import Any, Dict, Optional, Tuple, cast
 from urllib.parse import urlsplit, urlunsplit
 
@@ -118,6 +120,22 @@ _MIMO_WEB_SEARCH_MODELS = frozenset(
 )
 
 
+def _configured_minimax_model() -> str:
+    """Read the MiniMax model id from llm_apis.json; env override for fixtures."""
+    override = os.environ.get("MINIMAX_MODEL")
+    if isinstance(override, str) and override.strip():
+        return override.strip()
+    path = Path(__file__).resolve().parents[2] / "llm_apis.json"
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+        model = document["providers"]["minimax"]["model"]
+        if isinstance(model, str) and model.strip():
+            return model.strip()
+    except (OSError, KeyError, TypeError, ValueError):
+        pass
+    return "MiniMax-M3.1-Flash"
+
+
 def _search_endpoint(
     base_url: str,
     model: str,
@@ -152,9 +170,10 @@ def _search_endpoint(
             "responses",
         )
     elif parsed.hostname in {"api.minimaxi.com", "api.minimax.io"}:
-        if model != "MiniMax-M3":
+        allowed_model = _configured_minimax_model()
+        if model != allowed_model:
             raise SearchCapabilityUnavailable(
-                "MiniMax web_search is allowlisted only for MiniMax-M3"
+                "MiniMax web_search is allowlisted only for " + allowed_model
             )
         if parsed.path == "/v1/responses":
             protocol = "responses"
@@ -1337,7 +1356,7 @@ def _search_request_payload(
     ):
         raise SearchCapabilityUnavailable(
             "explicit thinking control is not verified for this provider/protocol; "
-            "MiniMax-M3 thinking requires its Anthropic Messages route"
+            "MiniMax thinking requires its Anthropic Messages route"
         )
     if provider == "minimax" and protocol == "responses" and max_output_tokens is not None:
         raise SearchCapabilityUnavailable(

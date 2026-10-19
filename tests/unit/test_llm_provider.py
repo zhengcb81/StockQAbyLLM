@@ -494,7 +494,7 @@ class TestLLMProviderEdgeCases:
 @pytest.mark.parametrize(
     "configured_provider,url,model",
     [
-        ("openai", "https://api.minimaxi.com/v1/responses", "MiniMax-M3"),
+        ("openai", "https://api.minimaxi.com/v1/responses", "MiniMax-M3.1-Flash"),
         ("minimax", "https://api.openai.com/v1/responses", "gpt-4.1-mini"),
     ],
 )

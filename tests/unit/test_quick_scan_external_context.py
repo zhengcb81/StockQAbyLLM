@@ -2510,7 +2510,7 @@ def _external_answer_fixture(
     )
     model = {
         "openai": "gpt-4.1",
-        "minimax": "MiniMax-M3",
+        "minimax": "MiniMax-M3.1-Flash",
         "mimo": "mimo-v2.6-pro",
         "deepseek": "deepseek-flash",
     }[provider]
