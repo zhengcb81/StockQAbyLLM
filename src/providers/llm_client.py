@@ -1268,7 +1268,7 @@ def _extract_sources(items: Any) -> list[Dict[str, Any]]:
         title = item.get("title")
         title = title.strip() if isinstance(title, str) and title.strip() else None
         published = None
-        for key in ("published_date", "published_at", "publish_date", "date"):
+        for key in ("published_date", "published_at", "publish_date", "date", "publish_time"):
             value = item.get(key)
             if isinstance(value, str) and value.strip():
                 published = value.strip()

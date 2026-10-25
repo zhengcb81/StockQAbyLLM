@@ -2397,3 +2397,108 @@ def test_vendor_profile_default_call_captures_final_body_without_optional_contro
     )
     assert "request_generation" not in receipt
     assert posted["thinking"] == {"type": "disabled"}  # Default semantics unchanged.
+
+
+@pytest.mark.parametrize("information_as_of", ["2025-12-31", None])
+@pytest.mark.parametrize(
+    "publication_time", ["2026-10-20T08:32:25.0000000", "2026-10-26T00:00:00Z"]
+)
+def test_mimo_native_publish_time_preserves_financial_information_date(
+    information_as_of, publication_time
+):
+    """Provider publication time must survive without rewriting the answer's fact period."""
+    from src.providers.llm_client import _parse_mimo_search_response
+    from src.providers.llm_response_parser import LLMResponseParser
+
+    answer = {
+        "entity_id": "ENT_FIXTURE",
+        "company_name": "Issuer fixture",
+        "question_id": "IQS_05",
+        "status": "scored" if information_as_of else "insufficient_evidence",
+        "score": 7 if information_as_of else None,
+        "information_as_of": information_as_of,
+        "description": "Only the original answer can state its information period.",
+    }
+    content = json.dumps(answer)
+    response = Mock(status_code=200)
+    response.headers = {"x-request-id": "publish-time-fixture"}
+    response.json.return_value = {
+        "id": "publish-time-response",
+        "model": "mimo-v2.6-pro",
+        "choices": [
+            {
+                "finish_reason": "stop",
+                "message": {
+                    "content": content,
+                    "annotations": [
+                        {
+                            "type": "url_citation",
+                            "url": "https://example.com/issuer-source",
+                            "title": "Issuer source",
+                            "publish_time": publication_time,
+                        }
+                    ],
+                },
+            }
+        ],
+        "usage": {
+            "prompt_tokens": 100,
+            "completion_tokens": 30,
+            "web_search_usage": {"tool_usage": 2, "page_usage": 3},
+        },
+    }
+
+    result = _parse_mimo_search_response(response, requested_model="mimo-v2.6-pro")
+
+    assert result.search_verified
+    assert result.execution_metadata["web_search_calls"][0]["sources"] == [
+        {
+            "url": "https://example.com/issuer-source",
+            "title": "Issuer source",
+            "published_date": publication_time,
+        }
+    ]
+    assert result.execution_metadata["usage"]["search_tool_calls"] == 2
+    assert "information_as_of" not in result.execution_metadata
+    assert result.content == content
+    parsed = LLMResponseParser().parse_structured_response(
+        result.content,
+        expected_question_id="IQS_05",
+        expected_entity_id="ENT_FIXTURE",
+        expected_company_name="Issuer fixture",
+        strict_json_only=True,
+    )
+    assert parsed is not None
+    assert parsed.information_as_of == information_as_of
+
+
+@pytest.mark.parametrize("invalid_time", [None, True, 20261020, [], {}, "  "])
+def test_mimo_publish_time_nontext_values_remain_unknown(invalid_time):
+    """Malformed metadata values cannot become a date or financial fact period."""
+    from src.providers.llm_client import _extract_sources
+
+    assert _extract_sources(
+        [
+            {
+                "url": "https://example.com/issuer-source",
+                "publish_time": invalid_time,
+            }
+        ]
+    ) == [{"url": "https://example.com/issuer-source", "title": None, "published_date": None}]
+
+
+def test_mimo_publish_time_alias_does_not_override_existing_publication_date():
+    from src.providers.llm_client import _extract_sources
+
+    assert (
+        _extract_sources(
+            [
+                {
+                    "url": "https://example.com/issuer-source",
+                    "published_date": "2026-09-01",
+                    "publish_time": "2026-10-20T00:00:00Z",
+                }
+            ]
+        )[0]["published_date"]
+        == "2026-09-01"
+    )
