@@ -165,7 +165,187 @@ class OwnerResearchServices:
             copy.deepcopy(lifecycle._model_resolution),
         )
         self._context_sha256 = canonical_sha256(lifecycle._observation_context)
-        self.owner.check()
+        self.subject_dispatch_readiness = self.preflight_subject_dispatch()
+
+    def preflight_subject_dispatch(self):
+        """Read the original owner's capability CLI before any paid retrieval.
+
+        Readable schema 2 is deliberately insufficient for pre-send subject
+        registration. This is initialization readiness only: every original
+        owner check, registration, lease and budget guard still runs at send.
+        """
+        import os
+        import subprocess  # nosec B404
+        import sys
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        from jsonschema import (
+            Draft202012Validator,
+            FormatChecker,
+            SchemaError,
+            ValidationError,
+        )
+        from referencing import Registry
+        from referencing.exceptions import Unresolvable
+
+        from src.utils.quick_scan_result_outbox import strict_json_loads
+
+        self._assert_registered_inputs()
+        original_client = self.owner.native.client
+        config = original_client.config
+        maximum = 8 * 1024 * 1024
+        try:
+            schema_path = (
+                Path(config["iqs_code_root"]) / "schemas/quick_scan/query-capabilities.schema.json"
+            )
+            if schema_path.stat().st_size > maximum:
+                raise OwnerResearchRejected("subject_dispatch_capability_schema_size")
+            schema = strict_json_loads(schema_path.read_text(encoding="utf-8"))
+            validator = Draft202012Validator(
+                schema, registry=Registry(), format_checker=FormatChecker()
+            )
+            runs = Path(config["runs_dir"])
+            runs.mkdir(parents=True, exist_ok=True)
+            supplied = original_client._environment
+            source_env = os.environ if supplied is None else supplied
+            allowed = {
+                "SYSTEMROOT",
+                "WINDIR",
+                "PATH",
+                "PATHEXT",
+                "COMSPEC",
+                "USERPROFILE",
+                "APPDATA",
+                "LOCALAPPDATA",
+                "SYSTEMDRIVE",
+            }
+            env = {key: value for key, value in source_env.items() if key.upper() in allowed}
+            command = [
+                sys.executable,
+                "-B",
+                "-X",
+                "utf8",
+                "-m",
+                "stockwiki.quick_scan_query_v2_cli",
+                "--root",
+                config["stockwiki_workspace_root"],
+                "--iqs-code-root",
+                config["iqs_code_root"],
+                "--capabilities",
+                "--capabilities-version",
+                "1.1.0",
+            ]
+            with TemporaryDirectory(prefix="subject-ready-", dir=runs) as temporary:
+                env.update(
+                    PYTHONDONTWRITEBYTECODE="1",
+                    PYTHONUTF8="1",
+                    PYTHONIOENCODING="utf-8",
+                    PYTHONPATH=config["stockwiki_code_root"],
+                    TEMP=temporary,
+                    TMP=temporary,
+                )
+                # File-backed output avoids unbounded capture into memory. Only
+                # the bounded public JSON is read; no stderr/body is propagated.
+                with (Path(temporary) / "capabilities.json").open("w+b") as output:
+                    completed = subprocess.run(  # nosec B603
+                        command,
+                        cwd=config["stockwiki_code_root"],
+                        env=env,
+                        stdout=output,
+                        stderr=subprocess.DEVNULL,
+                        timeout=240,
+                        check=False,
+                        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                    )
+                    if completed.returncode != 0:
+                        raise OwnerResearchRejected("subject_dispatch_capability_cli_failed")
+                    output.flush()
+                    if output.seek(0, 2) > maximum:
+                        raise OwnerResearchRejected("subject_dispatch_capability_response_size")
+                    output.seek(0)
+                    response = strict_json_loads(output.read(maximum + 1).decode("utf-8"))
+            validator.validate(response)
+            if (
+                response.get("protocol") != "stockwiki.c06_query_capabilities/1.1.0"
+                or response.get("schema_version") != "1.1.0"
+                or response.get("message_type") != "response"
+                or response.get("operation") != "capabilities"
+            ):
+                raise OwnerResearchRejected("subject_dispatch_capability_envelope_invalid")
+            result = response["result"]
+            watermark = result["watermark"]
+            observations = [
+                mark
+                for mark in watermark["source_watermarks"]
+                if mark["namespace"] == "observations"
+            ]
+            native = [
+                item
+                for item in result["native_interfaces"]
+                if item["purpose"] == "pre_send_subject_registration"
+            ]
+            if (
+                len(observations) != 1
+                or observations[0]["status"] != "available"
+                or observations[0]["schema_version"] not in {3, 4}
+            ):
+                raise OwnerResearchRejected("subject_dispatch_initialization_required")
+            if (
+                result["store_id"] != watermark["store_id"]
+                or result["dispatch_started"] is not False
+                or type(result["API_requests"]) is not int
+                or result["API_requests"] != 0
+                or type(result["database_writes"]) is not int
+                or result["database_writes"] != 0
+                or len(native) != 1
+                or native[0]["component"] != "StockWiki"
+                or native[0]["entry_type"] != "module"
+                or native[0]["entry_point"] != "stockwiki.quick_scan_subject_dispatch_cli"
+                or native[0]["permission_boundary"]
+                != "independent_current_route_manifest_owner_anchor_before_send"
+                or not {
+                    "--root",
+                    "--iqs-code-root",
+                    "--iqs-release-root",
+                    "--operation",
+                    "--request",
+                    "--subject-key",
+                    "--scope",
+                    "--scope-id",
+                    "--expected-decision-id",
+                    "--expected-anchor-version",
+                }.issubset(native[0]["selectors"])
+            ):
+                raise OwnerResearchRejected("subject_dispatch_capability_contract_mismatch")
+            self._assert_registered_inputs()
+            return dict(
+                protocol="stockqa.subject_dispatch_readiness/1.0.0",
+                capabilities_schema_version="1.1.0",
+                store_id=result["store_id"],
+                observed_at=response["response_at"],
+                observation_schema_version=observations[0]["schema_version"],
+                capabilities_sha256=canonical_sha256(response),
+                dispatch_started=False,
+                API_requests=0,
+                database_writes=0,
+                financial_accuracy_proven=False,
+            )
+        except OwnerResearchRejected:
+            raise
+        except (
+            OSError,
+            subprocess.TimeoutExpired,
+            ValueError,
+            TypeError,
+            KeyError,
+            UnicodeError,
+            RecursionError,
+            SchemaError,
+            ValidationError,
+            Unresolvable,
+        ) as error:
+            raise OwnerResearchRejected("subject_dispatch_readiness_unavailable") from error
 
     def _validate_task(self):
         if self.task.company_doc.get("origin") != "owner_public":
