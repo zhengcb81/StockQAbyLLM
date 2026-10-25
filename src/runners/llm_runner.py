@@ -56,6 +56,20 @@ class _QuestionProcessingOptions(_SearchGenerationOptions, total=False):
 logger = get_logger(__name__)
 
 
+def _owner_analysis_scope(owner):
+    """Keep prompt scope from the checked original session, not browser/model metadata."""
+    from contextlib import nullcontext
+
+    from src.providers.base_llm_provider import analysis_subject_scope
+
+    native = getattr(owner, "native", owner)
+    current = getattr(native, "current", None)
+    snapshot = current.get("snapshot", {}) if isinstance(current, dict) else {}
+    binding = snapshot.get("subject_binding", {})
+    subject = binding.get("subject") if isinstance(binding, dict) else None
+    return analysis_subject_scope(subject) if isinstance(subject, dict) else nullcontext()
+
+
 def routing_fingerprint_for(questions: List[Any]) -> str:
     """64-hex routing fingerprint derived from question TEXTS.
 
@@ -634,6 +648,7 @@ class QuickScanWorkLifecycle:
 
                 self._owner_refresh.check()
                 context.enter_context(bind_owner_refresh_guard(self._owner_refresh.check))
+                context.enter_context(_owner_analysis_scope(self._owner_refresh))
             context.enter_context(
                 bind_quick_scan_work(self._store, handle["work_item_id"], handle["lease"])
             )
@@ -789,6 +804,7 @@ class QuickScanWorkLifecycle:
                 )
             owner_refresh.check()
             context.enter_context(bind_owner_refresh_guard(owner_refresh.check))
+            context.enter_context(_owner_analysis_scope(owner_refresh))
             context.enter_context(
                 bind_subject_dispatch_registrar(owner_refresh.register_subject_dispatch)
             )

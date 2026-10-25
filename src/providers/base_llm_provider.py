@@ -7,6 +7,7 @@
 
 import json
 import os
+import re
 from abc import abstractmethod
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -49,6 +50,56 @@ def standard_answer_transport(enabled: bool) -> Iterator[None]:
 
 def standard_answer_transport_enabled() -> bool:
     return _STANDARD_ANSWER_TRANSPORT.get()
+
+
+_ANALYSIS_SUBJECT_SCOPE: ContextVar[Optional[Dict[str, str]]] = ContextVar(
+    "quick_scan_analysis_subject_scope", default=None
+)
+
+
+@contextmanager
+def analysis_subject_scope(subject: Dict[str, Any]) -> Iterator[None]:
+    """Render only the original owner's issuer-only boundary, never infer a group.
+
+    The runner binds this AFTER the original owner permission check. Frozen
+    question text stays untouched; this context enters the actual request hash.
+    Other historical scope kinds leave their prompt bytes unchanged.
+    """
+    rule = None
+    if subject.get("scope_kind") == "standalone_issuer":
+        issuer, subject_id = subject.get("primary_issuer_id"), subject.get("analysis_subject_id")
+        if (
+            not isinstance(issuer, str)
+            or not re.fullmatch(r"ENT_[A-Za-z0-9_-]{1,100}", issuer)
+            or not isinstance(subject_id, str)
+            or not re.fullmatch(r"ASJ_[A-Za-z0-9_-]{1,100}", subject_id)
+        ):
+            raise ValueError("analysis_subject_scope_identity_invalid")
+        rule = (
+            f"Owner-bound analysis subject: {subject_id}; primary issuer: {issuer}.\n"
+            "Research boundary: ISSUER_LEGAL_ONLY (standalone_issuer). This is a choice of the legal issuer as the research subject, "
+            "NOT a claim that it has no subsidiaries, and NOT verification of a consolidated reporting perimeter.\n"
+            "Do not attribute a consolidated group's, subsidiary's or another security's financial or operating numbers to this legal issuer. "
+            "Use evidence only when its perimeter matches this subject. When only group figures are available or scope is unclear, "
+            "return insufficient_evidence with score=null for the affected question, explain the scope mismatch and retain its question_id. "
+            "Do not silently switch to group scope, omit the question or fill an unknown with a middle score.\n"
+        )
+    token = _ANALYSIS_SUBJECT_SCOPE.set(
+        {"entity_id": subject["primary_issuer_id"], "rule": rule} if rule else None
+    )
+    try:
+        yield
+    finally:
+        _ANALYSIS_SUBJECT_SCOPE.reset(token)
+
+
+def _analysis_scope_prompt(entity_id: Optional[str]) -> str:
+    scope = _ANALYSIS_SUBJECT_SCOPE.get()
+    if scope is None:
+        return ""
+    if entity_id != scope["entity_id"]:
+        raise ValueError("analysis_subject_scope_issuer_mismatch")
+    return scope["rule"]
 
 
 def mask_api_key(api_key: str) -> str:
@@ -225,7 +276,7 @@ class BaseLLMProvider(SearchProvider):
         return f"""You are a professional investment analyst. Use current public information.
 {search_rule}
 
-{company_context}{identity_context}{question_identity}Question:
+{company_context}{identity_context}{question_identity}{_analysis_scope_prompt(self.entity_id)}Question:
 {question}
 
 Requirements:
@@ -296,6 +347,7 @@ Requirements:
             f"Target company name: {self.company_name}\n"
             f"Target stable entity_id: {self.entity_id}\n"
             "Answer only for this exact issuer. Do not mix another company's data.\n"
+            f"{_analysis_scope_prompt(self.entity_id)}"
             "Questions as JSON data:\n"
             f"{encoded}\n\nRequirements:\n"
             "1. Preserve each question_id and its original meaning, anchors and business scope. "
