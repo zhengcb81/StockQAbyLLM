@@ -582,7 +582,7 @@ class QuickScanWorkLifecycle:
         except Exception as exc:  # noqa: BLE001 - a seal gap must not lose the answer
             logger.error("检查点封存未完成（%s）——交由 --seal-deliveries 补封", exc)
 
-    def dispatch_context(self, handle: Dict[str, Any]):
+    def dispatch_context(self, handle: Dict[str, Any], *, research_budget_managed: bool = False):
         """Bind the claimed logical item; each actual POST owns its own attempt."""
         from contextlib import ExitStack, nullcontext
 
@@ -592,6 +592,22 @@ class QuickScanWorkLifecycle:
             bind_quick_scan_work,
         )
 
+        if type(research_budget_managed) is not bool:
+            raise ValueError("research_budget_managed must be a boolean")
+        if research_budget_managed:
+            from src.utils.quick_scan_owner_refresh import OwnerRefreshSession
+            from src.utils.quick_scan_refresh_execution import ApprovedRefreshSession
+
+            if (
+                not self._transport_managed
+                or not isinstance(self._owner_refresh, ApprovedRefreshSession)
+                or self._owner_refresh.service.store is not self._store
+                or not isinstance(self._owner_refresh.native, OwnerRefreshSession)
+                or self._owner_refresh.native.store is not self._store
+                or self._budget_policy is None
+                or self._budget_route is None
+            ):
+                raise ValueError("research_dispatch_original_owner_budget_required")
         if not self._transport_managed:
             return nullcontext()
         context = ExitStack()
@@ -621,7 +637,7 @@ class QuickScanWorkLifecycle:
             context.enter_context(
                 bind_quick_scan_work(self._store, handle["work_item_id"], handle["lease"])
             )
-            if self._budget_policy is not None:
+            if self._budget_policy is not None and not research_budget_managed:
                 context.enter_context(bind_own_reservation())
             context.enter_context(
                 bind_quick_scan_route(

@@ -355,7 +355,7 @@ class OwnerResearchServices:
                     raise OwnerResearchRejected("approved_native_budget_route_required")
                 handles = [self._handles[qid] for qid in selected]
                 binding = (
-                    self.lifecycle.dispatch_context(handles[0])
+                    self.lifecycle.dispatch_context(handles[0], research_budget_managed=True)
                     if len(handles) == 1
                     else self.lifecycle.dispatch_question_pack_context(handles)
                 )
@@ -709,6 +709,60 @@ class OwnerResearchServices:
             )
         return self.request_resume("stockqa:" + response["receipt"]["attempt_id"])
 
+    def restore_finalization_handle(self, question_id, *, native_reference):
+        """Restore an original live response handle without reclaiming or renewal.
+
+        Only the registered question's own successful attempt may supply its
+        original token/epoch. The store rechecks that same lease again when
+        committing the answer, so a race cannot upgrade a stale handle.
+        This changes in-memory handles only; it creates no dispatch or grant.
+        """
+        from src.utils.quick_scan_work_store import Lease
+
+        self._assert_registered_inputs()
+        entry = self.owner.entries.get(question_id)
+        if (
+            question_id not in self.questions
+            or not isinstance(entry, dict)
+            or entry.get("kind") != "work"
+        ):
+            raise OwnerResearchRejected("finalization_registered_question_required")
+        response = self._known_native(native_reference)
+        if response is None:
+            raise OwnerResearchRejected("finalization_original_native_response_required")
+        work_id = entry["work_item_id"]
+        matches = [
+            attempt
+            for attempt in self.store.list_attempts(work_id)
+            if (self.store.get_attempt_response(attempt["attempt_id"]) or {}).get("receipt")
+            == response["receipt"]
+        ]
+        if len(matches) != 1 or matches[0]["phase"] != "response_available":
+            raise OwnerResearchRejected("finalization_original_successful_member_required")
+        attempt = matches[0]
+        item = self.store.get_item(work_id)
+        if (
+            item["lease_token"] != attempt["lease_token"]
+            or item["lease_epoch"] != attempt["lease_epoch"]
+        ):
+            raise OwnerResearchRejected("finalization_original_lease_changed")
+        lease = Lease(attempt["lease_token"], attempt["lease_epoch"])
+        self.store._assert_lease(item, lease, self.store._now())
+        handle = dict(
+            claimed=True,
+            reason="restored_original_finalization_handle",
+            work_item_id=work_id,
+            lease=lease,
+        )
+        existing = self._handles.get(question_id)
+        if existing is not None and (
+            existing.get("work_item_id") != work_id or existing.get("lease") != lease
+        ):
+            raise OwnerResearchRejected("finalization_existing_handle_conflict")
+        self._assert_registered_inputs()
+        self._handles[question_id] = handle
+        return dict(handle)
+
     def commit_standard_answers(self, answers, *, native_reference):
         """Use original native checkpoints; does not manufacture search proof.
 
@@ -734,6 +788,29 @@ class OwnerResearchServices:
         saved = []
         for body in answers:
             qid = body["question_id"]
+            entry = self.owner.entries.get(qid)
+            if not isinstance(entry, dict) or entry.get("kind") != "work":
+                raise OwnerResearchRejected("checkpoint_original_registered_work_required")
+            work_id = entry["work_item_id"]
+            checkpoint = self.store.get_answer_checkpoint(work_id)
+            if checkpoint is not None:
+                standard = self.store.get_standard_answer(work_id)
+                original = self.store.get_attempt_response(checkpoint["attempt_id"])
+                if (
+                    not isinstance(standard, dict)
+                    or standard.get("answer") != body
+                    or original is None
+                    or original["receipt"] != native
+                    or checkpoint["payload"]["provenance"].get("provider_attempt_id")
+                    != native["attempt_id"]
+                ):
+                    raise OwnerResearchRejected("checkpoint_existing_original_answer_conflict")
+                # A process may die after the atomic answer save but before
+                # delivery sealing. Reuse the exact saved answer, never a new
+                # lease or model send, and let the original lifecycle reseal.
+                self.lifecycle._seal_delivery(work_id)
+                saved.append(qid)
+                continue
             handle = self._handles.get(qid)
             if handle is None:
                 raise OwnerResearchRejected("original_active_work_lease_required")

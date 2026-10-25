@@ -68,7 +68,8 @@ def test_known_refusal_json_is_not_reported_as_successful_native_attempt(tmp_pat
 
 @pytest.mark.parametrize("drift", ["company_ref", "endpoint", "limits"])
 @pytest.mark.parametrize(
-    "entrypoint", ["inspect", "resume", "observe", "observations", "checkpoint", "intent"]
+    "entrypoint",
+    ["inspect", "resume", "observe", "observations", "checkpoint", "intent", "finalization_handle"],
 )
 def test_every_cache_and_observer_entrypoint_refuses_separate_carrier_drift(drift, entrypoint):
     # Guard-only unit object, not an admitted owner. The positive assertion
@@ -100,6 +101,7 @@ def test_every_cache_and_observer_entrypoint_refuses_separate_carrier_drift(drif
         service=SimpleNamespace(budget=copy.deepcopy(policy)),
         check=lambda: None,
     )
+    mapper.owner_batch_claim = mapper._owner_batch_claim_snapshot = False
     mapper._task_sha256 = canonical_sha256(task.raw)
     mapper._questions_snapshot = copy.deepcopy(task.questions)
     mapper._company_snapshot = copy.deepcopy(task.company_doc)
@@ -129,6 +131,9 @@ def test_every_cache_and_observer_entrypoint_refuses_separate_carrier_drift(drif
             [], native_reference="stockqa:unknown"
         ),
         "intent": lambda: mapper.recover_intent({"question_ids": ["other"]}),
+        "finalization_handle": lambda: mapper.restore_finalization_handle(
+            "other", native_reference="stockqa:unknown"
+        ),
     }
     with pytest.raises(OwnerResearchRejected, match="registered_runtime_inputs_changed"):
         actions[entrypoint]()
