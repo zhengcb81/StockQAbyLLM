@@ -135,6 +135,139 @@ def _authorize(authority, request, now):
     return result
 
 
+def _single_physical(store, con, item, attempt):
+    """Known singleton proof from its original pre-send intent, never a fake pack.
+
+    Legacy singles without the immutable research-intent/receipt association
+    remain unsupported. This is a versioned carrier within the existing work
+    decision envelope; the released pack carrier stays byte-for-byte unchanged.
+    """
+    from .quick_scan_owner_refresh_journal import read as owner_binding
+    from .quick_scan_question_pack_journal import _fingerprint
+    from .quick_scan_research_intent import _encode, _hash
+    from .quick_scan_subject_journal import (
+        bound_context,
+        dispatch_request,
+        guard_response,
+        receipt_record,
+    )
+    from .quick_scan_work_store import WorkConflictError
+
+    aid = attempt["attempt_id"]
+    intent = con.execute(
+        "SELECT * FROM quick_scan_research_intent WHERE native_attempt_id=?", (aid,)
+    ).fetchone()
+    if intent is None:
+        raise WorkConflictError("owner_work_frozen_native_singleton_intent_required")
+    # Revalidate the original join in THIS transaction, including table checks
+    # during reopen (where store can be the original class, not an instance).
+    members = strict_json_loads(intent["work_item_ids_json"])
+    original = {
+        key: intent[key]
+        for key in ("task_sha256", "intent_sha256", "native_attempt_id", "request_payload_sha256")
+    }
+    original["work_item_ids"] = members
+    for key in ("task_sha256", "intent_sha256", "request_payload_sha256"):
+        _sha(original[key])
+    if (
+        members != [item["work_item_id"]]
+        or _encode(members) != intent["work_item_ids_json"]
+        or _hash(original) != intent["binding_sha256"]
+    ):
+        raise WorkConflictError("owner_work_original_singleton_proof_required")
+    budget = con.execute(
+        "SELECT * FROM quick_scan_budget_attempt WHERE budget_attempt_id=?", (aid,)
+    ).fetchone()
+    terminal = con.execute(
+        "SELECT * FROM quick_scan_budget_terminal WHERE budget_attempt_id=?", (aid,)
+    ).fetchone()
+    if (
+        budget is None
+        or terminal is None
+        or budget["work_attempt_id"] != aid
+        or budget["status"] != "settled"
+        or terminal["terminal_outcome"] != "completed"
+        or budget["actual_cost_micros"] is None
+        or budget["in_flight"] != 0
+        or budget["request_counted"] != 1
+        or terminal["settled_at"] != budget["reconciled_at"]
+        or any(budget[k] != attempt[k] for k in ("route_id", "provider", "model_requested"))
+    ):
+        raise WorkConflictError("owner_work_physical_not_settled")
+    receipt_sha = attempt["receipt_sha256"] or attempt["late_receipt_sha256"]
+    response = store._response_for_checkpoint(con, attempt, receipt_sha)
+    receipt = response["receipt"]
+    if (
+        receipt.get("request_payload_sha256") != original["request_payload_sha256"]
+        or receipt.get("research_intent_binding_sha256") != intent["binding_sha256"]
+        or response["receipt_sha256"]
+        not in {attempt["receipt_sha256"], attempt["late_receipt_sha256"]}
+        or type(receipt.get("http_status_code")) is not int
+        or not 200 <= receipt["http_status_code"] < 300
+        or attempt["phase"] == "response_available"
+        and (
+            attempt["receipt_sha256"] != response["receipt_sha256"]
+            or attempt["http_status_code"] != receipt["http_status_code"]
+            or attempt["request_id"] != receipt.get("request_id")
+        )
+    ):
+        raise WorkConflictError("owner_work_physical_receipt_mismatch")
+    context = bound_context(con, item)
+    pre = con.execute(
+        "SELECT * FROM quick_scan_subject_send_receipt WHERE attempt_id=?", (aid,)
+    ).fetchone()
+    binding = owner_binding(con, item["work_item_id"])
+    if context is None or pre is None or binding is None:
+        raise WorkConflictError("owner_work_context2_owner_dispatch_required")
+    owner_receipt = receipt_record(con, pre)
+    expected = dispatch_request(
+        item,
+        attempt,
+        context,
+        execution_attempt_id=receipt["attempt_id"],
+        provider_actual=receipt["provider"],
+        provider_prompt_sha256=receipt["prompt_sha256"],
+    )
+    if owner_receipt["receipt"]["dispatch_request"] != expected:
+        raise WorkConflictError("owner_work_singleton_dispatch_mismatch")
+    guard_response(con, aid, receipt)
+    if item["lease_epoch"] != attempt["lease_epoch"]:
+        raise WorkConflictError("owner_work_member_fence_mismatch")
+    return dict(
+        proof_protocol="stockqa.native_singleton_known_response/1.0.0",
+        research_task_sha256=intent["task_sha256"],
+        research_intent_sha256=intent["intent_sha256"],
+        research_intent_binding_sha256=intent["binding_sha256"],
+        work_fingerprint=_fingerprint(item),
+        subject_binding=context["subject_binding"],
+        subject_dispatch_receipt_sha256=owner_receipt["receipt_sha256"],
+        owner_refresh_binding_sha256=binding["binding_sha256"],
+        attempt_id=aid,
+        lease_epoch=attempt["lease_epoch"],
+        lease_token=attempt["lease_token"],
+        execution_attempt_id=receipt["attempt_id"],
+        receipt_sha256=response["receipt_sha256"],
+        response_sha256=response["response_sha256"],
+        response_status=receipt.get("response_status"),
+        request_payload_sha256=original["request_payload_sha256"],
+        prompt_sha256=attempt["prompt_sha256"],
+        provider_prompt_sha256=receipt["prompt_sha256"],
+        provider=receipt["provider"],
+        route_id=attempt["route_id"],
+        route_provider=attempt["provider"],
+        model_requested=attempt["model_requested"],
+        actual_model=response["model_resolved"],
+        model_resolution_sha256=receipt["model_resolution_sha256"],
+        budget_attempt_id=aid,
+        budget_policy_id=budget["policy_id"],
+        budget_policy_version=budget["policy_version"],
+        budget_currency=budget["currency"],
+        actual_cost_micros=budget["actual_cost_micros"],
+        physical_terminal="completed",
+        settled_at=terminal["settled_at"],
+    )
+
+
 def _physical(store, con, item, attempt):
     """Re-derive settled physical evidence, not a caller receipt or status flag."""
     from .quick_scan_question_pack_journal import _fingerprint, _read
@@ -157,10 +290,10 @@ def _physical(store, con, item, attempt):
         "SELECT * FROM quick_scan_question_pack_member WHERE attempt_id=?",
         (attempt["attempt_id"],),
     ).fetchone()
-    # Native packs freeze the actual request payload before POST. Older single
-    # attempts lack this pre-send payload proof and are deliberately unsupported.
+    # Original research SDK singles carry a separately anchored pre-send intent.
+    # Never invent pack membership to resolve their known unusable responses.
     if member is None:
-        raise WorkConflictError("owner_work_frozen_native_pack_required")
+        return _single_physical(store, con, item, attempt)
     pack = _read(con, member["pack_id"])
     if pack is None or pack["physical_outcome"] != "response_available":
         raise WorkConflictError("owner_work_known_response_required")
