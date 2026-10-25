@@ -403,10 +403,19 @@ class ApprovedRefreshSession:
                 raise AdmissionRejected("refresh_execution_approved_controls_mismatch")
         self._execution_controls = actual
 
-    def assert_executor_policy(self, config_file, policy, *, policy_reader=None):
-        if (
+    def assert_executor_policy(
+        self, config_file, policy, *, executor_store=None, policy_reader=None
+    ):
+        # The registered admission can use an explicit work-store location.
+        # Authenticate the runner's actual store, not an unrelated conventional
+        # filename beside its model configuration. Legacy callers still bind
+        # to that conventional location when no actual store is supplied.
+        executor_path = (
             Path(config_file).absolute().parent / "quick_scan_work.sqlite"
-        ).resolve() != self.service.store.path.resolve():
+            if executor_store is None
+            else executor_store.path
+        )
+        if executor_path.resolve() != self.service.store.path.resolve():
             raise AdmissionRejected("refresh_execution_original_ledger_required")
         expected = _budget_policy_projection(self.service.budget)
         if canonical_bytes(_budget_policy_projection(policy)) != canonical_bytes(expected):

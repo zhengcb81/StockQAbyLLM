@@ -324,3 +324,55 @@ def test_public_admission_uses_exact_native_scope_and_replays_original_work(actu
     (tmp_path / "admission-revoked.stdout.log").write_bytes(denied.stdout)
     (tmp_path / "admission-revoked.stderr.log").write_bytes(denied.stderr)
     assert denied.returncode == 2 and json.loads(denied.stdout)["registered_with_executor"] is False
+
+
+@pytest.fixture
+def compact_binding_actual(tmp_path, request, monkeypatch):
+    """Original owner fixture with a compact source ID before its first save.
+
+    Only synthetic input spelling changes. Owner receipts, producer hashes,
+    native consent, admission, ledger transactions and replay stay original.
+    """
+    from stockwiki.quick_scan_store import QuickScanStore
+
+    compact = "BIND_bdcbad655ea67df3f9ded4c9b1bf836a"
+    original_save = QuickScanStore.save_entity
+
+    def save_with_compact_fixture_id(store, entity, *, source_bindings):
+        if any(row["binding_ref"] == "BND_fixture_1" for row in source_bindings):
+            assert store.paths.root.resolve().is_relative_to(tmp_path.resolve())
+            for security in entity["securities"]:
+                if security["source_binding_ref"] == "BND_fixture_1":
+                    security["source_binding_ref"] = compact
+            for binding in source_bindings:
+                if binding["binding_ref"] == "BND_fixture_1":
+                    binding["binding_ref"] = compact
+        return original_save(store, entity, source_bindings=source_bindings)
+
+    monkeypatch.setattr(QuickScanStore, "save_entity", save_with_compact_fixture_id)
+    return actual.__wrapped__(tmp_path, request)
+
+
+def test_public_admission_compact_binding_keeps_exact_owner_scope_replay_and_revocation(
+    compact_binding_actual, tmp_path
+):
+    # Reuse the real native CLI flow, not a synthetic admission proof or result.
+    test_public_admission_uses_exact_native_scope_and_replays_original_work(
+        compact_binding_actual, tmp_path
+    )
+    identity_file = compact_binding_actual[-1]
+    exported = json.loads(identity_file.read_bytes())
+    expected = "BIND_bdcbad655ea67df3f9ded4c9b1bf836a"
+    assert [row["source_binding_ref"] for row in exported["payload"]["listings"]] == [expected]
+    ledger = QuickScanWorkStore(tmp_path / "executor.sqlite")
+    with closing(ledger._connect()) as connection:
+        rows = connection.execute(
+            "SELECT source_binding_ref,source_binding_refs_json FROM work_item"
+        ).fetchall()
+        assert len(rows) == 1
+        assert rows[0]["source_binding_ref"] == expected
+        assert json.loads(rows[0]["source_binding_refs_json"]) == [expected]
+        assert connection.execute("SELECT COUNT(*) FROM attempt").fetchone()[0] == 0
+        assert (
+            connection.execute("SELECT COUNT(*) FROM quick_scan_budget_attempt").fetchone()[0] == 0
+        )

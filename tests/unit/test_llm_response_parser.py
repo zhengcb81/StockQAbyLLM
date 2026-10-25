@@ -569,3 +569,50 @@ def test_question_pack_cannot_mix_declared_identities_without_a_caller_binding(f
 def test_question_pack_rejects_overflowed_json_number_without_raising():
     content = '{"answers":[{"question_id":"IQS_01","score":8,"description":"x","metadata":{"value":1e999}}]}'
     assert _parse_question_pack(content) is None
+
+
+@pytest.mark.parametrize(
+    "content,code,pointer",
+    [
+        ('```json\n{"answers":[]}\n```', "invalid_json", ""),
+        ('{"answers":[],"private_field":"not exported"}', "pack_root_fields", ""),
+        ('{"answers":[],"answers":[]}', "duplicate_json_key", ""),
+    ],
+)
+def test_pack_diagnostics_identify_root_failure_without_relaxing_parser(content, code, pointer):
+    parser = LLMResponseParser()
+    result, diagnostic = parser.parse_question_pack_response_with_diagnostics(content, ["IQS_01"])
+    assert result is None and parser.parse_question_pack_response(content, ["IQS_01"]) is None
+    assert {"code": code, "pointer": pointer} in diagnostic["rejections"]
+    assert content not in json.dumps(diagnostic)
+    assert "not exported" not in json.dumps(diagnostic)
+
+
+def test_pack_diagnostics_precise_identity_and_member_fields_do_not_leak_values():
+    parser = LLMResponseParser()
+    foreign = _question_pack_item("IQS_01", entity_id="ENT_PRIVATE_FOREIGN")
+    result, diagnostic = parser.parse_question_pack_response_with_diagnostics(
+        json.dumps({"answers": [foreign]}), ["IQS_01"], expected_entity_id="ENT_EXPECTED"
+    )
+    assert result is None
+    assert diagnostic["rejections"] == [
+        {"code": "foreign_entity_id", "pointer": "/answers/0/entity_id"}
+    ]
+    assert "PRIVATE_FOREIGN" not in json.dumps(diagnostic)
+    content = json.dumps(
+        {"answers": [_question_pack_item("IQS_01", score=True), _question_pack_item("IQS_02")]}
+    )
+    result, diagnostic = parser.parse_question_pack_response_with_diagnostics(
+        content, ["IQS_01", "IQS_02"]
+    )
+    assert result.invalid_question_ids == ("IQS_01",)
+    assert [answer.question_id for answer in result.answers] == ["IQS_02"]
+    assert {
+        "code": "invalid_score",
+        "pointer": "/answers/0/score",
+        "question_id": "IQS_01",
+    } in diagnostic["rejections"]
+    clean, clean_diagnostic = parser.parse_question_pack_response_with_diagnostics(
+        json.dumps({"answers": [_question_pack_item("IQS_02")]}), ["IQS_02"]
+    )
+    assert clean is not None and clean_diagnostic["rejections"] == []

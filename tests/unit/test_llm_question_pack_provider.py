@@ -149,7 +149,7 @@ def test_question_pack_one_call_exact_prompt_and_trusted_logical_projection(pack
     assert reply.missing_question_ids == reply.invalid_question_ids == ()
     provider.client.send_search_request.assert_called_once()
     call = provider.client.send_search_request.call_args
-    assert call.kwargs == {"thinking_enabled": True, "max_output_tokens": 8192}
+    assert call.kwargs == {"thinking_enabled": True, "max_output_tokens": 8192, "json_mode": True}
     prompt = call.args[0]
     assert prompt.count("Target company name: Synthetic Co") == 1
     assert prompt.count("Target stable entity_id: ENT_SYNTHETIC") == 1
@@ -366,6 +366,7 @@ def test_question_pack_explicit_off_and_tokens_are_forwarded(pack_fixture):
     assert provider.client.send_search_request.call_args.kwargs == {
         "thinking_enabled": False,
         "max_output_tokens": 16384,
+        "json_mode": True,
     }
 
 
@@ -408,3 +409,18 @@ def test_single_generation_controls_and_repair_share_configuration(tmp_path, mon
         call.kwargs == {"thinking_enabled": True, "max_output_tokens": 8192}
         for call in provider.client.send_search_request.call_args_list
     )
+
+
+def test_pack_json_mode_uses_original_resolved_sdk_capability_not_config_reference(pack_fixture):
+    provider, questions, _asserted, _projector = pack_fixture
+    assert provider.client.supports_search_json_mode is True
+    # Leave provider/config reference as mimo, but resolve the actual client
+    # through another supported native endpoint. The pack must not guess.
+    provider.client.provider_name = "openai"
+    provider.client.base_url = "https://api.openai.com/v1/responses"
+    provider.client.model = "gpt-4.1-mini"
+    assert provider.client.supports_web_search is True
+    assert provider.client.supports_search_json_mode is False
+    provider.search_question_pack(questions)
+    assert "json_mode" not in provider.client.send_search_request.call_args.kwargs
+    provider.client.send_search_request.assert_called_once()

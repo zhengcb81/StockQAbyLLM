@@ -299,3 +299,90 @@ def test_recovery_reference_keeps_original_public_descriptor_and_time():
     assert reference["original_qualification_status"] == "historical_original"
     assert reference["new_observation_created"] is False
     assert payload["observed_at"] == "2025-04-01T00:00:00Z"
+
+
+def executor_policy_session(store, policy):
+    """Pure policy/ledger component fixture; this does not authenticate consent."""
+    from types import SimpleNamespace as NS
+
+    session = ApprovedRefreshSession.__new__(ApprovedRefreshSession)
+    session.service = NS(store=store, budget=copy.deepcopy(policy))
+    session._policy_check = None
+    return session
+
+
+def test_explicit_original_executor_store_allows_registered_nondefault_layout(tmp_path):
+    from src.utils.quick_scan_work_store import QuickScanWorkStore
+    from tests.unit.test_quick_scan_budget import _policy
+
+    policy = _policy()
+    store = QuickScanWorkStore(tmp_path / "approved-workspace" / "work.sqlite")
+    config = tmp_path / "runtime" / "llm_apis.json"
+    original = store.path.read_bytes()
+    session = executor_policy_session(store, policy)
+
+    session.assert_executor_policy(config, policy, executor_store=store)
+
+    assert store.path.read_bytes() == original
+    assert not (config.parent / "quick_scan_work.sqlite").exists()
+
+
+def test_explicit_different_executor_store_still_refused_without_mutation(tmp_path):
+    from src.utils.quick_scan_work_store import QuickScanWorkStore
+    from tests.unit.test_quick_scan_budget import _policy
+
+    policy = _policy()
+    original = QuickScanWorkStore(tmp_path / "original.sqlite")
+    different = QuickScanWorkStore(tmp_path / "different.sqlite")
+    hashes = [store.path.read_bytes() for store in (original, different)]
+    session = executor_policy_session(original, policy)
+
+    with pytest.raises(AdmissionRejected, match="refresh_execution_original_ledger_required"):
+        session.assert_executor_policy(tmp_path / "llm_apis.json", policy, executor_store=different)
+
+    assert [store.path.read_bytes() for store in (original, different)] == hashes
+
+
+def test_legacy_executor_store_omission_keeps_default_path_contract(tmp_path):
+    from src.utils.quick_scan_work_store import QuickScanWorkStore
+    from tests.unit.test_quick_scan_budget import _policy
+
+    policy = _policy()
+    default = QuickScanWorkStore(tmp_path / "quick_scan_work.sqlite")
+    session = executor_policy_session(default, policy)
+    session.assert_executor_policy(tmp_path / "llm_apis.json", policy)
+    session.service.store = QuickScanWorkStore(tmp_path / "elsewhere.sqlite")
+    with pytest.raises(AdmissionRejected, match="refresh_execution_original_ledger_required"):
+        session.assert_executor_policy(tmp_path / "llm_apis.json", policy)
+
+
+def test_explicit_original_executor_store_does_not_bypass_confirmed_policy(tmp_path):
+    from src.utils.quick_scan_work_store import QuickScanWorkStore
+    from tests.unit.test_quick_scan_budget import _policy
+
+    policy = _policy()
+    store = QuickScanWorkStore(tmp_path / "approved.sqlite")
+    session = executor_policy_session(store, policy)
+    altered = copy.deepcopy(policy)
+    altered["budget"]["max_cost"] += 1
+    with pytest.raises(
+        AdmissionRejected, match="refresh_execution_confirmed_model_policy_required"
+    ):
+        session.assert_executor_policy(tmp_path / "llm_apis.json", altered, executor_store=store)
+
+
+def test_explicit_original_executor_store_keeps_live_policy_change_guard(tmp_path):
+    from src.utils.quick_scan_work_store import QuickScanWorkStore
+    from tests.unit.test_quick_scan_budget import _policy
+
+    policy = _policy()
+    store = QuickScanWorkStore(tmp_path / "approved.sqlite")
+    session = executor_policy_session(store, policy)
+    current = copy.deepcopy(policy)
+    session.assert_executor_policy(
+        tmp_path / "llm_apis.json", policy, executor_store=store, policy_reader=lambda: current
+    )
+    session._policy_check()
+    current["routes"][0]["model"] = "different-model"
+    with pytest.raises(AdmissionRejected, match="refresh_execution_model_policy_changed"):
+        session._policy_check()

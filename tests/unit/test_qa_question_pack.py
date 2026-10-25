@@ -208,8 +208,9 @@ def test_claim_refusal_is_not_sent_and_splits_pack():
     e, p, lc = engine()
     lc.refused.add("CORE_02")
     batch = e.process_questions([q(1), q(2), q(3)], question_pack_size=3)
-    assert [x[0] for x in p.calls] == [("CORE_01",), ("CORE_03",)]
+    assert [x[0] for x in p.calls] == [("CORE_01",)]
     assert batch.results[1].metadata["work_claim_refused"]
+    assert batch.results[2].metadata["question_pack_not_dispatched"]
 
 
 def test_scope_perimeter_company_and_security_do_not_mix():
@@ -304,7 +305,9 @@ def test_real_lifecycle_requires_owner_and_transport_before_any_store_rows(tmp_p
     assert not store.find_work_items(entity_id="ENT_TEST", question_ids=["CORE_01"])["CORE_01"]
 
 
-@pytest.mark.parametrize("partial", [False, True])
+@pytest.mark.parametrize(
+    "partial", [False, True, "partial_pending", "uncertain_pending", "unverified_pending"]
+)
 def test_actual_lifecycle_client_group_store_and_checkpoints_only_valid_members(
     tmp_path, monkeypatch, partial
 ):
@@ -332,7 +335,8 @@ def test_actual_lifecycle_client_group_store_and_checkpoints_only_valid_members(
     monkeypatch.chdir(tmp_path)
     store = QuickScanWorkStore(tmp_path / "work.sqlite")
     context = _v2_context()
-    qids = ["IQS_01", "IQS_02"]
+    has_pending = isinstance(partial, str)
+    qids = ["IQS_01", "IQS_02"] + (["IQS_04"] if has_pending else [])
     questions = [
         Question(
             text=next(x for x in MANIFEST["questions"] if x["id"] == qid)["prompt"],
@@ -380,8 +384,8 @@ def test_actual_lifecycle_client_group_store_and_checkpoints_only_valid_members(
     )
     expected_routing = routing_fingerprints(owner)
     expected_generation = {qid: owner.fields[qid]["generation"] for qid in qids}
-    assert len(set(expected_routing.values())) == 2
-    assert [expected_generation[qid] for qid in qids] == [1, 2]
+    assert len({expected_routing[qid] for qid in qids[:2]}) == 2
+    assert [expected_generation[qid] for qid in qids[:2]] == [1, 2]
     owner_requests = []
 
     def register(request):
@@ -407,6 +411,23 @@ def test_actual_lifecycle_client_group_store_and_checkpoints_only_valid_members(
         budget_policy=_policy(),
         budget_route={**_policy()["routes"][0], "provider_config_ref": "mimo"},
     )
+    if has_pending:
+        # Model the real admission ledger: the next question is registered
+        # pending before this engine runs, not invented by a skipped claim.
+        future = questions[-1]
+        registered = store.create_or_attach(
+            **identity,
+            question_id=future.question_id,
+            generation=expected_generation[future.question_id],
+            scope="entity",
+            scope_id=identity["entity_id"],
+            question_fingerprint=hashlib.sha256(future.text.strip().encode("utf-8")).hexdigest(),
+            routing_fingerprint=expected_routing[future.question_id],
+            run_id="RUN_ENTRY_TEST",
+            scan_id="SCAN_ENTRY_TEST",
+            owner_refresh_binding=owner.binding(future.question_id),
+        )
+        assert registered["status"] == "pending"
     config = tmp_path / "llm_apis.json"
     config.write_text(
         json.dumps(
@@ -480,6 +501,13 @@ def test_actual_lifecycle_client_group_store_and_checkpoints_only_valid_members(
         assert transport._QUESTION_PACK_BINDING.get() is not None
         assert kwargs["json"]["thinking"] == {"type": "enabled"}
         assert kwargs["json"]["max_completion_tokens"] == 8192
+        if partial == "uncertain_pending":
+            from requests.exceptions import ReadTimeout
+
+            raise ReadTimeout("synthetic response outcome unknown")
+        if partial == "unverified_pending":
+            response.json.return_value["usage"]["web_search_usage"]["tool_usage"] = 0
+            response.json.return_value["choices"][0]["message"]["annotations"] = []
         return response
 
     session.post.side_effect = post
@@ -514,7 +542,7 @@ def test_actual_lifecycle_client_group_store_and_checkpoints_only_valid_members(
             provider, progress_reporter=Mock(), work_item_lifecycle=lc
         ).process_questions(questions, question_pack_size=2)
     assert session.post.call_count == 1, observed_errors
-    assert [r["question_id"] for r in owner_requests] == qids
+    assert [r["question_id"] for r in owner_requests] == qids[:2]
     assert len({r["execution_attempt_id"] for r in owner_requests}) == 1
     assert len({r["work_attempt_id"] for r in owner_requests}) == 2
     rows = store.find_work_items(entity_id=identity["entity_id"], question_ids=qids)
@@ -522,21 +550,86 @@ def test_actual_lifecycle_client_group_store_and_checkpoints_only_valid_members(
     assert {qid: persisted[qid]["routing_fingerprint"] for qid in qids} == expected_routing
     assert {qid: persisted[qid]["generation"] for qid in qids} == expected_generation
     checkpoints = [store.get_answer_checkpoint(rows[qid][0]["work_item_id"]) for qid in qids]
-    assert checkpoints[0] is not None, [r.answer.text for r in batch.results]
-    assert (checkpoints[1] is None) == partial
-    assert persisted[qids[0]]["status"] == "result_ready"
-    assert persisted[qids[1]]["status"] == ("failed" if partial else "result_ready")
-    assert [r.answer.status for r in batch.results] == (
-        ["scored", "error"] if partial else ["scored", "scored"]
-    )
+    if partial in {"uncertain_pending", "unverified_pending"}:
+        assert checkpoints[:2] == [None, None]
+        assert [r.answer.status for r in batch.results[:2]] == ["error", "error"]
+        if partial == "uncertain_pending":
+            assert all(persisted[qid]["status"] == "uncertain" for qid in qids[:2])
+            assert all(
+                batch.results[index].answer.metadata["execution"]["dispatch_outcome"]["state"]
+                == "uncertain"
+                for index in range(2)
+            )
+        else:
+            assert all(
+                persisted[qid]["status"] not in {"failed", "result_ready"} for qid in qids[:2]
+            )
+            assert all(
+                batch.results[index].metadata["question_pack_error"] == "search_unverified"
+                for index in range(2)
+            )
+    else:
+        assert checkpoints[0] is not None, [r.answer.text for r in batch.results]
+        assert (checkpoints[1] is None) == bool(partial)
+        assert persisted[qids[0]]["status"] == "result_ready"
+        assert persisted[qids[1]]["status"] == ("failed" if partial else "result_ready")
+        assert [r.answer.status for r in batch.results[:2]] == (
+            ["scored", "error"] if partial else ["scored", "scored"]
+        )
+    if has_pending:
+        assert persisted[qids[2]]["status"] == "pending" and checkpoints[2] is None
+        assert store.list_attempts(persisted[qids[2]]["work_item_id"]) == []
+        assert batch.results[2].metadata["question_pack_not_dispatched"]
     assert store.get_quick_scan_budget_status("pack-transport")["requests"] == 1
     assert "private synthetic reasoning" not in repr(checkpoints)
-    assert (
-        checkpoints[0]["attempt_id"]
-        == batch.results[0].answer.metadata["execution"]["work_transport"]["work_attempt_id"]
-    )
+    if checkpoints[0] is not None:
+        assert (
+            checkpoints[0]["attempt_id"]
+            == batch.results[0].answer.metadata["execution"]["work_transport"]["work_attempt_id"]
+        )
     assert transport._QUESTION_PACK_BINDING.get() is None
-    # Original ready/missing outcomes cannot become a fresh request on a re-run.
+    if checkpoints[0] is not None:
+        from types import SimpleNamespace
+
+        # Engine recovery seam: load the ACTUAL persisted checkpoint through
+        # its public getter. Original owner readiness/group checks still run;
+        # no claim/after-hook/transport may run. This is not a fabricated
+        # production owner approval or a replacement owner-session adapter.
+        def forbidden_recovery_action(*args, **kwargs):
+            raise AssertionError("Checkpoint recovery attempted dispatch or state change")
+
+        def read_original_checkpoint(question):
+            assert question.question_id == qids[0]
+            return store.get_answer_checkpoint(persisted[qids[0]]["work_item_id"])
+
+        recovery = SimpleNamespace(
+            assert_question_pack_ready=lc.assert_question_pack_ready,
+            question_pack_group_key=lc.question_pack_group_key,
+            reference_question=lc.reference_question,
+            hydrate_question=read_original_checkpoint,
+            before_question=forbidden_recovery_action,
+            after_question=forbidden_recovery_action,
+            after_question_failed=forbidden_recovery_action,
+            dispatch_question_pack_context=forbidden_recovery_action,
+        )
+        checkpoint_ledger = (tmp_path / "work.sqlite").read_bytes()
+        recovered = QAEngine(
+            provider, progress_reporter=Mock(), work_item_lifecycle=recovery
+        ).process_questions(questions[:1], question_pack_size=2)
+        assert recovered.results[0].answer.source == "answer_checkpoint"
+        assert (
+            recovered.results[0].answer.score == 8
+            and recovered.results[0].metadata["answer_checkpoint"]["hydrated"]
+        )
+        assert (
+            session.post.call_count == 1
+            and (tmp_path / "work.sqlite").read_bytes() == checkpoint_ledger
+        )
+    # Original ready/missing/uncertain outcomes cannot become a fresh request
+    # on re-entry; the checkpoint and unstarted pending member stay intact.
+    before_checkpoints = copy.deepcopy(checkpoints)
+    before_items = {qid: store.get_item(rows[qid][0]["work_item_id"]) for qid in qids}
+    before_attempts = {qid: store.list_attempts(rows[qid][0]["work_item_id"]) for qid in qids}
     with transport.bind_quick_scan_budget(
         store,
         policy,
@@ -550,6 +643,19 @@ def test_actual_lifecycle_client_group_store_and_checkpoints_only_valid_members(
             questions, question_pack_size=2
         )
     assert session.post.call_count == 1, observed_errors
+    assert [
+        store.get_answer_checkpoint(rows[qid][0]["work_item_id"]) for qid in qids
+    ] == before_checkpoints
+    # The legacy create_or_attach INSERT OR IGNORE may advance SQLite's
+    # header transaction counter. Compare original business records instead;
+    # byte-readonly checkpoint hydration is proven independently above.
+    assert {qid: store.get_item(rows[qid][0]["work_item_id"]) for qid in qids} == before_items
+    assert {
+        qid: store.list_attempts(rows[qid][0]["work_item_id"]) for qid in qids
+    } == before_attempts
+    if has_pending:
+        assert store.get_item(persisted[qids[2]]["work_item_id"])["status"] == "pending"
+        assert store.list_attempts(persisted[qids[2]]["work_item_id"]) == []
 
 
 def test_composed_approved_owner_session_keeps_native_context_and_outer_admission_guard(
@@ -631,3 +737,114 @@ def test_explicit_member_rejection_carries_typed_reason_but_storage_error_does_n
     lc.after_question = storage_failure
     e.process_questions([q(1)], question_pack_size=3)
     assert lc.failed == [("CORE_01", "RuntimeError")]
+
+
+@pytest.mark.parametrize(
+    "kind", ["missing", "invalid", "unverified", "truncated", "transport", "contract"]
+)
+def test_unsaved_pack_stops_later_claims_without_losing_pending_questions(kind):
+    e, p, lc = engine()
+    if kind == "missing":
+        p.reply = QuestionPackSearchResult((result(q(1)), result(q(3))), ("CORE_02",), (), {})
+    elif kind == "invalid":
+        p.reply = QuestionPackSearchResult((result(q(2)),), (), ("CORE_01", "CORE_03"), {})
+    elif kind in {"unverified", "truncated"}:
+        p.reply = QuestionPackSearchResult(
+            (),
+            ("CORE_01", "CORE_02", "CORE_03"),
+            (),
+            {
+                "question_pack": {"status": "search_unverified"},
+                "search_status": "unverified",
+                "response_status": "incomplete" if kind == "truncated" else "completed",
+            },
+        )
+    elif kind == "transport":
+        p.error = QuickScanWorkUncertainError(
+            "physical-uncertain", {"request_id": "original-request"}
+        )
+    else:
+        p.reply = QuestionPackSearchResult((result(q(99)),), (), (), {})
+    batch = e.process_questions([q(i) for i in range(1, 9)], question_pack_size=3)
+    assert [call[0] for call in p.calls] == [("CORE_01", "CORE_02", "CORE_03")]
+    assert [event[1] for event in lc.events if event[0] == "claim"] == [
+        "CORE_01",
+        "CORE_02",
+        "CORE_03",
+    ]
+    assert [item.question.question_id for item in batch.results] == [
+        f"CORE_{i:02}" for i in range(1, 9)
+    ]
+    for item in batch.results[3:]:
+        assert item.answer.status == "error" and item.answer.score is None
+        assert item.metadata["question_pack_not_dispatched"] is True
+        assert not item.metadata.get("answer_checkpoint")
+        assert item.answer.metadata.get("execution") is None
+    if kind in {"unverified", "truncated"}:
+        assert [reason for _, reason in lc.failed] == ["search_unverified"] * 3
+    if kind == "transport":
+        for item in batch.results[:3]:
+            assert item.answer.metadata["execution"]["attempt_id"] == "physical-uncertain"
+            assert item.answer.metadata["execution"]["dispatch_outcome"]["state"] == "uncertain"
+
+
+def test_group_boundary_flush_failure_stops_before_claiming_new_scope():
+    e, p, lc = engine()
+    p.reply = QuestionPackSearchResult((), ("CORE_01",), (), {})
+    batch = e.process_questions(
+        [q(1), q(2, scope="security", scope_id="SEC_TEST"), q(3)], question_pack_size=3
+    )
+    assert [event for event in lc.events if event[0] == "claim"] == [("claim", "CORE_01")]
+    assert len(p.calls) == 1
+    assert all(item.metadata["question_pack_not_dispatched"] for item in batch.results[1:])
+
+
+def test_failed_pack_keeps_existing_reference_and_checkpoint_recovery_never_sends_pending():
+    e, p, lc = engine()
+    lc.checkpoints["CORE_01"] = {
+        "payload": {
+            "answer": {"description": "Stored original", "score": 7, "status": "scored"},
+            "provenance": {"response_completed_at": "2026-09-01T00:00:00Z"},
+        }
+    }
+    lc.refused.add("CORE_02")
+    batch = e.process_questions([q(1), q(2), q(3), q(4)], question_pack_size=3)
+    assert not p.calls and not lc.saved and not lc.failed
+    assert (
+        batch.results[0].answer.score == 7
+        and batch.results[0].metadata["answer_checkpoint"]["hydrated"]
+    )
+    assert [event for event in lc.events if event[0] == "claim"] == [("claim", "CORE_02")]
+    assert all(item.metadata["question_pack_not_dispatched"] for item in batch.results[2:])
+
+
+def test_failure_hook_exception_preserves_all_received_members_and_stops_further_dispatch():
+    e, p, lc = engine()
+    p.reply = QuestionPackSearchResult((result(q(2)),), ("CORE_01",), ("CORE_03",), {})
+
+    def hook_failed(*args):
+        raise RuntimeError("private finalization details must not leak")
+
+    lc.after_question_failed = hook_failed
+    batch = e.process_questions([q(i) for i in range(1, 6)], question_pack_size=3)
+    assert len(p.calls) == 1 and [item[0] for item in lc.saved] == ["CORE_02"]
+    assert [item.answer.status for item in batch.results] == [
+        "error",
+        "scored",
+        "error",
+        "error",
+        "error",
+    ]
+    assert "private finalization" not in repr(batch)
+
+
+def test_search_or_transport_stage_is_not_reclassified_as_deterministic_missing():
+    for stage in ("search_unverified", "transport_failed", "unavailable"):
+        e, p, lc = engine()
+        p.reply = QuestionPackSearchResult(
+            (), ("CORE_01", "CORE_02"), (), {"question_pack": {"status": stage}}
+        )
+        batch = e.process_questions([q(1), q(2), q(3)], question_pack_size=2)
+        assert len(p.calls) == 1 and not lc.saved
+        assert lc.failed == [("CORE_01", stage), ("CORE_02", stage)]
+        assert batch.results[2].metadata["question_pack_not_dispatched"]

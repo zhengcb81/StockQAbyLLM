@@ -8,6 +8,7 @@
 import json
 import math
 import re
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import date
 from typing import Any, Dict, Optional, Tuple
@@ -15,6 +16,23 @@ from typing import Any, Dict, Optional, Tuple
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+_PACK_DIAGNOSTICS: ContextVar[Optional[dict]] = ContextVar(
+    "question_pack_parse_diagnostics", default=None
+)
+
+
+def _record_parse_diagnostic(code: str, pointer: str = "") -> None:
+    """Bounded codes/JSON pointers only: never retain values or exception text."""
+    context = _PACK_DIAGNOSTICS.get()
+    if context is None:
+        return
+    entry = {"code": code, "pointer": context["prefix"] + pointer}
+    if context.get("question_id") is not None:
+        entry["question_id"] = context["question_id"]
+    if len(context["items"]) < 64 and entry not in context["items"]:
+        context["items"].append(entry)
 
 
 class _DuplicateJSONKeyError(ValueError):
@@ -171,6 +189,36 @@ class LLMResponseParser:
             return None
         return result.score, result.description
 
+    def parse_question_pack_response_with_diagnostics(
+        self,
+        content: str,
+        expected_question_ids: Tuple[str, ...],
+        expected_entity_id: Optional[str] = None,
+        expected_company_name: Optional[str] = None,
+    ) -> Tuple[Optional[ParsedQuestionPack], dict]:
+        """Observe the same parser once, without exposing response values."""
+        context: Dict[str, Any] = {"items": [], "prefix": "", "question_id": None}
+        token = _PACK_DIAGNOSTICS.set(context)
+        try:
+            parsed = self.parse_question_pack_response(
+                content, expected_question_ids, expected_entity_id, expected_company_name
+            )
+        finally:
+            _PACK_DIAGNOSTICS.reset(token)
+        return parsed, {
+            "schema_version": "1.0.0",
+            "status": (
+                "rejected"
+                if parsed is None
+                else (
+                    "partial"
+                    if parsed.missing_question_ids or parsed.invalid_question_ids
+                    else "complete"
+                )
+            ),
+            "rejections": context["items"],
+        }
+
     def parse_question_pack_response(
         self,
         content: str,
@@ -205,17 +253,21 @@ class LLMResponseParser:
             raise ValueError("expected_question_ids must be 1..30 unique stable ordered IDs")
         expected = tuple(expected_question_ids)
         if not isinstance(content, str) or len(content) > 1024 * 1024:
+            _record_parse_diagnostic("pack_content_type_or_size")
             return None
         try:
             if len(content.encode("utf-8")) > 1024 * 1024:
+                _record_parse_diagnostic("pack_content_size")
                 return None
 
             def reject_constant(value):
+                _record_parse_diagnostic("nonfinite_json_number")
                 raise ValueError("nonfinite JSON constant")
 
             def finite_float(value):
                 number = float(value)
                 if not math.isfinite(number):
+                    _record_parse_diagnostic("nonfinite_json_number")
                     raise ValueError("nonfinite JSON number")
                 return number
 
@@ -225,32 +277,53 @@ class LLMResponseParser:
                 parse_constant=reject_constant,
                 parse_float=finite_float,
             )
-        except (ValueError, RecursionError, UnicodeEncodeError):
+        except _DuplicateJSONKeyError:
+            _record_parse_diagnostic("duplicate_json_key")
             return None
-        if (
-            not isinstance(root, dict)
-            or set(root) != {"answers"}
-            or not isinstance(root["answers"], list)
-            or len(root["answers"]) > len(expected)
-        ):
+        except (ValueError, RecursionError, UnicodeEncodeError):
+            _record_parse_diagnostic("invalid_json")
+            return None
+        if not isinstance(root, dict):
+            _record_parse_diagnostic("pack_root_type")
+            return None
+        if set(root) != {"answers"}:
+            _record_parse_diagnostic("pack_root_fields")
+            return None
+        if not isinstance(root["answers"], list):
+            _record_parse_diagnostic("pack_answers_type", "/answers")
+            return None
+        if len(root["answers"]) > len(expected):
+            _record_parse_diagnostic("pack_member_count", "/answers")
             return None
 
         members = {}
-        for member in root["answers"]:
+        for index, member in enumerate(root["answers"]):
+            pointer = "/answers/" + str(index)
             if not isinstance(member, dict):
+                _record_parse_diagnostic("pack_member_type", pointer)
                 return None
             qid = member.get("question_id")
             if not isinstance(qid, str) or qid not in expected or qid in members:
+                _record_parse_diagnostic(
+                    (
+                        "duplicate_question_id"
+                        if isinstance(qid, str) and qid in members
+                        else "unexpected_question_id"
+                    ),
+                    pointer + "/question_id",
+                )
                 return None
             # An explicit foreign identity invalidates the WHOLE response,
             # including otherwise valid members. Missing identity stays an
             # independently invalid item under the existing single-item rules.
             if expected_entity_id is not None and "entity_id" in member:
                 if member["entity_id"] != expected_entity_id:
+                    _record_parse_diagnostic("foreign_entity_id", pointer + "/entity_id")
                     return None
             if expected_company_name is not None and "company_name" in member:
                 name = member["company_name"]
                 if not isinstance(name, str) or name.strip() != expected_company_name:
+                    _record_parse_diagnostic("foreign_company_name", pointer + "/company_name")
                     return None
             members[qid] = member
 
@@ -264,6 +337,7 @@ class LLMResponseParser:
                 if isinstance(member.get(field), str)
             }
             if len(identities) > 1:
+                _record_parse_diagnostic("mixed_identity", "/answers")
                 return None
 
         answers = []
@@ -272,15 +346,30 @@ class LLMResponseParser:
         for qid in expected:
             if qid not in members:
                 missing.append(qid)
+                _record_parse_diagnostic("missing_question", "/answers")
                 continue
             member_content = json.dumps(members[qid], ensure_ascii=False, allow_nan=False)
-            answer = self.parse_structured_response(
-                member_content,
-                expected_question_id=qid,
-                expected_entity_id=expected_entity_id,
-                expected_company_name=expected_company_name,
-                strict_json_only=True,
-            )
+            context = _PACK_DIAGNOSTICS.get()
+            token = None
+            if context is not None:
+                token = _PACK_DIAGNOSTICS.set(
+                    {
+                        "items": context["items"],
+                        "prefix": "/answers/" + str(root["answers"].index(members[qid])),
+                        "question_id": qid,
+                    }
+                )
+            try:
+                answer = self.parse_structured_response(
+                    member_content,
+                    expected_question_id=qid,
+                    expected_entity_id=expected_entity_id,
+                    expected_company_name=expected_company_name,
+                    strict_json_only=True,
+                )
+            finally:
+                if token is not None:
+                    _PACK_DIAGNOSTICS.reset(token)
             if answer is None:
                 invalid.append(qid)
             else:
@@ -410,18 +499,24 @@ class LLMResponseParser:
     ) -> Optional[ParsedLLMAnswer]:
         """验证 JSON 数据并提取评分和描述。"""
         if not isinstance(data, dict):
+            _record_parse_diagnostic("answer_type")
             return None
 
         if "score" not in data or "description" not in data:
             logger.warning("LLM返回的JSON格式不符合要求: 缺失 score 或 description")
+            _record_parse_diagnostic(
+                "missing_required_field", "/score" if "score" not in data else "/description"
+            )
             return None
 
         description = data.get("description")
         if not isinstance(description, str) or not description.strip():
             logger.warning("LLM返回的description必须是非空字符串")
+            _record_parse_diagnostic("invalid_description", "/description")
             return None
         if _nested_answer_conflicts_with_outer(description, data, expected_question_id):
             logger.warning("LLM返回的description与外层答案状态、评分或题目ID冲突")
+            _record_parse_diagnostic("nested_answer_conflict", "/description")
             return None
 
         status = data.get("status", "scored")
@@ -433,40 +528,49 @@ class LLMResponseParser:
             "not_applicable",
         }:
             logger.warning("LLM返回了无效的答案状态")
+            _record_parse_diagnostic("invalid_status", "/status")
             return None
         if status == "scored":
             if type(score) is not int or not 1 <= score <= 10:
                 logger.warning("LLM返回的评分必须是1-10之间的严格整数")
+                _record_parse_diagnostic("invalid_score", "/score")
                 return None
         elif score is not None:
             logger.warning("非打分状态的score必须为null")
+            _record_parse_diagnostic("non_scored_score_not_null", "/score")
             return None
 
         question_id = data.get("question_id")
         if expected_question_id is not None:
             if not isinstance(question_id, str) or question_id != expected_question_id:
                 logger.warning("LLM返回的问题ID与当前待办ID不一致")
+                _record_parse_diagnostic("question_id_mismatch", "/question_id")
                 return None
         elif question_id is not None and not isinstance(question_id, str):
             logger.warning("LLM返回的问题ID格式无效")
+            _record_parse_diagnostic("invalid_question_id", "/question_id")
             return None
 
         entity_id = data.get("entity_id")
         if expected_entity_id is not None:
             if not isinstance(entity_id, str) or entity_id != expected_entity_id:
                 logger.warning("LLM返回的实体ID与当前目标公司不一致")
+                _record_parse_diagnostic("entity_id_mismatch", "/entity_id")
                 return None
         elif entity_id is not None and not isinstance(entity_id, str):
             logger.warning("LLM返回的实体ID格式无效")
+            _record_parse_diagnostic("invalid_entity_id", "/entity_id")
             return None
 
         company_name = data.get("company_name")
         if expected_company_name is not None:
             if not isinstance(company_name, str) or company_name.strip() != expected_company_name:
                 logger.warning("LLM返回的公司名称与当前目标公司不一致")
+                _record_parse_diagnostic("company_name_mismatch", "/company_name")
                 return None
         elif company_name is not None and not isinstance(company_name, str):
             logger.warning("LLM返回的公司名称格式无效")
+            _record_parse_diagnostic("invalid_company_name", "/company_name")
             return None
 
         if status == "scored":

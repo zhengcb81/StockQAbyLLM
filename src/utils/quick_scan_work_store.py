@@ -74,9 +74,12 @@ _SAFE_ID = re.compile(r"^[A-Za-z0-9_.-]{1,160}$")
 _ENTITY_ID = re.compile(r"^ENT_[A-Za-z0-9_-]+$")
 _SECURITY_ID = re.compile(r"^SEC_[A-Za-z0-9_.-]+$")
 _SEGMENT_ID = re.compile(r"^SEG_[A-Za-z0-9_-]+$")
+# Original StockWiki G2b source bindings use both UUIDv4 and compact lowercase
+# 32-hex opaque IDs (including source-master hashes). Preserve those exact IDs
+# and legacy BND spelling; matching this lexical form never grants authority.
 _BINDING_ID = re.compile(
-    r"^(?:BND_[A-Za-z0-9_]+|BIND_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-"
-    r"[89ab][0-9a-f]{3}-[0-9a-f]{12})$"
+    r"^(?:BND_[A-Za-z0-9_]+|BIND_(?:[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-"
+    r"[89ab][0-9a-f]{3}-[0-9a-f]{12}))$"
 )
 _HEX_SHA256 = re.compile(r"^[a-f0-9]{64}$")
 _REQUEST_KEY = re.compile(r"^REQ_[a-f0-9]{64}$")

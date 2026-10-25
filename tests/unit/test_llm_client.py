@@ -2502,3 +2502,112 @@ def test_mimo_publish_time_alias_does_not_override_existing_publication_date():
         )[0]["published_date"]
         == "2026-09-01"
     )
+
+
+@pytest.mark.parametrize("json_mode", [True, False])
+def test_mimo_explicit_json_mode_binds_actual_request_without_changing_default(
+    monkeypatch, json_mode
+):
+    import hashlib
+    from unittest.mock import patch
+
+    session = Mock()
+    monkeypatch.setattr(
+        "src.providers.llm_client.http_client_manager.get_sync_session", lambda: session
+    )
+    session.post.return_value = _b01_thinking_response("mimo_chat_completions", "mimo-v2.6-pro")
+    with patch("src.providers.llm_client.begin_quick_scan_send", return_value=None) as begin:
+        result = LLMClient(
+            "synthetic", "mimo-v2.6-pro", "https://api.xiaomimimo.com/v1"
+        ).send_search_request(
+            "Return JSON only", thinking_enabled=True, max_output_tokens=32768, json_mode=json_mode
+        )
+    posted = session.post.call_args.kwargs["json"]
+    assert posted["thinking"] == {"type": "enabled"}
+    assert posted["max_completion_tokens"] == 32768
+    if json_mode:
+        assert posted["response_format"] == {"type": "json_object"}
+        assert (
+            result.execution_metadata["request_generation"]["response_format"]
+            == posted["response_format"]
+        )
+    else:
+        assert "response_format" not in posted
+        assert "response_format" not in result.execution_metadata["request_generation"]
+    digest = hashlib.sha256(
+        json.dumps(
+            posted, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
+        ).encode()
+    ).hexdigest()
+    assert (
+        begin.call_args.kwargs["request_payload_sha256"]
+        == result.execution_metadata["request_payload_sha256"]
+        == digest
+    )
+
+
+@pytest.mark.parametrize("invalid", [None, 1, "true", {}, []])
+def test_json_mode_requires_explicit_boolean_before_http(monkeypatch, invalid):
+    session = Mock()
+    monkeypatch.setattr(
+        "src.providers.llm_client.http_client_manager.get_sync_session", lambda: session
+    )
+    with pytest.raises(ValueError, match="json_mode"):
+        LLMClient(
+            "synthetic", "mimo-v2.6-pro", "https://api.xiaomimimo.com/v1"
+        ).send_search_request("JSON", json_mode=invalid)
+    session.post.assert_not_called()
+
+
+def test_json_mode_rejects_unverified_provider_combination_before_http(monkeypatch):
+    session = Mock()
+    monkeypatch.setattr(
+        "src.providers.llm_client.http_client_manager.get_sync_session", lambda: session
+    )
+    with pytest.raises(SearchCapabilityUnavailable, match="JSON mode"):
+        LLMClient(
+            "synthetic", "gpt-4.1", "https://api.openai.com/v1/responses"
+        ).send_search_request("JSON", json_mode=True)
+    session.post.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_async_mimo_json_mode_keeps_final_only_and_real_payload_hash(monkeypatch):
+    import hashlib
+
+    response = _b01_thinking_response("mimo_chat_completions", "mimo-v2.6-pro")
+    session = AsyncMock()
+    session.post.return_value = response
+    monkeypatch.setattr(
+        "src.providers.llm_client.http_client_manager.get_async_client",
+        AsyncMock(return_value=session),
+    )
+    result = await AsyncLLMClient(
+        "synthetic", "mimo-v2.6-pro", "https://api.xiaomimimo.com/v1"
+    ).send_search_request_async(
+        "JSON only", thinking_enabled=True, max_output_tokens=32768, json_mode=True
+    )
+    posted = session.post.call_args.kwargs["json"]
+    assert posted["response_format"] == {"type": "json_object"}
+    assert posted["thinking"] == {"type": "enabled"}
+    assert "private" not in result.content
+    digest = hashlib.sha256(
+        json.dumps(
+            posted, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
+        ).encode()
+    ).hexdigest()
+    assert result.execution_metadata["request_payload_sha256"] == digest
+
+
+@pytest.mark.parametrize(
+    "model,url,expected",
+    [
+        ("mimo-v2.6-pro", "https://api.xiaomimimo.com/v1", True),
+        ("mimo-v2.6-flash", "https://token-plan-cn.xiaomimimo.com/v1", True),
+        ("mimo-v2.5", "https://api.xiaomimimo.com/v1", False),
+        ("gpt-4.1", "https://api.openai.com/v1/responses", False),
+        ("mimo-v2.6-pro", "https://example.com/v1", False),
+    ],
+)
+def test_search_json_mode_capability_uses_original_route_not_label(model, url, expected):
+    assert LLMClient("synthetic", model, url).supports_search_json_mode is expected

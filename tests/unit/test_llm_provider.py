@@ -570,3 +570,354 @@ def test_mimo_environment_key_matches_configured_endpoint(
 
     assert provider.api_key == expected_value
     assert provider.client.supports_web_search
+
+
+def _final_diagnostic_fixture(tmp_path, *, maximum=4096):
+    config = tmp_path / "llm_apis.json"
+    config.write_text("{}", encoding="utf-8")
+    (tmp_path / "quick_scan_final_answer_diagnostics.json").write_text(
+        json.dumps({"schema_version": "1.0.0", "enabled": True, "max_final_answer_bytes": maximum}),
+        encoding="utf-8",
+    )
+    metadata = {
+        "provider": "mimo",
+        "actual_model": "mimo-v2.6-pro",
+        "response_id": "response-fixture",
+        "response_sha256": "a" * 64,
+        "response_status": "completed",
+        "reasoning_content": "PRIVATE_CHAIN_MUST_NOT_BE_SAVED",
+        "prompt": "PRIVATE_PROMPT_MUST_NOT_BE_SAVED",
+    }
+    trusted = {
+        "pack_id": "PACK_" + "1" * 32,
+        "execution_attempt_id": "execution-fixture",
+        "budget_attempt_id": "PACK_BUDGET_" + "1" * 32,
+        "members": [
+            {
+                "question_id": "IQS_01",
+                "work_attempt_id": "ATTEMPT_" + "2" * 32,
+                "work_item_id": "WORK_" + "3" * 32,
+            }
+        ],
+    }
+    return config, metadata, trusted
+
+
+def test_final_answer_diagnostics_disabled_by_default_creates_nothing(tmp_path):
+    from src.providers.llm_provider import (
+        _capture_final_answer_diagnostic,
+        _final_answer_diagnostic_policy,
+    )
+
+    config = tmp_path / "llm_apis.json"
+    assert _final_answer_diagnostic_policy(config) is None
+    assert _capture_final_answer_diagnostic(None, "private", {}, {}) is None
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_final_answer_diagnostic_is_bounded_final_only_immutable_and_not_authority(tmp_path):
+    from src.providers.llm_provider import (
+        _capture_final_answer_diagnostic,
+        _final_answer_diagnostic_policy,
+    )
+
+    config, metadata, trusted = _final_diagnostic_fixture(tmp_path)
+    policy = _final_answer_diagnostic_policy(config)
+    final = '{"answers":[]}'
+    first = _capture_final_answer_diagnostic(policy, final, metadata, trusted)
+    directory = tmp_path / "final-answer-diagnostics"
+    artifact = directory / first["artifact_name"]
+    before = artifact.read_bytes()
+    body = json.loads(before)
+    assert (
+        body["final_answer"] == final
+        and body["final_answer_sha256"] == hashlib.sha256(final.encode()).hexdigest()
+    )
+    assert body["response_sha256"] == metadata["response_sha256"]
+    assert body["original_transport"]["physical_budget_attempt_id"] == trusted["budget_attempt_id"]
+    assert body["replay_or_delivery_authorized"] is False
+    assert b"PRIVATE_CHAIN" not in before and b"PRIVATE_PROMPT" not in before
+    diagnostic = {
+        "schema_version": "1.0.0",
+        "status": "rejected",
+        "rejections": [{"code": "pack_root_fields", "pointer": ""}],
+    }
+    result = _capture_final_answer_diagnostic(
+        policy, final, metadata, trusted, diagnostics=diagnostic
+    )
+    assert artifact.read_bytes() == before
+    assert (
+        json.loads((directory / result["parser_artifact_name"]).read_bytes())["parser_diagnostics"]
+        == diagnostic
+    )
+    assert len(list(directory.iterdir())) == 2
+
+
+def test_final_answer_diagnostic_excess_or_private_markers_retains_only_hash(tmp_path):
+    from src.providers.llm_provider import (
+        _capture_final_answer_diagnostic,
+        _final_answer_diagnostic_policy,
+    )
+
+    config, metadata, trusted = _final_diagnostic_fixture(tmp_path, maximum=16)
+    policy = _final_answer_diagnostic_policy(config)
+    for final in ['{"answers":["' + "x" * 40 + '"]}', '<think>PRIVATE_CHAIN</think>{"answers":[]}']:
+        result = _capture_final_answer_diagnostic(policy, final, metadata, trusted)
+        artifact = json.loads(
+            (tmp_path / "final-answer-diagnostics" / result["artifact_name"]).read_bytes()
+        )
+        assert artifact["final_answer"] is None and artifact["final_answer_retained"] is False
+        assert artifact["final_answer_sha256"] == hashlib.sha256(final.encode()).hexdigest()
+        assert "PRIVATE_CHAIN" not in json.dumps(artifact)
+
+
+def test_final_answer_diagnostic_invalid_owner_config_fails_before_dispatch(tmp_path):
+    from src.providers.llm_provider import _final_answer_diagnostic_policy
+
+    config, _, _ = _final_diagnostic_fixture(tmp_path)
+    control = tmp_path / "quick_scan_final_answer_diagnostics.json"
+    for raw in [
+        '{"enabled":true,"enabled":false}',
+        '{"schema_version":"1.0.0","enabled":"yes"}',
+        '{"schema_version":"1.0.0","enabled":true,"max_final_answer_bytes":true}',
+        '{"schema_version":"1.0.0","enabled":true,"directory":"../escape"}',
+    ]:
+        control.write_text(raw, encoding="utf-8")
+        with pytest.raises(ValueError, match="final_answer_diagnostics_configuration_invalid"):
+            _final_answer_diagnostic_policy(config)
+
+
+def test_final_answer_private_channel_markers_are_not_retained_even_below_cap(tmp_path):
+    from src.providers.llm_provider import (
+        _capture_final_answer_diagnostic,
+        _final_answer_diagnostic_policy,
+    )
+
+    config, metadata, trusted = _final_diagnostic_fixture(tmp_path, maximum=4096)
+    policy = _final_answer_diagnostic_policy(config)
+    for final in [
+        '<think>PRIVATE_CHAIN</think>{"answers":[]}',
+        '{"analysis":"PRIVATE_CHAIN","answers":[]}',
+        'PRIVATE_CHAIN prose before {"answers":[]}',
+        "```analysis\nPRIVATE_CHAIN\n```",
+        '<thinking>PRIVATE_CHAIN</thinking>{"answers":[]}',
+    ]:
+        result = _capture_final_answer_diagnostic(policy, final, metadata, trusted)
+        raw = (tmp_path / "final-answer-diagnostics" / result["artifact_name"]).read_bytes()
+        artifact = json.loads(raw)
+        assert artifact["final_answer_retained"] is False and artifact["final_answer"] is None
+        assert b"PRIVATE_CHAIN" not in raw
+
+
+def test_final_answer_artifact_collision_and_untrusted_diagnostic_never_overwrite_or_leak(tmp_path):
+    from src.providers.llm_provider import (
+        _capture_final_answer_diagnostic,
+        _final_answer_diagnostic_policy,
+    )
+
+    config, metadata, trusted = _final_diagnostic_fixture(tmp_path)
+    policy = _final_answer_diagnostic_policy(config)
+    final = '{"answers":[]}'
+    result = _capture_final_answer_diagnostic(policy, final, metadata, trusted)
+    path = tmp_path / "final-answer-diagnostics" / result["artifact_name"]
+    original = path.read_bytes()
+    bad = {
+        "schema_version": "1.0.0",
+        "status": "rejected",
+        "rejections": [{"code": "invalid_json", "pointer": "", "message": "PRIVATE_CHAIN"}],
+    }
+    assert (
+        _capture_final_answer_diagnostic(policy, final, metadata, trusted, diagnostics=bad)[
+            "status"
+        ]
+        == "unavailable"
+    )
+    assert path.read_bytes() == original
+    assert not list(path.parent.glob("*.parser.json"))
+    path.write_bytes(b"owner-existing-bytes")
+    assert (
+        _capture_final_answer_diagnostic(policy, final, metadata, trusted)["status"]
+        == "unavailable"
+    )
+    assert path.read_bytes() == b"owner-existing-bytes"
+
+
+def _diagnostic_pack_provider(tmp_path, monkeypatch, *, verified=True):
+    from types import SimpleNamespace as NS
+
+    from src.providers.llm_response_parser import LLMResponseParser
+    from src.utils import quick_scan_work_transport as transport
+
+    config, metadata, trusted = _final_diagnostic_fixture(tmp_path)
+    metadata.update(response_status="completed" if verified else "length", work_transport={})
+    monkeypatch.setattr(transport, "assert_question_pack_binding", lambda *args: None)
+    monkeypatch.setattr(transport, "project_question_pack_transport", lambda *args: trusted)
+    provider = object.__new__(LLMProvider)
+    provider.api_key = "fixture-only"
+    provider.require_search = True
+    provider.company_name, provider.entity_id, provider.provider_name = (
+        "Fixture Co",
+        "ENT_FIXTURE_CO",
+        "mimo",
+    )
+    provider.config_manager = NS(config_file=config)
+    provider._build_prompt = lambda *args, **kwargs: "PRIVATE_PROMPT_MUST_NOT_BE_SAVED"
+    provider.parser = LLMResponseParser()
+    provider.client = Mock()
+    provider.client.supports_web_search = True
+    provider.client.supports_search_json_mode = True
+    provider.client.send_search_request.return_value = NS(
+        content='{"answers":[],"extra":1}', execution_metadata=metadata, search_verified=verified
+    )
+    return provider, config
+
+
+def test_pack_final_answer_capture_precedes_actual_parser_and_does_not_retry(tmp_path, monkeypatch):
+    provider, config = _diagnostic_pack_provider(tmp_path, monkeypatch)
+    original = provider.parser.parse_question_pack_response_with_diagnostics
+    calls = []
+
+    def parse(*args, **kwargs):
+        assert len(list((tmp_path / "final-answer-diagnostics").glob("*.final.json"))) == 1
+        calls.append(1)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(provider.parser, "parse_question_pack_response_with_diagnostics", parse)
+    result = provider.search_question_pack(
+        [Question(text="Fixture question", question_id="IQS_01")],
+        thinking_enabled=True,
+        max_output_tokens=32768,
+    )
+    assert calls == [1] and result.invalid_question_ids == ("IQS_01",)
+    assert provider.client.send_search_request.call_count == 1
+    assert provider.client.send_search_request.call_args.kwargs["json_mode"] is True
+    assert result.execution_metadata["question_pack_parse_diagnostics"]["rejections"] == [
+        {"code": "pack_root_fields", "pointer": ""}
+    ]
+    assert result.execution_metadata["final_answer_diagnostic"]["parser_diagnostic_saved"] is True
+
+
+def test_pack_length_final_is_captured_as_incomplete_and_never_claimed_accepted(
+    tmp_path, monkeypatch
+):
+    provider, config = _diagnostic_pack_provider(tmp_path, monkeypatch, verified=False)
+    provider.client.supports_search_json_mode = False
+    monkeypatch.setattr(
+        provider.parser,
+        "parse_question_pack_response_with_diagnostics",
+        Mock(side_effect=AssertionError("must not parse incomplete provider final")),
+    )
+    result = provider.search_question_pack(
+        [Question(text="Fixture question", question_id="IQS_01")],
+        thinking_enabled=True,
+        max_output_tokens=32768,
+    )
+    assert result.missing_question_ids == ("IQS_01",) and result.results == ()
+    assert "json_mode" not in provider.client.send_search_request.call_args.kwargs
+    assert result.execution_metadata["question_pack_parse_diagnostics"]["rejections"] == [
+        {"code": "provider_response_incomplete", "pointer": ""}
+    ]
+    assert provider.client.send_search_request.call_count == 1
+
+
+def test_pack_bad_diagnostic_opt_in_rejects_before_any_provider_call(tmp_path, monkeypatch):
+    provider, config = _diagnostic_pack_provider(tmp_path, monkeypatch)
+    (tmp_path / "quick_scan_final_answer_diagnostics.json").write_text(
+        '{"enabled":true}', encoding="utf-8"
+    )
+    with pytest.raises(ValueError, match="final_answer_diagnostics_configuration_invalid"):
+        provider.search_question_pack(
+            [Question(text="Fixture question", question_id="IQS_01")],
+            thinking_enabled=True,
+            max_output_tokens=32768,
+        )
+    assert provider.client.send_search_request.call_count == 0
+
+
+@pytest.mark.parametrize(
+    "final",
+    [
+        r'{"reasoning\u005fcontent":"PRIVATE_ESCAPED_SENTINEL","answers":[]}',
+        json.dumps({r"reasoning\u005fcontent": "PRIVATE_ESCAPED_SENTINEL", "answers": []}),
+        r'{"answers":[{"description":"<thi\u006ek>PRIVATE_ESCAPED_SENTINEL</think>"}]}',
+        json.dumps(
+            {
+                "answers": [
+                    {"description": json.dumps({"reasoning_content": "PRIVATE_ESCAPED_SENTINEL"})}
+                ]
+            }
+        ),
+        json.dumps(
+            {
+                "answers": [
+                    {
+                        "description": json.dumps(
+                            json.dumps({"thinking": "PRIVATE_ESCAPED_SENTINEL"})
+                        )
+                    }
+                ]
+            }
+        ),
+        '{"answers":[]}\nPRIVATE_ESCAPED_SENTINEL trailing prose',
+        '```json\n{"answers":[]}\n```\nPRIVATE_ESCAPED_SENTINEL trailing prose',
+        '```json\n{"answers":[]}\nPRIVATE_ESCAPED_SENTINEL\n```',
+        '{"answers":["PRIVATE_ESCAPED_SENTINEL"],"answers":[]}',
+        '{"answers":["PRIVATE_ESCAPED_SENTINEL"],"nonfinite":NaN}',
+        '{"answers":["PRIVATE_ESCAPED_SENTINEL"',
+    ],
+)
+def test_final_answer_diagnostic_fully_decodes_json_before_private_channel_retention(
+    tmp_path, final
+):
+    from src.providers.llm_provider import (
+        _capture_final_answer_diagnostic,
+        _final_answer_diagnostic_policy,
+    )
+
+    config, metadata, trusted = _final_diagnostic_fixture(tmp_path)
+    result = _capture_final_answer_diagnostic(
+        _final_answer_diagnostic_policy(config), final, metadata, trusted
+    )
+    raw = (tmp_path / "final-answer-diagnostics" / result["artifact_name"]).read_bytes()
+    artifact = json.loads(raw)
+    assert artifact["final_answer_retained"] is False and artifact["final_answer"] is None
+    assert artifact["final_answer_sha256"] == hashlib.sha256(final.encode()).hexdigest()
+    assert b"PRIVATE_ESCAPED_SENTINEL" not in raw
+
+
+@pytest.mark.parametrize(
+    "final",
+    [
+        '{"answers":[{"description":"正常公开的判断理由\\n包含转义换行"}]}',
+        '```json\n{"answers":[{"description":"公开判断理由"}]}\n```',
+        '  ```JSON\r\n{"answers":[]}\r\n``` \n',
+    ],
+)
+def test_final_answer_diagnostic_accepts_complete_safe_json_or_whole_fence_only(tmp_path, final):
+    from src.providers.llm_provider import (
+        _capture_final_answer_diagnostic,
+        _final_answer_diagnostic_policy,
+    )
+
+    config, metadata, trusted = _final_diagnostic_fixture(tmp_path)
+    result = _capture_final_answer_diagnostic(
+        _final_answer_diagnostic_policy(config), final, metadata, trusted
+    )
+    artifact = json.loads(
+        (tmp_path / "final-answer-diagnostics" / result["artifact_name"]).read_bytes()
+    )
+    assert artifact["final_answer_retained"] is True and artifact["final_answer"] == final
+
+
+def test_pack_diagnostic_target_regular_file_rejects_before_paid_dispatch(tmp_path, monkeypatch):
+    provider, _ = _diagnostic_pack_provider(tmp_path, monkeypatch)
+    target = tmp_path / "final-answer-diagnostics"
+    target.write_bytes(b"owner-existing-file")
+    with pytest.raises(ValueError, match="final_answer_diagnostics_configuration_invalid"):
+        provider.search_question_pack(
+            [Question(text="Fixture question", question_id="IQS_01")],
+            thinking_enabled=True,
+            max_output_tokens=32768,
+        )
+    assert provider.client.send_search_request.call_count == 0
+    assert target.read_bytes() == b"owner-existing-file"

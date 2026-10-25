@@ -1325,6 +1325,7 @@ def _request_generation_metadata(data: Dict[str, Any]) -> Dict[str, Any]:
     """Read the actual adapter payload; never accept model-reported controls."""
     return {
         "schema": "stockqa.request_generation/1.0.0",
+        **({"response_format": data["response_format"]} if "response_format" in data else {}),
         "thinking": data.get("thinking"),
         "reasoning": data.get("reasoning"),
         "max_output_tokens": next(
@@ -1459,6 +1460,15 @@ class LLMClient:
         except SearchCapabilityUnavailable:
             return False
 
+    @property
+    def supports_search_json_mode(self) -> bool:
+        """Official JSON syntax mode; not proof of schema validity or search execution."""
+        try:
+            _, provider, protocol = _search_endpoint(self.base_url, self.model, self.provider_name)
+            return provider == "mimo" and protocol == "mimo_chat_completions"
+        except SearchCapabilityUnavailable:
+            return False
+
     def send_request(
         self,
         prompt: str,
@@ -1498,9 +1508,12 @@ class LLMClient:
         *,
         thinking_enabled: Optional[bool] = None,
         max_output_tokens: Optional[int] = None,
+        json_mode: bool = False,
     ) -> LLMSearchResponse:
         """Call an allowlisted Responses web_search route and preserve its receipt."""
         _validate_search_generation_controls(thinking_enabled, max_output_tokens)
+        if type(json_mode) is not bool:
+            raise ValueError("json_mode must be an explicit boolean")
         prompt, system_prompt, external_mode = render_external_request(prompt, system_prompt)
         requested_model = self.model
         endpoint, provider, protocol = _search_endpoint(
@@ -1518,6 +1531,12 @@ class LLMClient:
             thinking_enabled=thinking_enabled,
             max_output_tokens=max_output_tokens,
         )
+        if json_mode:
+            if provider != "mimo" or protocol != "mimo_chat_completions":
+                raise SearchCapabilityUnavailable(
+                    "JSON mode is only verified for the native MiMo chat route"
+                )
+            data["response_format"] = {"type": "json_object"}
         if external_mode == "external_context_only":
             for key in ("tools", "tool_choice", "include"):
                 data.pop(key, None)
@@ -1536,6 +1555,7 @@ class LLMClient:
         capture_request_identity = (
             thinking_enabled is not None
             or max_output_tokens is not None
+            or json_mode
             or quick_scan_request_identity_required()
         )
         send_generation_options = (
@@ -1599,7 +1619,7 @@ class LLMClient:
             )
             if capture_request_identity:
                 receipt["request_payload_sha256"] = request_payload_sha256
-            if thinking_enabled is not None or max_output_tokens is not None:
+            if thinking_enabled is not None or max_output_tokens is not None or json_mode:
                 receipt["request_generation"] = _request_generation_metadata(data)
             if work_attempt is not None:
                 work_attempt.record_failure(receipt)
@@ -1618,7 +1638,7 @@ class LLMClient:
         )
         if capture_request_identity:
             result.execution_metadata["request_payload_sha256"] = request_payload_sha256
-        if thinking_enabled is not None or max_output_tokens is not None:
+        if thinking_enabled is not None or max_output_tokens is not None or json_mode:
             result.execution_metadata["request_generation"] = _request_generation_metadata(data)
         if work_attempt is not None:
             work_attempt.record_response(
@@ -1709,9 +1729,12 @@ class AsyncLLMClient:
         *,
         thinking_enabled: Optional[bool] = None,
         max_output_tokens: Optional[int] = None,
+        json_mode: bool = False,
     ) -> LLMSearchResponse:
         """Async counterpart of the same allowlisted search adapter."""
         _validate_search_generation_controls(thinking_enabled, max_output_tokens)
+        if type(json_mode) is not bool:
+            raise ValueError("json_mode must be an explicit boolean")
         prompt, system_prompt, external_mode = render_external_request(prompt, system_prompt)
         requested_model = self.model
         endpoint, provider, protocol = _search_endpoint(
@@ -1729,6 +1752,12 @@ class AsyncLLMClient:
             thinking_enabled=thinking_enabled,
             max_output_tokens=max_output_tokens,
         )
+        if json_mode:
+            if provider != "mimo" or protocol != "mimo_chat_completions":
+                raise SearchCapabilityUnavailable(
+                    "JSON mode is only verified for the native MiMo chat route"
+                )
+            data["response_format"] = {"type": "json_object"}
         if external_mode == "external_context_only":
             for key in ("tools", "tool_choice", "include"):
                 data.pop(key, None)
@@ -1747,6 +1776,7 @@ class AsyncLLMClient:
         capture_request_identity = (
             thinking_enabled is not None
             or max_output_tokens is not None
+            or json_mode
             or quick_scan_request_identity_required()
         )
         send_generation_options = (
@@ -1810,7 +1840,7 @@ class AsyncLLMClient:
             )
             if capture_request_identity:
                 receipt["request_payload_sha256"] = request_payload_sha256
-            if thinking_enabled is not None or max_output_tokens is not None:
+            if thinking_enabled is not None or max_output_tokens is not None or json_mode:
                 receipt["request_generation"] = _request_generation_metadata(data)
             if work_attempt is not None:
                 work_attempt.record_failure(receipt)
@@ -1829,7 +1859,7 @@ class AsyncLLMClient:
         )
         if capture_request_identity:
             result.execution_metadata["request_payload_sha256"] = request_payload_sha256
-        if thinking_enabled is not None or max_output_tokens is not None:
+        if thinking_enabled is not None or max_output_tokens is not None or json_mode:
             result.execution_metadata["request_generation"] = _request_generation_metadata(data)
         if work_attempt is not None:
             work_attempt.record_response(

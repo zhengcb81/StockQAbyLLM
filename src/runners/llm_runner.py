@@ -2064,8 +2064,11 @@ class LLMRunner:
                         policy, search_document
                     )
                 if approved_session is not None:
+                    budget_store = approved_session.service.store
                     approved_session.assert_executor_policy(
-                        llm_config.config_file, shared_budget_policy or policy
+                        llm_config.config_file,
+                        shared_budget_policy or policy,
+                        executor_store=budget_store,
                     )
                 if policy["configured"]:
                     cost_resolver = QuickScanCostResolver(
@@ -2081,13 +2084,10 @@ class LLMRunner:
                             "attempt its reserved cost will remain unpriced and dispatch will pause.",
                             policy["cost_policy"]["pricing_ref"],
                         )
-                    budget_store = (
-                        approved_session.service.store
-                        if approved_session is not None
-                        else QuickScanWorkStore(
+                    if budget_store is None:
+                        budget_store = QuickScanWorkStore(
                             llm_config.config_file.parent / "quick_scan_work.sqlite"
                         )
-                    )
                     provider_health = QuickScanProviderHealth(
                         llm_config.config_file.parent / "quick_scan_health.sqlite"
                     )
@@ -2147,6 +2147,7 @@ class LLMRunner:
                         approved_session.assert_executor_policy(
                             llm_config.config_file,
                             shared_budget_policy or policy,
+                            executor_store=budget_store,
                             policy_reader=approved_policy_reader,
                         )
 

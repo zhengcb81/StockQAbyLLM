@@ -30,8 +30,9 @@ from tests.unit.test_llm_config import _quick_scan_policy
 from tests.unit.test_quick_scan_work_transport import _http_response
 
 
+@pytest.mark.parametrize("ledger_layout", ["default", "registered_explicit"])
 def test_public_main_only_dispatches_registered_scope_and_recovers_without_credentials(
-    actual, tmp_path, monkeypatch, capsys
+    actual, tmp_path, monkeypatch, capsys, ledger_layout
 ):
     import main_with_llm
     from src.providers import llm_client
@@ -63,9 +64,12 @@ def test_public_main_only_dispatches_registered_scope_and_recovers_without_crede
         encoding="utf-8",
     )
     normalized = LLMConfig(str(llm_file)).get_quick_scan_model_policy(default_provider="primary")
-    prepared = setup_admission(
-        actual, tmp_path, policy=normalized, ledger_path=tmp_path / "quick_scan_work.sqlite"
+    ledger_path = (
+        tmp_path / "quick_scan_work.sqlite"
+        if ledger_layout == "default"
+        else tmp_path / "approved-workspace" / "work.sqlite"
     )
+    prepared = setup_admission(actual, tmp_path, policy=normalized, ledger_path=ledger_path)
     accepted = RefreshAdmissionService(
         prepared["deployment_file"], process_env=dict(os.environ)
     ).admit(prepared["consent"]["confirmation_id"])

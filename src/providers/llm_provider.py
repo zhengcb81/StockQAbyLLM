@@ -5,9 +5,13 @@
 使用 LLM API 分析公司并返回评分和描述。
 """
 
+import hashlib
+import json
+import os
 import re
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, cast
 
 import requests
@@ -33,6 +37,298 @@ from .llm_client import (
 from .llm_response_parser import ParsedLLMAnswer
 
 logger = get_logger(__name__)
+
+
+def _final_answer_diagnostic_policy(config_file: Any) -> Optional[dict]:
+    """Explicit owner-local opt-in; never accepts an arbitrary output path."""
+    runtime = Path(config_file).resolve().parent
+    control = runtime / "quick_scan_final_answer_diagnostics.json"
+    try:
+        if control.is_symlink():
+            raise ValueError()
+        if not control.exists():
+            return None
+        if (
+            not control.is_file()
+            or control.resolve() != control.absolute()
+            or control.stat().st_size > 8192
+        ):
+            raise ValueError()
+
+        def unique(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError()
+                result[key] = value
+            return result
+
+        value = json.loads(control.read_text(encoding="utf-8"), object_pairs_hook=unique)
+        if (
+            not isinstance(value, dict)
+            or not {"schema_version", "enabled"}.issubset(value)
+            or set(value) - {"schema_version", "enabled", "max_final_answer_bytes"}
+            or value["schema_version"] != "1.0.0"
+            or type(value["enabled"]) is not bool
+        ):
+            raise ValueError()
+        maximum = value.get("max_final_answer_bytes", 262144)
+        if type(maximum) is not int or not 1 <= maximum <= 1024 * 1024:
+            raise ValueError()
+        if value["enabled"] is False:
+            return None
+        directory = runtime / "final-answer-diagnostics"
+        if (
+            directory.is_symlink()
+            or directory.resolve() != directory.absolute()
+            or (directory.exists() and not directory.is_dir())
+        ):
+            raise ValueError()
+        return {"directory": directory, "max_final_answer_bytes": maximum}
+    except (OSError, ValueError, UnicodeError):
+        raise ValueError("final_answer_diagnostics_configuration_invalid") from None
+
+
+def _safe_pack_diagnostics(value: dict) -> dict:
+    """A diagnostic cannot smuggle answer values, prompts or private channels."""
+    if (
+        not isinstance(value, dict)
+        or set(value) != {"schema_version", "status", "rejections"}
+        or value["schema_version"] != "1.0.0"
+        or value["status"] not in {"rejected", "partial", "complete", "not_parsed"}
+        or not isinstance(value["rejections"], list)
+        or len(value["rejections"]) > 64
+    ):
+        raise ValueError("invalid_parser_diagnostic")
+    for row in value["rejections"]:
+        if (
+            not isinstance(row, dict)
+            or not {"code", "pointer"}.issubset(row)
+            or set(row) - {"code", "pointer", "question_id"}
+            or not isinstance(row["code"], str)
+            or re.fullmatch(r"[a-z][a-z0-9_]{0,79}", row["code"]) is None
+            or not isinstance(row["pointer"], str)
+            or len(row["pointer"]) > 256
+            or re.fullmatch(r"(?:/[A-Za-z0-9_]+)*", row["pointer"]) is None
+            or (
+                "question_id" in row
+                and (
+                    not isinstance(row["question_id"], str)
+                    or re.fullmatch(r"[A-Z0-9_]{1,160}", row["question_id"]) is None
+                )
+            )
+        ):
+            raise ValueError("invalid_parser_diagnostic")
+    return value
+
+
+def _final_answer_retention_rejection(content: str) -> Optional[str]:
+    """Inspect the complete decoded final JSON before optional local retention.
+
+    This is deliberately stricter than answer parsing: malformed/trailing prose
+    and uninspectable nested data are hash-only. It never admits an answer or
+    attempts to extract model-private channels. Decode/work limits fail closed.
+    """
+    private_keys = {
+        "reasoning_content",
+        "chain_of_thought",
+        "private_thoughts",
+        "thoughts",
+        "analysis",
+        "reasoning",
+        "thinking",
+    }
+    markers = re.compile(
+        r'(?is)<(?:think(?:ing)?|analysis|reasoning|reflection)\b|"(?:reasoning_content|chain_of_thought|private_thoughts|thoughts|analysis|reasoning|thinking)"\s*:'
+    )
+
+    def unique(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError()
+            result[key] = value
+        return result
+
+    def reject_constant(_):
+        raise ValueError()
+
+    def load_complete(raw):
+        text = raw.strip()
+        if text.startswith("```"):
+            fence = re.fullmatch(r"```(?:json)?[ \t]*\r?\n(.*?)\r?\n```", text, re.I | re.S)
+            if fence is None:
+                raise ValueError()
+            text = fence.group(1)
+        return json.loads(text, object_pairs_hook=unique, parse_constant=reject_constant)
+
+    try:
+        decoded = load_complete(content)
+        if not isinstance(decoded, (dict, list)):
+            return "non_json_final_channel"
+        # Bound both tree traversal and repeated description-JSON decoding.
+        stack = [(decoded, 0, 0, False)]
+        nodes, characters = 0, 0
+        while stack:
+            value, depth, decodes, is_key = stack.pop()
+            nodes += 1
+            if nodes > 16384 or depth > 64 or decodes > 8:
+                return "final_answer_inspection_limit"
+            if isinstance(value, dict):
+                for key, item in value.items():
+                    if key.casefold() in private_keys:
+                        return "private_reasoning_marker"
+                    stack.extend(
+                        ((key, depth + 1, decodes, True), (item, depth + 1, decodes, False))
+                    )
+            elif isinstance(value, list):
+                stack.extend((item, depth + 1, decodes, False) for item in value)
+            elif isinstance(value, str):
+                characters += len(value)
+                if characters > max(1024, len(content) * 8):
+                    return "final_answer_inspection_limit"
+                if (is_key and value.casefold() in private_keys) or markers.search(value):
+                    return "private_reasoning_marker"
+                # Strings may themselves contain escaped JSON/Unicode, notably
+                # description JSON strings. Inspect decoded content, not raw regex
+                # alone. No decoded value is emitted or stored separately.
+                unescaped = re.sub(
+                    r"(?:\\u[0-9a-fA-F]{4})+",
+                    lambda match: json.loads('"' + match.group(0) + '"'),
+                    value,
+                )
+                if unescaped != value:
+                    stack.append((unescaped, depth + 1, decodes + 1, is_key))
+                visible = value.strip()
+                if visible.startswith(("{", "[", '"', "```")):
+                    nested = load_complete(visible)
+                    stack.append((nested, depth + 1, decodes + 1, False))
+        return None
+    except (ValueError, TypeError, RecursionError, UnicodeError):
+        return "non_json_final_channel"
+
+
+def _capture_final_answer_diagnostic(
+    policy: Optional[dict],
+    content: str,
+    metadata: dict,
+    trusted: dict,
+    *,
+    diagnostics: Optional[dict] = None,
+) -> Optional[dict]:
+    """Retain only final-channel text, not a provider response/prompt/reasoning.
+
+    The immutable artifact is diagnostic data, never owner permission, a replay
+    command or an import ACK. Transport remains the only billing authority.
+    Optional capture I/O cannot trigger retries or discard a valid answer.
+    """
+    if policy is None:
+        return None
+    digest = metadata.get("response_sha256")
+    if not isinstance(digest, str) or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+        return {"status": "unavailable", "reason": "original_response_digest_unavailable"}
+    try:
+        raw = content.encode("utf-8")
+        final_digest = hashlib.sha256(raw).hexdigest()
+        retained = len(raw) <= policy["max_final_answer_bytes"]
+        retention_reason = None if retained else "final_answer_size_limit"
+        if retained:
+            retention_reason = _final_answer_retention_rejection(content)
+            retained = retention_reason is None
+        allowed = {
+            key: metadata.get(key)
+            for key in ("provider", "actual_model", "response_id", "response_status")
+            if isinstance(metadata.get(key), str)
+            and len(metadata[key]) <= 300
+            and not any(ord(ch) < 32 for ch in metadata[key])
+        }
+        transport = {
+            "question_pack_id": trusted["pack_id"],
+            "execution_attempt_id": trusted["execution_attempt_id"],
+            "physical_budget_attempt_id": trusted["budget_attempt_id"],
+            "members": [
+                {key: member[key] for key in ("question_id", "work_item_id", "work_attempt_id")}
+                for member in trusted["members"]
+            ],
+        }
+        # Filename is a hash of original references, never caller path material.
+        identity = {
+            "response_sha256": digest,
+            "final_answer_sha256": final_digest,
+            "question_pack_id": transport["question_pack_id"],
+            "physical_budget_attempt_id": transport["physical_budget_attempt_id"],
+        }
+        name = hashlib.sha256(
+            json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        artifact_name, parser_name = name + ".final.json", name + ".parser.json"
+        record = {
+            "schema_version": "1.0.0",
+            "record_kind": "final_answer_diagnostic",
+            **allowed,
+            "response_sha256": digest,
+            "original_transport": transport,
+            "final_answer_sha256": final_digest,
+            "final_answer_bytes": len(raw),
+            "final_answer_retained": retained,
+            "retention_reason": retention_reason,
+            "final_answer": content if retained else None,
+            "parser_artifact_name": parser_name,
+            "replay_or_delivery_authorized": False,
+        }
+        directory = policy["directory"]
+        if directory.is_symlink() or directory.resolve() != directory.absolute():
+            raise ValueError("diagnostic_directory_changed")
+        directory.mkdir(exist_ok=True)
+
+        def save_once(filename, value):
+            path = directory / filename
+            if path.is_symlink() or path.resolve() != path.absolute():
+                raise ValueError("diagnostic_path_changed")
+            encoded = (
+                json.dumps(
+                    value,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    allow_nan=False,
+                )
+                + "\n"
+            ).encode("utf-8")
+            try:
+                with path.open("xb") as stream:
+                    stream.write(encoded)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+            except FileExistsError:
+                if path.stat().st_size != len(encoded) or path.read_bytes() != encoded:
+                    raise ValueError("diagnostic_artifact_collision") from None
+
+        save_once(artifact_name, record)
+        if diagnostics is not None:
+            safe = _safe_pack_diagnostics(diagnostics)
+            save_once(
+                parser_name,
+                {
+                    "schema_version": "1.0.0",
+                    "final_answer_sha256": final_digest,
+                    "response_sha256": digest,
+                    "original_transport": transport,
+                    "parser_diagnostics": safe,
+                    "replay_or_delivery_authorized": False,
+                },
+            )
+        return {
+            "status": "recorded",
+            "artifact_name": artifact_name,
+            "parser_artifact_name": parser_name,
+            "final_answer_sha256": final_digest,
+            "final_answer_retained": retained,
+            "parser_diagnostic_saved": diagnostics is not None,
+            "replay_or_delivery_authorized": False,
+        }
+    except (OSError, ValueError, KeyError, TypeError, UnicodeError):
+        return {"status": "unavailable", "reason": "final_answer_diagnostic_unavailable"}
 
 
 @dataclass(frozen=True)
@@ -235,6 +531,7 @@ class LLMProvider(BaseLLMProvider):
         )
 
         assert_question_pack_binding(question_ids, self.entity_id)
+        diagnostic_policy = _final_answer_diagnostic_policy(self.config_manager.config_file)
         prompt = self._build_prompt("", question_pack=questions)
 
         def reply(
@@ -268,11 +565,13 @@ class LLMProvider(BaseLLMProvider):
                 missing=question_ids,
             )
         try:
-            response = self.client.send_search_request(
-                prompt,
-                thinking_enabled=thinking_enabled,
-                max_output_tokens=max_output_tokens,
-            )
+            controls: Dict[str, Any] = {
+                "thinking_enabled": thinking_enabled,
+                "max_output_tokens": max_output_tokens,
+            }
+            if getattr(self.client, "supports_search_json_mode", False) is True:
+                controls["json_mode"] = True
+            response = self.client.send_search_request(prompt, **controls)
         except SearchCapabilityUnavailable as error:
             return reply(
                 {"search_status": "unavailable", "failure_type": type(error).__name__},
@@ -303,14 +602,60 @@ class LLMProvider(BaseLLMProvider):
             )
         metadata = dict(response.execution_metadata)
         metadata["provider_config_ref"] = self.provider_name
-        if not response.search_verified:
-            return reply(metadata, "search_unverified", missing=question_ids)
-        parsed = self.parser.parse_question_pack_response(
-            response.content,
-            question_ids,
-            expected_entity_id=self.entity_id,
-            expected_company_name=self.company_name,
+        # Capture is before parsing, so an unexpected parser failure cannot
+        # erase a known paid final response. Private response channels are never
+        # passed to this helper; only the SDK's final content is eligible.
+        captured = _capture_final_answer_diagnostic(
+            diagnostic_policy, response.content, metadata, trusted
         )
+        if not response.search_verified:
+            diagnostic = {
+                "schema_version": "1.0.0",
+                "status": "not_parsed",
+                "rejections": [
+                    {
+                        "code": (
+                            "provider_response_incomplete"
+                            if metadata.get("response_status") != "completed"
+                            else "search_unverified"
+                        ),
+                        "pointer": "",
+                    }
+                ],
+            }
+            captured = _capture_final_answer_diagnostic(
+                diagnostic_policy, response.content, metadata, trusted, diagnostics=diagnostic
+            )
+            if captured is not None:
+                metadata["final_answer_diagnostic"] = captured
+            metadata["question_pack_parse_diagnostics"] = diagnostic
+            return reply(metadata, "search_unverified", missing=question_ids)
+        try:
+            parsed, diagnostic = self.parser.parse_question_pack_response_with_diagnostics(
+                response.content,
+                question_ids,
+                expected_entity_id=self.entity_id,
+                expected_company_name=self.company_name,
+            )
+        except Exception:
+            _capture_final_answer_diagnostic(
+                diagnostic_policy,
+                response.content,
+                metadata,
+                trusted,
+                diagnostics={
+                    "schema_version": "1.0.0",
+                    "status": "not_parsed",
+                    "rejections": [{"code": "parser_internal_error", "pointer": ""}],
+                },
+            )
+            raise
+        captured = _capture_final_answer_diagnostic(
+            diagnostic_policy, response.content, metadata, trusted, diagnostics=diagnostic
+        )
+        if captured is not None:
+            metadata["final_answer_diagnostic"] = captured
+        metadata["question_pack_parse_diagnostics"] = diagnostic
         if parsed is None:
             return reply(metadata, "rejected", invalid=question_ids)
         by_id = {member["question_id"]: member for member in members}

@@ -2883,7 +2883,7 @@ def test_stockwiki_canonical_binding_keeps_membership_duplicates_and_provisional
         "BIND_route_ref",
         "BND_has-hyphens",
         "BIND_E1EAA3EA-BF67-4732-B336-A96CDB4FBB81",
-        "BIND_e1eaa3eabf674732b336a96cdb4fbb81",
+        "BIND_e1eaa3eabf674732b336a96cdb4fbb8z",
         "BIND_e1eaa3ea-bf67-1732-b336-a96cdb4fbb81",
         "BIND_e1eaa3ea-bf67-5732-b336-a96cdb4fbb81",
         "BIND_e1eaa3ea-bf67-4732-7336-a96cdb4fbb81",
@@ -2905,3 +2905,124 @@ def test_stockwiki_canonical_binding_rejects_malformed_nonanchor_member(tmp_path
     store = _store(tmp_path, [1_800_000_000.0])
     with pytest.raises(ValueError, match="source_binding_refs"):
         _created(store, source_binding_refs=("BND_CN_002594", bad_ref))
+
+
+# Compact BIND hashes observed in real StockWiki G2b exports (Microsoft and
+# Tencent). Only their ID spelling is reused in synthetic, isolated work tests;
+# these tests never manufacture owner identity or financial authority.
+_COMPACT_OWNER_BIND_REFS = (
+    "BIND_bdcbad655ea67df3f9ded4c9b1bf836a",
+    "BIND_a694d89adb8b4f1880b5cab2f56b3f6d",
+)
+
+
+@pytest.mark.parametrize("ref", _COMPACT_OWNER_BIND_REFS)
+def test_stockwiki_compact_binding_creates_and_replays_without_id_rewriting(tmp_path, ref):
+    store = _store(tmp_path, [1_800_000_000.0])
+    first = _created(store, source_binding_ref=ref, source_binding_refs=(ref,))
+    again = _created(
+        store, run_id="RUN_COMPACT_REPLAY", source_binding_ref=ref, source_binding_refs=(ref,)
+    )
+    assert first["work_item_id"] == again["work_item_id"]
+    assert first["source_binding_ref"] == ref
+    assert first["source_binding_refs_json"] == json.dumps([ref], separators=(",", ":"))
+    assert len(store.list_run_refs(first["work_item_id"])) == 2
+    assert store.list_attempts(first["work_item_id"]) == []
+
+
+def test_stockwiki_compact_binding_mixed_canonical_set_preserves_historical_spellings(tmp_path):
+    store = _store(tmp_path, [1_800_000_000.0])
+    refs = ("BND_CN_002594", _CANONICAL_OWNER_BIND_REFS[0], *_COMPACT_OWNER_BIND_REFS)
+    first = _created(store, source_binding_refs=refs)
+    reordered = _created(
+        store,
+        run_id="RUN_COMPACT_REORDER",
+        source_binding_ref=refs[-1],
+        source_binding_refs=tuple(reversed(refs)),
+    )
+    assert reordered["work_item_id"] == first["work_item_id"]
+    assert reordered["source_binding_ref"] == "BND_CN_002594"
+    assert json.loads(first["source_binding_refs_json"]) == sorted(refs)
+    assert all(ref in first["source_binding_refs_json"] for ref in refs)
+
+
+def test_stockwiki_compact_binding_keeps_different_entities_and_wrong_scope_distinct(tmp_path):
+    store = _store(tmp_path, [1_800_000_000.0])
+    rows = []
+    for suffix, ref in zip(("FIRST", "SECOND"), _COMPACT_OWNER_BIND_REFS):
+        entity = "ENT_COMPACT_" + suffix
+        rows.append(
+            _created(
+                store,
+                entity_id=entity,
+                scope_id=entity,
+                source_binding_ref=ref,
+                source_binding_refs=(ref,),
+            )
+        )
+    assert rows[0]["work_item_id"] != rows[1]["work_item_id"]
+    assert {row["entity_id"] for row in rows} == {"ENT_COMPACT_FIRST", "ENT_COMPACT_SECOND"}
+    before = store.path.read_bytes()
+    with pytest.raises(ValueError, match="scope_id must equal"):
+        _created(
+            store,
+            entity_id="ENT_COMPACT_FIRST",
+            scope_id="ENT_COMPACT_SECOND",
+            source_binding_ref=_COMPACT_OWNER_BIND_REFS[0],
+            source_binding_refs=(_COMPACT_OWNER_BIND_REFS[0],),
+        )
+    with pytest.raises(ValueError, match="entity_id"):
+        _created(
+            store,
+            entity_id="../../issuer",
+            source_binding_ref=_COMPACT_OWNER_BIND_REFS[0],
+            source_binding_refs=(_COMPACT_OWNER_BIND_REFS[0],),
+        )
+    assert store.path.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    "bad_ref",
+    [
+        "BIND_" + "a" * 31,
+        "BIND_" + "a" * 33,
+        "BIND_" + "a" * 161,
+        "BIND_" + "A" * 32,
+        "BIND_" + "a" * 31 + "g",
+        "BIND_../" + "a" * 32,
+        "BIND_" + "a" * 16 + "/" + "a" * 15,
+        "BIND_" + "a" * 16 + "\\" + "a" * 15,
+        "BIND_" + "a" * 32 + "\n",
+        " BIND_" + "a" * 32,
+        "BIND_" + "a" * 32 + "suffix",
+        "BIND_opaque_unregistered_text",
+    ],
+)
+def test_stockwiki_compact_binding_rejects_malformed_anchor_and_nonanchor_without_write(
+    tmp_path, bad_ref
+):
+    store = _store(tmp_path, [1_800_000_000.0])
+    before = store.path.read_bytes()
+    with pytest.raises(ValueError, match="source_binding_ref"):
+        _created(store, source_binding_ref=bad_ref, source_binding_refs=(bad_ref,))
+    with pytest.raises(ValueError, match="source_binding_refs"):
+        _created(store, source_binding_refs=("BND_CN_002594", bad_ref))
+    assert store.path.read_bytes() == before
+
+
+def test_stockwiki_compact_binding_keeps_duplicate_foreign_anchor_and_provisional_guards(tmp_path):
+    store = _store(tmp_path, [1_800_000_000.0])
+    first, second = _COMPACT_OWNER_BIND_REFS
+    before = store.path.read_bytes()
+    with pytest.raises(ValueError, match="unique"):
+        _created(store, source_binding_ref=first, source_binding_refs=(first, first))
+    with pytest.raises(ValueError, match="anchor"):
+        _created(store, source_binding_ref=first, source_binding_refs=(second,))
+    with pytest.raises(ValueError, match="provisional"):
+        _created(
+            store,
+            identity_state="provisional",
+            source_binding_ref=first,
+            source_binding_refs=(first, second),
+        )
+    assert store.path.read_bytes() == before

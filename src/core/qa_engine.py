@@ -481,6 +481,27 @@ class QAEngine:
         output: Dict[int, QAResult] = {}
         pending: list[tuple[int, Question, dict]] = []
         self.progress_reporter.start_batch(len(questions))
+        stopped_reason: Optional[str] = None
+
+        def not_dispatched(index: int, question: Question) -> None:
+            # Do not claim, create an attempt, invent a checkpoint or change
+            # original work state after an unresolved member. Recovery is an
+            # explicit original-owner action, never an automatic next POST.
+            output[index] = QAResult(
+                question=question,
+                answer=Answer(
+                    text="前一题包尚需恢复，本题未派发；原工作状态保持不变。",
+                    score=None,
+                    status="error",
+                    source="work_store",
+                    metadata={"failure_type": "not_dispatched"},
+                ),
+                metadata={
+                    "question_pack_not_dispatched": True,
+                    "question_pack_stop_reason": stopped_reason,
+                    "automatic_retry_allowed": False,
+                },
+            )
 
         def failed(
             index: int,
@@ -490,7 +511,8 @@ class QAEngine:
             execution: Optional[dict] = None,
             reason: Optional[str] = None,
         ) -> None:
-            lifecycle.after_question_failed(handle, reason or type(error).__name__)
+            nonlocal stopped_reason
+            stopped_reason = stopped_reason or reason or type(error).__name__
             metadata = _uncertain_transport_metadata(error)
             if not metadata and isinstance(execution, dict):
                 metadata = {"execution": execution}
@@ -505,6 +527,17 @@ class QAEngine:
                 ),
                 metadata={"question_pack_error": reason or type(error).__name__},
             )
+            try:
+                # Only the explicit parse-member reason reaches the original
+                # deterministic-failure branch. Generic DB/transport errors
+                # retain native received/uncertain state for reconciliation.
+                lifecycle.after_question_failed(handle, reason or type(error).__name__)
+            except Exception as finalize_error:
+                output[index].metadata["work_state_finalization_failed"] = True
+                logger.warning(
+                    "Question-pack failure state needs native recovery (%s)",
+                    type(finalize_error).__name__,
+                )
 
         def flush() -> None:
             if not pending:
@@ -530,9 +563,31 @@ class QAEngine:
                 if len(all_ids) != len(set(all_ids)) or set(all_ids) != expected:
                     raise ValueError("question-pack result membership is inconsistent")
                 by_id = dict(zip(valid_ids, response.results))
+                pack_meta = response.execution_metadata.get("question_pack", {})
+                stage = pack_meta.get("status") if isinstance(pack_meta, dict) else None
+                if stage is not None and not isinstance(stage, str):
+                    raise ValueError("invalid question-pack provider status contract")
             except Exception as error:
                 for index, question, handle in members:
                     failed(index, question, handle, error)
+                return
+            if stage is not None and stage not in {"complete", "partial", "rejected"}:
+                # Missing IDs in an unparsed/unverified/transport failure are
+                # membership diagnostics, not proof of a deterministic miss.
+                reason = (
+                    stage
+                    if stage in {"search_unverified", "transport_failed", "unavailable"}
+                    else "question_pack_response_unverified"
+                )
+                for index, question, handle in members:
+                    failed(
+                        index,
+                        question,
+                        handle,
+                        ValueError(reason),
+                        response.execution_metadata,
+                        reason,
+                    )
                 return
             for index, question, handle in members:
                 search_result = by_id.get(question.question_id)
@@ -574,8 +629,14 @@ class QAEngine:
             self.progress_reporter.update_progress(
                 index + 1, len(questions), "正在处理题包: " + question.question_id
             )
+            if stopped_reason is not None:
+                not_dispatched(index, question)
+                continue
             if pending and (key != previous_key or key[2] == "security"):
                 flush()
+                if stopped_reason is not None:
+                    not_dispatched(index, question)
+                    continue
             previous_key = key
             try:
                 original = lifecycle.reference_question(question)
@@ -592,6 +653,7 @@ class QAEngine:
                 if not isinstance(handle, dict) or not handle.get("claimed"):
                     flush()
                     reason = (handle or {}).get("reason") or "lifecycle_refused"
+                    stopped_reason = stopped_reason or "work_claim_refused"
                     output[index] = QAResult(
                         question=question,
                         answer=Answer(
@@ -616,6 +678,7 @@ class QAEngine:
                     flush()
             except Exception as error:
                 flush()
+                stopped_reason = stopped_reason or type(error).__name__
                 output[index] = QAResult(
                     question=question,
                     answer=Answer(
