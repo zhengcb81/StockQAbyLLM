@@ -175,8 +175,13 @@ def native_control(connection, item, binding, *, now=None, require_ready=False):
             raise ValueError("native_decision_missing")
         document = _read(QuickScanWorkStore, connection, row)
         target_version = binding["protocol"] == "stockqa.owner_refresh_binding/4.0.0"
-        if document["protocol"] != "stockqa.owner_work_decision/" + (
-            "1.1.0" if target_version else "1.0.0"
+        checkpoint_recovery = document["request"].get("purpose") == "retry_unusable_checkpoint"
+        if (
+            document["protocol"]
+            != "stockqa.owner_work_decision/"
+            + ("1.1.0" if target_version else "1.2.0" if checkpoint_recovery else "1.0.0")
+            or target_version
+            and checkpoint_recovery
         ):
             raise ValueError("native_control_dialect_mismatch")
         source = dict(QuickScanWorkStore._item(connection, row["work_item_id"]))
@@ -234,7 +239,7 @@ def guard_unresolved(
         "stockqa.owner_refresh_binding/4.0.0",
     }:
         source = native_control(connection, item, binding, now=now, require_ready=True)
-        if binding["owner_control"]["purpose"] == "comparison":
+        if binding["owner_control"]["purpose"] in {"comparison", "retry_unusable_checkpoint"}:
             comparison_source = source["work_item_id"]
     rows = connection.execute(
         "SELECT work_item_id,status FROM work_item WHERE entity_id=? AND question_id=? AND scope=? AND scope_id=? "

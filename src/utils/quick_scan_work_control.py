@@ -24,6 +24,7 @@ def project_owner_control(document, *, source_work, subject_ref, provider, model
         not in {
             "stockqa.owner_work_decision/1.0.0",
             "stockqa.owner_work_decision/1.1.0",
+            "stockqa.owner_work_decision/1.2.0",
         }
         or document.get("decision_id")
         != "owd1_" + canonical_sha256({k: v for k, v in document.items() if k != "decision_id"})
@@ -33,6 +34,10 @@ def project_owner_control(document, *, source_work, subject_ref, provider, model
     physical = request["physical"]
     fingerprint = physical["work_fingerprint"]
     target = document["grant"].get("comparison_target")
+    if (document["protocol"] == "stockqa.owner_work_decision/1.2.0") != (
+        request.get("purpose") == "retry_unusable_checkpoint"
+    ):
+        raise ValueError("work_control_document_invalid")
     if document["protocol"] == "stockqa.owner_work_decision/1.1.0":
         from .quick_scan_known_outcome_journal import validate_comparison_target
 
@@ -43,7 +48,13 @@ def project_owner_control(document, *, source_work, subject_ref, provider, model
         raise ValueError("work_control_target_version_mismatch")
     if (
         request["kind"] != "retry_decision"
-        or request["purpose"] not in {"comparison", "retry_unknown_answer", "retry_unusable_answer"}
+        or request["purpose"]
+        not in {
+            "comparison",
+            "retry_unknown_answer",
+            "retry_unusable_answer",
+            "retry_unusable_checkpoint",
+        }
         or request["work_item_id"] != source_work["work_item_id"]
         or request["target_generation"] != source_work["generation"] + 1
         or type(request["target_generation"]) is not int
@@ -51,6 +62,8 @@ def project_owner_control(document, *, source_work, subject_ref, provider, model
         or physical["subject_binding"]["subject_ref"] != subject_ref
         or target is None
         and (physical["provider"] != provider or physical["model_requested"] != model)
+        or request["purpose"] == "retry_unusable_checkpoint"
+        and source_work["status"] != "result_ready"
         or source_work["status"] not in {"failed", "result_ready", "delivered"}
     ):
         raise ValueError("work_control_source_mismatch")

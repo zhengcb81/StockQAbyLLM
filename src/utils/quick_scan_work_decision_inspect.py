@@ -81,6 +81,8 @@ def _inspect(path, value, *, policy, clock, derive, comparison_target=None):
         if derive
         else (RESOLUTION_REQUEST if resolution else RETRY_REQUEST)
     )
+    if not resolution and value.get("purpose") == "retry_unusable_checkpoint" and not derive:
+        fields = fields | {"unusable_checkpoint"}
     if set(value) != fields:
         raise ValueError("owner_work_read_request_invalid")
     view = ReadOnlyWorkView(path)
@@ -168,7 +170,11 @@ def _inspect(path, value, *, policy, clock, derive, comparison_target=None):
             owner_receipt = receipt_record(con, pre)
             result = dict(
                 protocol="stockqa.work_decision_inspection/"
-                + ("1.1.0" if comparison_target is not None else "1.0.0"),
+                + (
+                    "1.2.0"
+                    if request.get("purpose") == "retry_unusable_checkpoint"
+                    else "1.1.0" if comparison_target is not None else "1.0.0"
+                ),
                 request=copy.deepcopy(request),
                 request_sha256=canonical_sha256(request),
                 subject_dispatch_receipt=owner_receipt,

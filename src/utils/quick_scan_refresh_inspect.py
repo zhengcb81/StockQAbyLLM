@@ -225,8 +225,15 @@ def inspect_refresh(
                         raise ValueError("refresh_control_decision_missing")
                     document = _read(view, connection, row)
                     targeted = schema_version == "1.3.0"
-                    if document["protocol"] != "stockqa.owner_work_decision/" + (
-                        "1.1.0" if targeted else "1.0.0"
+                    checkpoint_recovery = (
+                        document["request"].get("purpose") == "retry_unusable_checkpoint"
+                    )
+                    if (
+                        document["protocol"]
+                        != "stockqa.owner_work_decision/"
+                        + ("1.1.0" if targeted else "1.2.0" if checkpoint_recovery else "1.0.0")
+                        or targeted
+                        and checkpoint_recovery
                     ):
                         raise ValueError("refresh_control_explicit_target_dialect_required")
                     physical = document["request"]["physical"]
@@ -259,12 +266,7 @@ def inspect_refresh(
                     # the aggregated controls cover every requested ref once.
                     if targeted and not local:
                         continue
-                    if (
-                        not local
-                        or qid in seen
-                        or qid not in work
-                        or work[qid]["work_item_id"] != item["work_item_id"]
-                    ):
+                    if not local or qid in seen or qid not in work:
                         raise ValueError("refresh_control_source_work_changed")
                     projected = project_owner_control(
                         document,
@@ -275,6 +277,22 @@ def inspect_refresh(
                         now=time.time(),
                         cohort_id=request["cohort_id"],
                     )
+                    if work[qid]["work_item_id"] != item["work_item_id"]:
+                        # A registered checkpoint recovery reads its exact native
+                        # successor, not an invented replacement for the source.
+                        target_binding = (
+                            view.get_owner_refresh_binding(work[qid]["work_item_id"])
+                            if checkpoint_recovery
+                            else None
+                        )
+                        if (
+                            not checkpoint_recovery
+                            or target_binding is None
+                            or work[qid]["generation"] != projected["generation"]
+                            or canonical_sha256(target_binding["binding"].get("owner_control"))
+                            != canonical_sha256(projected["owner_control"])
+                        ):
+                            raise ValueError("refresh_control_source_work_changed")
                     work[qid].update(
                         owner_control=projected["owner_control"],
                         control_dispatch=projected["decision"],

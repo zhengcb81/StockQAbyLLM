@@ -398,18 +398,13 @@ def test_real_subprocess_corrupt_standard_body_is_rejected_without_reasking(tmp_
     store = QuickScanWorkStore(tmp_path / "quick_scan_work.sqlite")
     grouped = store.find_work_items(entity_id=base.ENTITY_ID, question_ids=[corrupt])
     rejected_id = grouped[corrupt][0]["work_item_id"]
-    # The ambiguous body is refused end to end: the provider falls back to an
-    # honest-unknown checkpoint (NO score, NO durable standard answer) and the
-    # v2 seal durably BLOCKS it — never a scored observation, never a re-ask.
-    checkpoint = store.get_answer_checkpoint(rejected_id)
-    assert checkpoint is not None
-    assert checkpoint["payload"]["answer"]["status"] == "unknown"
-    assert checkpoint["payload"]["answer"]["score"] is None
-    assert "ambiguous summary" not in checkpoint["payload"]["answer"]["description"]
+    # Complete C06 refuses the unusable body before saving any checkpoint.
+    # The physical request remains recoverable without a false ready item,
+    # compact fallback checkpoint, newly created outbox head or repeat POST.
+    assert store.get_answer_checkpoint(rejected_id) is None
     assert store.get_standard_answer(rejected_id) is None
-    delivery = store.get_result_delivery(rejected_id)
-    assert delivery is not None and delivery["state"] == "blocked"
-    assert delivery["block_code"] == "c06_standard_answer_unavailable"
+    assert store.get_result_delivery(rejected_id) is None
+    assert store.get_item(rejected_id)["status"] != "result_ready"
 
     work_ids = base._work_ids(store)
     healthy = [work_item_id for work_item_id in work_ids if work_item_id != rejected_id]

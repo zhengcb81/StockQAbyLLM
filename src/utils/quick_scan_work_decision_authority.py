@@ -315,13 +315,18 @@ class StockWikiWorkDecisionAuthority(OwnerWorkDecisionAuthority):
             request["kind"] == "known_response_resolution"
             and purpose is None
             or request["kind"] == "retry_decision"
-            and purpose == "retry_unusable_answer"
+            and purpose in {"retry_unusable_answer", "retry_unusable_checkpoint"}
         ):
             raise ValueError("owner_work_delegation_action_not_allowed")
         if (
             not isinstance(grant, dict)
             or set(grant) != fields
-            or grant["protocol"] != "stockwiki.work_delegation/1.0.0"
+            or grant["protocol"]
+            != (
+                "stockwiki.work_delegation/1.1.0"
+                if purpose == "retry_unusable_checkpoint"
+                else "stockwiki.work_delegation/1.0.0"
+            )
         ):
             raise ValueError("owner_work_delegation_fields_invalid")
         binding_keys = {
@@ -426,7 +431,12 @@ class StockWikiWorkDecisionAuthority(OwnerWorkDecisionAuthority):
             != (
                 "stockwiki.work_decision_request/1.1.0"
                 if publication
-                else "stockwiki.work_decision_request/1.0.0"
+                else (
+                    "stockwiki.work_decision_request/1.2.0"
+                    if isinstance(outer.get("decision_request"), dict)
+                    and outer["decision_request"].get("purpose") == "retry_unusable_checkpoint"
+                    else "stockwiki.work_decision_request/1.0.0"
+                )
             )
             or outer["consumer_id"] != self.consumer_id
             or not isinstance(outer["decision_request"], dict)

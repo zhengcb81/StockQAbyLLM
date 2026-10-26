@@ -858,8 +858,8 @@ class QuickScanWorkLifecycle:
         observation context, a description shaped like a standard answer MUST
         be a complete body — the caller persists it verbatim (never truncated)
         and the compact checkpoint keeps only its summary. Prose that is not a
-        standard body keeps the historical compact handling, which authority
-        2.0.0 then refuses to seal as a complete observation.
+        standard body keeps historical compact handling only for generic QA.
+        Complete C06 authority 2/3 rejects it during preflight before saving.
         """
         from src.utils.quick_scan_observation_context import parse_standard_answer
 
@@ -884,7 +884,12 @@ class QuickScanWorkLifecycle:
         search_projection: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Run the complete standard-answer contract BEFORE any state is written."""
+        complete_transport = isinstance(self._c06_authority, dict) and self._c06_authority.get(
+            "schema_version"
+        ) in {"2.0.0", "3.0.0"}
         if self._observation_context is None:
+            if complete_transport:
+                raise ValueError("complete C06 execution requires its frozen observation context")
             return
         from src.utils.quick_scan_observation_context import (
             validate_context_document,
@@ -900,6 +905,8 @@ class QuickScanWorkLifecycle:
         if question_id not in context["questions"]:
             raise ValueError("standard answer question is absent from the frozen context")
         if standard_body is None:
+            if complete_transport:
+                raise ValueError("complete C06 execution requires a full standard answer")
             return
         validate_standard_answer(
             standard_body,
@@ -1041,6 +1048,10 @@ class QuickScanWorkLifecycle:
                             "description": description,
                         }
             except Exception as exc:  # noqa: BLE001
+                if isinstance(self._c06_authority, dict) and self._c06_authority.get(
+                    "schema_version"
+                ) in {"2.0.0", "3.0.0"}:
+                    raise ProcessingError("完整 C06 答案未通过检查点预检；原请求回执保留") from exc
                 logger.debug("checkpoint receipt build skipped (%s)", exc)
             if receipt is not None and answer_payload is not None:
                 # r1 P1-1: the FULL deterministic save surface runs first, with
@@ -1051,6 +1062,12 @@ class QuickScanWorkLifecycle:
                     _preflight_checkpoint(answer_payload, receipt)
                     self._preflight_standard_answer(answer_payload, receipt, standard_body)
                 except ValueError as exc:
+                    if isinstance(self._c06_authority, dict) and self._c06_authority.get(
+                        "schema_version"
+                    ) in {"2.0.0", "3.0.0"}:
+                        raise ProcessingError(
+                            "完整 C06 答案未通过检查点预检；原请求回执保留"
+                        ) from exc
                     logger.warning("检查点预检拒绝（%s）——零状态降级为诚实 unknown", exc)
                     receipt = None
             if receipt is not None and answer_payload is not None:

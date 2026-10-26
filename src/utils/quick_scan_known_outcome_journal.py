@@ -15,6 +15,7 @@ from abc import ABC, abstractmethod
 from contextlib import closing
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
+from typing import NoReturn
 
 from .quick_scan_result_outbox import (
     canonical_bytes,
@@ -402,13 +403,111 @@ def _physical(store, con, item, attempt):
     )
 
 
+def unusable_checkpoint_proof(store, con, item, attempt):
+    """Pure exact proof of a paid checkpoint that never formed a deliverable.
+
+    Only metadata/hashes enter authority. No old artifact is modified or promoted.
+    """
+    from .quick_scan_work_store import WorkConflictError
+
+    def reject() -> NoReturn:
+        raise WorkConflictError("owner_work_unusable_checkpoint_required")
+
+    if item["status"] != "result_ready" or attempt["phase"] != "response_available":
+        reject()
+    row = con.execute(
+        "SELECT * FROM answer_checkpoint WHERE work_item_id=?", (item["work_item_id"],)
+    ).fetchone()
+    delivery = con.execute(
+        "SELECT * FROM quick_scan_result_delivery WHERE work_item_id=?", (item["work_item_id"],)
+    ).fetchone()
+    if (
+        row is None
+        or row["attempt_id"] != attempt["attempt_id"]
+        or con.execute(
+            "SELECT 1 FROM quick_scan_standard_answer WHERE work_item_id=?", (item["work_item_id"],)
+        ).fetchone()
+        is not None
+        or delivery is None
+        or delivery["state"] != "blocked"
+        or delivery["block_code"] != "c06_standard_answer_unavailable"
+        or any(
+            delivery[key] is not None
+            for key in (
+                "package_json",
+                "package_sha256",
+                "package_bytes_sha256",
+                "package_id",
+                "item_id",
+                "observation_id",
+                "payload_sha256",
+                "delivery_key",
+                "ack_json",
+                "ack_sha256",
+                "consumer_store_id",
+            )
+        )
+    ):
+        reject()
+    record = con.execute(
+        "SELECT c.*,w.*,a.attempt_id AS bound_attempt_id FROM answer_checkpoint c JOIN work_item w USING(work_item_id) JOIN attempt a ON a.attempt_id=c.attempt_id WHERE c.work_item_id=?",
+        (item["work_item_id"],),
+    ).fetchone()
+    checkpoint = store._checkpoint_record(con, record)
+    context_row = con.execute(
+        "SELECT c.context_json,c.context_sha256 FROM quick_scan_work_context w JOIN quick_scan_observation_context c USING(context_sha256) WHERE w.work_item_id=?",
+        (item["work_item_id"],),
+    ).fetchone()
+    context = (
+        None
+        if context_row is None
+        else {
+            "context": strict_json_loads(context_row["context_json"]),
+            "context_sha256": context_row["context_sha256"],
+        }
+    )
+    events = [
+        dict(r)
+        for r in con.execute(
+            "SELECT * FROM quick_scan_result_delivery_event WHERE delivery_id=? ORDER BY event_id",
+            (delivery["delivery_id"],),
+        )
+    ]
+    if (
+        checkpoint is None
+        or checkpoint["attempt_id"] != attempt["attempt_id"]
+        or checkpoint["payload_sha256"] != row["payload_sha256"]
+        or context is None
+        or canonical_sha256(context["context"]) != context["context_sha256"]
+        or not events
+        or any(e["event_type"] != "blocked" for e in events)
+    ):
+        reject()
+    return dict(
+        protocol="stockqa.unusable_checkpoint_proof/1.0.0",
+        checkpoint_sha256=row["payload_sha256"],
+        context_sha256=context["context_sha256"],
+        outbox_sha256=canonical_sha256(dict(delivery)),
+        outbox_events_sha256=canonical_sha256(events),
+        block_code="c06_standard_answer_unavailable",
+        standard_answer_absent=True,
+    )
+
+
 def _read(store, con, row):
     from .quick_scan_work_store import WorkConflictError
 
     document = strict_json_loads(row["document_json"])
     protocol = document.get("protocol")
     target = document.get("grant", {}).get("comparison_target")
-    if protocol == "stockqa.owner_work_decision/1.1.0":
+    if protocol == "stockqa.owner_work_decision/1.2.0":
+        if document["request"].get(
+            "purpose"
+        ) != "retry_unusable_checkpoint" or "comparison_target" in document.get("grant", {}):
+            raise WorkConflictError("owner_work_document_version_mismatch")
+    elif document["request"].get("purpose") == "retry_unusable_checkpoint":
+        raise WorkConflictError("owner_work_document_version_mismatch")
+    elif protocol == "stockqa.owner_work_decision/1.1.0":
         validate_comparison_target(target, document["request"])
     elif protocol != "stockqa.owner_work_decision/1.0.0" or "comparison_target" in document.get(
         "grant", {}
@@ -434,6 +533,12 @@ def _read(store, con, row):
     ).fetchone()
     if attempt is None or _physical(store, con, item, attempt) != document["request"]["physical"]:
         raise WorkConflictError("owner_work_original_proof_changed")
+    if document["request"].get("purpose") == "retry_unusable_checkpoint":
+        if (
+            unusable_checkpoint_proof(store, con, item, attempt)
+            != document["request"]["unusable_checkpoint"]
+        ):
+            raise WorkConflictError("owner_work_original_checkpoint_changed")
     return document
 
 
@@ -455,9 +560,13 @@ def _existing(store, con, work_id, key, request):
 def _persist(con, request, grant, now, *, next_retry_at=None):
     document = dict(
         protocol=(
-            "stockqa.owner_work_decision/1.1.0"
-            if "comparison_target" in grant
-            else "stockqa.owner_work_decision/1.0.0"
+            "stockqa.owner_work_decision/1.2.0"
+            if request.get("purpose") == "retry_unusable_checkpoint"
+            else (
+                "stockqa.owner_work_decision/1.1.0"
+                if "comparison_target" in grant
+                else "stockqa.owner_work_decision/1.0.0"
+            )
         ),
         request=request,
         grant=grant,
@@ -664,7 +773,12 @@ def retry_request(
         or not 0 <= retry_after_seconds <= 86400
     ):
         raise ValueError("owner_work_retry_delay_invalid")
-    if purpose not in {"retry_unusable_answer", "retry_unknown_answer", "comparison"}:
+    if purpose not in {
+        "retry_unusable_answer",
+        "retry_unknown_answer",
+        "comparison",
+        "retry_unusable_checkpoint",
+    }:
         raise ValueError("owner_work_retry_purpose_invalid")
     if purpose == "comparison":
         if (
@@ -691,7 +805,24 @@ def retry_request(
     ).fetchone()
     resolution = None
     checkpoint_sha = None
-    if purpose == "retry_unusable_answer" or (
+    unusable = None
+    if purpose == "retry_unusable_checkpoint":
+        unusable = unusable_checkpoint_proof(store, con, item, attempt)
+        latest_generation = con.execute(
+            "SELECT MAX(generation) FROM work_item WHERE entity_id=? AND question_id=? AND scope=? AND scope_id=?",
+            (item["entity_id"], item["question_id"], item["scope"], item["scope_id"]),
+        ).fetchone()[0]
+        if (
+            latest_generation != item["generation"]
+            and con.execute(
+                "SELECT 1 FROM quick_scan_owner_work_decision WHERE work_item_id=? AND idempotency_key=? AND kind='retry_decision'",
+                (work_item_id, idempotency_key),
+            ).fetchone()
+            is None
+        ):
+            raise WorkConflictError("owner_work_latest_generation_required")
+        checkpoint_sha = checkpoint["payload_sha256"]
+    elif purpose == "retry_unusable_answer" or (
         purpose == "comparison" and item["status"] == "failed"
     ):
         row = con.execute(
@@ -735,8 +866,13 @@ def retry_request(
         target_generation=item["generation"] + 1,
         retry_after_seconds=retry_after_seconds,
         comparison_controls=copy.deepcopy(comparison_controls),
-        requires_prior_delivery=checkpoint is not None and purpose != "comparison",
+        requires_prior_delivery=checkpoint is not None
+        and purpose not in {"comparison", "retry_unusable_checkpoint"},
     )
+    if unusable is not None:
+        if physical["response_status"] != "completed":
+            raise WorkConflictError("owner_work_completed_response_required")
+        request["unusable_checkpoint"] = unusable
     return request, item
 
 

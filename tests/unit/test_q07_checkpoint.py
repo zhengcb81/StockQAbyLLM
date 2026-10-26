@@ -11,9 +11,16 @@ RED phase: the Q07 wiring (hydrate/persist/recovery) does not exist yet.
 
 from __future__ import annotations
 
+import copy
 import hashlib
+import json
 import sqlite3
+from contextlib import nullcontext
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import Mock
+
+import pytest
 
 from src.core.models import Answer, Question
 from src.core.qa_engine import QAEngine
@@ -660,3 +667,187 @@ def test_p1_2_hydration_keeps_original_time_and_envelope_receipt(
     assert receipt["answered_at"] == "2026-10-06T01:00:00Z"
     assert receipt["http_status_code"] == 200
     assert envelope["answers"]["IQS_05"]["score"] == 8
+
+
+# Complete C06 ingress: actual local SQLite + original received transport only.
+def _received_complete_lifecycle(tmp_path, authority_version, description, *, with_context=True):
+    from src.core.models import QAResult
+    from src.utils.quick_scan_work_store import quick_scan_receipt_sha256
+    from tests.unit.test_quick_scan_observation_context import CONTEXT, MANIFEST, QID
+
+    store = _store(tmp_path)
+    historical = _seed_checkpoint(store, _lifecycle(store), "OLD_READY")
+    old_checkpoint = copy.deepcopy(
+        store.get_answer_checkpoint(historical["handle"]["work_item_id"])
+    )
+    authority = None if authority_version is None else {"schema_version": authority_version}
+    lifecycle = _lifecycle(
+        store,
+        entity_id="ENT_CONTEXT_FIXTURE",
+        transport_managed=True,
+        observation_context=copy.deepcopy(CONTEXT) if with_context else None,
+        c06_authority=authority,
+        identity={**IDENTITY, "identity_snapshot_sha256": CONTEXT["identity_snapshot_sha256"]},
+    )
+    question = _q(QID, next(x["prompt"] for x in MANIFEST["questions"] if x["id"] == QID))
+    handle = lifecycle.before_question(question)
+    assert handle["claimed"]
+    attempt = store.prepare_attempt(
+        handle["work_item_id"],
+        handle["lease"],
+        route_id="route-preflight",
+        provider="mimo",
+        model_requested="mimo-v2.6-flash",
+        request_cache_key="REQ_" + hashlib.sha256(b"complete-standard-preflight").hexdigest(),
+        prompt_sha256="c" * 64,
+    )
+    store.mark_send_intent(handle["work_item_id"], handle["lease"], attempt["attempt_id"])
+    receipt = _receipt(source_urls=["https://example.invalid/company"])
+    store.record_attempt_outcome(
+        handle["work_item_id"],
+        handle["lease"],
+        attempt["attempt_id"],
+        outcome="response_available",
+        http_status_code=200,
+        receipt_sha256=quick_scan_receipt_sha256(receipt),
+        request_id=receipt["request_id"],
+        execution_receipt=receipt,
+    )
+    result = QAResult(
+        question,
+        Answer(
+            description,
+            score=8,
+            status="scored",
+            metadata={
+                **receipt,
+                "model_requested": receipt["requested_model"],
+                "execution": {
+                    **receipt,
+                    "work_transport": {
+                        "work_attempt_id": attempt["attempt_id"],
+                        "final_receipt": receipt,
+                    },
+                },
+            },
+        ),
+    )
+    sealed = []
+    lifecycle._seal_delivery = sealed.append
+    before = copy.deepcopy(store.get_attempt_response(attempt["attempt_id"]))
+    return (
+        store,
+        lifecycle,
+        question,
+        handle,
+        attempt,
+        result,
+        before,
+        historical,
+        old_checkpoint,
+        sealed,
+    )
+
+
+def _run_received_answer(lifecycle, question, handle, result):
+    # Exercise the original engine error envelope without a new HTTP or claim:
+    # the fixture's physical transport was already recorded above.
+    wrapper = SimpleNamespace(
+        reference_question=lambda _: None,
+        hydrate_question=lambda _: None,
+        before_question=lambda _: handle,
+        dispatch_context=lambda _: nullcontext(),
+        after_question=lifecycle.after_question,
+        after_question_failed=lifecycle.after_question_failed,
+    )
+    engine = QAEngine(CountingProvider(), progress_reporter=Mock(), work_item_lifecycle=wrapper)
+    engine.process_question = lambda _: result
+    return engine.process_questions([question]).results[0]
+
+
+@pytest.mark.parametrize("authority_version", ["2.0.0", "3.0.0"])
+@pytest.mark.parametrize(
+    "kind", ["prose", "compact", "invalid_standard", "missing_context", "duplicate_key"]
+)
+@pytest.mark.parametrize("transport_managed", [True, False])
+def test_complete_c06_never_marks_unusable_standard_ready(
+    tmp_path, authority_version, kind, transport_managed
+):
+    from tests.unit.test_quick_scan_observation_context import content
+
+    body = content()
+    if kind == "invalid_standard":
+        body["score"] = 7  # does not match normalized 8; no auto repair.
+    description = (
+        "Legacy prose with a score"
+        if kind == "prose"
+        else (
+            json.dumps({"score": 8, "description": "Legacy compact"})
+            if kind == "compact"
+            else (
+                json.dumps(body)[:-1] + ', "score": 8}'
+                if kind == "duplicate_key"
+                else json.dumps(body)
+            )
+        )
+    )
+    store, lc, question, handle, attempt, result, before, old, old_cp, sealed = (
+        _received_complete_lifecycle(
+            tmp_path, authority_version, description, with_context=kind != "missing_context"
+        )
+    )
+    if not transport_managed:
+        lc._transport_managed = False
+        handle["attempt_id"] = attempt["attempt_id"]
+    output = _run_received_answer(lc, question, handle, result)
+    assert output.answer.status == "error" and output.answer.score is None
+    assert store.get_answer_checkpoint(handle["work_item_id"]) is None
+    assert store.get_standard_answer(handle["work_item_id"]) is None
+    assert store.get_result_delivery(handle["work_item_id"]) is None
+    assert store.get_item(handle["work_item_id"])["status"] != "result_ready"
+    assert store.get_attempt_response(attempt["attempt_id"]) == before
+    assert store.list_attempts(handle["work_item_id"])[0]["phase"] == "response_available"
+    assert store.get_answer_checkpoint(old["handle"]["work_item_id"]) == old_cp
+    assert not sealed
+
+
+@pytest.mark.parametrize("authority_version", ["2.0.0", "3.0.0"])
+def test_complete_c06_original_standard_remains_checkpointable(tmp_path, authority_version):
+    from tests.unit.test_quick_scan_observation_context import content
+
+    body = content()
+    store, lc, question, handle, attempt, result, before, old, old_cp, sealed = (
+        _received_complete_lifecycle(tmp_path, authority_version, json.dumps(body))
+    )
+    output = _run_received_answer(lc, question, handle, result)
+    assert output.answer.status == "scored" and output.answer.score == 8
+    checkpoint = store.get_answer_checkpoint(handle["work_item_id"])
+    assert (
+        checkpoint is not None and checkpoint["payload"]["answer"]["description"] == body["summary"]
+    )
+    assert store.get_standard_answer(handle["work_item_id"])["answer"] == body
+    assert store.get_attempt_response(attempt["attempt_id"]) == before
+    assert store.get_answer_checkpoint(old["handle"]["work_item_id"]) == old_cp
+    assert sealed == [handle["work_item_id"]]
+
+
+@pytest.mark.parametrize("authority_version", [None, "1.0.0"])
+@pytest.mark.parametrize("with_context", [False, True])
+def test_generic_noncomplete_qa_retains_legacy_compact_checkpoint(
+    tmp_path, authority_version, with_context
+):
+    store, lc, question, handle, attempt, result, before, old, old_cp, sealed = (
+        _received_complete_lifecycle(
+            tmp_path,
+            authority_version,
+            "Historical generic compact answer",
+            with_context=with_context,
+        )
+    )
+    output = _run_received_answer(lc, question, handle, result)
+    assert output.answer.status == "scored" and output.answer.score == 8
+    assert store.get_answer_checkpoint(handle["work_item_id"]) is not None
+    assert store.get_standard_answer(handle["work_item_id"]) is None
+    assert store.get_attempt_response(attempt["attempt_id"]) == before
+    assert store.get_answer_checkpoint(old["handle"]["work_item_id"]) == old_cp
+    assert sealed == [handle["work_item_id"]]
