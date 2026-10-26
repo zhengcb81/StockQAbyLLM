@@ -510,12 +510,13 @@ class QAEngine:
             error: BaseException,
             execution: Optional[dict] = None,
             reason: Optional[str] = None,
+            transport_metadata: Optional[dict] = None,
         ) -> None:
             nonlocal stopped_reason
             stopped_reason = stopped_reason or reason or type(error).__name__
             metadata = _uncertain_transport_metadata(error)
             if not metadata and isinstance(execution, dict):
-                metadata = {"execution": execution}
+                metadata = {"execution": execution, **(transport_metadata or {})}
             output[index] = QAResult(
                 question=question,
                 answer=Answer(
@@ -546,6 +547,7 @@ class QAEngine:
             pending.clear()
             pack_questions = [q for _, q, _ in members]
             handles = [h for _, _, h in members]
+            failure_transport_metadata: dict = {}
             try:
                 with context_factory(handles):
                     response = search_pack(
@@ -553,6 +555,42 @@ class QAEngine:
                         thinking_enabled=thinking_enabled,
                         max_output_tokens=max_output_tokens,
                     )
+                    if isinstance(response, QuestionPackSearchResult) and isinstance(
+                        response.execution_metadata, dict
+                    ):
+                        execution = response.execution_metadata
+                        if "question_pack_transport" in execution:
+                            from src.utils.quick_scan_work_transport import (
+                                project_question_pack_transport,
+                                project_quick_scan_search,
+                            )
+
+                            # A rejected member is not an answer, but the actual
+                            # physical request still happened. Re-read its owner
+                            # while the original pack binding is active; an
+                            # arbitrary nested model field cannot certify it.
+                            project_question_pack_transport(execution)
+                            original = execution["work_transport"]["final_receipt"]
+                            search = project_quick_scan_search(original)
+                            failure_transport_metadata = {
+                                "model_requested": original.get("requested_model"),
+                                "actual_model": original.get("actual_model"),
+                                "request_id": original.get("request_id"),
+                                "response_id": original.get("response_id"),
+                                "search_status": search.get("search_status"),
+                                "search_receipt_id": search.get("search_receipt_id"),
+                            }
+                        elif execution.get("search_status") in {
+                            "unverified",
+                            "unavailable",
+                            "not_attempted",
+                        }:
+                            # A missing positive proof cannot become executed.
+                            # Keep negative transport outcomes visible without
+                            # promoting their model fields or source URLs.
+                            failure_transport_metadata = {
+                                "search_status": execution["search_status"]
+                            }
                 if not isinstance(response, QuestionPackSearchResult):
                     raise ValueError("invalid question-pack provider result contract")
                 expected = {q.question_id for q in pack_questions}
@@ -587,6 +625,7 @@ class QAEngine:
                         ValueError(reason),
                         response.execution_metadata,
                         reason,
+                        transport_metadata=failure_transport_metadata,
                     )
                 return
             for index, question, handle in members:
@@ -604,6 +643,7 @@ class QAEngine:
                         ValueError(reason),
                         response.execution_metadata,
                         reason,
+                        transport_metadata=failure_transport_metadata,
                     )
                     continue
                 try:
@@ -616,13 +656,21 @@ class QAEngine:
                             ValueError("answer_generator_rejected_member"),
                             response.execution_metadata,
                             "answer_generator_rejected_member",
+                            transport_metadata=failure_transport_metadata,
                         )
                         continue
                     result = QAResult(question=question, answer=answer)
                     lifecycle.after_question(handle, result)
                     output[index] = result
                 except Exception as error:
-                    failed(index, question, handle, error, response.execution_metadata)
+                    failed(
+                        index,
+                        question,
+                        handle,
+                        error,
+                        response.execution_metadata,
+                        transport_metadata=failure_transport_metadata,
+                    )
 
         previous_key = None
         for index, (question, key) in enumerate(zip(questions, keys)):

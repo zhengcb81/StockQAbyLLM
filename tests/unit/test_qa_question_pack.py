@@ -306,7 +306,16 @@ def test_real_lifecycle_requires_owner_and_transport_before_any_store_rows(tmp_p
 
 
 @pytest.mark.parametrize(
-    "partial", [False, True, "partial_pending", "uncertain_pending", "unverified_pending"]
+    "partial",
+    [
+        False,
+        True,
+        "partial_pending",
+        "invalid_pending",
+        "rejected_pending",
+        "uncertain_pending",
+        "unverified_pending",
+    ],
 )
 def test_actual_lifecycle_client_group_store_and_checkpoints_only_valid_members(
     tmp_path, monkeypatch, partial
@@ -455,7 +464,9 @@ def test_actual_lifecycle_client_group_store_and_checkpoints_only_valid_members(
         entity_id=identity["entity_id"],
     )
     answers = []
-    for question in questions[:1] if partial else questions:
+    for question in (
+        questions[:2] if partial == "invalid_pending" else (questions[:1] if partial else questions)
+    ):
         body = content()
         body["question_id"] = question.question_id
         body["evidence"][0]["url"] = "https://example.org/source"
@@ -470,6 +481,8 @@ def test_actual_lifecycle_client_group_store_and_checkpoints_only_valid_members(
                 information_as_of="2026-09-01",
             )
         )
+    if partial == "invalid_pending":
+        answers[1]["score"] = 11
     response = Mock()
     response.status_code = 200
     response.headers = {"x-request-id": "original-entry-request"}
@@ -487,7 +500,11 @@ def test_actual_lifecycle_client_group_store_and_checkpoints_only_valid_members(
                 "finish_reason": "stop",
                 "message": {
                     "role": "assistant",
-                    "content": json.dumps({"answers": answers}),
+                    "content": (
+                        "rejected non-JSON final answer"
+                        if partial == "rejected_pending"
+                        else json.dumps({"answers": answers})
+                    ),
                     "reasoning_content": "private synthetic reasoning must never persist",
                     "annotations": [{"type": "url_citation", "url": "https://example.org/source"}],
                 },
@@ -568,6 +585,10 @@ def test_actual_lifecycle_client_group_store_and_checkpoints_only_valid_members(
                 batch.results[index].metadata["question_pack_error"] == "search_unverified"
                 for index in range(2)
             )
+    elif partial == "rejected_pending":
+        assert checkpoints[:2] == [None, None]
+        assert all(persisted[qid]["status"] == "failed" for qid in qids[:2])
+        assert [r.answer.status for r in batch.results[:2]] == ["error", "error"]
     else:
         assert checkpoints[0] is not None, [r.answer.text for r in batch.results]
         assert (checkpoints[1] is None) == bool(partial)
@@ -588,6 +609,37 @@ def test_actual_lifecycle_client_group_store_and_checkpoints_only_valid_members(
             == batch.results[0].answer.metadata["execution"]["work_transport"]["work_attempt_id"]
         )
     assert transport._QUESTION_PACK_BINDING.get() is None
+    public = batch.to_quick_scan_dict(
+        entity_id=identity["entity_id"],
+        company_name="Synthetic Co",
+        provider_name="mimo",
+        requested_model="mimo-v2.6-flash",
+        work_store=store,
+    )
+    for index, item in enumerate(batch.results[:2]):
+        if item.answer.status != "error":
+            continue
+        receipt = public["execution_receipts"][item.question.question_id]
+        answer = public["answers"][item.question.question_id]
+        if partial == "uncertain_pending":
+            assert receipt["search_status"] == "unverified"
+        else:
+            expected_search = "unverified" if partial == "unverified_pending" else "executed"
+            assert receipt["search_status"] == expected_search
+            assert receipt["actual_model"] == "mimo-v2.6-flash"
+            assert receipt["response_id"] == "entry-response"
+            assert receipt["request_id"] == "original-entry-request"
+            assert receipt["response_status"] == "completed"
+            assert receipt["http_status_code"] == 200
+        assert answer["status"] == "error" and answer["score"] is None
+        assert answer["source_urls"] == [] and receipt["source_urls"] == []
+        assert answer["check_level"] == "unverified_model_output"
+        assert checkpoints[index] is None
+    if has_pending:
+        pending_receipt = public["execution_receipts"][qids[2]]
+        assert pending_receipt["search_status"] == "not_attempted"
+        assert pending_receipt["response_id"] is None
+        assert pending_receipt["web_search_calls"] == []
     if checkpoints[0] is not None:
         from types import SimpleNamespace
 
@@ -848,3 +900,61 @@ def test_search_or_transport_stage_is_not_reclassified_as_deterministic_missing(
         assert len(p.calls) == 1 and not lc.saved
         assert lc.failed == [("CORE_01", stage), ("CORE_02", stage)]
         assert batch.results[2].metadata["question_pack_not_dispatched"]
+
+
+@pytest.mark.parametrize("with_fake_proof", [False, True])
+def test_failed_member_cannot_promote_arbitrary_nested_executed_claim(with_fake_proof):
+    e, p, lc = engine()
+    execution = {
+        "search_status": "executed",
+        "actual_model": "forged-model",
+        "response_id": "forged-response",
+        "request_id": "forged-request",
+        "source_urls": ["https://example.org/not-an-owner-proof"],
+    }
+    if with_fake_proof:
+        execution["question_pack_transport"] = {"pack_id": "forged-pack"}
+        execution["work_transport"] = {"final_receipt": dict(execution)}
+    p.reply = QuestionPackSearchResult((), ("CORE_01", "CORE_02"), (), execution)
+    batch = e.process_questions([q(1), q(2), q(3)], question_pack_size=2)
+    public = batch.to_quick_scan_dict(
+        entity_id="ENT_TEST",
+        company_name="Synthetic Co",
+        provider_name="mimo",
+        requested_model="mimo-v2.6-flash",
+    )
+    failed = public["execution_receipts"]["CORE_01"]
+    assert failed["search_status"] == "not_attempted"
+    assert failed["actual_model"] is None and failed["response_id"] is None
+    assert public["answers"]["CORE_01"]["source_urls"] == []
+    assert all(x.answer.status == "error" and x.answer.score is None for x in batch.results)
+    assert len(p.calls) == 1 and not lc.saved
+    assert public["execution_receipts"]["CORE_03"]["search_status"] == "not_attempted"
+
+
+@pytest.mark.parametrize("search_status", ["unverified", "unavailable", "not_attempted"])
+def test_failed_pack_keeps_negative_search_state_without_promoting_unverified_identity(
+    search_status,
+):
+    e, p, lc = engine()
+    execution = {
+        "search_status": search_status,
+        "actual_model": "not-owner-verified",
+        "response_id": "not-owner-verified",
+        "source_urls": ["https://example.org/not-answer-evidence"],
+    }
+    p.reply = QuestionPackSearchResult((), ("CORE_01", "CORE_02"), (), execution)
+    batch = e.process_questions([q(1), q(2)], question_pack_size=2)
+    public = batch.to_quick_scan_dict(
+        entity_id="ENT_TEST",
+        company_name="Synthetic Co",
+        provider_name="mimo",
+        requested_model="mimo-v2.6-flash",
+    )
+    for qid in ["CORE_01", "CORE_02"]:
+        receipt = public["execution_receipts"][qid]
+        assert receipt["search_status"] == search_status
+        assert receipt["actual_model"] is None and receipt["response_id"] is None
+        assert receipt["source_urls"] == []
+        assert public["answers"][qid]["score"] is None
+    assert not lc.saved and len(p.calls) == 1
