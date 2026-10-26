@@ -261,7 +261,11 @@ class BaseLLMProvider(SearchProvider):
             "coverage. Keep every required field, never truncate or summarise "
             "the body, and never invent a value you do not have: an unknown "
             "field stays null or an empty list, and the outer status/score/"
-            "question_id must equal the ones inside the description."
+            "question_id must equal the ones inside the description. "
+            "For every score answer, items MUST be []; when status is not scored, "
+            "metrics MUST also be []. Explain any partial facts or evidence gaps in "
+            "summary/evidence instead of asserting unavailable metrics. Keep summary "
+            "non-empty with no leading or trailing whitespace."
             if standard_answer_transport_enabled()
             else ""
         )
@@ -366,6 +370,9 @@ Requirements:
             "Unknown financial numbers and periods stay null; unsupported lists stay empty.\n"
             "6. Keep standard enum/object fields valid: basis=current|trailing|normalized|stress|forward|not_applicable; "
             "trend=improving|stable|deteriorating|uncertain|not_applicable; confidence=high|medium|low; "
+            "items MUST be [] for every score answer, including scored answers. When status is not scored, "
+            "metrics MUST also be []; explain partial facts and evidence gaps in summary/evidence instead. "
+            "Keep summary non-empty with no leading or trailing whitespace. "
             "counterevidence is a non-empty string; coverage is {status:partial|complete_for_scope|unknown|not_applicable, "
             "reason:<non-empty explanation>}. State missing evidence rather than inventing any facts.\n"
             "7. The FINAL message must be JSON only, with exactly one root field answers (an array). "
