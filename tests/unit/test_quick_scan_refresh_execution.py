@@ -154,7 +154,10 @@ def report_session():
     return session
 
 
-@pytest.mark.parametrize("status,complete", [("scored", True), ("unknown", True), ("error", False)])
+@pytest.mark.parametrize(
+    "status,complete",
+    [("scored", True), ("unknown", True), ("insufficient_evidence", True), ("error", False)],
+)
 def test_subset_output_cannot_claim_whole_company_or_accuracy(status, complete):
     from types import SimpleNamespace as NS
 
@@ -386,3 +389,470 @@ def test_explicit_original_executor_store_keeps_live_policy_change_guard(tmp_pat
     current["routes"][0]["model"] = "different-model"
     with pytest.raises(AdmissionRejected, match="refresh_execution_model_policy_changed"):
         session._policy_check()
+
+
+def reactivated_session(tmp_path):
+    """Real original SQLite/ORF; fake native transport is NOT consent gold."""
+    from types import SimpleNamespace as NS
+    from unittest.mock import Mock
+
+    from src.runners.llm_runner import QuickScanWorkLifecycle
+    from src.utils.quick_scan_work_store import QuickScanWorkStore
+
+    item, bundle, record = materials()
+    spec = record["inputs"]["specifications"][0]
+    binding = spec["owner_refresh_binding"]
+    binding.update(decision_id="route_" + "a" * 64, anchor_version=2)
+    item["decision"] = "resume_existing_work"
+    store = QuickScanWorkStore(tmp_path / "original.sqlite")
+    row = store.create_or_attach(**spec, run_id="original-run", scan_id="original-scan")
+    qid = item["question_id"]
+    record["receipt"]["items"][0]["work_item_id"] = row["work_item_id"]
+    confirmation = "rc2_" + "e" * 64
+    record["inputs"]["action"] = {"confirmation_id": confirmation}
+    proof = {
+        "confirmation": {"confirmation_id": confirmation},
+        "request": {
+            "protocol": "iqs.refresh_request/1.1.0",
+            "source_query": {"payload": {"information_cutoff": "2026-10-10"}},
+        },
+        "preview": {
+            "items": [copy.deepcopy(item)],
+            "provider": binding["provider"],
+            "model": binding["model"],
+        },
+        "owner_policy": {"provider": binding["provider"], "model": binding["model"]},
+    }
+    native = NS(
+        plan={**copy.deepcopy(binding), "anchor_version": 4},
+        current={"anchor_version": 4, "expected_decision_id": binding["decision_id"]},
+        check=Mock(),
+    )
+    session = ApprovedRefreshSession.__new__(ApprovedRefreshSession)
+    session.proof = proof
+    session.record = copy.deepcopy(record)
+    session.bundle = bundle
+    session.bundles = {}
+    session.input_raw = {}
+    session.input_paths = {}
+    session._policy_check = None
+    session.native = native
+    session.plan = copy.deepcopy(native.plan)
+    session.deferred = {}
+    session.fields = {qid: {"decision": "resume_existing_work"}}
+    session.entries = registered_scope([item], bundle, record, information_cutoff="2026-10-10")
+    session.service = NS(
+        store=store,
+        _inputs_unchanged=Mock(),
+        _record=Mock(return_value=copy.deepcopy(record)),
+        bridge=NS(inspect=Mock(return_value=copy.deepcopy(proof))),
+    )
+    lifecycle = QuickScanWorkLifecycle(
+        store,
+        entity_id="ENT_SYNTHETIC",
+        run_id="fresh-run",
+        scan_id="fresh-scan",
+        identity=bundle["identity"],
+        transport_managed=True,
+        owner_refresh_session=session,
+    )
+    return lifecycle, session, store, row, bundle["questions"][qid]
+
+
+def test_reactivated_epoch_resumes_exact_original_binding_without_rewrite(tmp_path):
+    lifecycle, session, store, row, question = reactivated_session(tmp_path)
+    before = store.get_owner_refresh_binding(row["work_item_id"])
+    old, binding, reason = lifecycle._owner_work(question.question_id)
+    assert reason is None and old["work_item_id"] == row["work_item_id"]
+    assert binding == before["binding"] and binding["anchor_version"] == 2
+    assert session.plan["anchor_version"] == session.native.current["anchor_version"] == 4
+    assert store.get_owner_refresh_binding(row["work_item_id"]) == before
+    session.service.bridge.inspect.assert_called_once_with(
+        session.proof["confirmation"]["confirmation_id"], mode="current_permissions"
+    )
+    assert store.list_attempts(row["work_item_id"]) == []
+    handle = lifecycle.before_question(question)
+    assert handle["claimed"] is True
+    assert store.get_owner_refresh_binding(row["work_item_id"]) == before
+    assert store.list_attempts(row["work_item_id"]) == []
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "missing_action",
+        "entry_binding",
+        "foreign_item",
+        "scope",
+        "generation",
+        "manifest",
+        "decision",
+        "perimeter",
+        "provider",
+        "model",
+        "cutoff",
+        "native_epoch",
+        "backwards_epoch",
+        "boolean_epoch",
+        "foreign_store",
+        "no_permission",
+    ],
+)
+def test_epoch_resume_requires_current_exact_registered_action_and_native_context(tmp_path, fault):
+    from unittest.mock import Mock
+
+    from src.utils.quick_scan_work_store import QuickScanWorkStore
+
+    lifecycle, session, store, row, question = reactivated_session(tmp_path)
+    before = store.get_owner_refresh_binding(row["work_item_id"])
+    qid = question.question_id
+    if fault == "missing_action":
+        session.service._record.return_value = None
+    elif fault == "entry_binding":
+        session.entries[qid]["specification"]["owner_refresh_binding"][
+            "request_identity_key"
+        ] = "changed"
+    elif fault == "foreign_item":
+        session.entries[qid]["work_item_id"] = "WORK_foreign"
+    elif fault == "scope":
+        session.entries[qid]["specification"]["scope_id"] = "ENT_foreign"
+    elif fault == "generation":
+        session.entries[qid]["specification"]["generation"] = 2
+    elif fault in {"manifest", "decision", "perimeter", "provider", "model", "cutoff"}:
+        key = {
+            "manifest": "manifest_raw_sha256",
+            "decision": "decision_id",
+            "perimeter": "perimeter_sha256",
+            "cutoff": "information_cutoff",
+        }.get(fault, fault)
+        session.plan[key] = "changed"
+    elif fault == "native_epoch":
+        session.native.current["anchor_version"] = 5
+    elif fault == "backwards_epoch":
+        session.plan["anchor_version"] = session.native.current["anchor_version"] = 1
+    elif fault == "boolean_epoch":
+        session.plan["anchor_version"] = session.native.current["anchor_version"] = True
+    elif fault == "foreign_store":
+        lifecycle._store = QuickScanWorkStore(tmp_path / "foreign.sqlite")
+    else:
+        session.service.bridge.inspect = Mock(side_effect=ValueError("synthetic revoked"))
+    result = lifecycle.before_question(question)
+    assert result["claimed"] is False
+    assert store.get_owner_refresh_binding(row["work_item_id"]) == before
+    assert store.get_item(row["work_item_id"])["status"] == "pending"
+    assert store.list_attempts(row["work_item_id"]) == []
+
+
+def test_generic_owner_session_never_gets_epoch_compatibility(tmp_path):
+    from types import SimpleNamespace as NS
+
+    lifecycle, session, store, row, question = reactivated_session(tmp_path)
+    lifecycle._owner_refresh = NS(
+        check=session.check,
+        fields=session.fields,
+        plan=session.plan,
+        existing_work=session.existing_work,
+    )
+    assert lifecycle.before_question(question)["claimed"] is False
+    assert store.get_item(row["work_item_id"])["status"] == "pending"
+
+
+def test_epoch_reapproval_does_not_replay_uncertain_work_projection(tmp_path, monkeypatch):
+    """Negative read-port state only; never forge a native send or edit a row.
+
+    Original real expired-send -> uncertain fencing is independently covered
+    by test_original_lease_recovery_cannot_turn_unknown_send_into_new_work.
+    """
+    lifecycle, session, store, row, question = reactivated_session(tmp_path)
+    original_get = store.get_item
+    before = store.path.read_bytes()
+    monkeypatch.setattr(
+        store, "get_item", lambda work_id: dict(original_get(work_id), status="uncertain")
+    )
+    monkeypatch.setattr(
+        store, "claim", lambda *args, **kwargs: pytest.fail("Unknown work must not be claimed")
+    )
+    result = lifecycle.before_question(question)
+    assert result["claimed"] is False and "delivery_or_reconciliation" in result["reason"]
+    assert original_get(row["work_item_id"])["status"] == "pending"
+    assert store.list_attempts(row["work_item_id"]) == [] and store.path.read_bytes() == before
+
+
+def original_ready_session(tmp_path, monkeypatch):
+    """Original SQLite/client/checkpoints; current owner port remains synthetic."""
+    import json
+    from types import SimpleNamespace as NS
+    from unittest.mock import Mock
+
+    from src.runners.llm_runner import QuickScanWorkLifecycle
+
+    # The pack fixture has a deliberately generic subject key. Bind its real
+    # synthetic subject BEFORE native work creation, never graft an ORF later.
+    from src.utils.quick_scan_owner_refresh import OwnerRefreshSession
+    from src.utils.quick_scan_question_manifest import load_question_manifest
+    from src.utils.quick_scan_work_store import QuickScanWorkStore
+    from tests.unit.test_qa_question_pack import (
+        test_actual_lifecycle_client_group_store_and_checkpoints_only_valid_members as seed,
+    )
+    from tests.unit.test_quick_scan_question_pack_transport import FIX, _v2_context
+
+    context = _v2_context()
+    original_binding = OwnerRefreshSession.binding
+
+    def subject_binding(owner, qid):
+        result = original_binding(owner, qid)
+        ref = context["questions"][qid]["subject_binding"]["subject_ref"]
+        result["subject_key"] = (
+            ref["analysis_subject_id"] + "@" + str(ref["analysis_subject_revision"])
+        )
+        return result
+
+    from src.utils import quick_scan_owner_refresh as original_owner
+
+    original_fingerprints = original_owner.routing_fingerprints
+
+    def fingerprints(owner):
+        ref = context["questions"]["IQS_01"]["subject_binding"]["subject_ref"]
+        owner.plan["subject_key"] = (
+            ref["analysis_subject_id"] + "@" + str(ref["analysis_subject_revision"])
+        )
+        return original_fingerprints(owner)
+
+    monkeypatch.setattr(OwnerRefreshSession, "binding", subject_binding)
+    monkeypatch.setattr(original_owner, "routing_fingerprints", fingerprints)
+    seed(tmp_path, monkeypatch, False)
+    store = QuickScanWorkStore(tmp_path / "work.sqlite")
+    manifest = load_question_manifest(FIX / "quick_scan_c06_manifest_v2_fixture.json")
+    qid = "IQS_01"
+    rows = store.find_work_items(entity_id="ENT_CONTEXT_FIXTURE", question_ids=[qid])
+    work = store.get_item(rows[qid][0]["work_item_id"])
+    binding = store.get_owner_refresh_binding(work["work_item_id"])["binding"]
+    identity = {
+        k: work[k]
+        for k in (
+            "entity_id",
+            "identity_revision",
+            "source_binding_version",
+            "identity_state",
+            "source_binding_ref",
+            "identity_snapshot_sha256",
+        )
+    }
+    identity["source_binding_refs"] = json.loads(work["source_binding_refs_json"])
+    question = Question(
+        next(q["prompt"] for q in manifest["questions"] if q["id"] == qid), question_id=qid
+    )
+    spec = {
+        **identity,
+        "question_id": qid,
+        "generation": work["generation"],
+        "scope": work["scope"],
+        "scope_id": work["scope_id"],
+        "question_fingerprint": work["question_fingerprint"],
+        "routing_fingerprint": work["routing_fingerprint"],
+        "owner_refresh_binding": binding,
+    }
+    fresh = copy.deepcopy(context)
+    for row in fresh["questions"].values():
+        row["metadata"].update(run_id="SYNTHETIC_NEW_RUN", scan_id="SYNTHETIC_NEW_SCAN")
+    bundle = {
+        "identity": identity,
+        "manifest": manifest,
+        "questions": {qid: question},
+        "authority": {"schema_version": "3.0.0", "observation_context": fresh},
+    }
+    item = {
+        "question_id": qid,
+        "field_id": context["questions"][qid]["metadata"]["field_id"],
+        "subject_ref": context["questions"][qid]["subject_binding"]["subject_ref"],
+        "generation": work["generation"],
+        "decision": "resume_existing_work",
+        "reuse_observation_id": None,
+        "existing_work_status": "result_ready",
+    }
+    confirmation = "rc2_" + "f" * 64
+    record = {
+        "inputs": {
+            "action": {"confirmation_id": confirmation},
+            "specifications": [spec],
+            "references": [],
+        },
+        "receipt": {
+            "items": [
+                {
+                    k: work[k]
+                    for k in (
+                        "work_item_id",
+                        "entity_id",
+                        "question_id",
+                        "generation",
+                        "scope",
+                        "scope_id",
+                    )
+                }
+            ]
+        },
+    }
+    proof = {
+        "confirmation": {"confirmation_id": confirmation},
+        "request": {
+            "protocol": "iqs.refresh_request/1.1.0",
+            "source_query": {"payload": {"information_cutoff": binding["information_cutoff"]}},
+        },
+        "preview": {
+            "items": [item],
+            "provider": binding["provider"],
+            "model": binding["model"],
+            "scope_sha256": "a" * 64,
+        },
+        "owner_policy": {"provider": binding["provider"], "model": binding["model"]},
+    }
+    session = ApprovedRefreshSession.__new__(ApprovedRefreshSession)
+    session.plan = {**binding, "anchor_version": binding["anchor_version"] + 2}
+    session.proof = proof
+    session.record = record
+    session.bundle = bundle
+    session.bundles = {}
+    session.input_paths = {}
+    session.input_raw = {}
+    session._policy_check = None
+    session.deferred = {}
+    session.fields = {qid: {"decision": "resume_existing_work"}}
+    session.entries = registered_scope(
+        [item], bundle, record, information_cutoff=binding["information_cutoff"]
+    )
+    session.native = NS(
+        plan=copy.deepcopy(session.plan),
+        current={
+            "anchor_version": session.plan["anchor_version"],
+            "expected_decision_id": binding["decision_id"],
+        },
+        check=Mock(),
+    )
+    session.service = NS(
+        store=store,
+        _inputs_unchanged=Mock(),
+        _record=Mock(return_value=copy.deepcopy(record)),
+        bridge=NS(inspect=Mock(return_value=copy.deepcopy(proof))),
+    )
+    lifecycle = QuickScanWorkLifecycle(
+        store,
+        entity_id=identity["entity_id"],
+        run_id="SYNTHETIC_NEW_RUN",
+        scan_id="SYNTHETIC_NEW_SCAN",
+        identity=identity,
+        owner_refresh_session=session,
+        transport_managed=True,
+    )
+    return lifecycle, session, store, work, question
+
+
+def test_approved_ready_checkpoint_uses_original_context_receipt_and_never_new_claim(
+    tmp_path, monkeypatch
+):
+    from unittest.mock import Mock
+
+    from src.core.qa_engine import QAEngine
+
+    lifecycle, session, store, work, question = original_ready_session(tmp_path, monkeypatch)
+    wid = work["work_item_id"]
+    before = store.path.read_bytes()
+    saved = store.get_answer_checkpoint(wid)
+    context = store.get_observation_context(wid)
+    standard = store.get_standard_answer(wid)
+    delivery = store.get_result_delivery(wid)
+    attempts = store.list_attempts(wid)
+    restored = lifecycle.hydrate_question(question)
+    assert restored["payload"] == saved["payload"] and restored["attempt_id"] == saved["attempt_id"]
+    assert (
+        restored["original_observation_context"] == context
+        and restored["original_standard_answer"] == standard
+    )
+    assert restored["original_attempt_response"] == store.get_attempt_response(saved["attempt_id"])
+    assert restored["new_C06_package_created"] is False
+    assert context["context"] != session.bundle["authority"]["observation_context"]
+    provider = Mock()
+    provider.get_provider_name.return_value = "no-new-provider"
+    provider.search_question.side_effect = AssertionError("Cached answer must not call provider")
+    monkeypatch.setattr(
+        lifecycle, "before_question", lambda *args: pytest.fail("Cached answer must not claim")
+    )
+    monkeypatch.setattr(
+        lifecycle,
+        "after_question",
+        lambda *args: pytest.fail("Cached answer must not be re-sealed"),
+    )
+    batch = QAEngine(
+        provider, progress_reporter=Mock(), work_item_lifecycle=lifecycle
+    ).process_questions([question])
+    assert batch.results[0].answer.source == "answer_checkpoint"
+    assert batch.results[0].answer.score == saved["payload"]["answer"]["score"]
+    assert batch.results[0].metadata["answer_checkpoint"]["attempt_id"] == saved["attempt_id"]
+    assert (
+        store.get_observation_context(wid) == context and store.get_standard_answer(wid) == standard
+    )
+    assert store.get_result_delivery(wid) == delivery and store.list_attempts(wid) == attempts
+    assert store.path.read_bytes() == before
+    provider.search_question.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "context_hash",
+        "answer_hash",
+        "response_missing",
+        "wrong_model",
+        "wrong_question",
+        "pending",
+        "leased",
+        "uncertain",
+    ],
+)
+def test_ready_recovery_refuses_changed_original_material_or_unreceived_work(
+    tmp_path, monkeypatch, fault
+):
+    lifecycle, session, store, work, question = original_ready_session(tmp_path, monkeypatch)
+    before = store.path.read_bytes()
+    wid = work["work_item_id"]
+    if fault in {"pending", "leased", "uncertain"}:
+        original = store.get_item
+        monkeypatch.setattr(
+            store, "get_item", lambda work_id: dict(original(work_id), status=fault)
+        )
+        monkeypatch.setattr(
+            store,
+            "get_answer_checkpoint",
+            lambda *args: pytest.fail("Unreceived work cannot hydrate"),
+        )
+        assert lifecycle.hydrate_question(question) is None
+    else:
+        if fault == "context_hash":
+            original = store.get_observation_context
+            monkeypatch.setattr(
+                store,
+                "get_observation_context",
+                lambda *args: {**original(*args), "context_sha256": "f" * 64},
+            )
+        elif fault == "answer_hash":
+            original = store.get_standard_answer
+            monkeypatch.setattr(
+                store,
+                "get_standard_answer",
+                lambda *args: {**original(*args), "answer_sha256": "f" * 64},
+            )
+        elif fault == "response_missing":
+            monkeypatch.setattr(store, "get_attempt_response", lambda *args: None)
+        elif fault == "wrong_model":
+            original = store.get_answer_checkpoint
+
+            def changed(*args):
+                saved = original(*args)
+                saved["payload"]["provenance"]["model_requested"] = "different-model"
+                return saved
+
+            monkeypatch.setattr(store, "get_answer_checkpoint", changed)
+        else:
+            question = Question("Wrong question meaning", question_id=question.question_id)
+        assert lifecycle.hydrate_question(question) is None
+    assert store.path.read_bytes() == before

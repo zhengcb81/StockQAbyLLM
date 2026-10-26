@@ -297,12 +297,24 @@ class QuickScanWorkLifecycle:
                 bound is None
                 or bound["binding"]["manifest_raw_sha256"] != session.plan["manifest_raw_sha256"]
                 or bound["binding"]["decision_id"] != session.plan["decision_id"]
-                or bound["binding"]["anchor_version"] != session.plan["anchor_version"]
                 or bound["binding"]["subject_key"] != session.plan["subject_key"]
                 or bound["binding"]["provider"] != session.plan["provider"]
                 or bound["binding"]["model"] != session.plan["model"]
             ):
                 return old, None, "resume_original_work_context_required"
+            if bound["binding"]["anchor_version"] != session.plan["anchor_version"]:
+                from src.utils.quick_scan_refresh_execution import (
+                    ApprovedRefreshSession,
+                )
+
+                if not isinstance(session, ApprovedRefreshSession):
+                    return old, None, "resume_original_work_context_required"
+                try:
+                    session.assert_reactivated_original_binding(
+                        question_id, old, bound["binding"], store=self._store
+                    )
+                except (ValueError, TypeError, KeyError):
+                    return old, None, "resume_original_work_context_required"
             if old["status"] == "leased":
                 # Exact original owner binding only. Unsent expired leases may
                 # become pending; send intent becomes uncertain, never replay.
@@ -523,31 +535,43 @@ class QuickScanWorkLifecycle:
         fingerprint = hashlib.sha256(text.encode("utf-8")).hexdigest()
         try:
             if self._owner_refresh is not None:
-                # Owner observations are returned through reference_question.
-                # All resumptions preserve the original delivery context and
-                # are explicitly deferred by before_question when not pending.
-                return None
-            scope, scope_id, generation = self._dispatch_binding(question_id)
-            row = self._store.create_or_attach(
-                entity_id=self._entity_id,
-                question_id=question_id,
-                generation=generation,
-                scope=scope,
-                scope_id=scope_id,
-                identity_revision=self._identity["identity_revision"],
-                source_binding_version=self._identity["source_binding_version"],
-                identity_state=self._identity["identity_state"],
-                source_binding_ref=self._identity["source_binding_ref"],
-                source_binding_refs=list(self._identity["source_binding_refs"]),
-                identity_snapshot_sha256=self._identity["identity_snapshot_sha256"],
-                question_fingerprint=fingerprint,
-                routing_fingerprint=self._routing_fingerprint_by_question.get(
-                    question_id, self._routing_fingerprint
-                ),
-                run_id=self._run_id,
-                scan_id=self._scan_id,
-            )
-            checkpoint = self._store.get_answer_checkpoint(row["work_item_id"])
+                from src.utils.quick_scan_refresh_execution import (
+                    ApprovedRefreshSession,
+                )
+
+                if isinstance(self._owner_refresh, ApprovedRefreshSession):
+                    checkpoint = self._owner_refresh.restore_registered_checkpoint(
+                        question, store=self._store
+                    )
+                    if checkpoint is None:
+                        return None
+                    row = self._store.get_item(checkpoint["work_item_id"])
+                else:
+                    return None
+            else:
+                checkpoint = None
+            if self._owner_refresh is None:
+                scope, scope_id, generation = self._dispatch_binding(question_id)
+                row = self._store.create_or_attach(
+                    entity_id=self._entity_id,
+                    question_id=question_id,
+                    generation=generation,
+                    scope=scope,
+                    scope_id=scope_id,
+                    identity_revision=self._identity["identity_revision"],
+                    source_binding_version=self._identity["source_binding_version"],
+                    identity_state=self._identity["identity_state"],
+                    source_binding_ref=self._identity["source_binding_ref"],
+                    source_binding_refs=list(self._identity["source_binding_refs"]),
+                    identity_snapshot_sha256=self._identity["identity_snapshot_sha256"],
+                    question_fingerprint=fingerprint,
+                    routing_fingerprint=self._routing_fingerprint_by_question.get(
+                        question_id, self._routing_fingerprint
+                    ),
+                    run_id=self._run_id,
+                    scan_id=self._scan_id,
+                )
+                checkpoint = self._store.get_answer_checkpoint(row["work_item_id"])
         except Exception as exc:  # noqa: BLE001
             logger.debug("hydrate check skipped (%s)", exc)
             return None

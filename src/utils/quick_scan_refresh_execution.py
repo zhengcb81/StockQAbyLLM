@@ -19,7 +19,7 @@ from .quick_scan_refresh_admission import (
 )
 from .quick_scan_refresh_batch import SPEC_FIELDS
 from .quick_scan_result_outbox import canonical_bytes, canonical_sha256
-from .quick_scan_work_store import _budget_policy_projection
+from .quick_scan_work_store import _budget_policy_projection, _canonical_bindings
 
 
 def registered_scope(items, bundle, record, *, information_cutoff):
@@ -308,6 +308,190 @@ class ApprovedRefreshSession:
             self._policy_check()
         self.native.check()
 
+    def _assert_original_registered_binding(self, qid, original_work, original_binding, *, store):
+        """Additional pure resume fence after the runner's fresh ``check()``.
+
+        It does not authenticate a caller or replace check/POST rechecks. Only
+        the actual current registered journal may bridge a monotonic activation
+        epoch to its unchanged original work binding; nothing is rewritten.
+        """
+
+        def reject():
+            raise AdmissionRejected("refresh_execution_original_anchor_context_required")
+
+        if store is not self.service.store or qid not in self.entries:
+            reject()
+        confirmation = self.proof["confirmation"]["confirmation_id"]
+        record = self.service._record(confirmation)
+        if (
+            record is None
+            or record["inputs"]["action"]["confirmation_id"] != confirmation
+            or canonical_bytes(record["inputs"]) != canonical_bytes(self.record["inputs"])
+            or canonical_bytes(record["receipt"]) != canonical_bytes(self.record["receipt"])
+        ):
+            reject()
+        items = [item for item in self.proof["preview"]["items"] if item["question_id"] == qid]
+        if len(items) != 1:
+            reject()
+        cutoff = self.proof["request"]["source_query"]["payload"]["information_cutoff"]
+        approved = registered_scope(items, self.bundle, record, information_cutoff=cutoff)[qid]
+        if approved["kind"] != "work" or canonical_bytes(approved) != canonical_bytes(
+            self.entries[qid]
+        ):
+            reject()
+        spec, work_id = approved["specification"], approved["work_item_id"]
+        actual = store.get_item(work_id)
+        persisted = store.get_owner_refresh_binding(work_id)
+        if (
+            original_work["work_item_id"] != work_id
+            or persisted is None
+            or canonical_bytes(persisted["binding"]) != canonical_bytes(original_binding)
+            or canonical_bytes(spec["owner_refresh_binding"]) != canonical_bytes(original_binding)
+            or actual["source_binding_refs_json"]
+            != _canonical_bindings(spec["source_binding_ref"], spec["source_binding_refs"])
+            or any(
+                canonical_bytes(actual.get(k)) != canonical_bytes(v)
+                for k, v in spec.items()
+                if k not in {"owner_refresh_binding", "source_binding_refs"}
+            )
+        ):
+            reject()
+        old, current = original_binding["anchor_version"], self.plan["anchor_version"]
+        if (
+            type(old) is not int
+            or type(current) is not int
+            or not 1 <= old <= current
+            or type(self.native.current["anchor_version"]) is not int
+            or current != self.native.current["anchor_version"]
+            or type(self.native.plan["anchor_version"]) is not int
+            or current != self.native.plan["anchor_version"]
+            or original_binding["decision_id"] != self.native.current["expected_decision_id"]
+        ):
+            reject()
+        for key in (
+            "manifest_raw_sha256",
+            "decision_id",
+            "subject_key",
+            "perimeter_sha256",
+            "provider",
+            "model",
+            "information_cutoff",
+        ):
+            if canonical_bytes(original_binding[key]) != canonical_bytes(
+                self.plan[key]
+            ) or canonical_bytes(original_binding[key]) != canonical_bytes(self.native.plan[key]):
+                reject()
+        if (
+            original_binding["information_cutoff"] != cutoff
+            or original_binding["provider"] != self.proof["preview"]["provider"]
+            or original_binding["model"] != self.proof["preview"]["model"]
+        ):
+            reject()
+
+    def assert_reactivated_original_binding(self, qid, original_work, original_binding, *, store):
+        self._assert_original_registered_binding(qid, original_work, original_binding, store=store)
+        if original_binding["anchor_version"] >= self.plan["anchor_version"]:
+            raise AdmissionRejected("refresh_execution_original_anchor_context_required")
+
+    def restore_registered_checkpoint(self, question, *, store) -> dict | None:
+        """Read a completed original answer, never claim or re-seal its context.
+
+        The normal engine restores its original timestamp/score/provenance.
+        Full original inputs stay separately available here and in the native
+        outbox; new authority is never attached to an old answer.
+        """
+        qid = question.question_id
+        entry = self.entries.get(qid)
+        if (
+            store is not self.service.store
+            or entry is None
+            or entry["kind"] != "work"
+            or qid in self.deferred
+            or self.fields[qid]["decision"] != "resume_existing_work"
+        ):
+            return None
+        work = self.existing_work(qid)
+        if work["status"] not in {"result_ready", "delivered"}:
+            return None
+        self.check()
+        original = store.get_owner_refresh_binding(work["work_item_id"])
+        if original is None:
+            raise AdmissionRejected("refresh_checkpoint_original_binding_required")
+        binding = original["binding"]
+        self._assert_original_registered_binding(qid, work, binding, store=store)
+        checkpoint = store.get_answer_checkpoint(work["work_item_id"])
+        context = store.get_observation_context(work["work_item_id"])
+        standard = store.get_standard_answer(work["work_item_id"])
+        if checkpoint is None or context is None or standard is None:
+            raise AdmissionRejected("refresh_checkpoint_original_complete_inputs_required")
+        if (
+            context["context_sha256"] != canonical_sha256(context["context"])
+            or standard["answer_sha256"] != canonical_sha256(standard["answer"])
+            or context["context"]["schema"] != "stockqa.quick_scan_observation_context/2.0.0"
+            or hashlib.sha256(question.text.strip().encode("utf-8")).hexdigest()
+            != entry["specification"]["question_fingerprint"]
+        ):
+            raise AdmissionRejected("refresh_checkpoint_original_inputs_changed")
+        from .quick_scan_observation_context import (
+            bind_question_context,
+            validate_standard_answer,
+        )
+
+        bound = bind_question_context(
+            context["context"],
+            manifest=self.bundle["manifest"],
+            identity_snapshot_sha256=work["identity_snapshot_sha256"],
+            entity_id=work["entity_id"],
+            question_id=qid,
+            scope=work["scope"],
+            scope_id=work["scope_id"],
+        )
+        if canonical_bytes(bound["subject_binding"]["subject_ref"]) != canonical_bytes(
+            entry["item"]["subject_ref"]
+        ):
+            raise AdmissionRejected("refresh_checkpoint_original_subject_changed")
+        provenance = checkpoint["payload"]["provenance"]
+        if (
+            provenance["model_requested"] != binding["model"]
+            or provenance["actual_provider"] != binding["provider"]
+        ):
+            raise AdmissionRejected("refresh_checkpoint_original_model_changed")
+        validate_standard_answer(
+            standard["answer"],
+            metadata=bound["metadata"],
+            normalized_answer=checkpoint["payload"]["answer"],
+            source_urls=provenance["source_urls"],
+        )
+        response = store.get_attempt_response(checkpoint["attempt_id"])
+        if response is None:
+            raise AdmissionRejected("refresh_checkpoint_original_response_required")
+        delivery = store.get_result_delivery(work["work_item_id"])
+        self.check()
+        return {
+            **checkpoint,
+            "original_standard_answer": standard,
+            "original_observation_context": context,
+            "original_attempt_response": response,
+            "original_delivery_reference": (
+                {
+                    k: delivery.get(k)
+                    for k in (
+                        "work_item_id",
+                        "state",
+                        "delivery_id",
+                        "package_id",
+                        "package_sha256",
+                        "observation_id",
+                    )
+                }
+                if delivery
+                else None
+            ),
+            "restoration_only": True,
+            "original_context_retained": True,
+            "new_C06_package_created": False,
+        }
+
     def claim_registered_question_batch(
         self,
         question_ids,
@@ -509,7 +693,9 @@ class ApprovedRefreshSession:
                 raise AdmissionRejected("refresh_execution_output_scope_mismatch")
             statuses[qid] = result.answer.status
         answered = [
-            qid for qid in requested if statuses.get(qid) in {"scored", "not_applicable", "unknown"}
+            qid
+            for qid in requested
+            if statuses.get(qid) in {"scored", "not_applicable", "unknown", "insufficient_evidence"}
         ]
         complete = len(answered) == len(requested)
         return dict(
