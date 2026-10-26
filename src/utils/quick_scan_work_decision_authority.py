@@ -286,10 +286,111 @@ class StockWikiWorkDecisionAuthority(OwnerWorkDecisionAuthority):
                 format_checker=FormatChecker(),
             ).validate(document)
 
+    def _validate_control_delegation(self, value):
+        """Additional exact carrier checks, only after fixed native owner read.
+
+        Checksums bind an already-native response; a consumer-supplied grant
+        remains incapable of selecting the transport or owner principal.
+        """
+        receipt = value["confirmation"]
+        grant = receipt["delegation"]
+        fields = {
+            "protocol",
+            "grant_id",
+            "owner_principal",
+            "workspace_root",
+            "consumer_id",
+            "agent",
+            "agent_assurance",
+            "authorization_basis",
+            "authorization_reference",
+            "binding",
+            "created_at",
+            "expires_at",
+            "record_sha256",
+        }
+        request = value["request"]["decision_request"]
+        purpose = request.get("purpose")
+        if not (
+            request["kind"] == "known_response_resolution"
+            and purpose is None
+            or request["kind"] == "retry_decision"
+            and purpose == "retry_unusable_answer"
+        ):
+            raise ValueError("owner_work_delegation_action_not_allowed")
+        if (
+            not isinstance(grant, dict)
+            or set(grant) != fields
+            or grant["protocol"] != "stockwiki.work_delegation/1.0.0"
+        ):
+            raise ValueError("owner_work_delegation_fields_invalid")
+        binding_keys = {
+            "preview_id",
+            "preview_record_sha256",
+            "request_sha256",
+            "outer_request_sha256",
+            "permission_request_sha256",
+            "owner_state_sha256",
+            "policy_sha256",
+            "owner_store_id",
+            "action_id",
+        }
+        binding = {key: receipt[key] for key in binding_keys}
+        binding.update(
+            kind=request["kind"],
+            purpose=purpose,
+            work_item_id=request["work_item_id"],
+            attempt_id=request["attempt_id"],
+        )
+        if grant["binding"] != binding:
+            raise ValueError("owner_work_delegation_binding_invalid")
+        agent = grant["agent"]
+
+        def text(value, maximum=512):
+            return (
+                isinstance(value, str)
+                and 1 <= len(value) <= maximum
+                and not any(ord(c) < 32 for c in value)
+            )
+
+        if (
+            not isinstance(agent, dict)
+            or set(agent) != {"profile_id", "profile_sha256", "harness_ref"}
+            or not text(agent["profile_id"], 160)
+            or not _hash(agent["profile_sha256"])
+            or not text(agent["harness_ref"])
+            or grant["agent_assurance"] != "local_owner_namespace"
+            or grant["authorization_basis"] != "recorded_user_authorization"
+            or not text(grant["authorization_reference"])
+            or grant["owner_principal"] != value["principal"]
+            or grant["owner_principal"] != receipt["owner_principal"]
+            or grant["consumer_id"] != self.consumer_id
+            or grant["workspace_root"]
+            != str(Path(self.owner.config["stockwiki_workspace_root"]).resolve())
+        ):
+            raise ValueError("owner_work_delegation_owner_invalid")
+        identity = {key: grant[key] for key in ("owner_principal", "workspace_root", "consumer_id")}
+        identity["preview_id"] = binding["preview_id"]
+        if grant["grant_id"] != "wdg1_" + canonical_sha256(identity) or grant[
+            "record_sha256"
+        ] != canonical_sha256({key: val for key, val in grant.items() if key != "record_sha256"}):
+            raise ValueError("owner_work_delegation_record_invalid")
+        created, expires = _utc(grant["created_at"]), _utc(grant["expires_at"])
+        if (
+            not created <= _utc(receipt["confirmed_at"]) < expires
+            or not created <= _utc(self.clock()) < expires
+            or not 0 < (expires - created).total_seconds() <= 86400
+        ):
+            raise ValueError("owner_work_delegation_expired_or_future")
+
     def _validate(self, value):
         publication = (
             isinstance(value, dict)
             and value.get("protocol") == "stockwiki.work_decision_inspection/1.1.0"
+        )
+        delegated = (
+            isinstance(value, dict)
+            and value.get("protocol") == "stockwiki.work_decision_inspection/1.2.0"
         )
         if (
             not isinstance(value, dict)
@@ -299,7 +400,11 @@ class StockWikiWorkDecisionAuthority(OwnerWorkDecisionAuthority):
             != (
                 "stockwiki.work_decision_inspection/1.1.0"
                 if publication
-                else "stockwiki.work_decision_inspection/1.0.0"
+                else (
+                    "stockwiki.work_decision_inspection/1.2.0"
+                    if delegated
+                    else "stockwiki.work_decision_inspection/1.0.0"
+                )
             )
             or value["authority"] != "native_owner_account_and_control_namespace"
             or value["admission_mode"] not in {"fresh_registration", "current_permissions"}
@@ -326,19 +431,27 @@ class StockWikiWorkDecisionAuthority(OwnerWorkDecisionAuthority):
             or outer["consumer_id"] != self.consumer_id
             or not isinstance(outer["decision_request"], dict)
             or not isinstance(receipt, dict)
-            or set(receipt) != CONFIRMATION_FIELDS
-            or receipt["protocol"] != "stockwiki.work_decision_confirmation_record/1.0.0"
+            or set(receipt)
+            != (CONFIRMATION_FIELDS | {"delegation"} if delegated else CONFIRMATION_FIELDS)
+            or receipt["protocol"]
+            != (
+                "stockwiki.work_decision_confirmation_record/1.1.0"
+                if delegated
+                else "stockwiki.work_decision_confirmation_record/1.0.0"
+            )
             or receipt["confirmation_id"] != self.confirmation_id
             or receipt["method"]
             not in (
                 {"native_owner_terminal", "native_owner_delegated_agent"}
                 if publication
-                else {"native_owner_terminal"}
+                else ({"native_owner_delegated_agent"} if delegated else {"native_owner_terminal"})
             )
             or not isinstance(state, dict)
             or set(state) != STATE_FIELDS
         ):
             raise ValueError("owner_work_confirmation_kind_invalid")
+        if delegated:
+            self._validate_control_delegation(value)
         self._schemas(value)
         request = outer["decision_request"]
         permission = outer["permission_request"]
