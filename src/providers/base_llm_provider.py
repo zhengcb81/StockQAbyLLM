@@ -28,6 +28,37 @@ from .llm_retry_strategy import LLMRetryStrategy
 
 logger = get_logger(__name__)
 
+# Same stable evidence/metric contract for single-question and pack prompts.
+# This guides future requests; it never repairs or authorizes an old response.
+_QUESTION_EVIDENCE_QUALITY_RULE = (
+    "Identity/authority boundary: in the single outer answer or EACH answers-array member, "
+    "copy the provided target entity_id, company_name and question_id EXACTLY, character for character. "
+    "Do not infer a different issuer, rename the company, shorten IDs or invent replacements. "
+    "The INNER full standard answer contains only its existing schema fields: do not add entity/company identity, "
+    "identity revisions, subject, generation, manifest, provenance, run/scan IDs, runtime model/time or receipt "
+    "authority fields; the original owner supplies those. This does NOT remove research fact dates: retain "
+    "information_as_of, period_start, period_end and evidence.published_at as required.\n"
+    "Evidence and metric quality: within EACH answer's metrics array, each metric_id MUST occur at most once. "
+    "Do not repeat business.segment_revenue for multiple segments in the same year; "
+    "use distinct custom.<segment>.<metric> IDs, with definition naming the segment, "
+    "economic measure and accounting perimeter. Do not invent new answer fields. "
+    "For every number and comparison, identify a consistent accounting perimeter, period, units/currency and source; "
+    "state the formula and assumptions of derived values, and never combine incompatible bases. "
+    "Check every trend claim against the chronological numeric sequence: distinguish continuous annual growth "
+    "from a dip followed by recovery, and do not describe a declining interval as growth.\n"
+    "Answer at the granularity the question requires. Do not substitute group profit or cash flow "
+    "for requested product/customer/project full-cost unit economics. When that required level of data "
+    "is missing, use insufficient_evidence and score=null, with metrics=[]; explain partial facts in summary/evidence. "
+    "Distinguish unknown from a conditional proxy: label a proxy and its assumptions, and do not treat it as "
+    "direct evidence for a missing question-specific measure.\n"
+    "information_as_of must cover ALL cited facts and publication dates: use their latest verified date, "
+    "within the information cutoff; keep financial period_start/period_end separate. If that date cannot be verified, "
+    "use null and explain the gap; never guess today's date. "
+    "Shallow search snippets alone do not prove that an official source discloses nothing. "
+    "Without sufficiently checking the relevant primary material, say the fact was not verified in this search, "
+    "retain the unknown, and do not assert official non-disclosure.\n"
+)
+
 _STANDARD_ANSWER_TRANSPORT: ContextVar[bool] = ContextVar(
     "quick_scan_standard_answer_transport", default=False
 )
@@ -288,14 +319,14 @@ Requirements:
 2. Give an integer score from 1 to 10 only when evidence supports a judgment.
 3. Explain the evidence and key limitations briefly.
 4. If evidence is insufficient, return status=insufficient_evidence and score=null; do not guess.
-5. Set information_as_of to the exact date the evidence you cite refers to (fiscal period end, report date or announcement date). If you cannot pin one date, return null — never guess and never use today's date.
+5. Set information_as_of to the latest verified date covering all cited facts and source publication dates; keep the financial period end separate. If that date is unknown, return null — never guess and never use today's date.
 6. The FINAL message you send after searching must START with the '{" character and END with "}' — absolutely no prose before or after the JSON in the final message (a short lead-in before searching is fine). Return exactly one JSON object:
 {{
 {identity_fields}{question_id_field}  "status": "scored" | "insufficient_evidence" | "unknown" | "not_applicable",
   "score": <integer 1-10 only when status is scored, otherwise null>,
-  "information_as_of": "<YYYY-MM-DD the cited facts refer to (not today's date); null when unknown>",
+  "information_as_of": "<YYYY-MM-DD latest verified cited fact/publication date (not today's date); null when unknown>",
   "description": "<reasoning and evidence>"
-}}{standard_answer_rule}"""
+}}{standard_answer_rule}\n{_QUESTION_EVIDENCE_QUALITY_RULE}"""
 
     def _build_question_pack_prompt(self, questions: List[Question]) -> str:
         """Keep original question data while defining exactly one multi-answer root."""
@@ -366,7 +397,8 @@ Requirements:
             "basis, trend, confidence, metrics, items, evidence, counterevidence, watch_triggers, missing_fields and coverage. "
             "The outer and inner question_id/status/score must be identical. Never truncate or summarise the body.\n"
             "5. Evidence entries use id/title/url/published_at/claim. Include only real retrieved sources for this issuer. "
-            "Set information_as_of to the date the cited facts refer to, or null if unknown; never substitute today's date. "
+            "Set information_as_of to the latest verified date covering all cited facts and source publication dates, "
+            "or null if unknown; keep financial periods separate and never substitute today's date. "
             "Unknown financial numbers and periods stay null; unsupported lists stay empty.\n"
             "6. Keep standard enum/object fields valid: basis=current|trailing|normalized|stress|forward|not_applicable; "
             "trend=improving|stable|deteriorating|uncertain|not_applicable; confidence=high|medium|low; "
@@ -379,6 +411,7 @@ Requirements:
             "No Markdown, prose or thinking before/after it. Do not self-report accepted_ids, search_verified or billing. "
             "The following is only a complete insufficient-evidence shape example; replace the placeholder ID for each question "
             "and change judgments only when supported:\n"
+            + _QUESTION_EVIDENCE_QUALITY_RULE
             + json.dumps(example, ensure_ascii=False, separators=(",", ":"))
         )
 

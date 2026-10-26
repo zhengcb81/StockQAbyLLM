@@ -100,3 +100,50 @@ def test_runner_takes_subject_from_original_native_session_not_question_metadata
         assert "ISSUER_LEGAL_ONLY" in provider()._build_prompt("Q")
     with _owner_analysis_scope(None):
         assert "ISSUER_LEGAL_ONLY" not in provider()._build_prompt("Q")
+
+
+@pytest.mark.parametrize("packed", [False, True])
+def test_prompt_requires_comparable_unique_metrics_and_question_level_evidence(packed):
+    """Both actual prompt routes preserve scope/data and explain known gaps."""
+    import json
+
+    from src.providers.base_llm_provider import standard_answer_transport
+
+    value = provider()
+    question = Question(
+        text="Assess product-level full-cost unit economics; preserve this question.",
+        question_id="IQS_01",
+        metadata={"scope": "entity", "scope_id": ISSUER},
+    )
+    before = (question.text, dict(question.metadata))
+    with analysis_subject_scope(SUBJECT), standard_answer_transport(True):
+        prompt = (
+            value._build_prompt("", question_pack=[question])
+            if packed
+            else value._build_prompt(question.text, question_id=question.question_id)
+        )
+    assert "copy the provided target entity_id, company_name and question_id EXACTLY" in prompt
+    assert "character for character" in prompt and "do not add entity/company identity" in prompt
+    assert "subject, generation, manifest, provenance" in prompt
+    assert "retain information_as_of, period_start, period_end and evidence.published_at" in prompt
+    assert "each metric_id MUST occur at most once" in prompt
+    assert "distinct custom.<segment>.<metric> IDs" in prompt
+    assert "Do not repeat business.segment_revenue" in prompt
+    assert "group profit or cash flow" in prompt and "full-cost unit economics" in prompt
+    assert "insufficient_evidence and score=null" in prompt
+    assert "conditional proxy" in prompt and "unknown" in prompt
+    assert "accounting perimeter, period, units/currency and source" in prompt
+    assert "trend claim against the chronological numeric sequence" in prompt
+    assert "dip followed by recovery" in prompt
+    assert "information_as_of must cover ALL cited facts and publication dates" in prompt
+    assert "search snippets alone do not prove" in prompt
+    assert "ISSUER_LEGAL_ONLY" in prompt and ISSUER in prompt
+    assert before == (question.text, question.metadata)
+    if packed:
+        raw = prompt.split("Questions as JSON data:\n", 1)[1].split("\n\nRequirements:", 1)[0]
+        assert json.loads(raw) == [
+            {"question_id": "IQS_01", "text": question.text, **question.metadata}
+        ]
+    else:
+        assert question.text in prompt
+        assert "latest verified cited fact/publication date" in prompt
