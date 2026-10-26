@@ -127,6 +127,8 @@ def test_prompt_requires_comparable_unique_metrics_and_question_level_evidence(p
     assert "subject, generation, manifest, provenance" in prompt
     assert "retain information_as_of, period_start, period_end and evidence.published_at" in prompt
     assert "each metric_id MUST occur at most once" in prompt
+    assert "even for non-currency units set currency:null" in prompt
+    assert "never omit required keys just because their value is null" in prompt
     assert "distinct custom.<segment>.<metric> IDs" in prompt
     assert "Do not repeat business.segment_revenue" in prompt
     assert "group profit or cash flow" in prompt and "full-cost unit economics" in prompt
@@ -147,3 +149,33 @@ def test_prompt_requires_comparable_unique_metrics_and_question_level_evidence(p
     else:
         assert question.text in prompt
         assert "latest verified cited fact/publication date" in prompt
+
+
+@pytest.mark.parametrize("omit_currency", [False, True])
+def test_original_metric_validator_requires_explicit_nullable_currency(omit_currency):
+    """A prompt rule describes the old contract; it must never fill old answers."""
+    from tests.unit.test_quick_scan_observation_context import content, validate
+
+    answer = content()
+    metric = {
+        "metric_id": "custom.synthetic_scope_review",
+        "value": None,
+        "unit": "percent",
+        "currency": None,
+        "unit_detail": None,
+        "period_start": None,
+        "period_end": None,
+        "basis": "current",
+        "definition": "Synthetic non-currency measure; no company financial value.",
+        "evidence_ids": [],
+    }
+    if omit_currency:
+        del metric["currency"]
+    answer["metrics"] = [metric]
+    if omit_currency:
+        with pytest.raises(ValueError, match="frozen standard schema"):
+            validate(answer)
+        assert "currency" not in answer["metrics"][0], "Never repair the original payload"
+    else:
+        result = validate(answer)
+        assert result["metrics"][0]["currency"] is None

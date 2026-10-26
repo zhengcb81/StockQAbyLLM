@@ -42,6 +42,8 @@ _QUESTION_EVIDENCE_QUALITY_RULE = (
     "Do not repeat business.segment_revenue for multiple segments in the same year; "
     "use distinct custom.<segment>.<metric> IDs, with definition naming the segment, "
     "economic measure and accounting perimeter. Do not invent new answer fields. "
+    "Every metric MUST retain ALL schema-required fields: even for non-currency units set currency:null "
+    "explicitly; never omit required keys just because their value is null. "
     "For every number and comparison, identify a consistent accounting perimeter, period, units/currency and source; "
     "state the formula and assumptions of derived values, and never combine incompatible bases. "
     "Check every trend claim against the chronological numeric sequence: distinguish continuous annual growth "
