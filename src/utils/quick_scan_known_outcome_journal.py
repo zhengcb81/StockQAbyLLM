@@ -285,12 +285,13 @@ def _physical(store, con, item, attempt):
     ).fetchone()
     if latest is None or latest["attempt_id"] != attempt["attempt_id"]:
         raise WorkConflictError("owner_work_latest_attempt_required")
-    if attempt["phase"] not in {"response_available", "uncertain"}:
-        raise WorkConflictError("owner_work_known_response_required")
     member = con.execute(
         "SELECT * FROM quick_scan_question_pack_member WHERE attempt_id=?",
         (attempt["attempt_id"],),
     ).fetchone()
+    late_pack = attempt["phase"] == "send_intent" and member is not None
+    if attempt["phase"] not in {"response_available", "uncertain"} and not late_pack:
+        raise WorkConflictError("owner_work_known_response_required")
     # Original research SDK singles carry a separately anchored pre-send intent.
     # Never invent pack membership to resolve their known unusable responses.
     if member is None:
@@ -298,6 +299,29 @@ def _physical(store, con, item, attempt):
     pack = _read(con, member["pack_id"])
     if pack is None or pack["physical_outcome"] != "response_available":
         raise WorkConflictError("owner_work_known_response_required")
+    if late_pack:
+        # Native late recording deliberately preserves send_intent. Accept
+        # only its original shared receipt and append-only audit event; this
+        # is evidence for owner control, never a checkpoint or resend permit.
+        late_sha = attempt["late_receipt_sha256"]
+        late_event = con.execute(
+            "SELECT 1 FROM work_event WHERE work_item_id=? AND attempt_id=? "
+            "AND lease_epoch=? AND event_type='late_receipt' "
+            "AND from_status IS NULL AND to_status IS NULL AND occurred_at>=? LIMIT 1",
+            (
+                item["work_item_id"],
+                attempt["attempt_id"],
+                attempt["lease_epoch"],
+                pack["intent_time"],
+            ),
+        ).fetchone()
+        if (
+            not late_sha
+            or late_sha != pack["receipt_sha256"]
+            or attempt["receipt_sha256"] not in {None, late_sha}
+            or late_event is None
+        ):
+            raise WorkConflictError("owner_work_known_response_required")
     budget = con.execute(
         "SELECT * FROM quick_scan_budget_attempt WHERE budget_attempt_id=?",
         (pack["budget_attempt_id"],),
