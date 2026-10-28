@@ -335,3 +335,42 @@ def test_shared_compatibility_compares_exact_canonical_stable_values():
             original_sha256=canonical_sha256(original),
             current_sha256=canonical_sha256(current),
         )
+
+
+def test_authorized_response_survives_later_owner_refusal_without_future_post(
+    tmp_path, monkeypatch
+):
+    values = prepared_unsent(tmp_path, monkeypatch)
+    store, _, lifecycle, questions, session, _, handles, original, current, _ = values
+    _, authority = loaded_authority(tmp_path, current)
+    lifecycle._c06_authority = authority
+    original_post = session.post.side_effect
+    valid_send_checks = []
+
+    def post(*args, **kwargs):
+        assert lifecycle._owner_refresh.check.side_effect is None
+        valid_send_checks.append(lifecycle._owner_refresh.check.call_count)
+        assert all(
+            store.get_item(h["work_item_id"])["lease_expires_at"] > store.clock() for h in handles
+        )
+        response = original_post(*args, **kwargs)
+        # Original send authorization passed; only the permission for a FUTURE
+        # dispatch changes after the successful response, not this valid lease.
+        lifecycle._owner_refresh.check.side_effect = RuntimeError(
+            "synthetic permission revoked after response"
+        )
+        return response
+
+    session.post.side_effect = post
+    result = execute(values)
+    assert session.post.call_count == 1 and valid_send_checks[0] > 0
+    for h in handles:
+        wid = h["work_item_id"]
+        assert store.get_answer_checkpoint(wid) is not None
+        assert store.get_standard_answer(wid) is not None
+        assert store.get_result_delivery(wid)["state"] == "ready"
+        assert store.get_observation_context(wid)["context"] == original
+    assert all(r.answer.status == "scored" for r in result.results)
+    with pytest.raises(RuntimeError, match="permission revoked after response"):
+        execute(values, selected=[questions[-1]])
+    assert session.post.call_count == 1

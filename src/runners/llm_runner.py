@@ -814,8 +814,10 @@ class QuickScanWorkLifecycle:
     def _work_observation_context(self, work_item_id: str) -> Optional[Dict[str, Any]]:
         """Keep a resumed work's immutable context; only run attribution may differ.
 
-        A new execution envelope is not a new logical question. Original owner,
-        subject, contract and context validators still apply before any reuse.
+        A new execution envelope is not a new logical question. Subject,
+        contract and context validators still apply before any reuse. Current
+        owner permission stays at the original pre-dispatch/POST boundaries,
+        not after an authorized response when persisting its valid receipt.
         Never overwrite the old binding or use this to retry an unresolved send.
         """
         current = self._observation_context
@@ -855,11 +857,6 @@ class QuickScanWorkLifecycle:
         )
         for document in (original, current):
             bind_context_to_work_item(document, work_item=item, question_id=question_id)
-        # Retain current native/approved owner permission, not an old cached grant.
-        contract = current["questions"][question_id]["subject_binding"]["question_contract"]
-        self.assert_question_pack_ready(
-            [Question(text=contract["prompt"], question_id=question_id)]
-        )
         return original
 
     def dispatch_question_pack_context(self, handles: List[Dict[str, Any]]):
