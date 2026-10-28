@@ -7,6 +7,7 @@
 """
 
 import argparse
+import math
 import sys
 import time
 from pathlib import Path
@@ -337,6 +338,21 @@ def main():
             raise argparse.ArgumentTypeError(f"必须介于1和{maximum}之间")
         return value
 
+    def bounded_work_lease(raw: str) -> float:
+        try:
+            value = float(raw)
+        except (TypeError, ValueError, OverflowError) as error:
+            raise argparse.ArgumentTypeError("新工作租约必须是正有限秒数") from error
+        if not math.isfinite(value) or not 0 < value <= 86400:
+            raise argparse.ArgumentTypeError("新工作租约必须大于0且不超过86400秒")
+        return value
+
+    parser.add_argument(
+        "--work-lease-seconds",
+        type=bounded_work_lease,
+        default=600.0,
+        help="仅后续新claim的工作租约秒数（默认600，上限86400）；不延长既有租约或授权",
+    )
     parser.add_argument(
         "--question-pack-size",
         type=lambda raw: bounded_integer(raw, 30),
@@ -391,6 +407,11 @@ def main():
             owner_refresh_config=args.quick_scan_owner_config,
             refresh_admission_config=args.refresh_admission_config,
             refresh_confirmation_id=args.refresh_confirmation_id,
+            **(
+                {"work_lease_seconds": args.work_lease_seconds}
+                if args.work_lease_seconds != 600.0
+                else {}
+            ),
             **(
                 {"question_pack_size": args.question_pack_size}
                 if args.question_pack_size != 1

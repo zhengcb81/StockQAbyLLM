@@ -8,6 +8,7 @@
 import argparse
 import hashlib
 import json
+import math
 import re
 import sys
 import time
@@ -51,6 +52,23 @@ class _SearchGenerationOptions(TypedDict, total=False):
 
 class _QuestionProcessingOptions(_SearchGenerationOptions, total=False):
     question_pack_size: int
+
+
+class _SingleCompanyOptions(_QuestionProcessingOptions, total=False):
+    work_lease_seconds: float
+
+
+def validate_work_lease_seconds(value: Any) -> float:
+    """A finite policy for future claims only; never an existing-lease renewal."""
+    if type(value) not in (int, float):
+        raise ValueError("work_lease_seconds must be a positive finite number <= 86400")
+    try:
+        seconds = float(value)
+    except (ValueError, OverflowError) as error:
+        raise ValueError("work_lease_seconds must be a positive finite number <= 86400") from error
+    if not math.isfinite(seconds) or not 0 < seconds <= 86400:
+        raise ValueError("work_lease_seconds must be a positive finite number <= 86400")
+    return seconds
 
 
 logger = get_logger(__name__)
@@ -205,7 +223,7 @@ class QuickScanWorkLifecycle:
         self._scan_id = scan_id
         self._identity = dict(identity)
         self._generation = generation
-        self._lease_seconds = lease_seconds
+        self._lease_seconds = validate_work_lease_seconds(lease_seconds)
         self._routing_fingerprint = routing_fingerprint
         self._route_id = route_id
         self._provider_name = provider_name
@@ -1955,6 +1973,7 @@ class LLMRunner:
         question_pack_size: int = 1,
         thinking_enabled: Optional[bool] = None,
         max_output_tokens: Optional[int] = None,
+        work_lease_seconds: float = 600.0,
     ) -> int:
         """运行LLM模式处理。
 
@@ -1979,6 +1998,15 @@ class LLMRunner:
         """
         from src.providers.llm_client import _validate_search_generation_controls
 
+        work_lease_seconds = validate_work_lease_seconds(work_lease_seconds)
+        if work_lease_seconds != 600.0 and (
+            not company
+            or batch_file
+            or seal_deliveries
+            or not require_search
+            or not identity_snapshot
+        ):
+            raise ValueError("nondefault work lease requires one identity-bound search company")
         if type(question_pack_size) is not int or not 1 <= question_pack_size <= 30:
             raise ValueError("question_pack_size must be an integer from 1 to 30")
         _validate_search_generation_controls(thinking_enabled, max_output_tokens)
@@ -2078,7 +2106,9 @@ class LLMRunner:
 
         self.logger.info("=" * 70)
         if company:
-            single_options: _QuestionProcessingOptions = {}
+            single_options: _SingleCompanyOptions = {}
+            if work_lease_seconds != 600.0:
+                single_options["work_lease_seconds"] = work_lease_seconds
             if question_pack_size != 1:
                 single_options["question_pack_size"] = question_pack_size
             if thinking_enabled is not None:
@@ -2163,6 +2193,7 @@ class LLMRunner:
         question_pack_size: int = 1,
         thinking_enabled: Optional[bool] = None,
         max_output_tokens: Optional[int] = None,
+        work_lease_seconds: float = 600.0,
     ) -> int:
         """运行单公司处理模式。
 
@@ -2176,6 +2207,7 @@ class LLMRunner:
         Returns:
             退出码
         """
+        work_lease_seconds = validate_work_lease_seconds(work_lease_seconds)
         try:
             # Bound on every path below before first read, so no branch can
             # observe an unbound name (explicit over implicit control flow).
@@ -2714,6 +2746,7 @@ class LLMRunner:
                         else "scan-l02"
                     ),
                     identity=identity_payload,
+                    lease_seconds=work_lease_seconds,
                     routing_fingerprint=routing_fingerprint_for(questions),
                     budget_policy=budget_pair_policy,
                     budget_route=budget_pair_route,
@@ -2752,6 +2785,10 @@ class LLMRunner:
                         if search_document is not None and search_document.requires_external
                         else None
                     ),
+                )
+            if work_lifecycle is not None:
+                print(
+                    f"[EXECUTION] work_lease_seconds={work_lifecycle._lease_seconds:g}; scope=new_claims_only; existing_lease_extension=false"
                 )
             if question_pack_size > 1:
                 if work_lifecycle is None:
