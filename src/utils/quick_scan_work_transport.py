@@ -1133,6 +1133,59 @@ def project_question_pack_transport(execution_metadata: dict) -> dict:
         ) from error
 
 
+def validate_question_pack_standard_answers(execution_metadata: dict, answers: list[dict]) -> dict:
+    """Validate supplied bodies against original owner context and physical URLs.
+
+    No defaults or research content are synthesized. Binding/receipt failures
+    remain transport failures; only body/schema failures are member-invalid.
+    """
+    from src.utils.quick_scan_observation_context import (
+        parse_standard_answer,
+        validate_standard_answer,
+    )
+
+    project_question_pack_transport(execution_metadata)
+    binding = _QUESTION_PACK_BINDING.get()
+    if binding is None:
+        raise QuickScanWorkPersistenceError("standard pack requires its active owner")
+    rows = {
+        item["question_id"]: (item, context) for item, context in _question_pack_bound_rows(binding)
+    }
+    if (
+        not isinstance(answers, list)
+        or any(not isinstance(row, dict) for row in answers)
+        or len({row.get("question_id") for row in answers}) != len(answers)
+        or any(row.get("question_id") not in rows for row in answers)
+    ):
+        raise QuickScanWorkPersistenceError("standard pack members differ from original owner")
+    invalid = {}
+    for answer in answers:
+        qid = answer["question_id"]
+        item, context = rows[qid]
+        try:
+            body = parse_standard_answer(answer["description"])
+            if body is None:
+                raise ValueError("full standard body is required")
+            if answer.get("information_as_of") != body.get("information_as_of"):
+                raise ValueError("outer and standard information dates conflict")
+            normalized = {
+                "entity_id": answer["entity_id"],
+                "question_id": qid,
+                "status": answer["status"],
+                "score": answer["score"],
+                "description": body["summary"],
+            }
+            validate_standard_answer(
+                body,
+                metadata=context["metadata"],
+                normalized_answer=normalized,
+                source_urls=list(execution_metadata.get("source_urls") or []),
+            )
+        except (ValueError, KeyError, TypeError):
+            invalid[qid] = "full_standard_answer_invalid"
+    return invalid
+
+
 def _begin_question_pack_send(
     binding,
     prompt,

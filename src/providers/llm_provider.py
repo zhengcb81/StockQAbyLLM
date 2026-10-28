@@ -27,14 +27,14 @@ from src.utils.quick_scan_work_transport import (
     external_answer_search_mode,
 )
 
-from .base_llm_provider import BaseLLMProvider
+from .base_llm_provider import BaseLLMProvider, standard_answer_transport_enabled
 from .llm_client import (
     LLMClient,
     LLMTransportAttemptError,
     SearchCapabilityUnavailable,
     _validate_search_generation_controls,
 )
-from .llm_response_parser import ParsedLLMAnswer
+from .llm_response_parser import ParsedLLMAnswer, ParsedQuestionPack
 
 logger = get_logger(__name__)
 
@@ -531,6 +531,7 @@ class LLMProvider(BaseLLMProvider):
         )
 
         assert_question_pack_binding(question_ids, self.entity_id)
+        full_standard_transport = standard_answer_transport_enabled()
         diagnostic_policy = _final_answer_diagnostic_policy(self.config_manager.config_file)
         prompt = self._build_prompt("", question_pack=questions)
 
@@ -630,12 +631,14 @@ class LLMProvider(BaseLLMProvider):
                 metadata["final_answer_diagnostic"] = captured
             metadata["question_pack_parse_diagnostics"] = diagnostic
             return reply(metadata, "search_unverified", missing=question_ids)
+        parse_controls = {"standard_answer_objects": True} if full_standard_transport else {}
         try:
             parsed, diagnostic = self.parser.parse_question_pack_response_with_diagnostics(
                 response.content,
                 question_ids,
                 expected_entity_id=self.entity_id,
                 expected_company_name=self.company_name,
+                **parse_controls,
             )
         except Exception:
             _capture_final_answer_diagnostic(
@@ -658,6 +661,55 @@ class LLMProvider(BaseLLMProvider):
         metadata["question_pack_parse_diagnostics"] = diagnostic
         if parsed is None:
             return reply(metadata, "rejected", invalid=question_ids)
+        if full_standard_transport:
+            from src.utils.quick_scan_work_transport import (
+                validate_question_pack_standard_answers,
+            )
+
+            standard_invalid = validate_question_pack_standard_answers(
+                metadata,
+                [
+                    {
+                        "question_id": answer.question_id,
+                        "entity_id": answer.entity_id,
+                        "status": answer.status,
+                        "score": answer.score,
+                        "description": answer.description,
+                        "information_as_of": answer.information_as_of,
+                    }
+                    for answer in parsed.answers
+                ],
+            )
+            all_rejections = {
+                **{qid: "pack_member_missing" for qid in parsed.missing_question_ids},
+                **{qid: "pack_member_invalid" for qid in parsed.invalid_question_ids},
+                **standard_invalid,
+            }
+            valid_count = sum(
+                answer.question_id not in standard_invalid for answer in parsed.answers
+            )
+            metadata["question_pack_standard_diagnostics"] = {
+                "schema_version": "1.0.0",
+                "status": (
+                    "rejected" if not valid_count else ("partial" if all_rejections else "complete")
+                ),
+                "rejections": [
+                    {"question_id": qid, "code": all_rejections[qid]}
+                    for qid in question_ids
+                    if qid in all_rejections
+                ],
+            }
+            if standard_invalid:
+                invalid = set(parsed.invalid_question_ids) | set(standard_invalid)
+                parsed = ParsedQuestionPack(
+                    tuple(
+                        answer
+                        for answer in parsed.answers
+                        if answer.question_id not in standard_invalid
+                    ),
+                    parsed.missing_question_ids,
+                    tuple(qid for qid in question_ids if qid in invalid),
+                )
         by_id = {member["question_id"]: member for member in members}
         questions_by_id = {question.question_id: question for question in questions}
         physical = metadata.get("work_transport")

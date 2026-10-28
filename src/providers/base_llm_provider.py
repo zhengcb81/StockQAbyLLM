@@ -364,6 +364,7 @@ Requirements:
             "missing_fields": ["verified question-specific evidence"],
             "coverage": {"status": "unknown", "reason": "No verified question-specific evidence."},
         }
+        direct_standard_objects = standard_answer_transport_enabled()
         example = {
             "answers": [
                 {
@@ -373,7 +374,11 @@ Requirements:
                     "status": "insufficient_evidence",
                     "score": None,
                     "information_as_of": None,
-                    "description": json.dumps(body, ensure_ascii=False, separators=(",", ":")),
+                    "description": (
+                        body
+                        if direct_standard_objects
+                        else json.dumps(body, ensure_ascii=False, separators=(",", ":"))
+                    ),
                 }
             ]
         }
@@ -394,10 +399,14 @@ Requirements:
             "do not borrow a score or segment evidence from another answer.\n"
             "3. Give an integer score 1-10 only when status=scored and question-specific evidence supports it. "
             "Otherwise use insufficient_evidence or not_applicable with score=null. Never fill an unknown with 5.\n"
-            "4. Every answer's description MUST be a single-line JSON object string holding its FULL standard answer: "
-            "question_id, response_kind=score, status, score, summary, information_as_of, period_start, period_end, "
+            + (
+                "4. Every answer's description MUST be a direct JSON object (NOT a quoted JSON string) holding its FULL standard answer: "
+                if direct_standard_objects
+                else "4. Every answer's description MUST be a single-line JSON object string holding its FULL standard answer: "
+            )
+            + "question_id, response_kind=score, status, score, summary, information_as_of, period_start, period_end, "
             "basis, trend, confidence, metrics, items, evidence, counterevidence, watch_triggers, missing_fields and coverage. "
-            "The outer and inner question_id/status/score must be identical. Never truncate or summarise the body.\n"
+            "The outer and inner question_id/status/score/information_as_of must be identical, including null dates. Never truncate or summarise the body.\n"
             "5. Evidence entries use id/title/url/published_at/claim. Include only real retrieved sources for this issuer. "
             "Set information_as_of to the latest verified date covering all cited facts and source publication dates, "
             "or null if unknown; keep financial periods separate and never substitute today's date. "

@@ -195,13 +195,19 @@ class LLMResponseParser:
         expected_question_ids: Tuple[str, ...],
         expected_entity_id: Optional[str] = None,
         expected_company_name: Optional[str] = None,
+        *,
+        standard_answer_objects: bool = False,
     ) -> Tuple[Optional[ParsedQuestionPack], dict]:
         """Observe the same parser once, without exposing response values."""
         context: Dict[str, Any] = {"items": [], "prefix": "", "question_id": None}
         token = _PACK_DIAGNOSTICS.set(context)
         try:
             parsed = self.parse_question_pack_response(
-                content, expected_question_ids, expected_entity_id, expected_company_name
+                content,
+                expected_question_ids,
+                expected_entity_id,
+                expected_company_name,
+                standard_answer_objects=standard_answer_objects,
             )
         finally:
             _PACK_DIAGNOSTICS.reset(token)
@@ -225,6 +231,8 @@ class LLMResponseParser:
         expected_question_ids: Tuple[str, ...],
         expected_entity_id: Optional[str] = None,
         expected_company_name: Optional[str] = None,
+        *,
+        standard_answer_objects: bool = False,
     ) -> Optional[ParsedQuestionPack]:
         """Parse an exact JSON ``{"answers": [...]}`` root, bounded to 1 MiB.
 
@@ -251,6 +259,8 @@ class LLMResponseParser:
             or len(set(expected_question_ids)) != len(expected_question_ids)
         ):
             raise ValueError("expected_question_ids must be 1..30 unique stable ordered IDs")
+        if type(standard_answer_objects) is not bool:
+            raise ValueError("standard_answer_objects must be an explicit bool")
         expected = tuple(expected_question_ids)
         if not isinstance(content, str) or len(content) > 1024 * 1024:
             _record_parse_diagnostic("pack_content_type_or_size")
@@ -348,7 +358,16 @@ class LLMResponseParser:
                 missing.append(qid)
                 _record_parse_diagnostic("missing_question", "/answers")
                 continue
-            member_content = json.dumps(members[qid], ensure_ascii=False, allow_nan=False)
+            member = members[qid]
+            if standard_answer_objects and isinstance(member.get("description"), dict):
+                member = dict(member)
+                member["description"] = json.dumps(
+                    member["description"],
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                    allow_nan=False,
+                )
+            member_content = json.dumps(member, ensure_ascii=False, allow_nan=False)
             context = _PACK_DIAGNOSTICS.get()
             token = None
             if context is not None:
@@ -360,13 +379,22 @@ class LLMResponseParser:
                     }
                 )
             try:
-                answer = self.parse_structured_response(
-                    member_content,
-                    expected_question_id=qid,
-                    expected_entity_id=expected_entity_id,
-                    expected_company_name=expected_company_name,
-                    strict_json_only=True,
-                )
+                claimed_date = member.get("information_as_of")
+                if (
+                    standard_answer_objects
+                    and claimed_date is not None
+                    and information_date(claimed_date) != claimed_date
+                ):
+                    _record_parse_diagnostic("invalid_information_date", "/information_as_of")
+                    answer = None
+                else:
+                    answer = self.parse_structured_response(
+                        member_content,
+                        expected_question_id=qid,
+                        expected_entity_id=expected_entity_id,
+                        expected_company_name=expected_company_name,
+                        strict_json_only=True,
+                    )
             finally:
                 if token is not None:
                     _PACK_DIAGNOSTICS.reset(token)
