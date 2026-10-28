@@ -577,3 +577,87 @@ def test_original_native_search_events_are_bound_and_store_only_short_metadata(p
         changed["web_search_calls"][0]["source_urls"] = ["https://example.org/foreign"]
         with pytest.raises(transport.QuickScanWorkPersistenceError):
             transport.project_question_pack_transport(changed)
+
+
+@pytest.mark.parametrize("returned_count", [1, 3])
+@pytest.mark.parametrize("tamper_group", [False, True])
+def test_ordered_cascade_preserves_group_receipt_for_second_owner_projection(
+    pack, returned_count, tamper_group
+):
+    """The actual engine projects the group again after provider/cascade annotation."""
+    from types import SimpleNamespace
+
+    from src.core.models import Question, SearchResult
+    from src.providers.llm_provider import QuestionPackSearchResult
+    from src.utils.llm_integration import OrderedSearchProviderCascade
+
+    group_before = {}
+    member_ids = []
+
+    def native_pack(questions, **kwargs):
+        physical = _success(_begin())
+        group_before.update(copy.deepcopy(physical))
+        original_members = physical["question_pack_transport"]["members"]
+        results = []
+        for member in original_members[:returned_count]:
+            execution = copy.deepcopy(physical)
+            execution["work_transport"]["work_attempt_id"] = member["work_attempt_id"]
+            member_ids.append(member["work_attempt_id"])
+            results.append(
+                SearchResult(
+                    title="Synthetic",
+                    snippet="Synthetic final answer",
+                    source="llm_api",
+                    status="scored",
+                    score=7,
+                    metadata={
+                        "question_id": member["question_id"],
+                        "execution": execution,
+                        "attempts": [copy.deepcopy(physical)],
+                    },
+                )
+            )
+        physical["question_pack"] = {"status": "complete" if returned_count == 3 else "partial"}
+        if tamper_group:
+            physical["request_payload_sha256"] = "0" * 64
+        group_before.clear()
+        group_before.update(copy.deepcopy(physical))
+        return QuestionPackSearchResult(
+            tuple(results),
+            tuple(QIDS[returned_count:]),
+            (),
+            physical,
+        )
+
+    native = SimpleNamespace(
+        model="mimo-v2.6-flash",
+        client=SimpleNamespace(supports_web_search=True),
+        search_question_pack=native_pack,
+        get_provider_name=lambda: "mimo-fixture",
+    )
+    router = OrderedSearchProviderCascade(
+        [native],
+        [{**_policy()["routes"][0]}],
+        policy_version="fixture@hash",
+        max_attempts_per_dispatch_round=1,
+    )
+    with _bindings(pack):
+        response = router.search_question_pack([Question(q, question_id=q) for q in QIDS])
+        # The raw group identity must survive; each member keeps its distinct owner.
+        for field in ("attempt_id", "prompt_sha256", "request_payload_sha256", "work_transport"):
+            assert response.execution_metadata[field] == group_before[field]
+        assert [
+            r.metadata["execution"]["work_transport"]["work_attempt_id"] for r in response.results
+        ] == member_ids
+        assert response.execution_metadata["work_transport"]["work_attempt_id"] not in member_ids
+        if tamper_group:
+            # A valid member must never heal an invalid physical group receipt.
+            with pytest.raises(transport.QuickScanWorkPersistenceError):
+                transport.project_question_pack_transport(response.execution_metadata)
+        else:
+            assert transport.project_question_pack_transport(response.execution_metadata) == (
+                group_before["question_pack_transport"]
+            )
+        assert response.execution_metadata["dispatch_outcome"]["state"] == "completed"
+        assert response.missing_question_ids == tuple(QIDS[returned_count:])
+        assert pack[0].get_quick_scan_budget_status("pack-transport")["requests"] == 1

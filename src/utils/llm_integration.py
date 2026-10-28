@@ -1121,7 +1121,22 @@ class OrderedSearchProviderCascade(SearchProvider):
                 dict(pack_result.execution_metadata) if pack_result is not None else {}
             )
             if annotated:
-                execution.update(annotated[0].metadata.get("execution") or {})
+                annotation = annotated[0].metadata.get("execution") or {}
+                if pack_result is None:
+                    execution.update(annotation)
+                else:
+                    # A member binds its own ATTEMPT, while the physical pack
+                    # binds PACK_BUDGET. Only routing annotations may cross this
+                    # boundary; retain every original group transport field.
+                    for field in (
+                        "provider_config_ref",
+                        "route_id",
+                        "policy_version",
+                        "route_trace",
+                        "dispatch_outcome",
+                    ):
+                        if field in annotation:
+                            execution[field] = annotation[field]
                 execution["attempts"] = annotated[0].metadata.get("attempts") or []
             if pack_result is None:
                 execution["question_pack"] = {
