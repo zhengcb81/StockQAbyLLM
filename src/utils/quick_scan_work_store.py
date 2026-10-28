@@ -1213,16 +1213,42 @@ class QuickScanWorkStore:
             self._initialize(connection)
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(str(self.path), timeout=5, isolation_level=None)
+        connection = sqlite3.connect(str(self.path), timeout=120, isolation_level=None)
         connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA busy_timeout=5000")
+        connection.execute("PRAGMA busy_timeout=120000")
         connection.execute("PRAGMA foreign_keys=ON")
         # A returned SendPermit must survive a power/process crash before POST.
         connection.execute("PRAGMA synchronous=FULL")
         return connection
 
     @classmethod
+    def _validate_current_snapshot(cls, connection: sqlite3.Connection) -> bool:
+        """Validate a current database without reserving its sole writer slot.
+
+        Read the version again inside the same read snapshot as all schema/data
+        checks. Migrations still acquire the writer lock and re-read the version.
+        Restore connection state even when strict validation rejects corruption.
+        """
+        if connection.in_transaction:
+            raise sqlite3.OperationalError("cannot start a transaction within a transaction")
+        query_only = connection.execute("PRAGMA query_only").fetchone()[0]
+        connection.execute("PRAGMA query_only=ON")
+        try:
+            connection.execute("BEGIN")
+            if connection.execute("PRAGMA user_version").fetchone()[0] != SCHEMA_VERSION:
+                return False
+            cls._validate_schema(connection, schema_version=SCHEMA_VERSION)
+            return True
+        finally:
+            if connection.in_transaction:
+                connection.execute("ROLLBACK")
+            connection.execute(f"PRAGMA query_only={int(query_only)}")
+
+    @classmethod
     def _initialize(cls, connection: sqlite3.Connection) -> None:
+        if connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION:
+            if cls._validate_current_snapshot(connection):
+                return
         connection.execute("BEGIN IMMEDIATE")
         try:
             version = connection.execute("PRAGMA user_version").fetchone()[0]
@@ -2817,8 +2843,8 @@ class QuickScanWorkStore:
             if actual_cost is None
             else _cost_to_micros(actual_cost, "actual_cost", allow_zero=True)
         )
-        now = self._now()
         with self._transaction() as connection:
+            now = self._now()
             if execution_receipt is not None:
                 self._persist_response_tx(
                     connection,
@@ -2857,8 +2883,8 @@ class QuickScanWorkStore:
             raise ValueError("confirmed_not_sent must have zero cost")
         request_counted = 0 if resolved_outcome == "confirmed_not_sent" else 1
         source = _safe_text(cost_source_ref, "cost_source_ref", maximum=300)
-        now = self._now()
         with self._transaction() as connection:
+            now = self._now()
             row = connection.execute(
                 "SELECT * FROM quick_scan_budget_attempt WHERE budget_attempt_id=?",
                 (budget_attempt_id,),
@@ -3075,8 +3101,8 @@ class QuickScanWorkStore:
         _sha256(routing_fingerprint, "routing_fingerprint")
         _safe(run_id, "run_id")
         _safe(scan_id, "scan_id")
-        now = self._now()
         with self._transaction() as connection:
+            now = self._now()
             row = connection.execute(
                 "SELECT * FROM work_item WHERE entity_id=? AND question_id=? "
                 "AND generation=? AND scope=? AND scope_id=? AND identity_revision=? "
@@ -3185,8 +3211,8 @@ class QuickScanWorkStore:
         """Claim only pending work; expired leases require explicit recovery first."""
         _safe(work_item_id, "work_item_id")
         seconds = _positive_number(lease_seconds, "lease_seconds", maximum=86400)
-        now = self._now()
         with self._transaction() as connection:
+            now = self._now()
             return self._claim_pending_in_transaction(connection, work_item_id, seconds, now)
 
     def claim_refresh_action_batch(
@@ -3307,8 +3333,8 @@ class QuickScanWorkStore:
         if not isinstance(request_cache_key, str) or not _REQUEST_KEY.fullmatch(request_cache_key):
             raise ValueError("invalid request_cache_key")
         _sha256(prompt_sha256, "prompt_sha256")
-        now = self._now()
         with self._transaction() as connection:
+            now = self._now()
             item = self._item(connection, work_item_id)
             self._assert_lease(item, lease, now)
             previous = connection.execute(
@@ -3483,8 +3509,8 @@ class QuickScanWorkStore:
         normalized_policy = (
             None if budget_policy is None else _budget_policy_projection(budget_policy)
         )
-        now = self._now()
         with self._transaction() as connection:
+            now = self._now()
             from src.utils.quick_scan_question_pack_journal import guard_individual
 
             guard_individual(connection, self, attempt_id)
@@ -3622,8 +3648,8 @@ class QuickScanWorkStore:
             http_status_code is None or not 200 <= http_status_code < 300 or receipt_sha256 is None
         ):
             raise ValueError("response requires successful HTTP status and receipt hash")
-        now = self._now()
         with self._transaction() as connection:
+            now = self._now()
             from src.utils.quick_scan_question_pack_journal import guard_individual
 
             guard_individual(connection, self, attempt_id)
@@ -3798,8 +3824,8 @@ class QuickScanWorkStore:
 
     def recover_expired(self, work_item_id: str) -> str:
         """Release provably unsent work; a send intent is always uncertain."""
-        now = self._now()
         with self._transaction() as connection:
+            now = self._now()
             item = self._item(connection, work_item_id)
             if item["status"] != "leased" or now < item["lease_expires_at"]:
                 return str(item["status"])
@@ -3875,8 +3901,8 @@ class QuickScanWorkStore:
         )
         if actual_cost_micros is not None and not cost_source_ref:
             raise ValueError("exact actual cost requires a source reference")
-        now = self._now()
         with self._transaction() as connection:
+            now = self._now()
             item = self._item(connection, work_item_id)
             attempt = connection.execute(
                 "SELECT * FROM attempt WHERE attempt_id=? AND work_item_id=? "
@@ -4304,8 +4330,8 @@ class QuickScanWorkStore:
                 observation_context=observation_context,
                 standard_answer=standard_answer,
             )
-        now = self._now()
         with self._transaction() as connection:
+            now = self._now()
             item = self._item(connection, work_item_id)
             if (
                 self._external_checkpoint_projection(connection, attempt_id, external_context_use)
@@ -4672,8 +4698,8 @@ class QuickScanWorkStore:
         document = validate_context_document(context, expected_sha256=canonical_sha256(context))
         if document["schema"] != CONTEXT_SCHEMA:
             raise ValueError("subject_dispatch_context2_required")
-        now = self._now()
         with self._transaction() as connection:
+            now = self._now()
             item = self._item(connection, work_item_id)
             self._assert_lease(item, lease, now)
             existing = connection.execute(
@@ -4714,8 +4740,8 @@ class QuickScanWorkStore:
         from . import quick_scan_subject_journal as journal
         from .quick_scan_result_outbox import canonical_bytes, canonical_sha256
 
-        now = self._now()
         with self._transaction() as connection:
+            now = self._now()
             item = self._item(connection, work_item_id)
             self._assert_lease(item, lease, now)
             attempt = connection.execute(
@@ -5105,8 +5131,8 @@ class QuickScanWorkStore:
         reason_code = _safe_text(reason_code, "delivery block reason", maximum=160)
         if not _SAFE_TOKEN.fullmatch(reason_code):
             raise ValueError("invalid delivery block reason")
-        now = self._now()
         with self._transaction() as connection:
+            now = self._now()
             item = self._item(connection, work_item_id)
             if item["status"] != "result_ready":
                 raise WorkConflictError("delivery can only be blocked for a result-ready item")
@@ -5349,8 +5375,8 @@ class QuickScanWorkStore:
         observation_id = item_data["observation_id"]
         payload_sha256 = item_data["payload_sha256"]
         idempotency_key = delivery_key(validated["package_id"], item_id, payload_sha256)
-        now = self._now()
         with self._transaction() as connection:
+            now = self._now()
             item = self._item(connection, work_item_id)
             if item["status"] != "result_ready":
                 raise WorkConflictError("only result-ready work can be exported")
@@ -5509,8 +5535,8 @@ class QuickScanWorkStore:
         observation_id = item_data["observation_id"]
         payload_sha256 = item_data["payload_sha256"]
         idempotency_key = delivery_key(validated["package_id"], item_id, payload_sha256)
-        now = self._now()
         with self._transaction() as connection:
+            now = self._now()
             item = self._item(connection, work_item_id)
             if item["status"] != "result_ready":
                 raise WorkConflictError("only result-ready work can be superseded")
@@ -5684,8 +5710,8 @@ class QuickScanWorkStore:
         _safe(work_item_id, "work_item_id")
         target = validate_delivery_consumer(consumer)
         source_ref = _safe_text(source_ref, "consumer binding source_ref", maximum=1000)
-        now = self._now()
         with self._transaction() as connection:
+            now = self._now()
             row = self._delivery_row(connection, work_item_id)
             if row is None or row["package_json"] is None:
                 raise WorkConflictError("consumer binding requires a prepared ready delivery")
@@ -5748,8 +5774,8 @@ class QuickScanWorkStore:
     ) -> dict:
         """Commit send intent before returning the exact immutable bytes once."""
         _safe(work_item_id, "work_item_id")
-        now = self._now()
         with self._transaction() as connection:
+            now = self._now()
             row = self._delivery_row(connection, work_item_id)
             if row is None or row["state"] != "ready":
                 raise WorkConflictError("delivery is not safely dispatchable")
@@ -5793,8 +5819,8 @@ class QuickScanWorkStore:
         reason_code = _safe_text(reason_code, "not-sent reason", maximum=160)
         if reason_code not in _DELIVERY_NOT_SENT_REASONS:
             raise ValueError("invalid not-sent reason")
-        now = self._now()
         with self._transaction() as connection:
+            now = self._now()
             row = self._delivery_row(connection, work_item_id)
             if row is None or row["state"] != "send_uncertain":
                 raise WorkConflictError("only an uncertain delivery can be confirmed not sent")
@@ -5832,8 +5858,8 @@ class QuickScanWorkStore:
         ack_bytes = canonical_bytes(ack)
         ack_json = ack_bytes.decode("utf-8")
         ack_sha256 = canonical_sha256(ack)
-        now = self._now()
         with self._transaction() as connection:
+            now = self._now()
             row = self._delivery_row(connection, work_item_id)
             if row is None or row["package_json"] is None:
                 raise WorkConflictError("result delivery package is not prepared")
@@ -5951,8 +5977,8 @@ class QuickScanWorkStore:
     def cancel_pending(self, work_item_id: str) -> str:
         """Cancel work that has not started; active requests remain leased and finish."""
         _safe(work_item_id, "work_item_id")
-        now = self._now()
         with self._transaction() as connection:
+            now = self._now()
             item = self._item(connection, work_item_id)
             if item["status"] == "cancelled":
                 return "cancelled"

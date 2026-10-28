@@ -253,7 +253,7 @@ def _claim_process(db_path, work_id, ready_path, start_path, result_path):
             start_path,
             result_path,
         ],
-        cwd=REPO_ROOT,
+        cwd=Path(db_path).parent,
         env={
             **os.environ,
             "PYTHONPATH": str(REPO_ROOT),
@@ -369,7 +369,7 @@ def test_send_intent_survives_immediate_process_exit_before_any_http(tmp_path):
             str(lease.lease_epoch),
             attempt["attempt_id"],
         ],
-        cwd=REPO_ROOT,
+        cwd=tmp_path,
         env={
             **os.environ,
             "PYTHONPATH": str(REPO_ROOT),
