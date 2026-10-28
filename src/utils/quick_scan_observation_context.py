@@ -225,6 +225,33 @@ def manifest_question_bindings(
     }
 
 
+def validate_resumed_context_compatibility(
+    original: dict[str, Any],
+    current: dict[str, Any],
+    *,
+    original_sha256: str,
+    current_sha256: str,
+) -> None:
+    """Allow only execution-attribution labels to differ, not stable contracts.
+
+    Both documents and their own hashes are validated before comparison. This
+    pure check grants no send, owner, lease, receipt or publication permission;
+    callers must retain those original guards and the original stored context.
+    """
+    validate_context_document(original, expected_sha256=original_sha256)
+    validate_context_document(current, expected_sha256=current_sha256)
+    stable_hashes = []
+    for document in (original, current):
+        stripped = copy.deepcopy(document)
+        for row in stripped["questions"].values():
+            for key in ("run_id", "scan_id", "inputset_id"):
+                row["metadata"].pop(key, None)
+        # Canonical JSON distinguishes 1/1.0/true; Python equality does not.
+        stable_hashes.append(canonical_sha256(stripped))
+    if stable_hashes[0] != stable_hashes[1]:
+        raise ValueError("resume_original_observation_context_stable_inputs_changed")
+
+
 def check_context_matches_manifest(context: dict[str, Any], manifest: dict[str, Any]) -> None:
     """Bind both manifest hashes and EVERY frozen question to the manifest file.
 

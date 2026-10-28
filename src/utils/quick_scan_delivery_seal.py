@@ -27,7 +27,10 @@ from src.utils.quick_scan_c06_authority import (
     AUTHORITY_SCHEMA_VERSION_V2,
     authority_adapter_input,
 )
-from src.utils.quick_scan_observation_context import bind_context_to_work_item
+from src.utils.quick_scan_observation_context import (
+    bind_context_to_work_item,
+    validate_resumed_context_compatibility,
+)
 from src.utils.quick_scan_work_store import (
     QuickScanWorkStore,
     _unmapped_run_scan_pairs,
@@ -87,7 +90,19 @@ def _complete_package(
     if stored is None:
         return None, BLOCK_CONTEXT
     if stored["context_sha256"] != authority.get("observation_context_sha256"):
-        return None, BLOCK_CONTEXT_CONFLICT
+        current_context = authority.get("observation_context")
+        current_sha256 = authority.get("observation_context_sha256")
+        if not isinstance(current_context, dict) or not isinstance(current_sha256, str):
+            return None, BLOCK_CONTEXT_CONFLICT
+        try:
+            validate_resumed_context_compatibility(
+                stored["context"],
+                current_context,
+                original_sha256=stored["context_sha256"],
+                current_sha256=current_sha256,
+            )
+        except ValueError:
+            return None, BLOCK_CONTEXT_CONFLICT
     standard = store.get_standard_answer(work_item_id)
     if standard is None:
         return None, BLOCK_STANDARD_ANSWER

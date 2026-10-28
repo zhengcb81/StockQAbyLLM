@@ -674,7 +674,9 @@ class QuickScanWorkLifecycle:
                 == "stockqa.quick_scan_observation_context/2.0.0"
             ):
                 self._store.freeze_observation_context_before_send(
-                    handle["work_item_id"], handle["lease"], self._observation_context
+                    handle["work_item_id"],
+                    handle["lease"],
+                    cast(Dict[str, Any], self._work_observation_context(handle["work_item_id"])),
                 )
                 if self._owner_refresh is None:
                     raise ProcessingError(message="subject_dispatch_owner_session_required")
@@ -809,6 +811,57 @@ class QuickScanWorkLifecycle:
             perimeter,
         )
 
+    def _work_observation_context(self, work_item_id: str) -> Optional[Dict[str, Any]]:
+        """Keep a resumed work's immutable context; only run attribution may differ.
+
+        A new execution envelope is not a new logical question. Original owner,
+        subject, contract and context validators still apply before any reuse.
+        Never overwrite the old binding or use this to retry an unresolved send.
+        """
+        current = self._observation_context
+        if current is None or not isinstance(self._store, QuickScanWorkStore):
+            return current
+        frozen = self._store.get_observation_context(work_item_id)
+        if frozen is None:
+            return current
+        from src.utils.quick_scan_result_outbox import canonical_sha256
+
+        original = cast(Dict[str, Any], frozen["context"])
+        if canonical_sha256(current) == frozen["context_sha256"]:
+            return original
+        complete = isinstance(self._c06_authority, dict) and self._c06_authority.get(
+            "schema_version"
+        ) in {"2.0.0", "3.0.0"}
+        if (
+            not complete
+            or not self._transport_managed
+            or self._external_retrieval is not None
+            or current.get("schema") != "stockqa.quick_scan_observation_context/2.0.0"
+            or original.get("schema") != "stockqa.quick_scan_observation_context/2.0.0"
+        ):
+            raise ValueError("resume_original_context_requires_native_c06")
+        from src.utils.quick_scan_observation_context import (
+            bind_context_to_work_item,
+            validate_resumed_context_compatibility,
+        )
+
+        item = self._store.get_item(work_item_id)
+        question_id = item["question_id"]
+        validate_resumed_context_compatibility(
+            original,
+            current,
+            original_sha256=frozen["context_sha256"],
+            current_sha256=canonical_sha256(current),
+        )
+        for document in (original, current):
+            bind_context_to_work_item(document, work_item=item, question_id=question_id)
+        # Retain current native/approved owner permission, not an old cached grant.
+        contract = current["questions"][question_id]["subject_binding"]["question_contract"]
+        self.assert_question_pack_ready(
+            [Question(text=contract["prompt"], question_id=question_id)]
+        )
+        return original
+
     def dispatch_question_pack_context(self, handles: List[Dict[str, Any]]):
         """Freeze every original question, then bind one group with no single-work binding."""
         from contextlib import ExitStack
@@ -836,13 +889,14 @@ class QuickScanWorkLifecycle:
         if len(set(keys)) != 1 or (keys[0][2] == "security" and len(keys) > 1):
             raise ValueError("question_pack_subject_scope_mismatch")
         # assert_question_pack_ready above verifies these exact owner/context values.
-        observation_context = cast(Dict[str, Any], self._observation_context)
         owner_refresh = cast("OwnerRefreshSession | ApprovedRefreshSession", self._owner_refresh)
         context = ExitStack()
         try:
             for handle in handles:
                 self._store.freeze_observation_context_before_send(
-                    handle["work_item_id"], handle["lease"], observation_context
+                    handle["work_item_id"],
+                    handle["lease"],
+                    cast(Dict[str, Any], self._work_observation_context(handle["work_item_id"])),
                 )
             owner_refresh.check()
             context.enter_context(bind_owner_refresh_guard(owner_refresh.check))
@@ -1219,6 +1273,7 @@ class QuickScanWorkLifecycle:
         standard_body: Optional[Dict[str, Any]],
         *,
         search_projection: Optional[Dict[str, Any]] = None,
+        observation_context: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Run the complete standard-answer contract BEFORE any state is written."""
         complete_transport = isinstance(self._c06_authority, dict) and self._c06_authority.get(
@@ -1234,9 +1289,10 @@ class QuickScanWorkLifecycle:
         )
         from src.utils.quick_scan_result_outbox import canonical_sha256
 
+        document = self._observation_context if observation_context is None else observation_context
         context = validate_context_document(
-            self._observation_context,
-            expected_sha256=canonical_sha256(self._observation_context),
+            document,
+            expected_sha256=canonical_sha256(document),
         )
         question_id = payload.get("question_id")
         if question_id not in context["questions"]:
@@ -1294,8 +1350,13 @@ class QuickScanWorkLifecycle:
                 "description": description,
             }
             _preflight_checkpoint(payload, receipt, search_projection=search_projection)
+            observation_context = self._work_observation_context(handle["work_item_id"])
             self._preflight_standard_answer(
-                payload, receipt, standard_body, search_projection=search_projection
+                payload,
+                receipt,
+                standard_body,
+                search_projection=search_projection,
+                observation_context=observation_context,
             )
             # Store checks same work/lease/model/request/hash and successful
             # phase atomically. A forged final ID or receipt cannot save.
@@ -1305,7 +1366,7 @@ class QuickScanWorkLifecycle:
                 attempt_id,
                 answer=payload,
                 execution_receipt=receipt,
-                observation_context=self._observation_context,
+                observation_context=observation_context,
                 standard_answer=standard_body,
                 external_context_use=(
                     None if search_projection is None else search_projection["external_context_use"]

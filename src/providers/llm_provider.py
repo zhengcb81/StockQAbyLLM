@@ -471,6 +471,28 @@ class LLMProvider(BaseLLMProvider):
             },
         )
 
+    def _build_question_pack_prompt(self, questions: List[Question]) -> str:
+        prompt = super()._build_question_pack_prompt(questions)
+        if standard_answer_transport_enabled():
+            prompt += (
+                "\nSTANDARD PERIOD RULE: Top-level period_start/period_end describe the evidence or financial coverage period "
+                "confirmable on or before the information cutoff, not the future forecast window, even when top-level basis=forward. "
+                "Unknown top-level periods stay null. Put a future forecast window only in the relevant metric's own period_start/period_end with basis=forward; "
+                "describe qualitative future windows in summary. Do not invent a numeric metric just to describe a forecast window. "
+                "Without numeric evidence, keep metrics=[] and explain the limitation in summary/coverage. "
+                "information_as_of and every evidence.published_at must be on or before the information cutoff; unknown dates stay null. "
+                "A forecast window is not an information or source publication date."
+                "\nFULL-STANDARD SELF-CHECK: For every original question_id, emit its own complete standard answer object. "
+                "Never merge answers or omit a requested question_id. Evidence insufficient for one member still requires that member's independent status=insufficient_evidence answer with score=null. "
+                "Use status=not_applicable only when the question is genuinely inapplicable; "
+                "use status=search_unavailable only when search is actually unavailable; both also require score=null. "
+                "Unknown means missing knowledge, never a permitted answer status: never emit status=unknown. "
+                "Keep every schema-required key, including coverage and missing_fields, even for insufficient_evidence, not_applicable or search_unavailable answers. "
+                "Obey every schema maxLength before emission: standard-1 summary is at most 800 characters and coverage.reason at most 350 characters. "
+                "If the question schema sets a stricter limit, obey the stricter limit."
+            )
+        return prompt
+
     def _search_generation_options(self) -> Dict[str, Any]:
         options: Dict[str, Any] = {}
         if self.thinking_enabled is not None:
