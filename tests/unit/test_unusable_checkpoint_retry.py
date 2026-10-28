@@ -1,6 +1,7 @@
 """Original settled SQLite fixtures, synthetic authority only; no real API/owner."""
 
 import copy
+from contextlib import closing
 
 import pytest
 
@@ -283,7 +284,7 @@ def test_same_native_transaction_refuses_unusable_proof_corruption_or_ineligible
     from src.utils.quick_scan_known_outcome_journal import unusable_checkpoint_proof
 
     store, clock, wid, member, policy = source(tmp_path)
-    with store._connect() as con:
+    with closing(store._connect()) as con:
         con.execute("BEGIN")
         item = dict(con.execute("SELECT * FROM work_item WHERE work_item_id=?", (wid,)).fetchone())
         attempt = con.execute(
@@ -635,4 +636,128 @@ def test_registered_successor_inspection_uses_exact_native_control_or_refuses(
         )
         assert result["work_items"][qid]["work_item_id"] == target["work_item_id"]
         assert result["work_items"][qid]["status"] == "pending"
+    assert store.path.read_bytes() == before
+
+
+def _ordinary_successor_case(tmp_path, monkeypatch, *, fault=None):
+    """Real ledger/control; validated delivery READER is a unit boundary stub.
+
+    The native three-owner integration separately requires real seal/import/ACK.
+    No label-only delivered fixture is claimed to prove consumer acceptance.
+    """
+    from src.utils.quick_scan_work_store import QuickScanWorkStore
+
+    store, clock, old, doc, control_binding, spec, _ = controlled_successor_fixture(tmp_path)
+    target = store.create_or_attach(
+        **spec, owner_refresh_binding=control_binding, run_id="RECOVERY", scan_id="RECOVERY"
+    )
+    with store._transaction() as con:
+        con.execute(
+            "UPDATE work_item SET status=? WHERE work_item_id=?",
+            ("pending" if fault == "not_delivered" else "delivered", target["work_item_id"]),
+        )
+    validated = {
+        "state": "delivered",
+        "ack": {"status": "accepted"},
+        "consumer_binding": {"consumer": "synthetic-reader-boundary"},
+        "package": {"synthetic": True},
+    }
+    if fault == "no_ack":
+        validated["ack"] = None
+    if fault == "unbound_consumer":
+        validated["consumer_binding"] = None
+    if fault == "unsealed":
+        validated["package"] = None
+    if fault != "missing_outbox":
+        original_row = QuickScanWorkStore._delivery_row
+        original_reader = QuickScanWorkStore._result_delivery_record.__func__
+        monkeypatch.setattr(
+            QuickScanWorkStore,
+            "_delivery_row",
+            staticmethod(
+                lambda con, wid: (
+                    {"unit_boundary": wid}
+                    if wid == target["work_item_id"]
+                    else original_row(con, wid)
+                )
+            ),
+        )
+        monkeypatch.setattr(
+            QuickScanWorkStore,
+            "_result_delivery_record",
+            classmethod(
+                lambda cls, row, **kw: (
+                    copy.deepcopy(validated)
+                    if "unit_boundary" in row.keys()
+                    else original_reader(cls, row, **kw)
+                )
+            ),
+        )
+    ordinary = copy.deepcopy(control_binding)
+    ordinary.update(protocol="stockqa.owner_refresh_binding/2.0.0", target_generation=3)
+    ordinary.pop("owner_control")
+    return store, clock, old, target, ordinary, dict(spec, generation=3)
+
+
+def test_acknowledged_exact_successor_allows_ordinary_next_generation_and_send_guard(
+    tmp_path, monkeypatch
+):
+    from src.utils.quick_scan_owner_refresh_journal import guard_send
+
+    store, clock, old, target, binding, spec = _ordinary_successor_case(tmp_path, monkeypatch)
+    before_old = store.get_item(old["work_item_id"])
+    checkpoint = store.get_answer_checkpoint(old["work_item_id"])
+    physical = immutable(store)
+    new = store.create_or_attach(
+        **spec, owner_refresh_binding=binding, run_id="ORDINARY", scan_id="ORDINARY"
+    )
+    assert new["generation"] == 3 and new["status"] == "pending"
+    with closing(store._connect()) as con:
+        guard_send(con, store.get_item(new["work_item_id"]), now=clock[0])
+    assert store.get_item(old["work_item_id"]) == before_old
+    assert store.get_answer_checkpoint(old["work_item_id"]) == checkpoint
+    assert immutable(store) == physical
+
+
+@pytest.mark.parametrize(
+    "fault", ["no_ack", "unbound_consumer", "unsealed", "missing_outbox", "not_delivered"]
+)
+def test_ordinary_generation_cannot_retire_source_on_delivery_label_alone(
+    tmp_path, monkeypatch, fault
+):
+    store, clock, old, target, binding, spec = _ordinary_successor_case(
+        tmp_path, monkeypatch, fault=fault
+    )
+    before = store.path.read_bytes()
+    with pytest.raises(WorkConflictError, match="owner_refresh_prior_work_unresolved"):
+        store.create_or_attach(
+            **spec, owner_refresh_binding=binding, run_id="ORDINARY", scan_id="ORDINARY"
+        )
+    assert store.path.read_bytes() == before
+
+
+def test_acknowledged_successor_never_hides_another_uncertain_work(tmp_path, monkeypatch):
+    store, clock, old, target, binding, spec = _ordinary_successor_case(tmp_path, monkeypatch)
+    other = store.create_or_attach(**dict(spec, generation=4), run_id="OTHER", scan_id="OTHER")
+    with store._transaction() as con:
+        con.execute(
+            "UPDATE work_item SET status='uncertain' WHERE work_item_id=?", (other["work_item_id"],)
+        )
+    before = store.path.read_bytes()
+    with pytest.raises(WorkConflictError, match="owner_refresh_prior_work_unresolved"):
+        store.create_or_attach(
+            **spec, owner_refresh_binding=binding, run_id="ORDINARY", scan_id="ORDINARY"
+        )
+    assert store.path.read_bytes() == before
+
+
+def test_source_skip_requires_strictly_later_ordinary_generation(tmp_path, monkeypatch):
+    from src.utils.quick_scan_owner_refresh_journal import guard_unresolved
+
+    store, clock, old, target, binding, spec = _ordinary_successor_case(tmp_path, monkeypatch)
+    before = store.path.read_bytes()
+    with closing(store._connect()) as con, pytest.raises(
+        WorkConflictError, match="owner_refresh_prior_work_unresolved"
+    ):
+        guard_unresolved(con, dict(old, generation=2), binding=binding, now=clock[0])
     assert store.path.read_bytes() == before

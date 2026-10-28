@@ -222,6 +222,75 @@ def native_control(connection, item, binding, *, now=None, require_ready=False):
     return source
 
 
+def checkpoint_successor(connection: sqlite3.Connection, source) -> dict | None:
+    """Read the exact native successor of an immutable unusable checkpoint.
+
+    Shared by read projection and write/send guards. This does not claim a
+    delivery or grant authority; the caller must separately require exact ACK.
+    """
+    from .quick_scan_known_outcome_journal import projection
+    from .quick_scan_result_outbox import canonical_sha256
+    from .quick_scan_work_store import QuickScanWorkStore
+
+    if (
+        source["status"] != "result_ready"
+        or connection.execute("PRAGMA user_version").fetchone()[0] < 19
+    ):
+        return None
+    decision = projection(QuickScanWorkStore, connection, source["work_item_id"])
+    if decision is None or decision["request"].get("purpose") != "retry_unusable_checkpoint":
+        return None
+    target = connection.execute(
+        "SELECT * FROM work_item WHERE entity_id=? AND question_id=? AND scope=? AND scope_id=? AND generation=?",
+        (
+            source["entity_id"],
+            source["question_id"],
+            source["scope"],
+            source["scope_id"],
+            decision["request"]["target_generation"],
+        ),
+    ).fetchone()
+    if target is None:
+        return None
+    original = read(connection, target["work_item_id"])
+    if original is None:
+        return None
+    control = original["binding"].get("owner_control")
+    expected = {
+        "decision_id": decision["decision_id"],
+        "document_sha256": canonical_sha256(decision),
+        "source_work_item_id": source["work_item_id"],
+        "source_generation": source["generation"],
+        "target_generation": target["generation"],
+        "confirmation_id": decision["grant"]["confirmation_id"],
+        "purpose": "retry_unusable_checkpoint",
+    }
+    if not isinstance(control, dict) or any(control.get(k) != v for k, v in expected.items()):
+        return None
+    return dict(target)
+
+
+def delivered_checkpoint_successor(connection: sqlite3.Connection, source) -> dict | None:
+    """A status label alone cannot retire the old source's unresolved guard."""
+    from .quick_scan_work_store import QuickScanWorkStore
+
+    target = checkpoint_successor(connection, source)
+    if target is None or target["status"] != "delivered":
+        return None
+    row = QuickScanWorkStore._delivery_row(connection, target["work_item_id"])
+    if row is None:
+        return None
+    delivery = QuickScanWorkStore._result_delivery_record(row, connection=connection)
+    if (
+        delivery["state"] != "delivered"
+        or delivery["ack"] is None
+        or delivery["consumer_binding"] is None
+        or delivery["package"] is None
+    ):
+        return None
+    return target
+
+
 def guard_unresolved(
     connection: sqlite3.Connection,
     item: dict,
@@ -242,7 +311,7 @@ def guard_unresolved(
         if binding["owner_control"]["purpose"] in {"comparison", "retry_unusable_checkpoint"}:
             comparison_source = source["work_item_id"]
     rows = connection.execute(
-        "SELECT work_item_id,status FROM work_item WHERE entity_id=? AND question_id=? AND scope=? AND scope_id=? "
+        "SELECT * FROM work_item WHERE entity_id=? AND question_id=? AND scope=? AND scope_id=? "
         "AND status IN ('pending','leased','uncertain','result_ready') AND (? IS NULL OR work_item_id!=?)",
         (
             item["entity_id"],
@@ -253,9 +322,19 @@ def guard_unresolved(
             exclude_work_id,
         ),
     ).fetchall()
-    if any(
-        row["work_item_id"] != comparison_source or row["status"] != "result_ready" for row in rows
-    ):
+    for row in rows:
+        if row["work_item_id"] == comparison_source and row["status"] == "result_ready":
+            continue
+        if binding is not None and binding["protocol"] in {
+            "stockqa.owner_refresh_binding/1.0.0",
+            "stockqa.owner_refresh_binding/2.0.0",
+        }:
+            successor = delivered_checkpoint_successor(connection, row)
+            if successor is not None and item["generation"] > successor["generation"]:
+                # Preserve the source forever; its exact, genuinely ACKed native
+                # successor resolved this one historical block. Current owner
+                # consent, freshness, budgets and all other work still apply.
+                continue
         from src.utils.quick_scan_work_store import WorkConflictError
 
         raise WorkConflictError("owner_refresh_prior_work_unresolved")

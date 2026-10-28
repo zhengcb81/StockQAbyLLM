@@ -6044,54 +6044,13 @@ class QuickScanWorkStore:
                     (entity_id, qid, binding["scope"], binding["scope_id"]),
                 ).fetchall()
 
-                def has_controlled_successor(source):
-                    # A confirmed unusable-checkpoint source remains immutable.
-                    # Once its exact controlled successor exists, select that
-                    # actual newer work (even failed/pending), never revive the
-                    # old compact checkpoint over a delivered successor.
-                    if (
-                        source["status"] != "result_ready"
-                        or connection.execute("PRAGMA user_version").fetchone()[0] < 19
-                    ):
-                        return False
-                    from .quick_scan_known_outcome_journal import projection
-                    from .quick_scan_owner_refresh_journal import read as read_binding
-                    from .quick_scan_result_outbox import canonical_sha256
-
-                    decision = projection(self, connection, source["work_item_id"])
-                    if (
-                        decision is None
-                        or decision["request"].get("purpose") != "retry_unusable_checkpoint"
-                    ):
-                        return False
-                    request = decision["request"]
-                    target = next(
-                        (r for r in rows if r["generation"] == request["target_generation"]), None
-                    )
-                    if target is None:
-                        return False
-                    original = read_binding(connection, target["work_item_id"])
-                    if original is None:
-                        return False
-                    control = original["binding"].get("owner_control")
-                    return isinstance(control, dict) and all(
-                        control.get(k) == v
-                        for k, v in {
-                            "decision_id": decision["decision_id"],
-                            "document_sha256": canonical_sha256(decision),
-                            "source_work_item_id": source["work_item_id"],
-                            "source_generation": source["generation"],
-                            "target_generation": target["generation"],
-                            "confirmation_id": decision["grant"]["confirmation_id"],
-                            "purpose": "retry_unusable_checkpoint",
-                        }.items()
-                    )
+                from .quick_scan_owner_refresh_journal import checkpoint_successor
 
                 unresolved = [
                     row
                     for row in rows
                     if row["status"] in {"pending", "leased", "uncertain", "result_ready"}
-                    and not has_controlled_successor(row)
+                    and checkpoint_successor(connection, row) is None
                 ]
                 row = (unresolved or rows or [None])[0]
                 if row is not None:
