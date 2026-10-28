@@ -5,7 +5,7 @@
 
 from contextlib import nullcontext
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from src.config.settings import DISPLAY_QUESTION_TRUNCATE, DISPLAY_TITLE_TRUNCATE
 from src.core.exceptions import ProcessingError, ValidationError
@@ -511,7 +511,7 @@ class QAEngine:
             execution: Optional[dict] = None,
             reason: Optional[str] = None,
             transport_metadata: Optional[dict] = None,
-        ) -> None:
+        ) -> bool:
             nonlocal stopped_reason
             stopped_reason = stopped_reason or reason or type(error).__name__
             metadata = _uncertain_transport_metadata(error)
@@ -533,14 +533,17 @@ class QAEngine:
                 # deterministic-failure branch. Generic DB/transport errors
                 # retain native received/uncertain state for reconciliation.
                 lifecycle.after_question_failed(handle, reason or type(error).__name__)
+                return True
             except Exception as finalize_error:
                 output[index].metadata["work_state_finalization_failed"] = True
                 logger.warning(
                     "Question-pack failure state needs native recovery (%s)",
                     type(finalize_error).__name__,
                 )
+                return False
 
         def flush() -> None:
+            nonlocal stopped_reason
             if not pending:
                 return
             members = list(pending)
@@ -548,6 +551,9 @@ class QAEngine:
             pack_questions = [q for _, q, _ in members]
             handles = [h for _, _, h in members]
             failure_transport_metadata: dict = {}
+            member_failures: dict[str, str] = {}
+            finalized = True
+            safe_member_failure = True
             try:
                 with context_factory(handles):
                     response = search_pack(
@@ -636,33 +642,44 @@ class QAEngine:
                         if question.question_id in missing
                         else "invalid_question"
                     )
-                    failed(
-                        index,
-                        question,
-                        handle,
-                        ValueError(reason),
-                        response.execution_metadata,
-                        reason,
-                        transport_metadata=failure_transport_metadata,
-                    )
-                    continue
-                try:
-                    answer = self.answer_generator.generate_answer(question, [search_result])
-                    if answer.status == "error":
+                    finalized = (
                         failed(
                             index,
                             question,
                             handle,
-                            ValueError("answer_generator_rejected_member"),
+                            ValueError(reason),
                             response.execution_metadata,
-                            "answer_generator_rejected_member",
+                            reason,
                             transport_metadata=failure_transport_metadata,
+                        )
+                        and finalized
+                    )
+                    member_failures[cast(str, question.question_id)] = reason
+                    continue
+                try:
+                    answer = self.answer_generator.generate_answer(question, [search_result])
+                    if answer.status == "error":
+                        finalized = (
+                            failed(
+                                index,
+                                question,
+                                handle,
+                                ValueError("answer_generator_rejected_member"),
+                                response.execution_metadata,
+                                "answer_generator_rejected_member",
+                                transport_metadata=failure_transport_metadata,
+                            )
+                            and finalized
+                        )
+                        member_failures[cast(str, question.question_id)] = (
+                            "answer_generator_rejected_member"
                         )
                         continue
                     result = QAResult(question=question, answer=answer)
                     lifecycle.after_question(handle, result)
                     output[index] = result
                 except Exception as error:
+                    safe_member_failure = False
                     failed(
                         index,
                         question,
@@ -671,6 +688,34 @@ class QAEngine:
                         response.execution_metadata,
                         transport_metadata=failure_transport_metadata,
                     )
+
+            # Opt-in native proof only: a received parse failure is not a
+            # request to retry it. Keep its error/partial result; only later,
+            # separately admitted pending questions may continue.
+            prove_terminal = getattr(lifecycle, "assert_question_pack_terminal", None)
+            if (
+                member_failures
+                and finalized
+                and safe_member_failure
+                and stage in {"complete", "partial"}
+                and callable(prove_terminal)
+            ):
+                try:
+                    if prove_terminal(handles, member_failures) is not True:
+                        raise ValueError("question_pack_terminal_proof_not_positive")
+                except Exception as proof_error:
+                    for index, question, _ in members:
+                        if question.question_id in member_failures:
+                            output[index].metadata["question_pack_continuation_blocked"] = type(
+                                proof_error
+                            ).__name__
+                else:
+                    stopped_reason = None
+                    for index, question, _ in members:
+                        if question.question_id in member_failures:
+                            output[index].metadata[
+                                "question_pack_continued_after_terminal_failure"
+                            ] = True
 
         previous_key = None
         for index, (question, key) in enumerate(zip(questions, keys)):

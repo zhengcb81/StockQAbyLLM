@@ -851,6 +851,167 @@ class QuickScanWorkLifecycle:
             context.close()
             raise
 
+    def assert_question_pack_terminal(
+        self, handles: List[Dict[str, Any]], failures: Dict[str, str]
+    ) -> bool:
+        """Re-read original terminal members and one settled physical fee.
+
+        A pure assertion, not a retry receipt or a second journal. Unsupported
+        legacy runs retain the engine's conservative stop behavior.
+        """
+        from contextlib import closing
+
+        from src.utils.quick_scan_question_pack_journal import _read
+        from src.utils.quick_scan_work_store import WorkConflictError
+
+        allowed = {"invalid_question", "missing_question", "answer_generator_rejected_member"}
+        if (
+            not isinstance(self._c06_authority, dict)
+            or self._c06_authority.get("schema_version") not in {"2.0.0", "3.0.0"}
+            or not isinstance(handles, list)
+            or not handles
+            or not failures
+            or not set(failures.values()) <= allowed
+        ):
+            raise ValueError("question_pack_terminal_proof_not_supported")
+        # No LLM-returned metadata is an input to this authority assertion.
+        with closing(self._store._connect()) as connection:
+            connection.execute("BEGIN")
+            attempts = []
+            for handle in handles:
+                if not isinstance(handle, dict) or handle.get("claimed") is not True:
+                    raise WorkConflictError("question_pack_terminal_handle_invalid")
+                attempt = connection.execute(
+                    "SELECT * FROM attempt WHERE work_item_id=? ORDER BY ordinal DESC LIMIT 1",
+                    (handle["work_item_id"],),
+                ).fetchone()
+                if (
+                    attempt is None
+                    or attempt["lease_epoch"] != handle["lease"].lease_epoch
+                    or attempt["lease_token"] != handle["lease"].lease_token
+                ):
+                    raise WorkConflictError("question_pack_terminal_attempt_changed")
+                attempts.append(attempt)
+            if len({a["work_item_id"] for a in attempts}) != len(handles):
+                raise WorkConflictError("question_pack_terminal_duplicate_member")
+            ids = [a["attempt_id"] for a in attempts]
+            membership = connection.execute(
+                "SELECT pack_id,attempt_id FROM quick_scan_question_pack_member WHERE attempt_id IN ("
+                + ",".join("?" for _ in ids)
+                + ")",
+                ids,
+            ).fetchall()
+            if len(membership) != len(ids) or len({m["pack_id"] for m in membership}) != 1:
+                raise WorkConflictError("question_pack_terminal_membership_changed")
+            pack = _read(connection, membership[0]["pack_id"])
+            if (
+                pack is None
+                or {m["attempt_id"] for m in pack["members"]} != set(ids)
+                or pack["physical_outcome"] != "response_available"
+                or pack["members_uncertain"]
+            ):
+                raise WorkConflictError("question_pack_terminal_physical_unresolved")
+            receipt = pack["execution_receipt"]
+            if (
+                not isinstance(receipt, dict)
+                or receipt.get("search_status") != "executed"
+                or not receipt.get("search_receipt_id")
+                or not receipt.get("source_urls")
+                or receipt.get("response_status") != "completed"
+                or type(receipt.get("http_status_code")) is not int
+                or not 200 <= receipt["http_status_code"] < 300
+            ):
+                raise WorkConflictError("question_pack_terminal_response_unknown")
+            budget = connection.execute(
+                "SELECT b.status,b.in_flight,b.http_status_code,t.terminal_outcome FROM quick_scan_budget_attempt b JOIN quick_scan_budget_terminal t USING(budget_attempt_id) WHERE b.budget_attempt_id=?",
+                (pack["budget_attempt_id"],),
+            ).fetchone()
+            if budget is None or tuple(budget) != (
+                "settled",
+                0,
+                receipt["http_status_code"],
+                "completed",
+            ):
+                raise WorkConflictError("question_pack_terminal_fee_unresolved")
+            questions = []
+            found_failures = set()
+            for attempt in attempts:
+                wid = attempt["work_item_id"]
+                item = self._store._item(connection, wid)
+                qid = item["question_id"]
+                scope, scope_id, generation = self._dispatch_binding(qid)
+                if (
+                    item["entity_id"] != self._entity_id
+                    or item["scope"] != scope
+                    or item["scope_id"] != scope_id
+                    or item["generation"] != generation
+                    or item["lease_epoch"] != attempt["lease_epoch"]
+                    or item["uncertain_attempt_id"] is not None
+                    or attempt["phase"] != "response_available"
+                    or attempt["receipt_sha256"] != pack["receipt_sha256"]
+                ):
+                    raise WorkConflictError("question_pack_terminal_work_changed")
+                original = self._store._response_for_checkpoint(
+                    connection, attempt, pack["receipt_sha256"]
+                )
+                if (
+                    original["receipt_sha256"] != pack["receipt_sha256"]
+                    or original["receipt"].get("http_status_code") != receipt["http_status_code"]
+                ):
+                    raise WorkConflictError("question_pack_terminal_receipt_conflict")
+                cp = connection.execute(
+                    "SELECT c.*,w.*,a.attempt_id AS bound_attempt_id FROM answer_checkpoint c JOIN work_item w ON w.work_item_id=c.work_item_id JOIN attempt a ON a.attempt_id=c.attempt_id WHERE c.work_item_id=?",
+                    (wid,),
+                ).fetchone()
+                if qid in failures:
+                    found_failures.add(qid)
+                    event = connection.execute(
+                        "SELECT event_type,attempt_id,lease_epoch FROM work_event WHERE work_item_id=? AND to_status='failed' ORDER BY event_id DESC LIMIT 1",
+                        (wid,),
+                    ).fetchone()
+                    if (
+                        item["status"] != "failed"
+                        or cp is not None
+                        or event is None
+                        or tuple(event)
+                        != (
+                            "received_without_answer:" + failures[qid],
+                            attempt["attempt_id"],
+                            attempt["lease_epoch"],
+                        )
+                    ):
+                        raise WorkConflictError("question_pack_terminal_failure_not_durable")
+                else:
+                    if (
+                        item["status"] not in {"result_ready", "delivered"}
+                        or cp is None
+                        or cp["attempt_id"] != attempt["attempt_id"]
+                    ):
+                        raise WorkConflictError("question_pack_terminal_checkpoint_missing")
+                    self._store._checkpoint_record(connection, cp)
+                row = (self._observation_context or {}).get("questions", {}).get(qid) or {}
+                questions.append(
+                    Question(
+                        text=(row.get("subject_binding") or {})
+                        .get("question_contract", {})
+                        .get("prompt")
+                        or "",
+                        question_id=qid,
+                    )
+                )
+                # Other companies' permitted concurrent requests are unrelated.
+                # Only this original owner scope may block its own continuation.
+                unresolved = connection.execute(
+                    "SELECT 1 FROM work_item w WHERE w.entity_id=? AND w.scope=? AND w.scope_id=? AND (w.status='uncertain' OR (w.status='leased' AND EXISTS (SELECT 1 FROM attempt a WHERE a.work_item_id=w.work_item_id AND a.phase IN ('send_intent','response_available','uncertain')))) LIMIT 1",
+                    (self._entity_id, scope, scope_id),
+                ).fetchone()
+                if unresolved is not None:
+                    raise WorkConflictError("question_pack_terminal_owner_scope_unresolved")
+            if found_failures != set(failures):
+                raise WorkConflictError("question_pack_terminal_foreign_failure")
+        self.assert_question_pack_ready(questions)  # original live owner/context check
+        return True
+
     def _standard_transport(self, description: str) -> tuple[str, Optional[Dict[str, Any]]]:
         """Split one model description into (compact description, standard body).
 
