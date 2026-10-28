@@ -761,3 +761,444 @@ def test_source_skip_requires_strictly_later_ordinary_generation(tmp_path, monke
     ):
         guard_unresolved(con, dict(old, generation=2), binding=binding, now=clock[0])
     assert store.path.read_bytes() == before
+
+
+def chained_failed_successor_fixture(tmp_path):
+    """Original native controls/receipts/settlement; no fake production recovery."""
+    from datetime import datetime, timezone
+
+    from src.utils import quick_scan_subject_journal as subject
+    from src.utils.quick_scan_work_control import project_owner_control
+    from tests.unit.test_c06_subject_send import receipt as subject_receipt
+    from tests.unit.test_quick_scan_known_outcome import arguments
+    from tests.unit.test_quick_scan_question_pack_store import _mark, _prepare, _receipt
+
+    store, clock, old, document, binding, spec, policy = controlled_successor_fixture(tmp_path)
+    target = store.create_or_attach(
+        **spec, owner_refresh_binding=binding, run_id="FIRST_RETRY", scan_id="FIRST_RETRY"
+    )
+    lease = store.claim(target["work_item_id"], lease_seconds=120)
+    context = store.get_observation_context(old["work_item_id"])["context"]
+    store.freeze_observation_context_before_send(target["work_item_id"], lease, context)
+    members = [{"work_item_id": target["work_item_id"], "lease": lease}]
+    pack = _prepare(store, members, execution_attempt_id="HTTP_PACK_RETRY_02")
+    with store._transaction() as con:
+        member = pack["members"][0]
+        item = store._item(con, target["work_item_id"])
+        attempt = con.execute(
+            "SELECT * FROM attempt WHERE attempt_id=?", (member["attempt_id"],)
+        ).fetchone()
+        request = subject.dispatch_request(
+            item,
+            attempt,
+            subject.bound_context(con, item),
+            execution_attempt_id=pack["execution_attempt_id"],
+            provider_actual="mimo",
+            provider_prompt_sha256=pack["provider_prompt_sha256"],
+        )
+        store.persist_subject_dispatch_receipt(
+            target["work_item_id"],
+            lease,
+            member["attempt_id"],
+            subject_receipt(request),
+            expected_request=request,
+        )
+    _mark(store, pack, policy)
+    receipt = _receipt(
+        attempt_id=pack["execution_attempt_id"],
+        response_status="completed",
+        completed_at=datetime.fromtimestamp(clock[0], timezone.utc)
+        .isoformat()
+        .replace("+00:00", "Z"),
+        source_urls=["https://example.invalid/company"],
+    )
+    store.record_question_pack_outcome(
+        pack["pack_id"],
+        outcome="response_available",
+        execution_receipt=receipt,
+        http_status_code=200,
+        actual_cost=0.02,
+        cost_source_ref="synthetic-cost",
+    )
+    clock[0] += 121
+    args = arguments(
+        store,
+        members,
+        pack,
+        receipt,
+        reason="known_response_no_accepted_answer",
+        diagnostic={
+            "code": "known_response_no_accepted_answer",
+            "artifact_ref": "synthetic-local-projection-failure",
+            "artifact_sha256": "9" * 64,
+            "response_sha256": receipt["response_sha256"],
+        },
+    )
+    store.resolve_known_response(target["work_item_id"], **args)
+    retry = store.record_owner_retry_decision(
+        target["work_item_id"],
+        purpose="retry_unusable_answer",
+        retry_after_seconds=0,
+        owner_authority=authority(),
+        idempotency_key="retry-after-local-projection-failure",
+    )
+    failed = store.get_item(target["work_item_id"])
+    physical = retry["request"]["physical"]
+    control = project_owner_control(
+        retry,
+        source_work=failed,
+        subject_ref=physical["subject_binding"]["subject_ref"],
+        provider=physical["provider"],
+        model=physical["model_requested"],
+        now=clock[0],
+        cohort_id="second-retry",
+    )["owner_control"]
+    next_binding = dict(binding, target_generation=3, owner_control=control)
+    return store, clock, old, failed, next_binding, dict(spec, generation=3)
+
+
+def test_exact_received_failure_retry_chain_can_admit_and_send_without_rewriting_ancestors(
+    tmp_path,
+):
+    from src.utils.quick_scan_owner_refresh_journal import guard_send
+
+    store, clock, old, failed, binding, spec = chained_failed_successor_fixture(tmp_path)
+    materials = immutable(store)
+    checkpoint = store.get_answer_checkpoint(old["work_item_id"])
+    target = store.create_or_attach(
+        **spec, owner_refresh_binding=binding, run_id="SECOND_RETRY", scan_id="SECOND_RETRY"
+    )
+    with closing(store._connect()) as con:
+        guard_send(con, store.get_item(target["work_item_id"]), now=clock[0])
+    assert target["generation"] == 3 and target["status"] == "pending"
+    assert store.get_item(old["work_item_id"]) == old
+    assert store.get_item(failed["work_item_id"]) == failed
+    assert store.get_answer_checkpoint(old["work_item_id"]) == checkpoint
+    assert immutable(store) == materials
+    projected = store.owner_refresh_projection(
+        entity_id=old["entity_id"],
+        question_ids=[old["question_id"]],
+        scope_bindings={old["question_id"]: {"scope": old["scope"], "scope_id": old["scope_id"]}},
+    )
+    assert projected[old["question_id"]]["work_item_id"] == target["work_item_id"]
+
+
+@pytest.mark.parametrize("fault", ["no_ack", "unbound_consumer", "unsealed", None])
+def test_exact_received_failure_retry_chain_ordinary_requires_descendant_exact_delivery(
+    tmp_path, monkeypatch, fault
+):
+    """Only the validated delivery reader is a unit boundary stub, not real ACK evidence."""
+    from src.utils.quick_scan_owner_refresh_journal import guard_send
+    from src.utils.quick_scan_work_store import QuickScanWorkStore
+
+    store, clock, old, failed, binding, spec = chained_failed_successor_fixture(tmp_path)
+    target = store.create_or_attach(
+        **spec, owner_refresh_binding=binding, run_id="SECOND_RETRY", scan_id="SECOND_RETRY"
+    )
+    with store._transaction() as con:
+        con.execute(
+            "UPDATE work_item SET status='delivered' WHERE work_item_id=?",
+            (target["work_item_id"],),
+        )
+    validated = {
+        "state": "delivered",
+        "ack": {"status": "accepted"},
+        "consumer_binding": {"consumer": "synthetic-reader-boundary"},
+        "package": {"synthetic": True},
+    }
+    if fault:
+        validated[
+            {"no_ack": "ack", "unbound_consumer": "consumer_binding", "unsealed": "package"}[fault]
+        ] = None
+    original_row = QuickScanWorkStore._delivery_row
+    original_reader = QuickScanWorkStore._result_delivery_record.__func__
+    monkeypatch.setattr(
+        QuickScanWorkStore,
+        "_delivery_row",
+        staticmethod(
+            lambda con, wid: (
+                {"unit_boundary": wid} if wid == target["work_item_id"] else original_row(con, wid)
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        QuickScanWorkStore,
+        "_result_delivery_record",
+        classmethod(
+            lambda cls, row, **kw: (
+                copy.deepcopy(validated)
+                if "unit_boundary" in row.keys()
+                else original_reader(cls, row, **kw)
+            )
+        ),
+    )
+    ordinary = dict(binding, protocol="stockqa.owner_refresh_binding/2.0.0", target_generation=4)
+    ordinary.pop("owner_control")
+    physical = immutable(store)
+    if fault:
+        before = store.path.read_bytes()
+        with pytest.raises(WorkConflictError, match="prior_work_unresolved"):
+            store.create_or_attach(
+                **dict(spec, generation=4),
+                owner_refresh_binding=ordinary,
+                run_id="ORDINARY",
+                scan_id="ORDINARY",
+            )
+        assert store.path.read_bytes() == before
+    else:
+        new = store.create_or_attach(
+            **dict(spec, generation=4),
+            owner_refresh_binding=ordinary,
+            run_id="ORDINARY",
+            scan_id="ORDINARY",
+        )
+        with closing(store._connect()) as con:
+            guard_send(con, store.get_item(new["work_item_id"]), now=clock[0])
+        assert new["generation"] == 4 and new["status"] == "pending"
+    assert store.get_item(old["work_item_id"]) == old
+    assert store.get_item(failed["work_item_id"]) == failed
+    assert immutable(store) == physical
+
+
+@pytest.mark.parametrize("fault", ["foreign_uncertain", "broken_document", "broken_purpose"])
+def test_exact_received_failure_retry_chain_never_skips_foreign_or_broken_work(
+    tmp_path, monkeypatch, fault
+):
+    import src.utils.quick_scan_owner_refresh_journal as journal
+
+    store, clock, old, failed, binding, spec = chained_failed_successor_fixture(tmp_path)
+    if fault == "foreign_uncertain":
+        extra = store.create_or_attach(**dict(spec, generation=4), run_id="OTHER", scan_id="OTHER")
+        with store._transaction() as con:
+            con.execute(
+                "UPDATE work_item SET status='uncertain' WHERE work_item_id=?",
+                (extra["work_item_id"],),
+            )
+    else:
+        original_read = journal.read
+
+        def corrupt(con, wid):
+            value = original_read(con, wid)
+            if value and wid == failed["work_item_id"]:
+                value = copy.deepcopy(value)
+                field = "document_sha256" if fault == "broken_document" else "purpose"
+                value["binding"]["owner_control"][field] = "not-the-original-control"
+            return value
+
+        monkeypatch.setattr(journal, "read", corrupt)
+    before = store.path.read_bytes()
+    with pytest.raises((WorkConflictError, ValueError)):
+        store.create_or_attach(
+            **spec, owner_refresh_binding=binding, run_id="SECOND_RETRY", scan_id="SECOND_RETRY"
+        )
+    assert store.path.read_bytes() == before
+
+
+def test_exact_received_failure_retry_chain_cannot_dispatch_ordinary_before_ack(tmp_path):
+    store, clock, old, failed, binding, spec = chained_failed_successor_fixture(tmp_path)
+    target = store.create_or_attach(
+        **spec, owner_refresh_binding=binding, run_id="SECOND_RETRY", scan_id="SECOND_RETRY"
+    )
+    ordinary = dict(binding, protocol="stockqa.owner_refresh_binding/2.0.0", target_generation=4)
+    ordinary.pop("owner_control")
+    before = store.path.read_bytes()
+    with pytest.raises(WorkConflictError, match="prior_work_unresolved"):
+        store.create_or_attach(
+            **dict(spec, generation=4),
+            owner_refresh_binding=ordinary,
+            run_id="ORDINARY",
+            scan_id="ORDINARY",
+        )
+    assert store.path.read_bytes() == before
+    assert store.get_item(target["work_item_id"])["status"] == "pending"
+
+
+# Permanent adversarial regressions promoted from the independent native review.
+def test_incoming_foreign_binding_cannot_erase_checkpoint_ancestor(tmp_path):
+    store, clock, old, failed, binding, spec = chained_failed_successor_fixture(tmp_path)
+    before = store.path.read_bytes()
+    mutations = [
+        ("provider", "other-provider"),
+        ("model", "other-model"),
+        ("subject_key", "other@1"),
+        ("perimeter_sha256", "f" * 64),
+        ("information_cutoff", "invalid-date"),
+        ("scope_id", "other-scope"),
+        ("entity_id", "other-entity"),
+        ("question_id", "OTHER"),
+        ("target_generation", 4),
+        ("identity_revision", 99),
+    ]
+    for field, value in mutations:
+        foreign = copy.deepcopy(binding)
+        foreign[field] = value
+        with pytest.raises((WorkConflictError, ValueError)):
+            store.create_or_attach(
+                **spec, owner_refresh_binding=foreign, run_id="FOREIGN", scan_id="FOREIGN"
+            )
+        assert store.path.read_bytes() == before, field
+    for field in [
+        "decision_id",
+        "document_sha256",
+        "confirmation_id",
+        "source_work_item_id",
+        "source_generation",
+        "purpose",
+    ]:
+        foreign = copy.deepcopy(binding)
+        foreign["owner_control"][field] = "foreign"
+        with pytest.raises((WorkConflictError, ValueError)):
+            store.create_or_attach(
+                **spec, owner_refresh_binding=foreign, run_id="FOREIGN", scan_id="FOREIGN"
+            )
+        assert store.path.read_bytes() == before, field
+
+
+def test_chain_before_generation_excludes_incoming_and_readonly(tmp_path):
+    import src.utils.quick_scan_owner_refresh_journal as journal
+
+    store, clock, old, failed, binding, spec = chained_failed_successor_fixture(tmp_path)
+    target = store.create_or_attach(
+        **spec, owner_refresh_binding=binding, run_id="THIRD", scan_id="THIRD"
+    )
+    before = store.path.read_bytes()
+    with closing(store._connect()) as con:
+        assert journal.checkpoint_successor(con, old, before_generation=2) is None
+        assert (
+            journal.checkpoint_successor(con, old, before_generation=3)["work_item_id"]
+            == failed["work_item_id"]
+        )
+        assert (
+            journal.checkpoint_successor(con, old, before_generation=4)["work_item_id"]
+            == target["work_item_id"]
+        )
+        assert journal.checkpoint_successor(con, old)["work_item_id"] == target["work_item_id"]
+        assert journal.checkpoint_successor(con, failed) is None
+    assert store.path.read_bytes() == before
+
+
+def _fail_and_retry(store, clock, old, target, binding):
+    from datetime import datetime, timezone
+
+    from src.utils import quick_scan_subject_journal as subject
+    from src.utils.quick_scan_work_control import project_owner_control
+    from tests.unit.test_c06_subject_send import receipt as subject_receipt
+    from tests.unit.test_quick_scan_known_outcome import arguments
+
+    # Original policy is retained in the store's physical pack binding; load fixture helper's value
+    from tests.unit.test_quick_scan_question_pack_store import (
+        _mark,
+        _policy,
+        _prepare,
+        _receipt,
+    )
+
+    POLICY = _policy()
+    POLICY["budget"]["currency"] = "CNY"
+    lease = store.claim(target["work_item_id"], lease_seconds=120)
+    context = store.get_observation_context(old["work_item_id"])["context"]
+    store.freeze_observation_context_before_send(target["work_item_id"], lease, context)
+    members = [{"work_item_id": target["work_item_id"], "lease": lease}]
+    pack = _prepare(store, members, execution_attempt_id="HTTP_PACK_RETRY_03")
+    with store._transaction() as con:
+        member = pack["members"][0]
+        item = store._item(con, target["work_item_id"])
+        attempt = con.execute(
+            "SELECT * FROM attempt WHERE attempt_id=?", (member["attempt_id"],)
+        ).fetchone()
+        request = subject.dispatch_request(
+            item,
+            attempt,
+            subject.bound_context(con, item),
+            execution_attempt_id=pack["execution_attempt_id"],
+            provider_actual="mimo",
+            provider_prompt_sha256=pack["provider_prompt_sha256"],
+        )
+        store.persist_subject_dispatch_receipt(
+            target["work_item_id"],
+            lease,
+            member["attempt_id"],
+            subject_receipt(request),
+            expected_request=request,
+        )
+    _mark(store, pack, POLICY)
+    receipt = _receipt(
+        attempt_id=pack["execution_attempt_id"],
+        response_status="completed",
+        completed_at=datetime.fromtimestamp(clock[0], timezone.utc)
+        .isoformat()
+        .replace("+00:00", "Z"),
+        source_urls=["https://example.invalid/company"],
+    )
+    store.record_question_pack_outcome(
+        pack["pack_id"],
+        outcome="response_available",
+        execution_receipt=receipt,
+        http_status_code=200,
+        actual_cost=0.02,
+        cost_source_ref="synthetic-cost",
+    )
+    clock[0] += 121
+    args = arguments(
+        store,
+        members,
+        pack,
+        receipt,
+        reason="known_response_no_accepted_answer",
+        diagnostic={
+            "code": "known_response_no_accepted_answer",
+            "artifact_ref": "synthetic-local-projection-failure",
+            "artifact_sha256": "9" * 64,
+            "response_sha256": receipt["response_sha256"],
+        },
+    )
+    store.resolve_known_response(target["work_item_id"], **args)
+    retry = store.record_owner_retry_decision(
+        target["work_item_id"],
+        purpose="retry_unusable_answer",
+        retry_after_seconds=0,
+        owner_authority=authority(),
+        idempotency_key="retry-after-second-local-projection-failure",
+    )
+    failed = store.get_item(target["work_item_id"])
+    physical = retry["request"]["physical"]
+    control = project_owner_control(
+        retry,
+        source_work=failed,
+        subject_ref=physical["subject_binding"]["subject_ref"],
+        provider=physical["provider"],
+        model=physical["model_requested"],
+        now=clock[0],
+        cohort_id="third-retry",
+    )["owner_control"]
+    return failed, dict(binding, target_generation=4, owner_control=control)
+
+
+def test_two_failed_native_descendants_allow_only_exact_fourth_generation(tmp_path):
+    import src.utils.quick_scan_owner_refresh_journal as journal
+
+    store, clock, old, failed2, binding, spec = chained_failed_successor_fixture(tmp_path)
+    third = store.create_or_attach(
+        **spec, owner_refresh_binding=binding, run_id="THIRD", scan_id="THIRD"
+    )
+    failed3, binding4 = _fail_and_retry(store, clock, old, third, binding)
+    materials = immutable(store)
+    checkpoint = store.get_answer_checkpoint(old["work_item_id"])
+    fourth = store.create_or_attach(
+        **dict(spec, generation=4),
+        owner_refresh_binding=binding4,
+        run_id="FOURTH",
+        scan_id="FOURTH",
+    )
+    with closing(store._connect()) as con:
+        journal.guard_send(con, store.get_item(fourth["work_item_id"]), now=clock[0])
+        assert (
+            journal.checkpoint_successor(con, old, before_generation=4)["work_item_id"]
+            == failed3["work_item_id"]
+        )
+    assert fourth["generation"] == 4 and fourth["status"] == "pending"
+    assert store.get_item(old["work_item_id"]) == old
+    assert store.get_item(failed2["work_item_id"]) == failed2
+    assert store.get_item(failed3["work_item_id"]) == failed3
+    assert store.get_answer_checkpoint(old["work_item_id"]) == checkpoint
+    assert immutable(store) == materials

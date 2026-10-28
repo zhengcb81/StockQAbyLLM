@@ -222,7 +222,33 @@ def native_control(connection, item, binding, *, now=None, require_ready=False):
     return source
 
 
-def checkpoint_successor(connection: sqlite3.Connection, source) -> dict | None:
+def checkpoint_successor(
+    connection: sqlite3.Connection, source, *, before_generation: int | None = None
+) -> dict | None:
+    """Follow only an exact native checkpoint-retry and failed-answer-retry chain.
+
+    Each hop verifies the original immutable decision and target binding. A
+    failed target is not delivery; exact package/consumer ACK remains separate.
+    The write guard may stop before its incoming not-yet-bound generation.
+    """
+    if source["status"] != "result_ready":
+        return None
+    target = _native_retry_successor(connection, source, "retry_unusable_checkpoint")
+    if target is None or (
+        before_generation is not None and target["generation"] >= before_generation
+    ):
+        return None
+    while target["status"] == "failed":
+        successor = _native_retry_successor(connection, target, "retry_unusable_answer")
+        if successor is None or (
+            before_generation is not None and successor["generation"] >= before_generation
+        ):
+            break
+        target = successor
+    return target
+
+
+def _native_retry_successor(connection: sqlite3.Connection, source, purpose: str) -> dict | None:
     """Read the exact native successor of an immutable unusable checkpoint.
 
     Shared by read projection and write/send guards. This does not claim a
@@ -232,13 +258,14 @@ def checkpoint_successor(connection: sqlite3.Connection, source) -> dict | None:
     from .quick_scan_result_outbox import canonical_sha256
     from .quick_scan_work_store import QuickScanWorkStore
 
-    if (
-        source["status"] != "result_ready"
-        or connection.execute("PRAGMA user_version").fetchone()[0] < 19
-    ):
+    if connection.execute("PRAGMA user_version").fetchone()[0] < 19:
         return None
     decision = projection(QuickScanWorkStore, connection, source["work_item_id"])
-    if decision is None or decision["request"].get("purpose") != "retry_unusable_checkpoint":
+    if (
+        decision is None
+        or decision["request"].get("purpose") != purpose
+        or decision["request"]["target_generation"] != source["generation"] + 1
+    ):
         return None
     target = connection.execute(
         "SELECT * FROM work_item WHERE entity_id=? AND question_id=? AND scope=? AND scope_id=? AND generation=?",
@@ -263,7 +290,7 @@ def checkpoint_successor(connection: sqlite3.Connection, source) -> dict | None:
         "source_generation": source["generation"],
         "target_generation": target["generation"],
         "confirmation_id": decision["grant"]["confirmation_id"],
-        "purpose": "retry_unusable_checkpoint",
+        "purpose": purpose,
     }
     if not isinstance(control, dict) or any(control.get(k) != v for k, v in expected.items()):
         return None
@@ -303,6 +330,7 @@ def guard_unresolved(
     # Legacy rows have no subject attestation: conservatively reconcile them
     # rather than guessing they belong to another reporting perimeter.
     comparison_source = None
+    source = None
     if binding is not None and binding["protocol"] in {
         "stockqa.owner_refresh_binding/3.0.0",
         "stockqa.owner_refresh_binding/4.0.0",
@@ -325,6 +353,20 @@ def guard_unresolved(
     for row in rows:
         if row["work_item_id"] == comparison_source and row["status"] == "result_ready":
             continue
+        if (
+            binding is not None
+            and binding["protocol"] == "stockqa.owner_refresh_binding/3.0.0"
+            and binding["owner_control"]["purpose"] == "retry_unusable_answer"
+            and source is not None
+            and source["status"] == "failed"
+        ):
+            predecessor = checkpoint_successor(
+                connection, row, before_generation=item["generation"]
+            )
+            if predecessor is not None and predecessor["work_item_id"] == source["work_item_id"]:
+                # The current owner's exact retry of this failed descendant
+                # resolves only its own immutable checkpoint ancestor.
+                continue
         if binding is not None and binding["protocol"] in {
             "stockqa.owner_refresh_binding/1.0.0",
             "stockqa.owner_refresh_binding/2.0.0",
