@@ -133,7 +133,7 @@ def test_object_codec_keeps_original_ambiguity_and_inner_outer_conflict_rejectio
     assert parsed is None or parsed.invalid_question_ids == ("IQS_01",)
 
 
-def provider_for(tmp_path, answers):
+def provider_for(tmp_path, answers, *, source_urls=None):
     config = tmp_path / "models.json"
     config.write_text(
         json.dumps(
@@ -178,6 +178,8 @@ def provider_for(tmp_path, answers):
             prompt_sha256=hashlib.sha256(prompt.encode()).hexdigest(),
             request_payload_sha256=payload_sha,
         )
+        if source_urls is not None:
+            receipt["source_urls"] = list(source_urls)
         handle.record_response(http_status_code=200, request_id="req-fixture", receipt=receipt)
         receipt["work_transport"] = {
             "work_attempt_id": handle.attempt_id,
@@ -341,3 +343,63 @@ def test_no_parsed_members_cannot_claim_full_standard_complete(pack, tmp_path):
         assert diagnostic["status"] == "rejected"
         assert {row["question_id"] for row in diagnostic["rejections"]} == set(QIDS)
     assert provider.client.send_search_request.call_count == 1
+
+
+@pytest.mark.parametrize("as_object", [True, False])
+def test_canonical_native_source_alias_preserves_raw_standard_and_projects_exact_provenance(
+    pack, tmp_path, as_object
+):
+    """Real SDK/SQLite fixtures; all content and sources synthetic, no paid HTTP."""
+    from src.utils.quick_scan_observation_context import (
+        bind_context_to_work_item,
+        build_observation,
+    )
+    from src.utils.quick_scan_result_outbox import validate_checkpoint_binding
+
+    raw_url = "https://example.org/report?stamp"
+    receipt_url = raw_url + "="
+    answers = [
+        member(qid, as_object=as_object, scored=index == 0) for index, qid in enumerate(QIDS)
+    ]
+    supplied = body(QIDS[0], scored=True)
+    supplied["evidence"][0]["url"] = raw_url
+    answers[0]["description"] = supplied if as_object else json.dumps(supplied)
+    provider, questions = provider_for(tmp_path, answers, source_urls=[receipt_url])
+    with _bindings(pack), standard_answer_transport(True):
+        result = provider.search_question_pack(questions)
+        assert result.invalid_question_ids == result.missing_question_ids == ()
+        answer = AnswerGenerator().generate_answer(questions[0], [result.results[0]])
+        assert json.loads(answer.text) == supplied
+        store, members, _ = pack
+        wid, lease = members[0]
+        item = store.get_item(wid)
+        context = store.get_observation_context(wid)["context"]
+        execution = result.results[0].metadata["execution"]
+        checkpoint = store.save_answer_checkpoint(
+            wid,
+            lease,
+            execution["question_pack_member"]["work_attempt_id"],
+            answer={
+                "entity_id": item["entity_id"],
+                "question_id": QIDS[0],
+                "status": "scored",
+                "score": 7,
+                "description": supplied["summary"],
+            },
+            execution_receipt=execution,
+            observation_context=context,
+            standard_answer=supplied,
+        )
+        bound = bind_context_to_work_item(context, work_item=item, question_id=QIDS[0])
+        observation = build_observation(
+            checkpoint["payload"],
+            context=bound,
+            standard_answer=supplied,
+            started_at="2026-09-22T00:00:00Z",
+        )
+        assert observation["answer"]["evidence"][0]["url"] == receipt_url
+        assert supplied["evidence"][0]["url"] == raw_url
+        validate_checkpoint_binding({"items": [{"observation": observation}]}, checkpoint)
+        assert store.get_standard_answer(wid)["answer"] == supplied
+    assert provider.client.send_search_request.call_count == 1
+    assert store.get_quick_scan_budget_status("pack-transport")["requests"] == 1

@@ -428,6 +428,37 @@ def parse_standard_answer(text: Any) -> dict[str, Any] | None:
     return None
 
 
+def _evidence_url_identity(url: str) -> str:
+    """Use the receipt's URL identity without laundering stripped credentials."""
+    from urllib.parse import parse_qsl, urlsplit
+
+    from .quick_scan_work_store import (
+        _canonical_source_urls,
+        _sensitive_query_parameter,
+    )
+
+    try:
+        query = urlsplit(url).query
+        if any(
+            _sensitive_query_parameter(key) for key, _ in parse_qsl(query, keep_blank_values=True)
+        ):
+            raise ValueError("sensitive evidence source URL")
+        return _canonical_source_urls([url])[0]
+    except (TypeError, ValueError) as error:
+        raise ValueError("invalid or sensitive evidence source URL") from error
+
+
+def _matching_evidence_source_url(url: str, source_urls: list[str]) -> str:
+    """Return original receipt spelling; no approximate URL or query matching."""
+    identity = _evidence_url_identity(url)
+    matches = [source for source in source_urls if _evidence_url_identity(source) == identity]
+    if url in matches:
+        return url
+    if matches:
+        return matches[0]
+    raise ValueError("evidence URL/date is not bound to search/cutoff")
+
+
 def validate_standard_answer(
     content: dict[str, Any],
     *,
@@ -471,9 +502,8 @@ def validate_standard_answer(
     if len(ids) != len(set(ids)) or (successful and not ids):
         raise ValueError("successful answer needs unique evidence")
     for evidence in content["evidence"]:
-        if evidence["url"] not in source_urls or (
-            evidence["published_at"] is not None and evidence["published_at"] > cutoff
-        ):
+        _matching_evidence_source_url(evidence["url"], source_urls)
+        if evidence["published_at"] is not None and evidence["published_at"] > cutoff:
             raise ValueError("evidence URL/date is not bound to search/cutoff")
     metric_ids = []
     for metric in content["metrics"]:
@@ -629,6 +659,10 @@ def build_observation(
         source_urls=provenance["source_urls"],
         research_only=checkpoint_payload["checkpoint_schema_version"] == 3,
     )
+    # The detached observation uses the authenticated receipt's exact spelling.
+    # Keep the model's standard answer, checkpoint and receipt bytes unchanged.
+    for evidence in body["evidence"]:
+        evidence["url"] = _matching_evidence_source_url(evidence["url"], provenance["source_urls"])
     execution = {
         key: provenance.get(source)
         for key, source in {
