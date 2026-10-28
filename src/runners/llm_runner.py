@@ -851,6 +851,164 @@ class QuickScanWorkLifecycle:
             context.close()
             raise
 
+    def assert_question_skip_terminal(self, question: Question, handle: Dict[str, Any]) -> bool:
+        """Skip an original FAILED item only; never claim, renew or reclassify it."""
+        from contextlib import closing
+
+        from src.utils.quick_scan_known_outcome_journal import _physical
+        from src.utils.quick_scan_owner_refresh_journal import read as owner_binding
+        from src.utils.quick_scan_question_pack_journal import _read
+        from src.utils.quick_scan_result_outbox import canonical_sha256
+        from src.utils.quick_scan_work_store import WorkConflictError
+
+        if (
+            not isinstance(self._c06_authority, dict)
+            or self._c06_authority.get("schema_version") not in {"2.0.0", "3.0.0"}
+            or not isinstance(question, Question)
+            or not question.question_id
+            or not isinstance(handle, dict)
+            or handle.get("claimed") is not False
+            or not isinstance(handle.get("work_item_id"), str)
+        ):
+            raise ValueError("question_skip_terminal_not_supported")
+        self.assert_question_pack_ready([question])
+        owner = self._owner_refresh
+        if owner is None:
+            raise ValueError("question_skip_terminal_owner_required")
+        qid = question.question_id
+        wid = handle["work_item_id"]
+        # Pure reads only: _owner_work is not called because its normal
+        # dispatch path can recover another projected expired lease.
+        resuming = owner.fields[qid]["decision"] == "resume_existing_work"
+        expected_binding = None
+        if resuming:
+            selected = owner.existing_work(qid)
+            if (
+                selected is None
+                or selected["work_item_id"] != wid
+                or selected["status"] != "failed"
+            ):
+                raise WorkConflictError("question_skip_terminal_owner_selection_mismatch")
+        else:
+            expected_binding = owner.binding(qid)
+            if expected_binding is None:
+                raise WorkConflictError("question_skip_terminal_registered_work_required")
+        scope, scope_id, generation = self._dispatch_binding(qid)
+        with closing(self._store._connect()) as connection:
+            connection.execute("BEGIN")
+            item = self._store._item(connection, wid)
+            if (
+                item["status"] != "failed"
+                or item["question_id"] != qid
+                or item["entity_id"] != self._entity_id
+                or item["scope"] != scope
+                or item["scope_id"] != scope_id
+                or item["generation"] != generation
+                or item["identity_revision"] != self._identity["identity_revision"]
+                or item["source_binding_version"] != self._identity["source_binding_version"]
+                or item["identity_state"] != self._identity["identity_state"]
+                or item["source_binding_ref"] != self._identity["source_binding_ref"]
+                or sorted(json.loads(item["source_binding_refs_json"]))
+                != sorted(self._identity["source_binding_refs"])
+                or item["identity_snapshot_sha256"] != self._identity["identity_snapshot_sha256"]
+                or item["question_fingerprint"]
+                != hashlib.sha256(question.text.strip().encode("utf-8")).hexdigest()
+                or item["lease_token"] is not None
+                or item["uncertain_attempt_id"] is not None
+            ):
+                raise WorkConflictError("question_skip_terminal_work_mismatch")
+            bound = owner_binding(connection, wid)
+            if bound is None or (
+                expected_binding is not None
+                and canonical_sha256(bound["binding"]) != canonical_sha256(expected_binding)
+            ):
+                raise WorkConflictError("question_skip_terminal_registered_binding_mismatch")
+            if resuming:
+                if any(
+                    bound["binding"].get(key) != owner.plan.get(key)
+                    for key in (
+                        "manifest_raw_sha256",
+                        "decision_id",
+                        "subject_key",
+                        "provider",
+                        "model",
+                        "perimeter_sha256",
+                        "information_cutoff",
+                    )
+                ):
+                    raise WorkConflictError("question_skip_terminal_original_owner_context_changed")
+                if bound["binding"]["anchor_version"] != owner.plan["anchor_version"]:
+                    from src.utils.quick_scan_refresh_execution import (
+                        ApprovedRefreshSession,
+                    )
+
+                    if not isinstance(owner, ApprovedRefreshSession):
+                        raise WorkConflictError("question_skip_terminal_original_anchor_required")
+                    owner.assert_reactivated_original_binding(
+                        qid, dict(item), bound["binding"], store=self._store
+                    )
+            if (
+                connection.execute(
+                    "SELECT 1 FROM answer_checkpoint WHERE work_item_id=?", (wid,)
+                ).fetchone()
+                is not None
+            ):
+                raise WorkConflictError("question_skip_terminal_checkpoint_conflict")
+            attempt = connection.execute(
+                "SELECT * FROM attempt WHERE work_item_id=? ORDER BY ordinal DESC LIMIT 1", (wid,)
+            ).fetchone()
+            if attempt is None or attempt["phase"] != "response_available":
+                raise WorkConflictError("question_skip_terminal_known_response_required")
+            # Reuse the exact read-only native known-response owner proof,
+            # including physical response, subject receipt and settled fee.
+            physical = _physical(self._store, connection, item, attempt)
+            if physical.get("pack_id") is None or physical["subject_binding"] != (
+                self._observation_context or {}
+            ).get("questions", {}).get(qid, {}).get("subject_binding"):
+                raise WorkConflictError("question_skip_terminal_original_pack_required")
+            pack = _read(connection, physical["pack_id"])
+            if (
+                pack is None
+                or pack["members_uncertain"]
+                or pack["physical_outcome"] != "response_available"
+            ):
+                raise WorkConflictError("question_skip_terminal_pack_unresolved")
+            # Every original sibling of the shared physical request is already
+            # terminal; do not skip past a crash or a still-uncertain member.
+            for member in pack["members"]:
+                sibling = self._store._item(connection, member["work_item_id"])
+                latest = connection.execute(
+                    "SELECT attempt_id,phase,receipt_sha256 FROM attempt WHERE work_item_id=? ORDER BY ordinal DESC LIMIT 1",
+                    (member["work_item_id"],),
+                ).fetchone()
+                if latest is None or tuple(latest) != (
+                    member["attempt_id"],
+                    "response_available",
+                    pack["receipt_sha256"],
+                ):
+                    raise WorkConflictError("question_skip_terminal_sibling_attempt_changed")
+                cp = connection.execute(
+                    "SELECT c.*,w.*,a.attempt_id AS bound_attempt_id FROM answer_checkpoint c JOIN work_item w ON w.work_item_id=c.work_item_id JOIN attempt a ON a.attempt_id=c.attempt_id WHERE c.work_item_id=?",
+                    (member["work_item_id"],),
+                ).fetchone()
+                if sibling["status"] == "failed":
+                    if cp is not None:
+                        raise WorkConflictError(
+                            "question_skip_terminal_sibling_checkpoint_conflict"
+                        )
+                elif sibling["status"] in {"result_ready", "delivered"} and cp is not None:
+                    self._store._checkpoint_record(connection, cp)
+                else:
+                    raise WorkConflictError("question_skip_terminal_sibling_unresolved")
+            unresolved = connection.execute(
+                "SELECT 1 FROM work_item w WHERE w.entity_id=? AND w.scope=? AND w.scope_id=? AND (w.status='uncertain' OR (w.status='leased' AND EXISTS (SELECT 1 FROM attempt a WHERE a.work_item_id=w.work_item_id AND a.phase IN ('send_intent','response_available','uncertain')))) LIMIT 1",
+                (self._entity_id, scope, scope_id),
+            ).fetchone()
+            if unresolved is not None:
+                raise WorkConflictError("question_skip_terminal_owner_scope_unresolved")
+        self.assert_question_pack_ready([question])
+        return True
+
     def assert_question_pack_terminal(
         self, handles: List[Dict[str, Any]], failures: Dict[str, str]
     ) -> bool:

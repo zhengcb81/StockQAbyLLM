@@ -746,11 +746,26 @@ class QAEngine:
                 if not isinstance(handle, dict) or not handle.get("claimed"):
                     flush()
                     reason = (handle or {}).get("reason") or "lifecycle_refused"
-                    stopped_reason = stopped_reason or "work_claim_refused"
+                    # Refusal is never retry permission. Only an optional
+                    # original native read assertion may skip pre-existing,
+                    # fully closed FAILED work; a prior fatal flush still stops.
+                    skipped_terminal = False
+                    skip_terminal = getattr(lifecycle, "assert_question_skip_terminal", None)
+                    if stopped_reason is None and callable(skip_terminal):
+                        try:
+                            skipped_terminal = skip_terminal(question, handle) is True
+                        except Exception:
+                            skipped_terminal = False
+                    if not skipped_terminal:
+                        stopped_reason = stopped_reason or "work_claim_refused"
                     output[index] = QAResult(
                         question=question,
                         answer=Answer(
-                            text="work claim 拒绝（" + reason + "），本题未派发",
+                            text=(
+                                "原FAILED工作已确认收口；保留失败记录，本次跳过且未重发。"
+                                if skipped_terminal
+                                else "work claim 拒绝（" + reason + "），本题未派发"
+                            ),
                             score=None,
                             status="error",
                             source="work_store",
@@ -758,6 +773,7 @@ class QAEngine:
                         metadata={
                             "work_claim_refused": True,
                             "work_claim_reason": reason,
+                            "original_terminal_work_skipped": skipped_terminal,
                             **(
                                 {"work_item_id": handle["work_item_id"]}
                                 if handle and handle.get("work_item_id")

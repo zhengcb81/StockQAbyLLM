@@ -356,3 +356,167 @@ def test_actual_sdk_sqlite_known_failure_continuation_and_failclosed(tmp_path, m
             and budget["in_flight"] == (1 if mode == "other_inflight" else 0)
             and budget["unreconciled_attempts"] == 0
         )
+
+
+def test_terminal_skip_optin_preserves_failed_result_without_failed_finalizer():
+    e, p, lc = engine()
+    lc.refused.add("CORE_01")
+    lc.assert_question_skip_terminal = lambda question, handle: True
+    batch = e.process_questions([q(1), q(2)], question_pack_size=2)
+    assert len(p.calls) == 1 and p.calls[0][0] == ("CORE_02",)
+    assert batch.results[0].answer.status == "error" and batch.results[0].answer.score is None
+    assert not lc.failed
+
+
+def test_terminal_skip_never_clears_a_fatal_prior_flush():
+    e, p, lc = engine()
+    lc.refused.add("CORE_02")
+    p.error = RuntimeError("synthetic generic transport failure")
+    proof = Mock(return_value=True)
+    lc.assert_question_skip_terminal = proof
+    batch = e.process_questions([q(1), q(2), q(3)], question_pack_size=2)
+    assert len(p.calls) == 1 and batch.results[2].metadata["question_pack_not_dispatched"]
+    proof.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "mode",
+    [
+        "direct",
+        "owner_close",
+        "unknown",
+        "no_hook",
+        "DB",
+        "checkpoint",
+        "new_generation",
+        "foreign",
+    ],
+)
+def test_resume_original_failed_work_skips_without_new_attempt_then_sends_pending(
+    tmp_path, monkeypatch, mode
+):
+    setup = (
+        "unknown" if mode == "unknown" else ("coverage" if mode == "checkpoint" else "all_invalid")
+    )
+    store, provider, lc, questions, session, policy = fixture(tmp_path, monkeypatch, setup)
+    handles = {}
+    before = lc.before_question
+
+    def capture(question):
+        value = before(question)
+        if value.get("claimed"):
+            handles[question.question_id] = value
+        return value
+
+    monkeypatch.setattr(lc, "before_question", capture)
+    if mode == "owner_close":
+        monkeypatch.setattr(lc, "after_question_failed", lambda *_: None)
+
+    def execute(selected):
+        with standard_answer_transport(True), transport.bind_quick_scan_budget(
+            store,
+            policy,
+            cost_resolver=lambda _: {
+                "actual_cost": 0.03,
+                "pricing_ref": "fixture-price",
+                "source_ref": "synthetic-rate",
+            },
+        ):
+            return QAEngine(
+                provider, progress_reporter=Mock(), work_item_lifecycle=lc
+            ).process_questions(selected, question_pack_size=2)
+
+    execute(questions[:2])
+    assert session.post.call_count == 1
+    rows = store.find_work_items(entity_id="ENT_CONTEXT_FIXTURE", question_ids=QIDS)
+    ids = {qid: rows[qid][0]["work_item_id"] for qid in QIDS}
+    if mode == "owner_close":
+        # Test-only injected store clock expires the original captured leases;
+        # no real lease, database, service or wall clock is changed.
+        from datetime import datetime, timezone
+
+        from src.utils.quick_scan_known_outcome_journal import (
+            OwnerWorkDecisionAuthority,
+            OwnerWorkDecisionGrant,
+        )
+        from src.utils.quick_scan_result_outbox import canonical_sha256
+
+        stamp = store._now() + 601
+        monkeypatch.setattr(store, "clock", lambda: stamp)
+        from src.providers import llm_client
+
+        monkeypatch.setattr(
+            llm_client,
+            "_utc_now",
+            lambda: datetime.fromtimestamp(stamp, timezone.utc).isoformat().replace("+00:00", "Z"),
+        )
+
+        class SyntheticAuthority(OwnerWorkDecisionAuthority):
+            def authorize(self, request):
+                return OwnerWorkDecisionGrant(
+                    owner_store_id="synthetic-owner",
+                    principal_id="synthetic-principal",
+                    confirmation_id="rc1_" + "a" * 64,
+                    action_id="synthetic-action",
+                    request_sha256=canonical_sha256(request),
+                    confirmed_at=datetime.fromtimestamp(stamp - 1, timezone.utc).isoformat(),
+                )
+
+        for qid in QIDS[:2]:
+            attempt = store.list_attempts(ids[qid])[-1]
+            response = store.get_attempt_response(attempt["attempt_id"])
+            store.resolve_known_response(
+                ids[qid],
+                attempt_id=attempt["attempt_id"],
+                expected_lease=handles[qid]["lease"],
+                receipt_sha256=response["receipt_sha256"],
+                request_payload_sha256=response["receipt"]["request_payload_sha256"],
+                reason="answer_validation_rejected",
+                owner_authority=SyntheticAuthority(),
+                idempotency_key="synthetic-close-" + qid,
+                diagnostic={
+                    "code": "standard_answer_invalid",
+                    "artifact_ref": "synthetic-validation.json",
+                    "artifact_sha256": "a" * 64,
+                    "response_sha256": response["response_sha256"],
+                },
+            )
+            assert store.get_item(ids[qid])["status"] == "failed"
+    owner = lc._owner_refresh
+    for qid in QIDS[:2]:
+        owner.fields[qid]["decision"] = "resume_existing_work"
+        owner.projection[qid] = {"work_item_id": ids[qid]}
+    if mode == "no_hook":
+        monkeypatch.setattr(lc, "assert_question_skip_terminal", None, raising=False)
+    if mode == "DB":
+        import src.utils.quick_scan_known_outcome_journal as journal
+
+        monkeypatch.setattr(
+            journal, "_physical", Mock(side_effect=RuntimeError("synthetic DB read failure"))
+        )
+    if mode == "new_generation":
+        lc._generation_by_question[QIDS[0]] = 2
+    if mode == "foreign":
+        monkeypatch.setattr(
+            lc,
+            "before_question",
+            lambda _: {
+                "claimed": False,
+                "work_item_id": ids[QIDS[1]],
+                "reason": "synthetic-refusal",
+            },
+        )
+    originals = {qid: copy.deepcopy(store.list_attempts(ids[qid])) for qid in QIDS[:2]}
+    prior_bytes = {qid: copy.deepcopy(store.get_item(ids[qid])) for qid in QIDS[:2]}
+    batch = execute(questions)
+    expected = 2 if mode in {"direct", "owner_close"} else 1
+    assert session.post.call_count == expected
+    assert batch.results[0].answer.status == "error" and batch.results[0].answer.score is None
+    assert [store.list_attempts(ids[qid]) for qid in QIDS[:2]] == list(originals.values())
+    assert [store.get_item(ids[qid]) for qid in QIDS[:2]] == list(prior_bytes.values())
+    assert store.get_item(ids[QIDS[2]])["status"] == (
+        "result_ready" if expected == 2 else "pending"
+    ), [(row.answer.status, row.answer.text[:100], row.metadata) for row in batch.results]
+    if expected == 2:
+        assert all(row.metadata["original_terminal_work_skipped"] for row in batch.results[:2])
+        assert store.get_quick_scan_budget_status("pack-transport")["requests"] == 2
