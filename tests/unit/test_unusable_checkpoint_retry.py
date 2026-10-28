@@ -1202,3 +1202,72 @@ def test_two_failed_native_descendants_allow_only_exact_fourth_generation(tmp_pa
     assert store.get_item(failed3["work_item_id"]) == failed3
     assert store.get_answer_checkpoint(old["work_item_id"]) == checkpoint
     assert immutable(store) == materials
+
+
+@pytest.mark.parametrize("fault", [None, "cohort", "control", "generation"])
+def test_registered_answer_retry_inspection_accepts_only_exact_native_successor(
+    tmp_path, monkeypatch, fault
+):
+    import types
+
+    import src.utils.quick_scan_refresh_inspect as inspector
+    from src.utils.quick_scan_work_store import QuickScanWorkStore
+
+    store, clock, old, failed, binding, spec = chained_failed_successor_fixture(tmp_path)
+    target = store.create_or_attach(
+        **spec, owner_refresh_binding=binding, run_id="REGISTERED_RETRY", scan_id="REGISTERED_RETRY"
+    )
+    document = store.get_owner_retry_decision(failed["work_item_id"])
+    physical = document["request"]["physical"]
+    monkeypatch.setattr(inspector, "time", types.SimpleNamespace(time=lambda: clock[0]))
+    request = {
+        "entity_id": old["entity_id"],
+        "question_ids": [old["question_id"]],
+        "scope_bindings": {
+            old["question_id"]: {"scope": old["scope"], "scope_id": old["scope_id"]}
+        },
+        "policy_id": physical["budget_policy_id"],
+        "route_id": physical["route_id"],
+        "provider_config_ref": physical["route_provider"],
+        "model": physical["model_requested"],
+        "cohort_id": "foreign-cohort" if fault == "cohort" else "second-retry",
+        "work_decision_refs": [
+            {"work_item_id": failed["work_item_id"], "decision_id": document["decision_id"]}
+        ],
+    }
+    if fault == "control":
+        original = QuickScanWorkStore.get_owner_refresh_binding
+
+        def corrupted(self, wid):
+            value = original(self, wid)
+            if value and wid == target["work_item_id"]:
+                value = copy.deepcopy(value)
+                value["binding"]["owner_control"]["confirmation_id"] = "foreign-confirmation"
+            return value
+
+        monkeypatch.setattr(QuickScanWorkStore, "get_owner_refresh_binding", corrupted)
+    if fault == "generation":
+        original = QuickScanWorkStore.owner_refresh_projection
+
+        def projected(self, **kwargs):
+            rows = original(self, **kwargs)
+            rows[old["question_id"]]["generation"] += 1
+            return rows
+
+        monkeypatch.setattr(QuickScanWorkStore, "owner_refresh_projection", projected)
+    from tests.unit.test_quick_scan_question_pack_store import _policy
+
+    policy = _policy()
+    policy["budget"]["currency"] = "CNY"
+    before = store.path.read_bytes()
+    if fault:
+        with pytest.raises(ValueError, match="source_work_changed"):
+            inspector.inspect_refresh(store.path, request, policy=policy, schema_version="1.2.0")
+    else:
+        result = inspector.inspect_refresh(
+            store.path, request, policy=policy, schema_version="1.2.0"
+        )
+        row = result["work_items"][old["question_id"]]
+        assert row["work_item_id"] == target["work_item_id"] and row["generation"] == 3
+        assert row["owner_control"]["decision_id"] == document["decision_id"]
+    assert store.path.read_bytes() == before

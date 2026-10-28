@@ -278,15 +278,20 @@ def inspect_refresh(
                         cohort_id=request["cohort_id"],
                     )
                     if work[qid]["work_item_id"] != item["work_item_id"]:
-                        # A registered checkpoint recovery reads its exact native
-                        # successor, not an invented replacement for the source.
+                        # Both native retry kinds may already have registered
+                        # their exact successor. Read its original binding; an
+                        # unrelated newer work item is never a replacement.
+                        registered_retry = document["request"].get("purpose") in {
+                            "retry_unusable_checkpoint",
+                            "retry_unusable_answer",
+                        }
                         target_binding = (
                             view.get_owner_refresh_binding(work[qid]["work_item_id"])
-                            if checkpoint_recovery
+                            if registered_retry
                             else None
                         )
                         if (
-                            not checkpoint_recovery
+                            not registered_retry
                             or target_binding is None
                             or work[qid]["generation"] != projected["generation"]
                             or canonical_sha256(target_binding["binding"].get("owner_control"))
