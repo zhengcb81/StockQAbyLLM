@@ -43,19 +43,10 @@ def test_owner_binding_is_registered_and_stable_across_schema15_restart(tmp_path
     row = store.create_or_attach(
         **_spec(generation=2), run_id="RUN_1", scan_id="SCAN_1", owner_refresh_binding=_binding()
     )
-    from src.utils.quick_scan_refresh_admission_journal import DDL_V16_ADDITIONS
-    from src.utils.quick_scan_work_store import (
-        _DDL_V17_ADDITIONS,
-        _DDL_V18_ADDITIONS,
-        _DDL_V19_ADDITIONS,
-    )
+    from tests.c06_legacy_fixture import remove_c06_additions
 
     with store._transaction() as con:
-        for ddl in reversed(
-            DDL_V16_ADDITIONS + _DDL_V17_ADDITIONS + _DDL_V18_ADDITIONS + _DDL_V19_ADDITIONS
-        ):
-            words = ddl.split()
-            con.execute("DROP " + words[1] + " " + words[2])
+        remove_c06_additions(con, after_version=15)
         con.execute("PRAGMA user_version=15")
     again = QuickScanWorkStore(store.path).create_or_attach(
         **_spec(generation=2), run_id="RUN_2", scan_id="SCAN_1", owner_refresh_binding=_binding()
@@ -136,31 +127,13 @@ def test_late_legacy_work_cannot_undercut_bound_send_before_intent(tmp_path):
 
 
 def test_schema13_migration_is_additive_and_keeps_old_item_bytes(tmp_path):
-    from src.utils.quick_scan_owner_refresh_journal import DDL_V14_ADDITIONS
-    from src.utils.quick_scan_refresh_admission_journal import DDL_V16_ADDITIONS
-    from src.utils.quick_scan_subject_journal import DDL_V15_ADDITIONS
-    from src.utils.quick_scan_work_store import (
-        _DDL_V17_ADDITIONS,
-        _DDL_V18_ADDITIONS,
-        _DDL_V19_ADDITIONS,
-    )
+    from tests.c06_legacy_fixture import remove_c06_additions
 
     store = QuickScanWorkStore(tmp_path / "work.sqlite")
     old = _created(store)
     with closing(sqlite3.connect(store.path)) as con:
-        # Construct actual v13 by removing all later registered extensions.
-        for ddl in reversed(
-            (
-                *DDL_V14_ADDITIONS,
-                *DDL_V15_ADDITIONS,
-                *DDL_V16_ADDITIONS,
-                *_DDL_V17_ADDITIONS,
-                *_DDL_V18_ADDITIONS,
-                *_DDL_V19_ADDITIONS,
-            )
-        ):
-            words = ddl.split()
-            con.execute("DROP " + words[1] + " " + words[2])
+        # Use the shared fixture helper, including non-additive v21/v25 changes.
+        remove_c06_additions(con, after_version=13)
         con.execute("PRAGMA user_version=13")
         con.commit()
     again = QuickScanWorkStore(store.path)
