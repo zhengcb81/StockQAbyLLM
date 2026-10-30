@@ -489,6 +489,9 @@ class LLMProvider(BaseLLMProvider):
                 "Unknown means missing knowledge, never a permitted answer status: never emit status=unknown. "
                 "Keep every schema-required key, including coverage and missing_fields, even for insufficient_evidence, not_applicable or search_unavailable answers. "
                 "Obey every schema maxLength before emission: standard-1 summary is at most 800 characters and coverage.reason at most 350 characters. "
+                "Draft summary within 400 characters and coverage.reason within 200 characters to leave counting headroom under those hard limits. "
+                "Keep the complete standard object even when evidence is insufficient: missing_fields must remain an array and coverage must remain an object with status and a non-empty reason. "
+                "Never omit required fields to shorten an answer; keep supported details traceable in evidence (and metrics only for status=scored) rather than overflowing summary. "
                 "If the question schema sets a stricter limit, obey the stricter limit."
             )
         return prompt
