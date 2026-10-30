@@ -39,7 +39,10 @@ class _Borrowed:
 class ReadOnlyWorkView(QuickScanWorkStore):
     def __init__(self, path):
         raw_path = Path(path)
-        for entry in (raw_path, *raw_path.parents):
+        sidecars = tuple(
+            raw_path.with_name(raw_path.name + suffix) for suffix in ("-wal", "-shm", "-journal")
+        )
+        for entry in (raw_path, *raw_path.parents, *sidecars):
             try:
                 meta = entry.lstat()
             except FileNotFoundError:
@@ -53,10 +56,11 @@ class ReadOnlyWorkView(QuickScanWorkStore):
         self._inspection_connection = None
         if not self.path.is_file():
             raise ValueError("refresh_executor_store_unavailable")
-        if any(
-            self.path.with_name(self.path.name + s).exists() for s in ("-wal", "-shm", "-journal")
-        ):
-            raise ValueError("refresh_executor_store_busy")
+        # Sidecar existence is normal concurrency, not corruption. SQLite's
+        # mode=ro transaction reads committed WAL data and rejects actual locks.
+        # Never delete sidecars or read with immutable=1 to bypass the writer.
+        if any(p.exists() and not p.is_file() for p in sidecars):
+            raise ValueError("refresh_executor_store_unavailable")
 
     def _connect(self):
         if self._inspection_connection is not None:

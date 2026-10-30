@@ -178,8 +178,13 @@ class RefreshAdmissionService:
 
     def _ledger_ready(self):
         path = _plain_path(self.store.path)
-        if any(Path(str(path) + suffix).exists() for suffix in ("-wal", "-shm", "-journal")):
-            raise AdmissionRejected("refresh_admission_ledger_busy")
+        # A live SQLite writer legitimately retains WAL/SHM. Read committed
+        # state through SQLite's own snapshot/locking, never immutable=1 or a
+        # copied main file that silently omits the WAL. Path guards still apply.
+        for suffix in ("-wal", "-shm", "-journal"):
+            sidecar = Path(str(path) + suffix)
+            if sidecar.exists() or sidecar.is_symlink():
+                _plain_path(sidecar)
         try:
             with closing(
                 sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, isolation_level=None)
