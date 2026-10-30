@@ -13,6 +13,7 @@ from .quick_scan_known_outcome_journal import (
     _existing,
     resolution_request,
     retry_request,
+    terminal_received_failure,
 )
 from .quick_scan_refresh_inspect import ReadOnlyWorkView
 from .quick_scan_result_outbox import canonical_sha256
@@ -118,12 +119,15 @@ def _inspect(path, value, *, policy, clock, derive, comparison_target=None):
                 )
                 if item["status"] not in {"leased", "uncertain"} and not (
                     item["status"] == "failed"
-                    and _existing(
-                        view,
-                        con,
-                        value["work_item_id"],
-                        value["idempotency_key"],
-                        request,
+                    and (
+                        _existing(
+                            view,
+                            con,
+                            value["work_item_id"],
+                            value["idempotency_key"],
+                            request,
+                        )
+                        or terminal_received_failure(con, item, attempt, value["reason"])
                     )
                 ):
                     raise ValueError("owner_work_read_resolution_state_invalid")

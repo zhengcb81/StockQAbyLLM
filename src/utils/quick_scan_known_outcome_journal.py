@@ -617,6 +617,58 @@ def _persist(con, request, grant, now, *, next_retry_at=None):
     return document
 
 
+def terminal_received_failure(con, item, attempt, reason):
+    """Original deterministic member rejection; never permission to retry.
+
+    Called only after resolution_request has revalidated the settled physical
+    receipt, exact lease fence and owner-bound diagnostic. A failed parser
+    member has already closed its lease, so it must not wait for lease expiry
+    or be reset to pending merely to record the separate owner resolution.
+    """
+    if (
+        item["status"] != "failed"
+        or attempt["phase"] != "response_available"
+        or item["lease_token"] is not None
+        or item["lease_expires_at"] is not None
+        or item["uncertain_attempt_id"] is not None
+        or item["lease_epoch"] != attempt["lease_epoch"]
+    ):
+        return False
+    if any(
+        con.execute(
+            "SELECT 1 FROM " + table + " WHERE work_item_id=?", (item["work_item_id"],)
+        ).fetchone()
+        for table in ("answer_checkpoint", "quick_scan_result_delivery")
+    ):
+        return False
+    reasons = {
+        "missing_question_answer": {"missing_question"},
+        "answer_validation_rejected": {"invalid_question", "answer_generator_rejected_member"},
+        "known_response_no_accepted_answer": {
+            "missing_question",
+            "invalid_question",
+            "answer_generator_rejected_member",
+        },
+        "output_length": {
+            "missing_question",
+            "invalid_question",
+            "answer_generator_rejected_member",
+        },
+    }.get(reason, set())
+    event = con.execute(
+        "SELECT event_type,attempt_id,lease_epoch,from_status FROM work_event "
+        "WHERE work_item_id=? AND to_status='failed' ORDER BY event_id DESC LIMIT 1",
+        (item["work_item_id"],),
+    ).fetchone()
+    return bool(
+        event is not None
+        and event["from_status"] == "leased"
+        and event["event_type"] in {"received_without_answer:" + value for value in reasons}
+        and event["attempt_id"] == attempt["attempt_id"]
+        and event["lease_epoch"] == attempt["lease_epoch"]
+    )
+
+
 def resolution_request(
     store,
     con,
@@ -753,14 +805,27 @@ def resolve(
             raise ValueError("owner_work_commit_clock_invalid")
         if old is not None:
             return old
-        if item["status"] not in {"leased", "uncertain"}:
+        terminal = terminal_received_failure(
+            con,
+            item,
+            con.execute(
+                "SELECT * FROM attempt WHERE attempt_id=? AND work_item_id=?",
+                (attempt_id, work_item_id),
+            ).fetchone(),
+            reason,
+        )
+        if item["status"] not in {"leased", "uncertain"} and not terminal:
             raise WorkConflictError("owner_work_resolution_state_invalid")
         saved = _persist(con, request, grant, commit_now)
-        count = con.execute(
-            "UPDATE work_item SET status='failed',lease_token=NULL,lease_expires_at=NULL,"
-            "uncertain_attempt_id=NULL,updated_at=? WHERE work_item_id=? AND status=? AND lease_epoch=?",
-            (commit_now, work_item_id, item["status"], expected_lease.lease_epoch),
-        ).rowcount
+        count = (
+            1
+            if terminal
+            else con.execute(
+                "UPDATE work_item SET status='failed',lease_token=NULL,lease_expires_at=NULL,"
+                "uncertain_attempt_id=NULL,updated_at=? WHERE work_item_id=? AND status=? AND lease_epoch=?",
+                (commit_now, work_item_id, item["status"], expected_lease.lease_epoch),
+            ).rowcount
+        )
         if count != 1:
             raise LeaseFencedError("owner_work_commit_fence_changed")
         store._event(
