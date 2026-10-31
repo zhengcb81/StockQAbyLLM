@@ -1502,8 +1502,17 @@ class QuickScanWorkStore:
 
     @classmethod
     def _validate_schema(
-        cls, connection: sqlite3.Connection, *, schema_version: int = SCHEMA_VERSION
+        cls,
+        connection: sqlite3.Connection,
+        *,
+        schema_version: int = SCHEMA_VERSION,
+        audit_records: bool = True,
     ) -> None:
+        """Check exact layout; deep record auditing remains the writer default.
+
+        Read-only previews inspect their requested rows and live budget in the
+        same transaction. They do not re-audit every historical answer/package.
+        """
         actual = cls._schema_objects(connection)
         expected = {
             ("table", "work_item"): _DDL_V1[0],
@@ -1745,6 +1754,8 @@ class QuickScanWorkStore:
             for key, statement in expected.items()
         ):
             raise ValueError("quick-scan work database schema mismatch")
+        if not audit_records:
+            return
         if schema_version >= 22:
             from src.utils.quick_scan_external_continuation import (
                 validate_tables as validate_continuation_tables,

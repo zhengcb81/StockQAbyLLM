@@ -72,7 +72,7 @@ class ReadOnlyWorkView(QuickScanWorkStore):
             version = connection.execute("PRAGMA user_version").fetchone()[0]
             if version not in READ_ONLY_SCHEMA_VERSIONS:
                 raise ValueError("refresh_executor_schema_unavailable")
-            self._validate_schema(connection, schema_version=version)
+            self._validate_schema(connection, schema_version=version, audit_records=False)
         except Exception:
             connection.close()
             raise
@@ -164,7 +164,7 @@ def inspect_refresh(
         version = connection.execute("PRAGMA user_version").fetchone()[0]
         if version not in READ_ONLY_SCHEMA_VERSIONS:
             raise ValueError("refresh_executor_schema_unavailable")
-        view._validate_schema(connection, schema_version=version)
+        view._validate_schema(connection, schema_version=version, audit_records=False)
         view._inspection_connection = connection
         try:
             stored = connection.execute(
