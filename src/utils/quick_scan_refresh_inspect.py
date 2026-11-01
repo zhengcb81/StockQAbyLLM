@@ -282,12 +282,13 @@ def inspect_refresh(
                         cohort_id=request["cohort_id"],
                     )
                     if work[qid]["work_item_id"] != item["work_item_id"]:
-                        # Both native retry kinds may already have registered
-                        # their exact successor. Read its original binding; an
-                        # unrelated newer work item is never a replacement.
+                        # A recorded controlled action may already have its
+                        # exact successor. Its binding, rather than the obsolete
+                        # source-is-latest condition, identifies that successor.
                         registered_retry = document["request"].get("purpose") in {
                             "retry_unusable_checkpoint",
                             "retry_unusable_answer",
+                            "comparison",
                         }
                         target_binding = (
                             view.get_owner_refresh_binding(work[qid]["work_item_id"])

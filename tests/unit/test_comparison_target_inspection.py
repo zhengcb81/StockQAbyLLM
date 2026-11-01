@@ -145,3 +145,87 @@ def test_targeted_read_partitions_valid_global_refs_but_requires_complete_local_
     with pytest.raises(ValueError):
         inspect_refresh(store.path, request, policy=policy, schema_version="1.3.0")
     assert store.path.read_bytes() == before
+
+
+@pytest.mark.parametrize("unrelated_latest", [False, True])
+def test_registered_comparison_successor_is_read_without_requiring_the_old_work_to_stay_latest(
+    tmp_path, monkeypatch, unrelated_latest
+):
+    from src.utils.quick_scan_work_control import project_owner_control
+    from tests.unit.test_w15_owner_refresh import _binding
+
+    store, clock, source, document, policy = prepared(tmp_path, monkeypatch)
+    subject = document["request"]["physical"]["subject_binding"]["subject_ref"]
+    projected = project_owner_control(
+        document,
+        source_work=source,
+        subject_ref=subject,
+        provider=target()["provider"],
+        model=target()["model"],
+        now=clock[0],
+        cohort_id="B01_SYNTHETIC_TARGET",
+    )
+    binding = _binding(
+        protocol="stockqa.owner_refresh_binding/4.0.0",
+        subject_context_schema="stockqa.quick_scan_observation_context/2.0.0",
+        owner_control=projected["owner_control"],
+        subject_key=subject["analysis_subject_id"]
+        + "@"
+        + str(subject["analysis_subject_revision"]),
+        perimeter_sha256=subject["perimeter_sha256"],
+        **{
+            key: source[key]
+            for key in ("entity_id", "question_id", "scope", "scope_id", "identity_revision")
+        },
+        provider=target()["provider"],
+        model=target()["model"],
+    )
+    keys = (
+        "entity_id",
+        "question_id",
+        "scope",
+        "scope_id",
+        "identity_revision",
+        "source_binding_version",
+        "identity_state",
+        "source_binding_ref",
+        "identity_snapshot_sha256",
+        "question_fingerprint",
+    )
+    spec = {key: source[key] for key in keys}
+    spec.update(source_binding_refs=["BND_FIXTURE"], generation=2, routing_fingerprint="a" * 64)
+    successor = store.create_or_attach(
+        **spec,
+        owner_refresh_binding=binding,
+        run_id="SYNTHETIC_COMPARE",
+        scan_id="SYNTHETIC_COMPARE",
+    )
+    if unrelated_latest:
+        store.create_or_attach(
+            **{**spec, "generation": 3}, run_id="SYNTHETIC_UNRELATED", scan_id="SYNTHETIC_UNRELATED"
+        )
+    request = dict(
+        entity_id=source["entity_id"],
+        question_ids=[source["question_id"]],
+        scope_bindings={
+            source["question_id"]: dict(scope=source["scope"], scope_id=source["scope_id"])
+        },
+        **target_route(),
+        cohort_id="B01_SYNTHETIC_TARGET",
+        work_decision_refs=[
+            dict(work_item_id=source["work_item_id"], decision_id=document["decision_id"])
+        ],
+    )
+    monkeypatch.setattr("src.utils.quick_scan_refresh_inspect.time.time", lambda: clock[0])
+    before = store.path.read_bytes()
+    if unrelated_latest:
+        with pytest.raises(ValueError, match="refresh_control_source_work_changed"):
+            inspect_refresh(store.path, request, policy=policy, schema_version="1.3.0")
+    else:
+        result = inspect_refresh(store.path, request, policy=policy, schema_version="1.3.0")
+        row = result["work_items"][source["question_id"]]
+        assert row["work_item_id"] == successor["work_item_id"]
+        assert row["generation"] == 2 and row["owner_control"] == projected["owner_control"]
+        assert result["API_requests"] == 0 and result["reservation_created"] is False
+    assert store.path.read_bytes() == before
+    assert store.get_item(source["work_item_id"]) == source
