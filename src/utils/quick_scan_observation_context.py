@@ -661,6 +661,7 @@ def build_observation(
     standard_answer: dict[str, Any],
     started_at: str,
     durable_response: dict[str, Any] | None = None,
+    answer_source_urls: list[str] | None = None,
 ) -> dict[str, Any]:
     """Assemble one immutable snapshot only from frozen inputs and actual execution."""
     if (
@@ -711,17 +712,20 @@ def build_observation(
     ):
         raise ValueError("context does not bind the durable checkpoint")
     provenance = checkpoint_payload["provenance"]
+    validation_sources = (
+        provenance["source_urls"] if answer_source_urls is None else answer_source_urls
+    )
     body = validate_standard_answer(
         standard_answer,
         metadata=metadata,
         normalized_answer=checkpoint_payload["answer"],
-        source_urls=provenance["source_urls"],
+        source_urls=validation_sources,
         research_only=checkpoint_payload["checkpoint_schema_version"] == 3,
     )
     # The detached observation uses the authenticated receipt's exact spelling.
     # Keep the model's standard answer, checkpoint and receipt bytes unchanged.
     for evidence in body["evidence"]:
-        evidence["url"] = _matching_evidence_source_url(evidence["url"], provenance["source_urls"])
+        evidence["url"] = _matching_evidence_source_url(evidence["url"], validation_sources)
     execution = {
         key: provenance.get(source)
         for key, source in {

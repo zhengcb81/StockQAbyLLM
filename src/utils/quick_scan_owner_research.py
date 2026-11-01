@@ -604,14 +604,25 @@ class OwnerResearchServices:
                             intent_sha256=canonical_sha256(envelope["intent"]),
                         )
                     )
+                from src.utils.quick_scan_provided_context import (
+                    prepare_provided_context,
+                )
                 from src.utils.quick_scan_research_intent import bind_intent
 
+                provided = prepare_provided_context(
+                    self.task,
+                    envelope["dynamic_context"],
+                    store=self.store,
+                    work_item_ids=[h["work_item_id"] for h in handles],
+                    subject=self.task.raw["owner_binding"]["subject_ref"],
+                )
                 stack.enter_context(
                     bind_intent(
                         self.store,
                         self._task_sha256,
                         canonical_sha256(envelope["intent"]),
                         [h["work_item_id"] for h in handles],
+                        provided_context=provided,
                     )
                 )
                 stack.enter_context(

@@ -667,6 +667,42 @@ def project_quick_scan_search(
         ) from error
 
 
+def project_quick_scan_answer_sources(metadata: dict, *, work_store, work_item_id: str) -> dict:
+    """Original search plus actually sent short provided sources for answers only."""
+    search = project_quick_scan_search(metadata, work_store=work_store, work_item_id=work_item_id)
+    sources = []
+    if metadata.get("research_intent_binding_sha256") is not None:
+        from contextlib import closing
+
+        from .quick_scan_provided_context import read_sources
+
+        transport = metadata.get("work_transport") or {}
+        attempt_id = transport.get("work_attempt_id")
+        if not isinstance(work_store, QuickScanWorkStore) or not isinstance(attempt_id, str):
+            raise ValueError("provided_context_original_owner_required")
+        original = work_store.get_attempt_response(attempt_id)
+        if original is None or original["receipt"] != _sanitized_receipt(metadata):
+            raise ValueError("provided_context_original_receipt_mismatch")
+        with closing(work_store._connect()) as connection:
+            sources = read_sources(
+                connection,
+                work_item_id=work_item_id,
+                attempt_id=attempt_id,
+                receipt=original["receipt"],
+            )
+    # Search evidence and its clock/receipt remain exclusively vendor-owned.
+    if sources and (search.get("search_status") != "executed" or not search.get("source_urls")):
+        raise ValueError("provided_context_requires_original_executed_search")
+    return {
+        **search,
+        "search_source_urls": list(search.get("source_urls") or []),
+        "provided_context_sources": sources,
+        "source_urls": list(
+            dict.fromkeys([*(search.get("source_urls") or []), *(r["source_url"] for r in sources)])
+        ),
+    }
+
+
 @contextmanager
 def bind_quick_scan_work(
     store: QuickScanWorkStore, work_item_id: str, lease: Lease

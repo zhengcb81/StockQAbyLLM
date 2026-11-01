@@ -43,7 +43,7 @@ def _hash(value):
 
 
 @contextmanager
-def bind_intent(store, task_sha256, intent_sha256, work_item_ids):
+def bind_intent(store, task_sha256, intent_sha256, work_item_ids, *, provided_context=None):
     from .quick_scan_work_store import QuickScanWorkStore, _sha256
 
     if not isinstance(store, QuickScanWorkStore) or _INTENT.get() is not None:
@@ -57,7 +57,9 @@ def bind_intent(store, task_sha256, intent_sha256, work_item_ids):
         or len(set(work_item_ids)) != len(work_item_ids)
     ):
         raise ValueError("native_research_intent_members_invalid")
-    token = _INTENT.set((store, task_sha256, intent_sha256, tuple(sorted(work_item_ids))))
+    token = _INTENT.set(
+        (store, task_sha256, intent_sha256, tuple(sorted(work_item_ids)), provided_context)
+    )
     try:
         yield
     finally:
@@ -98,6 +100,12 @@ def get_intent_response(store, task_sha256, intent_sha256):
         for key in ("task_sha256", "intent_sha256", "native_attempt_id", "request_payload_sha256")
     }
     binding["work_item_ids"] = members
+    provided_raw = row["provided_context_json"] if "provided_context_json" in row.keys() else None
+    if provided_raw is not None:
+        provided = json.loads(provided_raw)
+        if _encode(provided) != provided_raw:
+            raise ValueError("native_research_provided_context_corrupt")
+        binding["provided_context_sha256"] = _hash(provided)
     if _encode(members) != row["work_item_ids_json"] or _hash(binding) != row["binding_sha256"]:
         raise ValueError("native_research_intent_binding_corrupt")
     if (single is None) == (pack is None):
@@ -140,7 +148,7 @@ def bind_native_send(function):
         bound = _INTENT.get()
         if bound is None:
             return function(*args, **kwargs)
-        store, task_sha, intent_sha, members = bound
+        store, task_sha, intent_sha, members, provided = bound
         from .quick_scan_work_transport import _QUESTION_PACK_BINDING, _WORK_BINDING
 
         work, pack = _WORK_BINDING.get(), _QUESTION_PACK_BINDING.get()
@@ -156,6 +164,10 @@ def bind_native_send(function):
             raise ValueError("native_research_intent_already_sent_inspect_original")
         from .quick_scan_work_store import _sha256
 
+        if provided is not None:
+            from .quick_scan_provided_context import assert_sent_context
+
+            assert_sent_context(provided, args[0] if args else kwargs["prompt"])
         request_sha = kwargs.get("request_payload_sha256")
         _sha256(request_sha, "research request hash")
         attempt = function(*args, **kwargs)
@@ -180,9 +192,11 @@ def bind_native_send(function):
             request_payload_sha256=request_sha,
             work_item_ids=list(members),
         )
+        if provided is not None:
+            binding["provided_context_sha256"] = _hash(provided)
         with store._transaction() as connection:
             connection.execute(
-                "INSERT INTO quick_scan_research_intent VALUES (?,?,?,?,?,?)",
+                "INSERT INTO quick_scan_research_intent (task_sha256,intent_sha256,native_attempt_id,request_payload_sha256,work_item_ids_json,binding_sha256,provided_context_json) VALUES (?,?,?,?,?,?,?)",
                 (
                     task_sha,
                     intent_sha,
@@ -190,6 +204,7 @@ def bind_native_send(function):
                     request_sha,
                     _encode(list(members)),
                     _hash(binding),
+                    None if provided is None else _encode(provided),
                 ),
             )
         return attempt
@@ -202,7 +217,7 @@ def anchor_original_receipt(attempt, receipt):
     bound = _INTENT.get()
     if bound is None:
         return
-    store, task_sha, intent_sha, _members = bound
+    store, task_sha, intent_sha, _members, _provided = bound
     with closing(store._connect()) as connection:
         row = connection.execute(
             "SELECT * FROM quick_scan_research_intent WHERE task_sha256=? AND intent_sha256=? AND native_attempt_id=?",

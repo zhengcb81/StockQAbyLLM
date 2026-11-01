@@ -1328,17 +1328,13 @@ class QuickScanWorkLifecycle:
             )
             if not isinstance(attempt_id, str) or receipt is None:
                 raise ValueError("missing final successful transport receipt")
-            search_projection = None
-            if "external_context_use" in execution:
-                from src.utils.quick_scan_work_transport import (
-                    project_quick_scan_search,
-                )
+            from src.utils.quick_scan_work_transport import (
+                project_quick_scan_answer_sources,
+            )
 
-                search_projection = project_quick_scan_search(
-                    execution,
-                    work_store=self._store,
-                    work_item_id=handle["work_item_id"],
-                )
+            search_projection = project_quick_scan_answer_sources(
+                execution, work_store=self._store, work_item_id=handle["work_item_id"]
+            )
             description, standard_body = self._standard_transport(getattr(answer, "text", ""))
             payload = {
                 "entity_id": self._entity_id,
@@ -1367,7 +1363,9 @@ class QuickScanWorkLifecycle:
                 observation_context=observation_context,
                 standard_answer=standard_body,
                 external_context_use=(
-                    None if search_projection is None else search_projection["external_context_use"]
+                    None
+                    if search_projection is None
+                    else search_projection.get("external_context_use")
                 ),
             )
             self._seal_delivery(handle["work_item_id"])

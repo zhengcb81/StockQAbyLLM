@@ -63,10 +63,13 @@ from src.utils.quick_scan_owner_budget_continuation import (
 )
 from src.utils.quick_scan_research_output import DDL_V23_ADDITIONS as _DDL_V23_ADDITIONS
 
-SCHEMA_VERSION = 25
+SCHEMA_VERSION = 26
 # v25 is a table-copy migration, not an additive DDL release; the historical
 # fixture helper still asks every later version for its additions tuple.
 _DDL_V25_ADDITIONS: tuple[str, ...] = ()
+_DDL_V26_ADDITIONS = (
+    "ALTER TABLE quick_scan_research_intent ADD COLUMN provided_context_json TEXT",
+)
 _SAFE_ID = re.compile(r"^[A-Za-z0-9_.-]{1,160}$")
 # Hyphens accepted per owner sign-off (2026-10-05 round-51): the W04
 # identity-export package issues ENT_<uuid> entity ids (e.g. the frozen
@@ -715,6 +718,7 @@ _DDL = (
     + _DDL_V22_ADDITIONS
     + _DDL_V23_ADDITIONS
     + _DDL_V24_ADDITIONS
+    + _DDL_V26_ADDITIONS
 )
 
 _RESEARCH_VALIDATION_CODES = frozenset(
@@ -1342,6 +1346,8 @@ class QuickScanWorkStore:
                 cls._validate_schema(connection, schema_version=23)
             elif version == 24:
                 cls._validate_schema(connection, schema_version=24)
+            elif version == 25:
+                cls._validate_schema(connection, schema_version=25)
             elif version != SCHEMA_VERSION:
                 raise ValueError("unsupported quick-scan work database schema version")
             if 1 <= version < 8:
@@ -1414,6 +1420,10 @@ class QuickScanWorkStore:
                 connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             if 1 <= version < 25:
                 cls._apply_v25_migration(connection)
+                connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+            if 1 <= version < 26:
+                for statement in _DDL_V26_ADDITIONS:
+                    connection.execute(statement)
                 connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             cls._validate_schema(connection, schema_version=SCHEMA_VERSION)
             connection.execute("COMMIT")
@@ -1749,6 +1759,12 @@ class QuickScanWorkStore:
                 if match is None:
                     raise ValueError("owner exposure schema mismatch")
                 expected[(match[1].lower(), match[2])] = statement
+        if schema_version >= 26:
+            key = ("table", "quick_scan_research_intent")
+            expected[key] = expected[key].replace(
+                "binding_sha256 TEXT NOT NULL,",
+                "binding_sha256 TEXT NOT NULL, provided_context_json TEXT,",
+            )
         if actual.keys() != expected.keys() or any(
             _normalized_sql(actual[key]) != _normalized_sql(statement)
             for key, statement in expected.items()
@@ -4199,6 +4215,22 @@ class QuickScanWorkStore:
                 or provenance.get("actual_model") != attempt["model_requested"]
             ):
                 raise ValueError("historical checkpoint exact model binding mismatch")
+        from .quick_scan_provided_context import read_sources
+
+        provided = (
+            read_sources(
+                connection,
+                work_item_id=row["work_item_id"],
+                attempt_id=row["attempt_id"],
+                receipt=response["receipt"],
+            )
+            if provenance.get("model_resolution_binding") == "durable-response-v1"
+            else []
+        )
+        if provenance.get("provided_context_sources", []) != provided:
+            raise ValueError(
+                "checkpoint provided-context summary differs from original sent context"
+            )
         try:
             _sha256(provenance.get("receipt_sha256"), "checkpoint receipt hash")
             _sha256(provenance.get("provider_prompt_sha256"), "provider prompt hash")
@@ -4339,6 +4371,20 @@ class QuickScanWorkStore:
             if external_projection is None
             else external_projection["source_urls"]
         )
+        from .quick_scan_provided_context import read_sources
+
+        with closing(self._connect()) as connection:
+            provided_sources = read_sources(
+                connection, work_item_id=work_item_id, attempt_id=attempt_id, receipt=receipt
+            )
+        answer_source_urls = list(
+            dict.fromkeys(source_urls + [r["source_url"] for r in provided_sources])
+        )
+        if provided_sources and (
+            not source_urls
+            or (receipt.get("search_status") != "executed" and external_projection is None)
+        ):
+            raise ValueError("provided_context_requires_original_executed_search")
         request_id = receipt.get("request_id")
         if request_id is not None:
             request_id = _safe_text(request_id, "request_id", maximum=300)
@@ -4348,7 +4394,7 @@ class QuickScanWorkStore:
             side_tables = self._prepare_standard_inputs(
                 question_id=question_id,
                 normalized_answer=normalized_answer,
-                source_urls=source_urls,
+                source_urls=answer_source_urls,
                 observation_context=observation_context,
                 standard_answer=standard_answer,
             )
@@ -4498,6 +4544,8 @@ class QuickScanWorkStore:
                 },
                 "checkpointed_at": now,
             }
+            if provided_sources:
+                payload["provenance"]["provided_context_sources"] = provided_sources
             if external_projection is not None:
                 payload["provenance"].update(
                     search_binding="external-context-use-v1_1",
@@ -4743,7 +4791,15 @@ class QuickScanWorkStore:
             side_tables = self._prepare_standard_inputs(
                 question_id=item["question_id"],
                 normalized_answer=payload["answer"],
-                source_urls=list(payload["provenance"].get("source_urls") or []),
+                source_urls=list(
+                    dict.fromkeys(
+                        list(payload["provenance"].get("source_urls") or [])
+                        + [
+                            r["source_url"]
+                            for r in payload["provenance"].get("provided_context_sources", [])
+                        ]
+                    )
+                ),
                 observation_context=observation_context,
                 standard_answer=standard_answer,
             )
@@ -5415,6 +5471,17 @@ class QuickScanWorkStore:
             standard_answer=json.loads(answer_row["answer_json"]),
             started_at=started_at,
             durable_response=response,
+            answer_source_urls=list(
+                dict.fromkeys(
+                    list(checkpoint["payload"]["provenance"].get("source_urls") or [])
+                    + [
+                        r["source_url"]
+                        for r in checkpoint["payload"]["provenance"].get(
+                            "provided_context_sources", []
+                        )
+                    ]
+                )
+            ),
         )
         if canonical_sha256(expected) != canonical_sha256(observation):
             raise WorkConflictError(

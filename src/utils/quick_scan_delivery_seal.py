@@ -144,6 +144,14 @@ def _complete_package(
             return None, BLOCK_RECEIPT
         if durable_response is None:
             return None, BLOCK_RECEIPT
+    provenance = checkpoint["payload"]["provenance"]
+    # get_answer_checkpoint has revalidated this summary against its actual intent.
+    answer_sources = list(
+        dict.fromkeys(
+            list(provenance.get("source_urls") or [])
+            + [r["source_url"] for r in provenance.get("provided_context_sources", [])]
+        )
+    )
     try:
         package = build_complete_c06_package(
             checkpoint["payload"],
@@ -152,6 +160,7 @@ def _complete_package(
             standard_answer=standard["answer"],
             started_at=started_at,
             durable_response=durable_response,
+            answer_source_urls=answer_sources,
         )
     except MissingC06Fields as error:
         logger.warning("完整 C06 封存拒绝（%s）：%s", work_item_id, error)
