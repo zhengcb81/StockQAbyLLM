@@ -481,14 +481,24 @@ def _evidence_url_identity(url: str) -> str:
             tracking = {"cre", "mod", "loc", "r", "rfunc", "tj", "tr"}
         elif parts.netloc == "caifuhao.eastmoney.com" and re.fullmatch(r"/news/[0-9]+", parts.path):
             tracking = {"from", "name", "gubaurl"}
-        if tracking:
+        quote_navigation = parts.netloc == "quote.eastmoney.com" and re.fullmatch(
+            r"/(?:sh|sz|bj)[0-9]{6}\.html", parts.path
+        )
+        if tracking or quote_navigation:
             query_items = parse_qsl(parts.query, keep_blank_values=True)
             canonical = urlunsplit(
                 (
                     parts.scheme,
                     parts.netloc,
                     parts.path,
-                    urlencode([(key, value) for key, value in query_items if key not in tracking]),
+                    urlencode(
+                        [
+                            (key, value)
+                            for key, value in query_items
+                            if key not in tracking
+                            and not (quote_navigation and key == "jump_to_web" and value == "true")
+                        ]
+                    ),
                     parts.fragment,
                 )
             )
@@ -498,7 +508,7 @@ def _evidence_url_identity(url: str) -> str:
 
 
 def _matching_evidence_source_url(url: str, source_urls: list[str]) -> str:
-    """Return receipt spelling; only explicit fixed-article referrals may differ."""
+    """Return receipt spelling; only explicit resource referrals may differ."""
     identity = _evidence_url_identity(url)
     matches = [source for source in source_urls if _evidence_url_identity(source) == identity]
     if url in matches:

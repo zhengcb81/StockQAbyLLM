@@ -655,3 +655,51 @@ def test_tracking_whitelist_does_not_apply_to_other_hosts_paths_or_query_keys(ar
 def test_article_tracking_does_not_bind_other_resources_or_credentials(other):
     with pytest.raises(ValueError):
         api._matching_evidence_source_url(_ARTICLE_SINA, [other])
+
+
+@pytest.mark.parametrize("stock_path", ["sz300750.html", "sh600519.html", "bj430047.html"])
+def test_exact_quote_navigation_true_matches_without_rewriting_original_answer(stock_path):
+    article = "http://quote.eastmoney.com/" + stock_path
+    receipt = article + "?jump_to_web=true"
+    body = content()
+    body["evidence"][0]["url"] = article
+    before = copy.deepcopy(body)
+    result = api.validate_standard_answer(
+        body,
+        metadata=CONTEXT["questions"][QID]["metadata"],
+        normalized_answer=normalized(body),
+        source_urls=[receipt],
+    )
+    assert result == before and body == before
+    assert api._matching_evidence_source_url(article, [receipt]) == receipt
+
+
+@pytest.mark.parametrize(
+    "other",
+    [
+        "http://quote.eastmoney.com/sz002841.html?jump_to_web=true",
+        "http://quote.eastmoney.com/sh300750.html?jump_to_web=true",
+        "http://quote.eastmoney.com/sz300750.html?jump_to_web=true&code=002841",
+        "http://quote.eastmoney.com/sz300750.html?jump_to_web=true&year=2025",
+        "http://quote.eastmoney.com/sz300750.html?jump_to_web=true&unknown=1",
+        "http://quote.eastmoney.com/sz300750.html?jump_to_web=false",
+        "http://quote.eastmoney.com/sz300750.html?jump_to_web=unknown",
+        "http://quote.eastmoney.com.evil.invalid/sz300750.html?jump_to_web=true",
+    ],
+)
+def test_quote_navigation_does_not_hide_security_or_content_changes(other):
+    with pytest.raises(ValueError):
+        api._matching_evidence_source_url("http://quote.eastmoney.com/sz300750.html", [other])
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://example.invalid/sz300750.html",
+        "http://quote.eastmoney.com/sz300750.html/extra",
+        "http://quote.eastmoney.com/sz300750.htm",
+    ],
+)
+def test_quote_navigation_is_not_ignored_outside_exact_stock_path(url):
+    with pytest.raises(ValueError):
+        api._matching_evidence_source_url(url, [url + "?jump_to_web=true"])
