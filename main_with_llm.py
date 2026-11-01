@@ -376,6 +376,11 @@ def main():
         default=None,
         help="显式输出token上限；题包省略时8192（应用上限32768）",
     )
+    parser.add_argument(
+        "--shared-company-config",
+        default=None,
+        help="可选共享公司引擎配置；复用原准入、客户端和预算，不回退重问",
+    )
     args = parser.parse_args()
 
     # 验证参数互斥性
@@ -415,6 +420,11 @@ def main():
             owner_refresh_config=args.quick_scan_owner_config,
             refresh_admission_config=args.refresh_admission_config,
             refresh_confirmation_id=args.refresh_confirmation_id,
+            **(
+                {"shared_company_config": args.shared_company_config}
+                if args.shared_company_config is not None
+                else {}
+            ),
             **(
                 {"work_lease_seconds": args.work_lease_seconds}
                 if args.work_lease_seconds != 600.0

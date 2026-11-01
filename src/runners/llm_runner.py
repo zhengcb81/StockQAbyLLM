@@ -55,6 +55,7 @@ class _QuestionProcessingOptions(_SearchGenerationOptions, total=False):
 
 
 class _SingleCompanyOptions(_QuestionProcessingOptions, total=False):
+    shared_company_config: str
     work_lease_seconds: float
 
 
@@ -2033,6 +2034,7 @@ class LLMRunner:
         thinking_enabled: Optional[bool] = None,
         max_output_tokens: Optional[int] = None,
         work_lease_seconds: float = 600.0,
+        shared_company_config: Optional[str] = None,
     ) -> int:
         """运行LLM模式处理。
 
@@ -2100,6 +2102,19 @@ class LLMRunner:
             Path(output).write_text(encoded + "\n", encoding="utf8")
             print(encoded)
             return 0
+        if shared_company_config is not None:
+            if (
+                not company
+                or batch_file
+                or seal_deliveries
+                or not require_search
+                or not refresh_admission_config
+                or not refresh_confirmation_id
+            ):
+                raise ValueError("shared_company_requires_original_approved_single_company")
+            from src.utils.quick_scan_shared_company import read_shared_company_config
+
+            read_shared_company_config(shared_company_config)
         from src.providers.llm_client import _validate_search_generation_controls
 
         work_lease_seconds = validate_work_lease_seconds(work_lease_seconds)
@@ -2211,6 +2226,8 @@ class LLMRunner:
         self.logger.info("=" * 70)
         if company:
             single_options: _SingleCompanyOptions = {}
+            if shared_company_config is not None:
+                single_options["shared_company_config"] = shared_company_config
             if work_lease_seconds != 600.0:
                 single_options["work_lease_seconds"] = work_lease_seconds
             if question_pack_size != 1:
@@ -2298,6 +2315,7 @@ class LLMRunner:
         thinking_enabled: Optional[bool] = None,
         max_output_tokens: Optional[int] = None,
         work_lease_seconds: float = 600.0,
+        shared_company_config: Optional[str] = None,
     ) -> int:
         """运行单公司处理模式。
 
@@ -2320,6 +2338,13 @@ class LLMRunner:
             shared_budget_policy = None
             provider_health = None
             approved_session = None
+            shared_document = None
+            if shared_company_config is not None:
+                from src.utils.quick_scan_shared_company import (
+                    read_shared_company_config,
+                )
+
+                shared_document = read_shared_company_config(shared_company_config)
             from src.providers.llm_client import _validate_search_generation_controls
 
             _validate_search_generation_controls(thinking_enabled, max_output_tokens)
@@ -2922,6 +2947,40 @@ class LLMRunner:
                         sort_keys=True,
                     )
                 )
+
+            def process_selected_questions():
+                if shared_document is None:
+                    return qa_engine.process_questions(questions, **processing_options)
+                if (
+                    approved_session is None
+                    or work_lifecycle is None
+                    or quick_scan_policy is None
+                    or not quick_scan_policy["configured"]
+                ):
+                    raise ValueError("shared_company_original_configured_owner_required")
+                candidates = [
+                    p
+                    for r, p in zip(execution_routes, route_providers)
+                    if r["id"] == work_lifecycle._route_id
+                    and p is not None
+                    and r["model"] == work_lifecycle._model_requested
+                ]
+                if len(candidates) != 1:
+                    raise ValueError("shared_company_original_route_client_required")
+                from src.utils.quick_scan_shared_company import run_shared_company_scan
+
+                run_shared_company_scan(
+                    work_lifecycle,
+                    candidates[0].client,
+                    config=shared_document,
+                    questions=questions,
+                    cost_resolver=cost_resolver,
+                    question_pack_size=question_pack_size,
+                    thinking_enabled=thinking_enabled is not False,
+                    max_output_tokens=max_output_tokens if max_output_tokens is not None else 8192,
+                )
+                return qa_engine.hydrate_questions(cast(List[Question], questions))
+
             with standard_answer_transport(complete_transport):
                 # 处理问题
                 if quick_scan_policy is not None and quick_scan_policy["configured"]:
@@ -2932,9 +2991,9 @@ class LLMRunner:
                         shared_budget_policy or quick_scan_policy,
                         cost_resolver=cost_resolver,
                     ):
-                        batch_result = qa_engine.process_questions(questions, **processing_options)
+                        batch_result = process_selected_questions()
                 else:
-                    batch_result = qa_engine.process_questions(questions, **processing_options)
+                    batch_result = process_selected_questions()
 
             # 显示结果摘要
             print("\n" + "=" * 70)

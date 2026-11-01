@@ -1509,9 +1509,12 @@ class LLMClient:
         thinking_enabled: Optional[bool] = None,
         max_output_tokens: Optional[int] = None,
         json_mode: bool = False,
+        research_final_json: bool = False,
     ) -> LLMSearchResponse:
         """Call an allowlisted Responses web_search route and preserve its receipt."""
         _validate_search_generation_controls(thinking_enabled, max_output_tokens)
+        if type(research_final_json) is not bool:
+            raise ValueError("research_final_json must be boolean")
         if type(json_mode) is not bool:
             raise ValueError("json_mode must be an explicit boolean")
         prompt, system_prompt, external_mode = render_external_request(prompt, system_prompt)
@@ -1605,6 +1608,17 @@ class LLMClient:
                 model_resolution=resolution,
                 response_payload=response_payload,
             )
+            if research_final_json:
+                if self.api_key and self.api_key in parsed.content:
+                    raise ValueError("research_credential_echo")
+                choices = response_payload.get("choices", [])
+                if (
+                    len(choices) != 1
+                    or choices[0].get("finish_reason") != "stop"
+                    or "<think" in parsed.content.lower()
+                    or "</think" in parsed.content.lower()
+                ):
+                    raise ValueError("research_native_final_incomplete_or_private")
         except Exception as error:
             receipt = _failed_attempt_receipt(
                 response,
@@ -1640,11 +1654,20 @@ class LLMClient:
             result.execution_metadata["request_payload_sha256"] = request_payload_sha256
         if thinking_enabled is not None or max_output_tokens is not None or json_mode:
             result.execution_metadata["request_generation"] = _request_generation_metadata(data)
+        visible = None
+        if research_final_json:
+            from src.utils.quick_scan_research_output import visible_output_sha256
+
+            visible = {"content": result.content, "tool_calls": [], "finish_reason": "stop"}
+            result.execution_metadata["research_visible_output_sha256"] = visible_output_sha256(
+                visible
+            )
         if work_attempt is not None:
             work_attempt.record_response(
                 http_status_code=_response_status_code(response),
                 request_id=result.request_id,
                 receipt=result.execution_metadata,
+                **({"research_visible_output": visible} if visible is not None else {}),
             )
             # Private transport provenance comes from this actual HTTP,
             # never from model-generated answer JSON or merged repair history.

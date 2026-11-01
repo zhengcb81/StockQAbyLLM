@@ -232,7 +232,10 @@ class ResearchChatSession:
         wall_seconds=900,
         tool_argument_validation="strict",
         response_channel="tools",
+        native_search=False,
     ):
+        if type(native_search) is not bool or native_search and response_channel != "final_json":
+            raise ValueError("research_native_search_requires_final_json")
         endpoint = urlsplit(client.base_url)
         allowed = {
             ("deepseek", "api.deepseek.com", "/chat/completions", "deepseek-flash"),
@@ -240,7 +243,12 @@ class ResearchChatSession:
             ("mimo", "api.xiaomimimo.com", "/v1/chat/completions", "mimo-v2.6-pro"),
             ("mimo", "api.xiaomimimo.com", "/v1/chat/completions", "mimo-v2.6-flash"),
         }
-        if (
+        if native_search:
+            # Native final batches reuse the existing search endpoint parser,
+            # including supported base URLs and plan routes; no second list.
+            if client.provider_name != "mimo" or not client.supports_web_search:
+                raise ValueError("research_native_search_endpoint_not_qualified")
+        elif (
             endpoint.scheme != "https"
             or endpoint.netloc != endpoint.hostname
             or endpoint.query
@@ -272,6 +280,8 @@ class ResearchChatSession:
             or (response_channel == "final_json" and tools)
         ):
             raise ValueError("research_function_tools_required")
+        self._native_search = native_search
+        self._client = client
         self._response_channel = response_channel
         if not isinstance(tool_argument_validation, str) or tool_argument_validation not in {
             "strict",
@@ -358,6 +368,67 @@ class ResearchChatSession:
         finally:
             self._lock.release()
 
+    def _native_final_step(self, user_context):
+        # One physical send through the original search parser and transport.
+        reserve = len(user_context.encode("utf8")) + len(self._system_prefix.encode("utf8")) + 2048
+        remaining = self._wall - (time.monotonic() - self._started)
+        if (
+            remaining <= 0
+            or self._input_used + reserve > self._input_limit
+            or self._output_used + self._max_output > self._output_limit
+        ):
+            raise RuntimeError("research_session_resource_limit")
+        require_budgeted_research_send()
+        started = time.monotonic()
+        try:
+            result = self._client.send_search_request(
+                user_context,
+                self._system_prefix,
+                thinking_enabled=True,
+                max_output_tokens=self._max_output,
+                json_mode=self._provider == "mimo",
+                research_final_json=True,
+            )
+        except Exception:
+            self._blocked = True
+            raise
+        receipt = copy.deepcopy(result.execution_metadata)
+        receipt.pop("work_transport", None)
+        usage = receipt.get("usage")
+        observation = dict(
+            prompt_tokens=None,
+            cached_input_tokens=None,
+            output_tokens_including_reasoning=None,
+            reasoning_output_tokens=None,
+        )
+        if isinstance(usage, dict):
+            observation = dict(
+                prompt_tokens=usage["input_tokens"]
+                + usage["cached_input_tokens"]
+                + usage["cache_creation_input_tokens"],
+                cached_input_tokens=usage["cached_input_tokens"],
+                output_tokens_including_reasoning=usage["output_tokens"],
+                reasoning_output_tokens=usage["reasoning_output_tokens"],
+            )
+            self._input_used += (
+                usage["input_tokens"]
+                + usage["cached_input_tokens"]
+                + usage["cache_creation_input_tokens"]
+            )
+            self._output_used += usage["output_tokens"]
+        else:
+            self._blocked = True
+        return dict(
+            protocol="stockqa.research-step/1.0.0",
+            content=result.content,
+            tool_calls=[],
+            finish_reason="stop",
+            receipt=receipt,
+            usage_observation=observation,
+            elapsed_seconds=time.monotonic() - started,
+            stable_prefix_sha256=self.stable_prefix_sha256,
+        )
+
     def _step(self, *, user_context=None, tool_results=None, continuation_context=None):
         if self._blocked:
             raise RuntimeError("research_session_requires_inspection_or_new_admission")
@@ -391,6 +462,10 @@ class ResearchChatSession:
             ):
                 raise ValueError("research_user_context_required")
             messages.append({"role": "user", "content": user_context})
+        if self._native_search:
+            if external_answer_search_mode() is not None:
+                raise ValueError("research_native_search_cannot_override_external_context")
+            return self._native_final_step(user_context)
         if external_answer_search_mode() is not None:
             if external_answer_search_mode() != "external_context_only":
                 from src.utils.quick_scan_work_transport import (

@@ -2611,3 +2611,55 @@ async def test_async_mimo_json_mode_keeps_final_only_and_real_payload_hash(monke
 )
 def test_search_json_mode_capability_uses_original_route_not_label(model, url, expected):
     assert LLMClient("synthetic", model, url).supports_search_json_mode is expected
+
+
+@pytest.mark.parametrize("finish", ["stop", "length"])
+def test_research_final_native_search_keeps_source_and_public_output_digest(monkeypatch, finish):
+    from src.utils.quick_scan_research_output import visible_output_sha256
+
+    wire = Mock()
+    response = _b01_thinking_response(
+        "mimo_chat_completions", "mimo-v2.6-pro", final='{"answers":[]}'
+    )
+    response.json.return_value["choices"][0]["finish_reason"] = finish
+    wire.post.return_value = response
+    monkeypatch.setattr(
+        "src.providers.llm_client.http_client_manager.get_sync_session", lambda: wire
+    )
+    monkeypatch.setattr("src.providers.llm_client.begin_quick_scan_send", lambda *a, **k: None)
+    native = LLMClient(
+        "SYNTHETIC", "mimo-v2.6-pro", "https://api.xiaomimimo.com/v1", provider_name="mimo"
+    )
+    if finish != "stop":
+        with pytest.raises(LLMTransportAttemptError):
+            native.send_search_request("exact original questions", research_final_json=True)
+        return
+    result = native.send_search_request("exact original questions", research_final_json=True)
+    visible = dict(content=result.content, tool_calls=[], finish_reason="stop")
+    assert result.execution_metadata["research_visible_output_sha256"] == visible_output_sha256(
+        visible
+    )
+    assert result.search_verified and result.source_urls == ("https://example.org/source",)
+    assert "private synthetic reasoning" not in json.dumps(result.execution_metadata)
+
+
+def test_research_native_final_never_persists_credential_echo(monkeypatch):
+    key = "SYNTHETIC-CREDENTIAL-CANARY"
+    response = _b01_thinking_response(
+        "mimo_chat_completions", "mimo-v2.6-pro", final=json.dumps({"answer": key})
+    )
+    wire = Mock()
+    wire.post.return_value = response
+    permit = Mock()
+    permit.model_resolution = None
+    monkeypatch.setattr(
+        "src.providers.llm_client.http_client_manager.get_sync_session", lambda: wire
+    )
+    monkeypatch.setattr("src.providers.llm_client.begin_quick_scan_send", lambda *a, **k: permit)
+    with pytest.raises(LLMTransportAttemptError):
+        LLMClient(
+            key, "mimo-v2.6-pro", "https://api.xiaomimimo.com/v1", provider_name="mimo"
+        ).send_search_request("original", research_final_json=True)
+    permit.record_response.assert_not_called()
+    permit.record_failure.assert_called_once()
+    assert key not in json.dumps(permit.record_failure.call_args.args[0])

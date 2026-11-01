@@ -456,3 +456,78 @@ def test_independent_session_new_unknown_still_blocks_resend(tmp_path, transport
         with pytest.raises(RuntimeError, match="inspection_or_new_admission"):
             session.step(user_context="never resend unknown")
     assert len(transport[1]) == 2
+
+
+@pytest.mark.parametrize("has_usage", [True, False])
+def test_native_final_channel_delegates_original_search_once(monkeypatch, has_usage):
+    from src.providers import llm_research_client as module
+    from src.providers.llm_client import LLMSearchResponse
+
+    native = LLMClient(
+        "SYNTHETIC",
+        "mimo-v2.6-pro",
+        "https://api.xiaomimimo.com/v1/chat/completions",
+        provider_name="mimo",
+    )
+    calls = []
+
+    def original_search(prompt, system_prompt, **kwargs):
+        calls.append((prompt, system_prompt, kwargs))
+        receipt = {"search_status": "executed"}
+        if has_usage:
+            receipt["usage"] = dict(
+                input_tokens=100,
+                cached_input_tokens=40,
+                cache_creation_input_tokens=0,
+                output_tokens=50,
+                reasoning_output_tokens=20,
+                search_tool_calls=1,
+            )
+        return LLMSearchResponse('{"answers":[]}', "req", "resp", native.model, (), receipt)
+
+    monkeypatch.setattr(native, "send_search_request", original_search)
+    monkeypatch.setattr(
+        module, "require_budgeted_research_send", lambda: None
+    )  # Owner/budget covered by native software E2E.
+    session = ResearchChatSession(
+        native,
+        system_prefix="Stable original questions",
+        tools=[],
+        response_channel="final_json",
+        native_search=True,
+    )
+    result = session.step(user_context="Exact selected questions and evidence")
+    assert len(calls) == 1 and calls[0][:2] == (
+        "Exact selected questions and evidence",
+        "Stable original questions",
+    )
+    assert calls[0][2] == dict(
+        thinking_enabled=True, max_output_tokens=4096, json_mode=True, research_final_json=True
+    )
+    assert result["receipt"]["search_status"] == "executed" and result["tool_calls"] == []
+    assert result["usage_observation"]["prompt_tokens"] == (140 if has_usage else None)
+    if not has_usage:
+        with pytest.raises(RuntimeError, match="requires_inspection"):
+            session.step(user_context="Must not blindly send again")
+        assert len(calls) == 1
+
+
+def test_native_search_flag_cannot_enable_tool_conversation():
+    with pytest.raises(ValueError, match="native_search_requires_final_json"):
+        ResearchChatSession(client(), system_prefix="original", tools=TOOLS, native_search=True)
+
+
+@pytest.mark.parametrize(
+    "url", ["https://api.xiaomimimo.com/v1", "https://token-plan-cn.xiaomimimo.com/v1"]
+)
+def test_native_final_search_uses_original_search_endpoint_support(url):
+    native = LLMClient("SYNTHETIC", "mimo-v2.6-pro", url, provider_name="mimo")
+    ResearchChatSession(
+        native,
+        system_prefix="original",
+        tools=[],
+        response_channel="final_json",
+        native_search=True,
+    )
+    with pytest.raises(ValueError, match="endpoint_not_qualified"):
+        ResearchChatSession(native, system_prefix="original", tools=TOOLS)

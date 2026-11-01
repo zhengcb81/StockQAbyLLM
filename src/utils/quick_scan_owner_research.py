@@ -103,6 +103,7 @@ class OwnerResearchServices:
         native_session=False,
         native_max_turns=24,
         owner_batch_claim=False,
+        native_search=False,
     ):
         if not isinstance(lifecycle, QuickScanWorkLifecycle) or not isinstance(client, LLMClient):
             raise OwnerResearchRejected("original_lifecycle_and_client_required")
@@ -151,6 +152,9 @@ class OwnerResearchServices:
             raise OwnerResearchRejected("native_session_controls_invalid")
         if type(owner_batch_claim) is not bool or owner_batch_claim and native_session:
             raise OwnerResearchRejected("owner_batch_claim_controls_invalid")
+        if type(native_search) is not bool or native_search and native_session:
+            raise OwnerResearchRejected("native_search_requires_one_shot_profile")
+        self.native_search = self._native_search_snapshot = native_search
         self.owner_batch_claim = self._owner_batch_claim_snapshot = owner_batch_claim
         self.native_session, self.native_max_turns = native_session, native_max_turns
         task_cap = getattr(task, "limits", {}).get("max_model_requests_per_session")
@@ -417,7 +421,9 @@ class OwnerResearchServices:
 
     def _assert_registered_inputs(self):
         if (
-            type(self.owner_batch_claim) is not bool
+            self.native_search != self._native_search_snapshot
+            or type(self.native_search) is not bool
+            or type(self.owner_batch_claim) is not bool
             or self.owner_batch_claim != self._owner_batch_claim_snapshot
             or canonical_sha256(self.task.raw) != self._task_sha256
             or self.task.questions != self._questions_snapshot
