@@ -26,6 +26,7 @@ from src.providers.llm_client import (
     _response_request_id,
     _response_status_code,
     _utc_now,
+    _validate_search_generation_controls,
 )
 from src.providers.model_resolution import model_resolution_sha256
 from src.utils.http_client import http_client_manager
@@ -258,19 +259,23 @@ class ResearchChatSession:
             raise ValueError("research_endpoint_not_qualified")
         if not isinstance(system_prefix, str) or not system_prefix.strip():
             raise ValueError("research_system_prefix_required")
-        if (
-            any(
-                type(v) is not int or v < 1
-                for v in (
-                    max_output_tokens,
-                    session_input_tokens,
-                    session_output_tokens,
-                    wall_seconds,
-                )
+        if any(
+            type(v) is not int or v < 1
+            for v in (
+                max_output_tokens,
+                session_input_tokens,
+                session_output_tokens,
+                wall_seconds,
             )
-            or max_output_tokens > 16384
-        ):
+        ) or (response_channel != "final_json" and max_output_tokens > 16384):
             raise ValueError("research_limits_invalid")
+        if response_channel == "final_json":
+            # The production batch channel uses the same application bound
+            # as its original SDK send; frozen tool conversations stay 16k.
+            try:
+                _validate_search_generation_controls(True, max_output_tokens)
+            except ValueError as error:
+                raise ValueError("research_limits_invalid") from error
         if response_channel not in {"tools", "final_json"}:
             raise ValueError("research_response_channel_invalid")
         if (

@@ -107,8 +107,9 @@ def test_original_cli_forwards_optional_shared_config_without_starting_clients(
 
 
 @pytest.mark.parametrize("resume_complete", [True, False])
+@pytest.mark.parametrize("completed_on_refusal", [False, True])
 def test_partial_export_is_not_published_and_resumes_original_checkpoint(
-    tmp_path, monkeypatch, resume_complete
+    tmp_path, monkeypatch, resume_complete, completed_on_refusal
 ):
     # This is the entry coordinator boundary. Native checkpoint authenticity,
     # SQL and SDK are covered by the separate original-owner software E2E.
@@ -120,14 +121,16 @@ def test_partial_export_is_not_published_and_resumes_original_checkpoint(
 
     subject = {"entity_id": "ENT_A", "scope": "entity"}
     owner = SimpleNamespace(
-        entries={"Q1": {"kind": "work"}},
+        entries={"Q1": {"kind": "work"}, "Q2": {"kind": "work"}},
         proof={"confirmation": {"confirmation_id": "original-confirmation"}},
         input_raw={"identity.json": b'{"payload":{"entity_id":"ENT_A"}}'},
     )
     lifecycle = SimpleNamespace(
         _owner_refresh=owner,
         _external_retrieval=None,
-        _observation_context={"questions": {"Q1": {"subject_binding": {"subject_ref": subject}}}},
+        _observation_context={
+            "questions": {q: {"subject_binding": {"subject_ref": subject}} for q in ("Q1", "Q2")}
+        },
     )
     client = SimpleNamespace(
         provider_name="mimo",
@@ -160,7 +163,9 @@ def test_partial_export_is_not_published_and_resumes_original_checkpoint(
         ),
     )
     original_task = SimpleNamespace(
-        limits=limits, question_ids=["Q1"], raw={"execution_profile": {"packs": [["Q1"]]}}
+        limits=limits,
+        question_ids=["Q1", "Q2"],
+        raw={"execution_profile": {"packs": [["Q1"], ["Q2"]]}},
     )
     factory = SimpleNamespace(create_company_scan_task=lambda *a, **k: original_task)
 
@@ -187,10 +192,34 @@ def test_partial_export_is_not_published_and_resumes_original_checkpoint(
         output.mkdir()
         (output / "complete.txt").write_text("completed original export")
         (output / "checkpoint.json").write_text("original-checkpoint")
-        return {"all_slots_completed": resume_complete}
+        return {
+            "all_slots_completed": resume_complete,
+            "run": {
+                "slots": [
+                    (
+                        {
+                            "question_id": "Q1",
+                            "execution_status": "completed",
+                            "answer": {"original": True},
+                        }
+                        if completed_on_refusal
+                        else {
+                            "question_id": "Q1",
+                            "execution_status": "not_attempted",
+                            "answer": None,
+                        }
+                    ),
+                    {"question_id": "Q2", "execution_status": "failed", "answer": None},
+                ]
+            },
+        }
 
-    def finalize(task, services, output):
-        calls.append("finalize")
+    def finalize(task, services, output, **selection):
+        if selection:
+            assert selection == {"question_ids": ["Q1"]}
+            calls.append("finalize_partial")
+        else:
+            calls.append("finalize")
         assert (output / "complete.txt").is_file()
         return {"status": "completed"}
 
@@ -200,7 +229,10 @@ def test_partial_export_is_not_published_and_resumes_original_checkpoint(
     monkeypatch.setattr(module, "_modules", lambda config: (engine, factory))
     monkeypatch.setattr(services_module, "OwnerResearchServices", lambda *a, **k: SimpleNamespace())
     config = {"state_root": str(tmp_path)}
-    args = dict(config=config, questions=[Question("original question", question_id="Q1")])
+    args = dict(
+        config=config,
+        questions=[Question("original question", question_id=q) for q in ("Q1", "Q2")],
+    )
     with pytest.raises(OSError, match="scripted_partial_export"):
         module.run_shared_company_scan(lifecycle, client, **args)
     scope = next(tmp_path.glob("scan-*"))
@@ -211,10 +243,14 @@ def test_partial_export_is_not_published_and_resumes_original_checkpoint(
             module.run_shared_company_scan(lifecycle, client, **args)
         assert not (scope / "export").exists()
         assert (scope / "export-0002/complete.txt").is_file()
-        assert calls == ["execute", "resume"]
+        assert calls == ["execute", "resume"] + (
+            ["finalize_partial"] if completed_on_refusal else []
+        )
         with pytest.raises(ValueError, match="scan_incomplete"):
             module.run_shared_company_scan(lifecycle, client, recovery_only=True, **args)
-        assert calls == ["execute", "resume", "resume"]
+        assert calls == ["execute", "resume"] + (
+            ["finalize_partial"] if completed_on_refusal else []
+        ) + ["resume"] + (["finalize_partial"] if completed_on_refusal else [])
         assert (scope / "export-0002/complete.txt").is_file()
         return
     assert module.run_shared_company_scan(lifecycle, client, **args)["status"] == "completed"

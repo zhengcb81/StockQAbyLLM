@@ -308,6 +308,19 @@ def run_shared_company_scan(
                 transport_origin=transport_origin,
             )
         if outcome.get("all_slots_completed") is not True:
+            # Earlier packs may already have a paid, verified answer. Preserve
+            # only those exact original completed members through the same
+            # native finalizer before reporting the remaining scan incomplete.
+            # The candidate stays partial; never publish it as the full export.
+            completed = [
+                row["question_id"]
+                for row in outcome.get("run", {}).get("slots", [])
+                if row.get("execution_status") == "completed" and row.get("answer") is not None
+            ]
+            if completed:
+                engine.finalize_shared_engine(
+                    task, services, candidate_export, question_ids=completed
+                )
             raise ValueError("shared_company_scan_incomplete")
         # Only publish a fully written original export. A failed candidate is
         # retained; recovery uses the existing native checkpoint in a new

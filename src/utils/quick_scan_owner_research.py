@@ -412,7 +412,9 @@ class OwnerResearchServices:
         assert_research_task(self.owner, self.task, search_service=self.search_service)
 
     def bind_task_owner_binding(self, binding):
-        self._assert_registered_inputs()
+        # This only binds immutable task inputs. The actual generation, claim
+        # and commit paths still check current owner permissions themselves.
+        self._assert_registered_inputs(check_current=False)
         subject = self.task.company_doc["subject"]["subject_ref"]
         if (
             not isinstance(binding, dict)
@@ -705,7 +707,9 @@ class OwnerResearchServices:
         return None if not receipt else self._accept_native(receipt)
 
     def attempt_observations(self, *, transport_origin, replayed=None):
-        self._assert_registered_inputs()
+        # This copies already-bound in-memory observations only. Dispatch and
+        # native writes independently recheck current owner permissions.
+        self._assert_registered_inputs(check_current=False)
         if transport_origin not in {"stockqa_live", "scripted_wire"} or (
             replayed is not None and type(replayed) is not bool
         ):
@@ -905,7 +909,16 @@ class OwnerResearchServices:
                     native_attempt_id=generic["native_attempt_id"],
                 )
             return self.request_resume("stockqa:" + generic["native_receipt"]["attempt_id"])
-        if len(entries) != 1:
+        # Missing output is not proof of no send. Only the original store can
+        # classify every selected work as released/expired without any native
+        # send, response, checkpoint or outstanding budget. This grants no
+        # claim or POST; normal generation_scope performs those checks again.
+        unsent_probe = getattr(self.store, "is_released_unsent", None)
+        if callable(unsent_probe) and all(unsent_probe(entry["work_item_id"]) for entry in entries):
+            return dict(
+                decision="not_sent", saved_receipt=None, reason="original_released_unsent_scope"
+            )
+        if len(entries) != 1:  # Historical multiturn lookup remains unchanged.
             return None
         entry = entries[0]
         from src.utils.quick_scan_research_session import find_attempt_for_task_intent

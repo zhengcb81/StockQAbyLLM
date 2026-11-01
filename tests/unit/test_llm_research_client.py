@@ -459,7 +459,10 @@ def test_independent_session_new_unknown_still_blocks_resend(tmp_path, transport
 
 
 @pytest.mark.parametrize("has_usage", [True, False])
-def test_native_final_channel_delegates_original_search_once(monkeypatch, has_usage):
+@pytest.mark.parametrize("max_output_tokens", [4096, 32768])
+def test_native_final_channel_delegates_original_search_once(
+    monkeypatch, has_usage, max_output_tokens
+):
     from src.providers import llm_research_client as module
     from src.providers.llm_client import LLMSearchResponse
 
@@ -492,6 +495,7 @@ def test_native_final_channel_delegates_original_search_once(monkeypatch, has_us
     session = ResearchChatSession(
         native,
         system_prefix="Stable original questions",
+        max_output_tokens=max_output_tokens,
         tools=[],
         response_channel="final_json",
         native_search=True,
@@ -502,7 +506,10 @@ def test_native_final_channel_delegates_original_search_once(monkeypatch, has_us
         "Stable original questions",
     )
     assert calls[0][2] == dict(
-        thinking_enabled=True, max_output_tokens=4096, json_mode=True, research_final_json=True
+        thinking_enabled=True,
+        max_output_tokens=max_output_tokens,
+        json_mode=True,
+        research_final_json=True,
     )
     assert result["receipt"]["search_status"] == "executed" and result["tool_calls"] == []
     assert result["usage_observation"]["prompt_tokens"] == (140 if has_usage else None)
@@ -531,3 +538,22 @@ def test_native_final_search_uses_original_search_endpoint_support(url):
     )
     with pytest.raises(ValueError, match="endpoint_not_qualified"):
         ResearchChatSession(native, system_prefix="original", tools=TOOLS)
+
+
+@pytest.mark.parametrize("output", [0, -1, True, 32769])
+def test_final_json_output_keeps_original_sdk_application_bound(output):
+    with pytest.raises(ValueError, match="research_limits_invalid"):
+        ResearchChatSession(
+            client(),
+            system_prefix="original",
+            tools=[],
+            response_channel="final_json",
+            max_output_tokens=output,
+        )
+
+
+def test_frozen_tool_conversation_keeps_original_16k_bound():
+    with pytest.raises(ValueError, match="research_limits_invalid"):
+        ResearchChatSession(
+            client(), system_prefix="original", tools=TOOLS, max_output_tokens=32768
+        )

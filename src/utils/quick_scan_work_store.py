@@ -3849,6 +3849,145 @@ class QuickScanWorkStore:
             )
             return "failed"
 
+    @staticmethod
+    def _unsent_release_blocked(
+        connection: sqlite3.Connection, item: sqlite3.Row | dict, *, pure_history: bool = False
+    ) -> bool:
+        work_item_id = item["work_item_id"]
+        unsafe = connection.execute(
+            "SELECT 1 FROM attempt a "
+            "LEFT JOIN quick_scan_attempt_response r ON r.attempt_id=a.attempt_id "
+            "WHERE a.work_item_id=? AND ("
+            "a.phase IN ('send_intent','response_available','uncertain') "
+            "OR ((a.lease_epoch=? OR ?) AND a.phase NOT IN ('prepared','abandoned_unsent')) "
+            "OR r.attempt_id IS NOT NULL) LIMIT 1",
+            (work_item_id, item["lease_epoch"], int(pure_history)),
+        ).fetchone()
+        checkpoint = connection.execute(
+            "SELECT 1 FROM answer_checkpoint WHERE work_item_id=?", (work_item_id,)
+        ).fetchone()
+        unsettled = connection.execute(
+            "SELECT 1 FROM quick_scan_budget_attempt b WHERE "
+            "(b.status!='settled' OR b.in_flight!=0) AND ("
+            "b.work_attempt_id IN (SELECT attempt_id FROM attempt WHERE work_item_id=?) "
+            "OR b.budget_attempt_id IN (SELECT s.budget_attempt_id "
+            "FROM quick_scan_question_pack_send s JOIN quick_scan_question_pack_member m "
+            "ON m.pack_id=s.pack_id WHERE m.work_item_id=?)) LIMIT 1",
+            (work_item_id, work_item_id),
+        ).fetchone()
+        return bool(
+            unsafe is not None
+            or checkpoint is not None
+            or unsettled is not None
+            or item["uncertain_attempt_id"] is not None
+        )
+
+    def is_released_unsent(self, work_item_id: str) -> bool:
+        """Observe an original pure-unsent release in one read-only snapshot.
+
+        This is not dispatch authority: a later claimant still needs the normal
+        atomic claim, current owner checks and native send permit. An old known
+        refusal can permit releasing a fresh lease but cannot turn sent history
+        into a never-sent task. No caller-provided status is trusted here.
+        """
+        _safe(work_item_id, "work_item_id")
+        if not self.path.is_file():
+            return False
+        with closing(
+            sqlite3.connect(
+                self.path.resolve().as_uri() + "?mode=ro",
+                uri=True,
+                timeout=120,
+                isolation_level=None,
+            )
+        ) as connection:
+            connection.row_factory = sqlite3.Row
+            connection.execute("PRAGMA query_only=ON")
+            connection.execute("BEGIN")
+            try:
+                item = connection.execute(
+                    "SELECT * FROM work_item WHERE work_item_id=?", (work_item_id,)
+                ).fetchone()
+                if (
+                    item is None
+                    or item["status"] != "pending"
+                    or item["lease_token"] is not None
+                    or item["lease_expires_at"] is not None
+                ):
+                    return False
+                released = connection.execute(
+                    "SELECT 1 FROM work_event WHERE work_item_id=? AND lease_epoch=? "
+                    "AND event_type IN ('lease_released_unsent','lease_expired_unsent') "
+                    "AND from_status='leased' AND to_status='pending' LIMIT 1",
+                    (work_item_id, item["lease_epoch"]),
+                ).fetchone()
+                if released is None or self._unsent_release_blocked(
+                    connection, item, pure_history=True
+                ):
+                    return False
+                native_intent = connection.execute(
+                    "SELECT 1 FROM quick_scan_research_intent i, json_each(i.work_item_ids_json) m "
+                    "WHERE m.value=? LIMIT 1",
+                    (work_item_id,),
+                ).fetchone()
+                return native_intent is None
+            finally:
+                connection.execute("ROLLBACK")
+
+    def release_unsent(self, work_item_id: str, lease: Lease) -> str:
+        """Relinquish an exact live lease only when no request can be in flight.
+
+        Configuration failures before native dispatch need not wait for expiry.
+        Sent, received and unresolved attempts are never released. A settled
+        refusal from an older epoch remains history, not a reason to hold a new
+        unsent lease. The same transaction fences the old worker before it can
+        obtain a send permit; neither the work identity nor its epoch is reset.
+        """
+        _safe(work_item_id, "work_item_id")
+        with self._transaction() as connection:
+            now = self._now()
+            item = self._item(connection, work_item_id)
+            self._assert_lease(item, lease, now)
+            if self._unsent_release_blocked(connection, item):
+                raise WorkConflictError("unsent release requires no sent or received request")
+            prepared = connection.execute(
+                "SELECT attempt_id FROM attempt WHERE work_item_id=? AND lease_epoch=? "
+                "AND phase='prepared' ORDER BY ordinal",
+                (work_item_id, lease.lease_epoch),
+            ).fetchall()
+            for attempt in prepared:
+                connection.execute(
+                    "UPDATE attempt SET phase='abandoned_unsent',completed_at=? "
+                    "WHERE attempt_id=? AND phase='prepared'",
+                    (now, attempt["attempt_id"]),
+                )
+                self._event(
+                    connection,
+                    work_item_id,
+                    "attempt_abandoned_unsent",
+                    lease.lease_epoch,
+                    now,
+                    attempt_id=attempt["attempt_id"],
+                )
+            changed = connection.execute(
+                "UPDATE work_item SET status='pending',lease_token=NULL,lease_expires_at=NULL,"
+                "uncertain_attempt_id=NULL,updated_at=? WHERE work_item_id=? AND status='leased' "
+                "AND lease_epoch=? AND lease_token=?",
+                (now, work_item_id, lease.lease_epoch, lease.lease_token),
+            ).rowcount
+            if changed != 1:
+                raise LeaseFencedError("unsent release lost original lease")
+            self._event(
+                connection,
+                work_item_id,
+                "lease_released_unsent",
+                lease.lease_epoch,
+                now,
+                old="leased",
+                new="pending",
+            )
+            return "pending"
+
     def recover_expired(self, work_item_id: str) -> str:
         """Release provably unsent work; a send intent is always uncertain."""
         with self._transaction() as connection:

@@ -3026,3 +3026,325 @@ def test_stockwiki_compact_binding_keeps_duplicate_foreign_anchor_and_provisiona
             source_binding_refs=(first, second),
         )
     assert store.path.read_bytes() == before
+
+
+@pytest.mark.parametrize("prepare", [False, True])
+def test_release_unsent_preserves_work_and_fences_original_worker(tmp_path, prepare):
+    clock = [1_800_000_000.0]
+    store = _store(tmp_path, clock)
+    work_id = _created(store)["work_item_id"]
+    lease = store.claim(work_id, lease_seconds=3600)
+    old_attempt = _prepared(store, work_id, lease) if prepare else None
+    refs = store.list_run_refs(work_id)
+    assert store.release_unsent(work_id, lease) == "pending"
+    item = store.get_item(work_id)
+    assert item["lease_epoch"] == lease.lease_epoch
+    assert item["lease_token"] is None and item["lease_expires_at"] is None
+    assert store.list_run_refs(work_id) == refs
+    if old_attempt:
+        assert store.list_attempts(work_id)[0]["phase"] == "abandoned_unsent"
+        with pytest.raises(LeaseFencedError):
+            store.mark_send_intent(work_id, lease, old_attempt["attempt_id"])
+    with pytest.raises(LeaseFencedError):
+        store.release_unsent(work_id, lease)
+    next_lease = store.claim(work_id, lease_seconds=3600)
+    assert next_lease.lease_epoch == lease.lease_epoch + 1
+    before = store.get_item(work_id)
+    with pytest.raises(LeaseFencedError):
+        store.release_unsent(work_id, lease)
+    assert store.get_item(work_id) == before
+    attempt = _prepared(store, work_id, next_lease)
+    assert (
+        store.mark_send_intent(work_id, next_lease, attempt["attempt_id"]).attempt_id
+        == attempt["attempt_id"]
+    )
+    assert any(e["event_type"] == "lease_released_unsent" for e in store.list_events(work_id))
+
+
+@pytest.mark.parametrize("wrong", ["token", "epoch", "expired"])
+def test_release_unsent_requires_exact_live_original_lease(tmp_path, wrong):
+    clock = [1_800_000_000.0]
+    store = _store(tmp_path, clock)
+    work_id = _created(store)["work_item_id"]
+    lease = store.claim(work_id, lease_seconds=60)
+    if wrong == "token":
+        lease = type(lease)("not-the-original-token", lease.lease_epoch)
+    elif wrong == "epoch":
+        lease = type(lease)(lease.lease_token, lease.lease_epoch + 1)
+    else:
+        clock[0] += 60
+    before = store.get_item(work_id), store.list_events(work_id)
+    with pytest.raises(LeaseFencedError):
+        store.release_unsent(work_id, lease)
+    assert (store.get_item(work_id), store.list_events(work_id)) == before
+
+
+@pytest.mark.parametrize(
+    "outcome", ["send_intent", "response_available", "confirmed_failure", "unknown"]
+)
+def test_release_unsent_never_releases_a_started_current_attempt(tmp_path, outcome):
+    store = _store(tmp_path, [1_800_000_000.0])
+    work_id = _created(store)["work_item_id"]
+    lease = store.claim(work_id, lease_seconds=60)
+    attempt = _prepared(store, work_id, lease)
+    store.mark_send_intent(work_id, lease, attempt["attempt_id"])
+    if outcome != "send_intent":
+        fields = dict(outcome=outcome)
+        if outcome == "response_available":
+            fields.update(http_status_code=200, receipt_sha256="f" * 64)
+        elif outcome == "confirmed_failure":
+            fields.update(
+                http_status_code=401,
+                receipt_sha256="f" * 64,
+                failure_category="authentication_rejected",
+            )
+        store.record_attempt_outcome(work_id, lease, attempt["attempt_id"], **fields)
+    before = store.get_item(work_id), store.list_attempts(work_id), store.list_events(work_id)
+    with pytest.raises((LeaseFencedError, WorkConflictError)):
+        store.release_unsent(work_id, lease)
+    assert (
+        store.get_item(work_id),
+        store.list_attempts(work_id),
+        store.list_events(work_id),
+    ) == before
+
+
+def test_release_unsent_allows_older_known_refusal_without_rewriting_it(tmp_path):
+    clock = [1_800_000_000.0]
+    store = _store(tmp_path, clock)
+    work_id = _created(store)["work_item_id"]
+    lease = store.claim(work_id, lease_seconds=60)
+    attempt = _prepared(store, work_id, lease)
+    store.mark_send_intent(work_id, lease, attempt["attempt_id"])
+    store.record_attempt_outcome(
+        work_id,
+        lease,
+        attempt["attempt_id"],
+        outcome="confirmed_failure",
+        http_status_code=401,
+        receipt_sha256="f" * 64,
+        failure_category="authentication_rejected",
+    )
+    old = store.list_attempts(work_id)[0]
+    clock[0] += 60
+    assert store.recover_expired(work_id) == "pending"
+    new_lease = store.claim(work_id, lease_seconds=60)
+    assert new_lease.lease_epoch == 2
+    assert store.release_unsent(work_id, new_lease) == "pending"
+    assert store.list_attempts(work_id)[0] == old
+    third_lease = store.claim(work_id, lease_seconds=60)
+    assert third_lease.lease_epoch == 3
+    assert store.release_unsent(work_id, third_lease) == "pending"
+
+
+def test_release_unsent_and_real_send_transition_are_atomically_exclusive(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    clock = [1_800_000_000.0]
+    original = _store(tmp_path, clock)
+    work_id = _created(original)["work_item_id"]
+    lease = original.claim(work_id, lease_seconds=60)
+    attempt = _prepared(original, work_id, lease)
+    releasing, sending = _store(tmp_path, clock), _store(tmp_path, clock)
+    barrier = Barrier(2)
+
+    def act(store, operation):
+        barrier.wait(timeout=5)
+        try:
+            if operation == "released":
+                store.release_unsent(work_id, lease)
+            else:
+                store.mark_send_intent(work_id, lease, attempt["attempt_id"])
+            return operation
+        except (LeaseFencedError, WorkConflictError):
+            return "blocked"
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(act, releasing, "released"), pool.submit(act, sending, "sent")]
+        outcomes = {future.result(timeout=15) for future in futures}
+    item = original.get_item(work_id)
+    physical = original.list_attempts(work_id)[0]
+    if outcomes == {"released", "blocked"}:
+        assert item["status"] == "pending" and physical["phase"] == "abandoned_unsent"
+    else:
+        assert outcomes == {"sent", "blocked"}
+        assert item["status"] == "leased" and physical["phase"] == "send_intent"
+
+
+@pytest.mark.parametrize("settled", [False, True])
+def test_release_unsent_preserves_older_refusal_budget_and_blocks_unsettled(tmp_path, settled):
+    clock = [1_800_000_000.0]
+    store = _store(tmp_path, clock)
+    work_id = _created(store)["work_item_id"]
+    policy = {
+        "configured": True,
+        "policy_id": "unsent-test",
+        "policy_version": "unsent-test@1",
+        "budget": {"currency": "USD", "max_cost": 2, "max_requests": 2, "max_cost_per_attempt": 1},
+        "cost_policy": {
+            "pricing_basis": "user_cap",
+            "pricing_ref": None,
+            "reserve_before_dispatch": True,
+            "unknown_actual_cost_action": "retain_reservation_and_pause",
+        },
+        "dispatch": {"max_in_flight_total": 1},
+        "quota_groups": [{"id": "test", "max_in_flight": 1}],
+        "routes": [
+            {
+                "id": "route-1",
+                "provider_config_ref": "mimo",
+                "model": "mimo-v2.6-flash",
+                "quota_group": "test",
+                "max_in_flight": 1,
+                "eligible": True,
+            }
+        ],
+    }
+    store.configure_quick_scan_budget(policy)
+    old_lease = store.claim(work_id, lease_seconds=60)
+    attempt = _prepared(store, work_id, old_lease)
+    store.mark_send_intent(
+        work_id,
+        old_lease,
+        attempt["attempt_id"],
+        budget_policy=policy,
+        budget_route=dict(
+            route_id="route-1",
+            provider="mimo",
+            model_requested="mimo-v2.6-flash",
+            quota_group="test",
+        ),
+    )
+    cost = dict(actual_cost=0, cost_source_ref="synthetic zero cost") if settled else {}
+    store.record_attempt_outcome(
+        work_id,
+        old_lease,
+        attempt["attempt_id"],
+        outcome="confirmed_failure",
+        http_status_code=401,
+        receipt_sha256="f" * 64,
+        failure_category="authentication_rejected",
+        **cost,
+    )
+    clock[0] += 60
+    assert store.recover_expired(work_id) == "pending"
+    current = store.claim(work_id, lease_seconds=60)
+    before = store.get_quick_scan_budget_status("unsent-test")
+    if settled:
+        assert store.release_unsent(work_id, current) == "pending"
+    else:
+        with pytest.raises(WorkConflictError, match="no sent or received"):
+            store.release_unsent(work_id, current)
+        assert store.get_item(work_id)["status"] == "leased"
+    assert store.get_quick_scan_budget_status("unsent-test") == before
+
+
+@pytest.mark.parametrize(
+    "release,prepare", [(True, False), (True, True), (False, False), (False, True)]
+)
+def test_released_unsent_classification_reads_original_events_without_writes(
+    tmp_path, release, prepare
+):
+    clock = [1_800_000_000.0]
+    store = _store(tmp_path, clock)
+    work_id = _created(store)["work_item_id"]
+    assert store.is_released_unsent(work_id) is False
+    lease = store.claim(work_id, lease_seconds=60)
+    if prepare:
+        _prepared(store, work_id, lease)
+    assert store.is_released_unsent(work_id) is False
+    if release:
+        store.release_unsent(work_id, lease)
+    else:
+        clock[0] += 60
+        assert store.recover_expired(work_id) == "pending"
+    before = store.path.read_bytes(), store.list_events(work_id), store.list_attempts(work_id)
+    assert store.is_released_unsent(work_id) is True
+    assert store.is_released_unsent(work_id) is True
+    assert (
+        store.path.read_bytes(),
+        store.list_events(work_id),
+        store.list_attempts(work_id),
+    ) == before
+    new_lease = store.claim(work_id, lease_seconds=60)
+    assert new_lease.lease_epoch == lease.lease_epoch + 1
+    assert store.is_released_unsent(work_id) is False
+
+
+def test_released_unsent_missing_work_and_prior_sent_history_are_not_unsent(tmp_path):
+    clock = [1_800_000_000.0]
+    store = _store(tmp_path, clock)
+    assert store.is_released_unsent("WORK_missing") is False
+    work_id = _created(store)["work_item_id"]
+    lease = store.claim(work_id, lease_seconds=60)
+    attempt = _prepared(store, work_id, lease)
+    store.mark_send_intent(work_id, lease, attempt["attempt_id"])
+    store.record_attempt_outcome(
+        work_id,
+        lease,
+        attempt["attempt_id"],
+        outcome="confirmed_failure",
+        http_status_code=401,
+        receipt_sha256="f" * 64,
+        failure_category="authentication_rejected",
+    )
+    clock[0] += 60
+    assert store.recover_expired(work_id) == "pending"
+    assert store.is_released_unsent(work_id) is False
+    fresh = store.claim(work_id, lease_seconds=60)
+    assert store.release_unsent(work_id, fresh) == "pending"
+    assert store.is_released_unsent(work_id) is False
+
+
+@pytest.mark.parametrize("outcome", ["send_intent", "response_available", "unknown"])
+def test_released_unsent_old_release_does_not_override_actual_send(tmp_path, outcome):
+    store = _store(tmp_path, [1_800_000_000.0])
+    work_id = _created(store)["work_item_id"]
+    old_lease = store.claim(work_id, lease_seconds=60)
+    store.release_unsent(work_id, old_lease)
+    assert store.is_released_unsent(work_id) is True
+    lease = store.claim(work_id, lease_seconds=60)
+    attempt = _prepared(store, work_id, lease)
+    store.mark_send_intent(work_id, lease, attempt["attempt_id"])
+    if outcome != "send_intent":
+        fields = dict(outcome=outcome)
+        if outcome == "response_available":
+            fields.update(http_status_code=200, receipt_sha256="f" * 64)
+        store.record_attempt_outcome(work_id, lease, attempt["attempt_id"], **fields)
+    assert store.is_released_unsent(work_id) is False
+
+
+def test_released_unsent_read_snapshot_does_not_authorize_a_later_claim(tmp_path, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+
+    clock = [1_800_000_000.0]
+    store = _store(tmp_path, clock)
+    with closing(sqlite3.connect(store.path)) as connection:
+        assert connection.execute("PRAGMA journal_mode=WAL").fetchone()[0] == "wal"
+    writer = _store(tmp_path, clock)
+    work_id = _created(store)["work_item_id"]
+    lease = store.claim(work_id, lease_seconds=60)
+    store.release_unsent(work_id, lease)
+    read_started, may_finish = Event(), Event()
+    original = store._unsent_release_blocked
+
+    def pause(connection, item, *, pure_history=False):
+        read_started.set()
+        assert may_finish.wait(5)
+        return original(connection, item, pure_history=pure_history)
+
+    monkeypatch.setattr(store, "_unsent_release_blocked", pause)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        reading = pool.submit(store.is_released_unsent, work_id)
+        try:
+            assert read_started.wait(5)
+            newer = writer.claim(work_id, lease_seconds=60)
+            assert newer is not None
+        finally:
+            may_finish.set()
+        assert reading.result(timeout=10) is True
+    assert store.get_item(work_id)["status"] == "leased"
+    assert store.claim(work_id, lease_seconds=60) is None
+    assert store.is_released_unsent(work_id) is False
