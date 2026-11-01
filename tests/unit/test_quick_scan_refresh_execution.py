@@ -856,3 +856,68 @@ def test_ready_recovery_refuses_changed_original_material_or_unreceived_work(
             question = Question("Wrong question meaning", question_id=question.question_id)
         assert lifecycle.hydrate_question(question) is None
     assert store.path.read_bytes() == before
+
+
+def test_received_recovery_runner_uses_original_inputs_before_model_spend_and_generation_checks(
+    tmp_path, monkeypatch
+):
+    from types import SimpleNamespace
+
+    import src.providers.llm_provider as provider
+    import src.runners.llm_runner as runner
+    import src.utils.quick_scan_refresh_execution as execution
+
+    monkeypatch.setattr(
+        runner,
+        "LLMConfig",
+        lambda *a, **k: pytest.fail("no model configuration for 0API recovery"),
+    )
+    monkeypatch.setattr(
+        runner,
+        "_spend_authorization_preflight",
+        lambda *a: pytest.fail("no new spend for paid response"),
+    )
+    monkeypatch.setattr(
+        provider,
+        "_final_answer_diagnostic_policy",
+        lambda path: dict(directory=tmp_path),
+    )
+    seen = []
+
+    def prepare(config, confirmation, *, input_paths):
+        seen.append((config, confirmation, input_paths))
+        return SimpleNamespace(
+            recover_received_checkpoints=lambda **kw: dict(
+                API_requests=0,
+                model_calls=0,
+                recovered_work_item_ids=["WORK_SYNTHETIC"],
+                attached_work_item_ids=[],
+                deliveries=[],
+            )
+        )
+
+    monkeypatch.setattr(execution, "prepare_execution", prepare)
+    result = LLMRunner().run(
+        company="Synthetic",
+        seal_deliveries=True,
+        recover_checkpoints=True,
+        config="questions.json",
+        identity_snapshot="identity.json",
+        question_manifest="manifest.json",
+        c06_authority="authority.json",
+        owner_refresh_config="owner-config.json",
+        refresh_admission_config="admission.json",
+        refresh_confirmation_id="original-confirmation",
+        spend_authorization="missing-spend.json",
+        question_pack_size=0,
+        work_lease_seconds=-1,
+        output=str(tmp_path / "recovery-result.json"),
+    )
+    assert result == 0 and seen[0][1] == "original-confirmation"
+    assert set(seen[0][2]) == {
+        "questions.json",
+        "identity.json",
+        "manifest.json",
+        "authority.json",
+        "owner-config.json",
+    }

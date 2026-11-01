@@ -4234,6 +4234,7 @@ class QuickScanWorkStore:
         observation_context: Optional[dict] = None,
         standard_answer: Optional[dict] = None,
         external_context_use: Optional[dict] = None,
+        _recovery_session: object = None,
     ) -> dict:
         """Atomically persist one validated answer and mark its question complete.
 
@@ -4245,6 +4246,16 @@ class QuickScanWorkStore:
         """
         _safe(work_item_id, "work_item_id")
         _safe(attempt_id, "attempt_id")
+        if _recovery_session is not None:
+            if observation_context is None or standard_answer is None:
+                raise ValueError("received_checkpoint_full_standard_inputs_required")
+            from .quick_scan_refresh_execution import ApprovedRefreshSession
+
+            if not isinstance(_recovery_session, ApprovedRefreshSession):
+                raise TypeError("received_checkpoint_native_session_required")
+            _recovery_session.assert_received_checkpoint_recovery(
+                work_item_id, attempt_id, store=self
+            )
         if not isinstance(answer, dict) or set(answer) != {
             "entity_id",
             "question_id",
@@ -4376,7 +4387,46 @@ class QuickScanWorkStore:
                 ):
                     return saved
                 raise WorkConflictError("answer checkpoint is immutable")
-            self._assert_lease(item, lease, now)
+            recovered_received = _recovery_session is not None
+            if _recovery_session is not None:
+                from .quick_scan_known_outcome_journal import (
+                    _physical,
+                    terminal_received_failure,
+                )
+
+                attempt_for_recovery = connection.execute(
+                    "SELECT * FROM attempt WHERE attempt_id=? AND work_item_id=?",
+                    (attempt_id, work_item_id),
+                ).fetchone()
+                if attempt_for_recovery is None or not terminal_received_failure(
+                    connection, item, attempt_for_recovery, "answer_validation_rejected"
+                ):
+                    raise WorkConflictError("received_checkpoint_original_failed_member_required")
+                if connection.execute(
+                    "SELECT 1 FROM work_item WHERE entity_id=? AND question_id=? AND scope=? "
+                    "AND scope_id=? AND generation>? LIMIT 1",
+                    (
+                        item["entity_id"],
+                        item["question_id"],
+                        item["scope"],
+                        item["scope_id"],
+                        item["generation"],
+                    ),
+                ).fetchone():
+                    raise WorkConflictError("received_checkpoint_later_generation_exists")
+                physical = _physical(self, connection, item, attempt_for_recovery)
+                if (
+                    physical["receipt_sha256"] != receipt_sha256
+                    or physical["response_status"] != "completed"
+                    or physical["lease_token"] != lease.lease_token
+                    or physical["lease_epoch"] != lease.lease_epoch
+                ):
+                    raise WorkConflictError("received_checkpoint_original_response_mismatch")
+                _recovery_session.assert_received_checkpoint_recovery(
+                    work_item_id, attempt_id, store=self
+                )
+            else:
+                self._assert_lease(item, lease, now)
             if item["identity_state"] != "verified":
                 raise WorkConflictError("answer checkpoint requires verified identity")
             if entity_id != item["entity_id"] or question_id != item["question_id"]:
@@ -4473,22 +4523,33 @@ class QuickScanWorkStore:
                     now,
                 ),
             )
-            changed = connection.execute(
-                "UPDATE work_item SET status='result_ready',lease_token=NULL,"
-                "lease_expires_at=NULL,uncertain_attempt_id=NULL,updated_at=? "
-                "WHERE work_item_id=? AND status='leased' AND lease_epoch=? AND lease_token=?",
-                (now, work_item_id, lease.lease_epoch, lease.lease_token),
-            ).rowcount
+            if _recovery_session is not None:
+                _recovery_session.assert_received_checkpoint_recovery(
+                    work_item_id, attempt_id, store=self
+                )
+                changed = connection.execute(
+                    "UPDATE work_item SET status='result_ready',updated_at=? "
+                    "WHERE work_item_id=? AND status='failed' AND lease_epoch=? "
+                    "AND lease_token IS NULL AND lease_expires_at IS NULL AND uncertain_attempt_id IS NULL",
+                    (now, work_item_id, lease.lease_epoch),
+                ).rowcount
+            else:
+                changed = connection.execute(
+                    "UPDATE work_item SET status='result_ready',lease_token=NULL,"
+                    "lease_expires_at=NULL,uncertain_attempt_id=NULL,updated_at=? "
+                    "WHERE work_item_id=? AND status='leased' AND lease_epoch=? AND lease_token=?",
+                    (now, work_item_id, lease.lease_epoch, lease.lease_token),
+                ).rowcount
             if changed != 1:
                 raise LeaseFencedError("quick-scan work lease changed before checkpoint commit")
             self._event(
                 connection,
                 work_item_id,
-                "answer_checkpointed",
+                "received_answer_checkpointed" if recovered_received else "answer_checkpointed",
                 lease.lease_epoch,
                 now,
                 attempt_id=attempt_id,
-                old="leased",
+                old="failed" if recovered_received else "leased",
                 new="result_ready",
             )
             row = connection.execute(

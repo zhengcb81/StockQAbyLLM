@@ -723,3 +723,312 @@ def test_neutral_owner_resolution_does_not_claim_a_specific_parser_or_financial_
     assert saved["request"]["diagnostic"]["code"] == "known_response_no_accepted_answer"
     assert immutable(store) == before
     assert store.get_answer_checkpoint(members[0]["work_item_id"]) is None
+
+
+def received_recovery_fixture(tmp_path, monkeypatch, *, fault=None):
+    from types import SimpleNamespace
+
+    from src.providers.llm_provider import _capture_final_answer_diagnostic
+    from src.utils.quick_scan_refresh_execution import ApprovedRefreshSession
+    from tests.unit.test_c06_subject_send import MANIFEST
+
+    store, clock, members, pack, receipt, policy, context = fixture(
+        tmp_path,
+        response_status="completed",
+        cost=2 if fault == "budget_exhausted" else 0.02,
+    )
+    for member in pack["members"]:
+        lease = next(m["lease"] for m in members if m["work_item_id"] == member["work_item_id"])
+        store.fail_received_without_answer(
+            member["work_item_id"],
+            lease,
+            member["attempt_id"],
+            reason_code="invalid_question",
+        )
+    bodies = []
+    for member in pack["members"]:
+        qid = member["question_id"]
+        body = dict(
+            question_id=qid,
+            response_kind="score",
+            status="scored",
+            score=8,
+            summary="Synthetic paid response; no actual company claim.",
+            information_as_of="2026-09-01",
+            period_start="2026-01-01",
+            period_end="2026-06-30",
+            basis="current",
+            trend="stable",
+            confidence="medium",
+            metrics=[],
+            items=[],
+            evidence=[
+                dict(
+                    id="e1",
+                    title="Synthetic source",
+                    url="https://example.invalid/company",
+                    published_at="2026-09-01",
+                    claim="Synthetic only",
+                )
+            ],
+            counterevidence="Synthetic uncertainty",
+            watch_triggers=["Synthetic change"],
+            missing_fields=[],
+            coverage=dict(status="partial", reason="Synthetic only"),
+        )
+        if fault == "bad_second_body" and len(bodies) == 1:
+            body["basis"] = "not_a_valid_basis"
+        bodies.append(
+            dict(
+                question_id=qid,
+                entity_id=context["questions"][qid]["metadata"]["entity_id"],
+                company_name="Synthetic fixture",
+                status="scored",
+                score=8,
+                information_as_of="2026-09-01",
+                description=body,
+            )
+        )
+    current = store.get_question_pack(pack["pack_id"])
+    trusted = dict(
+        pack_id=pack["pack_id"],
+        execution_attempt_id=pack["execution_attempt_id"],
+        budget_attempt_id=current["budget_attempt_id"],
+        members=[
+            dict(
+                question_id=m["question_id"],
+                work_item_id=m["work_item_id"],
+                work_attempt_id=m["attempt_id"],
+            )
+            for m in pack["members"]
+        ],
+    )
+    capture = dict(
+        directory=(tmp_path / "final-answer-diagnostics").absolute(),
+        max_final_answer_bytes=262144,
+    )
+    retained = _capture_final_answer_diagnostic(
+        capture, json.dumps(dict(answers=bodies)), receipt, trusted
+    )
+    assert retained["status"] == "recorded"
+    path = capture["directory"] / retained["artifact_name"]
+    if fault in {"wrong_body_hash", "wrong_response", "wrong_members"}:
+        doc = json.loads(path.read_text(encoding="utf8"))
+        if fault == "wrong_body_hash":
+            doc["final_answer"] += " "
+        elif fault == "wrong_response":
+            doc["response_id"] = "foreign_response"
+        else:
+            doc["original_transport"]["members"][0]["work_item_id"] = "WORK_FOREIGN"
+        path.write_text(json.dumps(doc), encoding="utf8")
+    session = ApprovedRefreshSession.__new__(ApprovedRefreshSession)
+    session.service = SimpleNamespace(store=store)
+    session.entries = {
+        m["question_id"]: dict(
+            kind="work",
+            work_item_id=m["work_item_id"],
+            item=dict(question_id=m["question_id"]),
+        )
+        for m in pack["members"]
+    }
+    manifest = copy.deepcopy(MANIFEST)
+    manifest["manifest_sha256"] = context["manifest_file_sha256"]
+    session.bundle = dict(
+        identity=dict(entity_id=bodies[0]["entity_id"]), manifest=manifest, authority={}
+    )
+    session.input_raw = {
+        "identity.json": json.dumps(dict(payload=dict(canonical_name="Synthetic fixture"))).encode()
+    }
+    session.check = lambda: None
+    checks = []
+
+    def guard(wid, aid, *, store):
+        checks.append((wid, aid))
+        if fault == "revoked" or (fault == "revoked_before_commit" and len(checks) > 5):
+            raise PermissionError("synthetic current owner revoked")
+
+    session.assert_received_checkpoint_recovery = guard  # fixture-only native port boundary
+    monkeypatch.setattr(
+        "src.utils.quick_scan_delivery_seal.seal_result_delivery",
+        lambda store, wid, authority: dict(work_item_id=wid, action="sealed"),
+    )
+    clock[0] += 3600  # original member leases already closed; no extension or new lease
+    return store, clock, pack, receipt, policy, session, capture, checks
+
+
+def test_received_original_pack_recovers_same_attempt_after_closed_failure_without_new_spend(
+    tmp_path, monkeypatch
+):
+    store, clock, pack, receipt, policy, session, capture, checks = received_recovery_fixture(
+        tmp_path, monkeypatch
+    )
+    before = immutable(store)
+    budget = store.get_quick_scan_budget_status("pack-policy")
+    result = session.recover_received_checkpoints(capture_policy=capture)
+    assert (
+        result["API_requests"]
+        == result["model_calls"]
+        == result["new_attempts"]
+        == result["new_generations"]
+        == 0
+    )
+    assert len(result["recovered_work_item_ids"]) == len(pack["members"])
+    after = immutable(store)
+    for key in before:
+        if key != "answer_checkpoint":
+            assert after[key] == before[key]
+    assert store.get_quick_scan_budget_status("pack-policy") == budget
+    for member in pack["members"]:
+        saved = store.get_answer_checkpoint(member["work_item_id"])
+        assert (
+            saved["attempt_id"] == member["attempt_id"] and saved["payload"]["answer"]["score"] == 8
+        )
+        assert saved["payload"]["provenance"]["response_completed_at"] == receipt["completed_at"]
+        assert store.get_item(member["work_item_id"])["status"] == "result_ready"
+        assert (
+            store.get_standard_answer(member["work_item_id"])["answer"]["information_as_of"]
+            == "2026-09-01"
+        )
+    assert (
+        session.recover_received_checkpoints(capture_policy=capture)["recovered_work_item_ids"]
+        == []
+    )
+    assert immutable(store) == after and checks
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "wrong_body_hash",
+        "wrong_response",
+        "wrong_members",
+        "bad_second_body",
+        "revoked",
+        "revoked_before_commit",
+    ],
+)
+def test_received_original_pack_recovery_rejects_changed_body_scope_or_revocation_atomically(
+    tmp_path, monkeypatch, fault
+):
+    store, clock, pack, receipt, policy, session, capture, checks = received_recovery_fixture(
+        tmp_path, monkeypatch, fault=fault
+    )
+    before = immutable(store)
+    budget = store.get_quick_scan_budget_status("pack-policy")
+    with pytest.raises((ValueError, PermissionError)):
+        session.recover_received_checkpoints(capture_policy=capture)
+    assert (
+        immutable(store) == before and store.get_quick_scan_budget_status("pack-policy") == budget
+    )
+
+
+def test_received_recovery_ignores_unrelated_bad_captures_and_needs_no_remaining_budget(
+    tmp_path, monkeypatch
+):
+    store, clock, pack, receipt, policy, session, capture, checks = received_recovery_fixture(
+        tmp_path, monkeypatch, fault="budget_exhausted"
+    )
+    (capture["directory"] / ("0" * 64 + ".final.json")).write_text(
+        "{broken unrelated JSON", encoding="utf8"
+    )
+    (capture["directory"] / ("1" * 64 + ".final.json")).write_text("[]", encoding="utf8")
+    budget = store.get_quick_scan_budget_status("pack-policy")
+    assert budget["spent_micros"] == budget["max_cost_micros"] and budget["reserved_micros"] == 0
+    result = session.recover_received_checkpoints(capture_policy=capture)
+    assert len(result["recovered_work_item_ids"]) == 3 and result["API_requests"] == 0
+    assert store.get_quick_scan_budget_status("pack-policy") == budget
+
+
+def test_received_recovery_rejects_later_generation_without_changing_prior_failed_work(
+    tmp_path, monkeypatch
+):
+    store, clock, pack, receipt, policy, session, capture, checks = received_recovery_fixture(
+        tmp_path, monkeypatch
+    )
+    old = store.get_item(pack["members"][0]["work_item_id"])
+    spec = {
+        k: old[k]
+        for k in (
+            "entity_id",
+            "question_id",
+            "generation",
+            "scope",
+            "scope_id",
+            "identity_revision",
+            "source_binding_version",
+            "identity_state",
+            "source_binding_ref",
+            "identity_snapshot_sha256",
+            "question_fingerprint",
+            "routing_fingerprint",
+        )
+    }
+    spec.update(
+        generation=old["generation"] + 1,
+        source_binding_refs=json.loads(old["source_binding_refs_json"]),
+        run_id="RUN_NEW",
+        scan_id="SCAN_NEW",
+    )
+    store.create_or_attach(**spec)
+    before = immutable(store)
+    with pytest.raises(WorkConflictError, match="later_generation"):
+        session.recover_received_checkpoints(capture_policy=capture)
+    assert immutable(store) == before
+
+
+def test_received_recovery_cannot_downgrade_to_compact_checkpoint_without_standard_body(
+    tmp_path, monkeypatch
+):
+    store, clock, pack, receipt, policy, session, capture, checks = received_recovery_fixture(
+        tmp_path, monkeypatch
+    )
+    member = pack["members"][0]
+    item = store.get_item(member["work_item_id"])
+    before = immutable(store)
+    with pytest.raises(ValueError, match="full_standard_inputs_required"):
+        store.save_answer_checkpoint(
+            member["work_item_id"],
+            Lease(member["lease_token"], member["lease_epoch"]),
+            member["attempt_id"],
+            answer=dict(
+                entity_id=item["entity_id"],
+                question_id=item["question_id"],
+                status="scored",
+                score=8,
+                description="Unbound synthetic body",
+            ),
+            execution_receipt=receipt,
+            _recovery_session=session,
+        )
+    assert immutable(store) == before
+
+
+@pytest.mark.parametrize("different_body", [False, True])
+def test_received_recovery_deduplicates_safe_same_content_copies_but_rejects_body_conflict(
+    tmp_path, monkeypatch, different_body
+):
+    store, clock, pack, receipt, policy, session, capture, checks = received_recovery_fixture(
+        tmp_path, monkeypatch
+    )
+    original = next(capture["directory"].glob("*.final.json"))
+    raw = original.read_bytes()
+    if different_body:
+        doc = json.loads(raw)
+        answers = json.loads(doc["final_answer"])
+        answers["answers"][0]["description"]["summary"] += " Different captured content."
+        doc["final_answer"] = json.dumps(answers)
+        body = doc["final_answer"].encode("utf8")
+        doc.update(
+            final_answer_sha256=hashlib.sha256(body).hexdigest(),
+            final_answer_bytes=len(body),
+        )
+        raw = json.dumps(doc).encode("utf8")
+    (capture["directory"] / ("2" * 64 + ".final.json")).write_bytes(raw)
+    before = immutable(store)
+    if different_body:
+        with pytest.raises(ValueError, match="unique_original_body_required"):
+            session.recover_received_checkpoints(capture_policy=capture)
+        assert immutable(store) == before
+    else:
+        result = session.recover_received_checkpoints(capture_policy=capture)
+        assert len(result["recovered_work_item_ids"]) == 3

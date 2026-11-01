@@ -393,6 +393,223 @@ class ApprovedRefreshSession:
         if original_binding["anchor_version"] >= self.plan["anchor_version"]:
             raise AdmissionRejected("refresh_execution_original_anchor_context_required")
 
+    def assert_received_checkpoint_recovery(self, work_item_id, attempt_id, *, store):
+        """Current original owner scope, never permission from a saved body."""
+        if store is not self.service.store:
+            raise AdmissionRejected("received_checkpoint_original_store_required")
+        entry = next(
+            (
+                entry
+                for entry in self.entries.values()
+                if entry.get("kind") == "work" and entry.get("work_item_id") == work_item_id
+            ),
+            None,
+        )
+        if entry is None:
+            raise AdmissionRejected("received_checkpoint_registered_work_required")
+        qid = entry["item"]["question_id"]
+        if qid in self.deferred:
+            raise AdmissionRejected("received_checkpoint_registered_work_superseded")
+        self.check()
+        work = store.get_item(work_item_id)
+        original = store.get_owner_refresh_binding(work_item_id)
+        if original is None or not any(
+            a["attempt_id"] == attempt_id for a in store.list_attempts(work_item_id)
+        ):
+            raise AdmissionRejected("received_checkpoint_original_binding_required")
+        self._assert_original_registered_binding(qid, work, original["binding"], store=store)
+
+    def recover_received_checkpoints(self, *, capture_policy):
+        """Re-decode only configured owner-captured, settled original pack bodies.
+
+        No caller answers, new attempts, leases, budget reservation or HTTP.
+        The diagnostic is data; this session remains the permission authority.
+        """
+        import re
+
+        from src.providers.llm_response_parser import LLMResponseParser
+
+        from .quick_scan_delivery_seal import seal_result_delivery
+        from .quick_scan_observation_context import (
+            bind_question_context,
+            parse_standard_answer,
+        )
+        from .quick_scan_result_outbox import strict_json_loads
+        from .quick_scan_work_store import Lease
+
+        if not isinstance(capture_policy, dict) or not isinstance(
+            capture_policy.get("directory"), Path
+        ):
+            raise AdmissionRejected("received_checkpoint_configured_capture_required")
+        directory = capture_policy["directory"]
+        if directory.is_symlink() or directory.resolve() != directory.absolute():
+            raise AdmissionRejected("received_checkpoint_capture_path_invalid")
+        self.check()
+        store = self.service.store
+        wanted = {e["work_item_id"]: qid for qid, e in self.entries.items() if e["kind"] == "work"}
+        packs = {}
+        attached = []
+        for work_id, qid in wanted.items():
+            item = store.get_item(work_id)
+            if item["status"] in {"result_ready", "delivered"}:
+                saved = store.get_answer_checkpoint(work_id)
+                if saved is not None:
+                    self.assert_received_checkpoint_recovery(
+                        work_id, saved["attempt_id"], store=store
+                    )
+                    attached.append(work_id)
+                continue
+            if item["status"] != "failed":
+                continue  # Pending/security and unknown/in-flight work are never dispatched here.
+            attempts = store.list_attempts(work_id)
+            if not attempts:
+                raise AdmissionRejected("received_checkpoint_original_response_required")
+            attempt = attempts[-1]
+            self.assert_received_checkpoint_recovery(work_id, attempt["attempt_id"], store=store)
+            with store._transaction() as con:
+                member = con.execute(
+                    "SELECT pack_id FROM quick_scan_question_pack_member WHERE attempt_id=?",
+                    (attempt["attempt_id"],),
+                ).fetchone()
+            if member is None:
+                raise AdmissionRejected("received_checkpoint_original_pack_required")
+            pack = store.get_question_pack(member["pack_id"])
+            if (
+                pack["physical_outcome"] != "response_available"
+                or pack["members_uncertain"]
+                or any(m["work_item_id"] not in wanted for m in pack["members"])
+            ):
+                raise AdmissionRejected("received_checkpoint_exact_registered_pack_required")
+            packs[pack["pack_id"]] = pack
+        recovered = []
+        for pack in packs.values():
+            original = store.get_attempt_response(pack["members"][0]["attempt_id"])
+            receipt = original["receipt"]
+            transport = dict(
+                question_pack_id=pack["pack_id"],
+                execution_attempt_id=pack["execution_attempt_id"],
+                physical_budget_attempt_id=pack["budget_attempt_id"],
+                members=[
+                    dict(
+                        question_id=m["question_id"],
+                        work_item_id=m["work_item_id"],
+                        work_attempt_id=m["attempt_id"],
+                    )
+                    for m in pack["members"]
+                ],
+            )
+            matches: dict[str, tuple[Path, bytes, str]] = {}
+            for path in directory.glob("*.final.json"):
+                if not re.fullmatch(r"[a-f0-9]{64}\.final\.json", path.name):
+                    continue
+                try:
+                    doc, raw = _snapshot(path)
+                except (ValueError, OSError):
+                    continue  # Unrelated damaged captures are not this pack's response.
+                if (
+                    doc.get("response_sha256") != original["response_sha256"]
+                    or doc.get("original_transport", {}).get("question_pack_id") != pack["pack_id"]
+                ):
+                    continue
+                text = doc.get("final_answer")
+                if not isinstance(text, str):
+                    raise AdmissionRejected("received_checkpoint_original_body_unavailable")
+                final_raw = text.encode("utf8")
+                final_sha = hashlib.sha256(final_raw).hexdigest()
+                if (
+                    doc.get("record_kind") != "final_answer_diagnostic"
+                    or doc.get("final_answer_retained") is not True
+                    or doc.get("final_answer_sha256") != final_sha
+                    or doc.get("final_answer_bytes") != len(final_raw)
+                    or doc.get("original_transport") != transport
+                    or any(
+                        doc.get(k) != receipt.get(v)
+                        for k, v in (
+                            ("provider", "provider"),
+                            ("actual_model", "actual_model"),
+                            ("response_id", "response_id"),
+                            ("response_status", "response_status"),
+                        )
+                    )
+                ):
+                    raise AdmissionRejected("received_checkpoint_original_body_binding_mismatch")
+                matches.setdefault(final_sha, (path, raw, text))
+            if len(matches) != 1:
+                raise AdmissionRejected("received_checkpoint_unique_original_body_required")
+            path, raw, text = next(iter(matches.values()))
+            identity_doc = strict_json_loads(self.input_raw["identity.json"].decode("utf8"))
+            parsed = LLMResponseParser().parse_question_pack_response(
+                text,
+                tuple(m["question_id"] for m in pack["members"]),
+                expected_entity_id=self.bundle["identity"]["entity_id"],
+                expected_company_name=identity_doc["payload"]["canonical_name"],
+                standard_answer_objects=True,
+            )
+            if parsed is None or parsed.invalid_question_ids or parsed.missing_question_ids:
+                raise AdmissionRejected("received_checkpoint_original_body_invalid")
+            answers = {a.question_id: a for a in parsed.answers}
+            self.check()
+            with store._transaction():
+                if _snapshot(path)[1] != raw:
+                    raise AdmissionRejected("received_checkpoint_original_body_changed")
+                for member in pack["members"]:
+                    wid = member["work_item_id"]
+                    qid = member["question_id"]
+                    answer = answers[qid]
+                    frozen = store.get_observation_context(wid)
+                    if frozen is None:
+                        raise AdmissionRejected("received_checkpoint_original_context_required")
+                    item = store.get_item(wid)
+                    bind_question_context(
+                        frozen["context"],
+                        manifest=self.bundle["manifest"],
+                        identity_snapshot_sha256=item["identity_snapshot_sha256"],
+                        entity_id=item["entity_id"],
+                        question_id=qid,
+                        scope=item["scope"],
+                        scope_id=item["scope_id"],
+                    )
+                    body = parse_standard_answer(answer.description)
+                    if body is None or answer.information_as_of != body.get("information_as_of"):
+                        raise AdmissionRejected("received_checkpoint_full_standard_body_required")
+                    store.save_answer_checkpoint(
+                        wid,
+                        Lease(member["lease_token"], member["lease_epoch"]),
+                        member["attempt_id"],
+                        answer=dict(
+                            entity_id=answer.entity_id,
+                            question_id=qid,
+                            status=answer.status,
+                            score=answer.score,
+                            description=body["summary"],
+                        ),
+                        execution_receipt=receipt,
+                        observation_context=frozen["context"],
+                        standard_answer=body,
+                        _recovery_session=self,
+                    )
+                    if item["status"] == "failed":
+                        recovered.append(wid)
+                if _snapshot(path)[1] != raw:
+                    raise AdmissionRejected("received_checkpoint_original_body_changed")
+                self.check()
+        if not recovered and not attached:
+            raise AdmissionRejected("received_checkpoint_known_response_required")
+        deliveries = []
+        for wid in dict.fromkeys(recovered + attached):
+            self.check()
+            deliveries.append(seal_result_delivery(store, wid, authority=self.bundle["authority"]))
+        return dict(
+            recovered_work_item_ids=recovered,
+            attached_work_item_ids=attached,
+            deliveries=deliveries,
+            API_requests=0,
+            model_calls=0,
+            new_attempts=0,
+            new_generations=0,
+            dispatch_started=False,
+        )
+
     def restore_registered_checkpoint(self, question, *, store) -> dict | None:
         """Read a completed original answer, never claim or re-seal its context.
 

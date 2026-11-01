@@ -457,7 +457,7 @@ def parse_standard_answer(text: Any) -> dict[str, Any] | None:
 
 def _evidence_url_identity(url: str) -> str:
     """Use the receipt's URL identity without laundering stripped credentials."""
-    from urllib.parse import parse_qsl, urlsplit
+    from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
     from .quick_scan_work_store import (
         _canonical_source_urls,
@@ -470,13 +470,35 @@ def _evidence_url_identity(url: str) -> str:
             _sensitive_query_parameter(key) for key, _ in parse_qsl(query, keep_blank_values=True)
         ):
             raise ValueError("sensitive evidence source URL")
-        return _canonical_source_urls([url])[0]
+        canonical = _canonical_source_urls([url])[0]
+        parts = urlsplit(canonical)
+        # Only a complete fixed article path makes these known referral fields
+        # irrelevant to resource selection. All other query keys stay intact.
+        tracking = set()
+        if parts.netloc == "finance.sina.com.cn" and re.fullmatch(
+            r"/wm/[0-9]{4}-[0-9]{2}-[0-9]{2}/doc-[A-Za-z0-9_-]+\.shtml", parts.path
+        ):
+            tracking = {"cre", "mod", "loc", "r", "rfunc", "tj", "tr"}
+        elif parts.netloc == "caifuhao.eastmoney.com" and re.fullmatch(r"/news/[0-9]+", parts.path):
+            tracking = {"from", "name", "gubaurl"}
+        if tracking:
+            query_items = parse_qsl(parts.query, keep_blank_values=True)
+            canonical = urlunsplit(
+                (
+                    parts.scheme,
+                    parts.netloc,
+                    parts.path,
+                    urlencode([(key, value) for key, value in query_items if key not in tracking]),
+                    parts.fragment,
+                )
+            )
+        return canonical
     except (TypeError, ValueError) as error:
         raise ValueError("invalid or sensitive evidence source URL") from error
 
 
 def _matching_evidence_source_url(url: str, source_urls: list[str]) -> str:
-    """Return original receipt spelling; no approximate URL or query matching."""
+    """Return receipt spelling; only explicit fixed-article referrals may differ."""
     identity = _evidence_url_identity(url)
     matches = [source for source in source_urls if _evidence_url_identity(source) == identity]
     if url in matches:

@@ -2022,6 +2022,7 @@ class LLMRunner:
         spend_authorization: Optional[str] = None,
         c06_authority: Optional[str] = None,
         seal_deliveries: bool = False,
+        recover_checkpoints: bool = False,
         question_manifest: Optional[str] = None,
         security_scope_id: Optional[str] = None,
         search_policy: Optional[str] = None,
@@ -2054,6 +2055,51 @@ class LLMRunner:
         Returns:
             退出码（0 表示成功，1 表示失败）
         """
+        if recover_checkpoints:
+            if (
+                not seal_deliveries
+                or batch_file
+                or not refresh_admission_config
+                or not refresh_confirmation_id
+                or not all(
+                    (
+                        config,
+                        identity_snapshot,
+                        question_manifest,
+                        c06_authority,
+                        owner_refresh_config,
+                    )
+                )
+            ):
+                raise ValueError("received_checkpoint_complete_registered_inputs_required")
+            from src.providers.llm_provider import _final_answer_diagnostic_policy
+            from src.utils.quick_scan_refresh_execution import prepare_execution
+
+            policy = _final_answer_diagnostic_policy(Path.cwd() / "llm_apis.json")
+            if policy is None:
+                raise ValueError("received_checkpoint_configured_capture_required")
+            session = prepare_execution(
+                refresh_admission_config,
+                refresh_confirmation_id,
+                input_paths={
+                    "questions.json": config,
+                    "identity.json": identity_snapshot,
+                    "manifest.json": question_manifest,
+                    "authority.json": c06_authority,
+                    "owner-config.json": owner_refresh_config,
+                },
+            )
+            result = session.recover_received_checkpoints(capture_policy=policy)
+            payload = dict(
+                schema="stockqa.seal_deliveries/1.0.0",
+                recovery_mode="received_original_response",
+                **result,
+            )
+            encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+            Path(output).parent.mkdir(parents=True, exist_ok=True)
+            Path(output).write_text(encoded + "\n", encoding="utf8")
+            print(encoded)
+            return 0
         from src.providers.llm_client import _validate_search_generation_controls
 
         work_lease_seconds = validate_work_lease_seconds(work_lease_seconds)

@@ -559,3 +559,99 @@ def test_bind_question_context_uses_the_same_manifest_rule_set(changes):
             scope="entity",
             scope_id="ENT_CONTEXT_FIXTURE",
         )
+
+
+# Exact article URLs returned in the 2026-11-01 CATL native-search receipt.
+# Offline URL-identity fixtures, not proof of financial claims.
+_ARTICLE_SINA = "https://finance.sina.com.cn/wm/2026-10-21/doc-inivyaau7964703.shtml"
+_ARTICLE_EASTMONEY = "https://caifuhao.eastmoney.com/news/20261027113534047352800"
+
+
+@pytest.mark.parametrize(
+    "article,tracked",
+    [
+        (
+            _ARTICLE_SINA,
+            _ARTICLE_SINA + "?cre=tianyi&mod=pchp&loc=32&r=0&rfunc=37&tj=cxvertical_pc_hp&tr=12",
+        ),
+        (
+            _ARTICLE_EASTMONEY,
+            _ARTICLE_EASTMONEY
+            + "?from=guba&name=5a6B5b635pe25Luj5ZCn&gubaurl=aHR0cDovL2d1YmFwb3N0LmVhc3Rtb25leS5jb20vbGlzdC8sMzAwNzUwLmh0bWw%3D",
+        ),
+    ],
+)
+def test_native_article_tracking_accepts_original_final_body_without_rewriting_urls(
+    article, tracked
+):
+    body = content()
+    body["evidence"][0]["url"] = article
+    before = copy.deepcopy(body)
+    result = api.validate_standard_answer(
+        body,
+        metadata=CONTEXT["questions"][QID]["metadata"],
+        normalized_answer=normalized(body),
+        source_urls=[tracked],
+    )
+    assert result == before and body == before
+    assert api._matching_evidence_source_url(article, [tracked]) == tracked
+
+
+@pytest.mark.parametrize(
+    "article,tracked",
+    [
+        (_ARTICLE_SINA, _ARTICLE_SINA + "?tr=12&%63re=tianyi&loc=32&mod=pchp"),
+        (_ARTICLE_EASTMONEY, _ARTICLE_EASTMONEY + "?gubaurl=a%2Fb%3D&name=a+b&from=guba"),
+    ],
+)
+def test_known_article_tracking_order_and_encoding_do_not_change_resource_identity(
+    article, tracked
+):
+    assert api._evidence_url_identity(article) == api._evidence_url_identity(tracked)
+
+
+@pytest.mark.parametrize("key", ["stockid", "ctrl", "year", "id", "ticker", "page", "start", "end"])
+def test_known_article_content_selectors_and_repeated_values_are_not_removed(key):
+    first = _ARTICLE_SINA + "?" + key + "=300750&cre=tianyi"
+    second = _ARTICLE_SINA + "?" + key + "=002841&cre=tianyi"
+    with pytest.raises(ValueError):
+        api._matching_evidence_source_url(first, [second])
+    with pytest.raises(ValueError):
+        api._matching_evidence_source_url(_ARTICLE_SINA, [first])
+    repeated = _ARTICLE_SINA + "?" + key + "=300750&" + key + "=002841"
+    with pytest.raises(ValueError):
+        api._matching_evidence_source_url(first, [repeated])
+
+
+@pytest.mark.parametrize(
+    "article,query",
+    [
+        ("https://example.invalid/wm/2026-10-21/doc-inivyaau7964703.shtml", "cre=tianyi"),
+        ("https://finance.sina.com.cn/corp/go.php", "cre=tianyi"),
+        ("https://finance.sina.com.cn/wm/2026-10-21/index.shtml", "cre=tianyi"),
+        ("https://finance.sina.com.cn/wm/2026-10-21/doc-inivyaau7964703.shtml/extra", "cre=tianyi"),
+        ("https://caifuhao.eastmoney.com/news/search", "from=guba"),
+        (_ARTICLE_SINA, "from=guba"),
+        (_ARTICLE_EASTMONEY, "cre=tianyi"),
+        (_ARTICLE_SINA, "unknown_tracking=1"),
+    ],
+)
+def test_tracking_whitelist_does_not_apply_to_other_hosts_paths_or_query_keys(article, query):
+    with pytest.raises(ValueError):
+        api._matching_evidence_source_url(article, [article + "?" + query])
+
+
+@pytest.mark.parametrize(
+    "other",
+    [
+        "https://finance.sina.com.cn/wm/2026-10-21/doc-othercompany.shtml?cre=tianyi",
+        "https://finance.sina.com.cn.evil.invalid/wm/2026-10-21/doc-inivyaau7964703.shtml?cre=tianyi",
+        "https://caifuhao.eastmoney.com/news/20261027113534047352801?from=guba",
+        "https://finance.sina.com.cn@evil.invalid/wm/2026-10-21/doc-inivyaau7964703.shtml?cre=tianyi",
+        "https://user:password@finance.sina.com.cn/wm/2026-10-21/doc-inivyaau7964703.shtml?cre=tianyi",
+        _ARTICLE_SINA + "?token=secret&cre=tianyi",
+    ],
+)
+def test_article_tracking_does_not_bind_other_resources_or_credentials(other):
+    with pytest.raises(ValueError):
+        api._matching_evidence_source_url(_ARTICLE_SINA, [other])

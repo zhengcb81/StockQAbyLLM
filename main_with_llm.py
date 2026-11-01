@@ -288,6 +288,11 @@ def main():
         help="Q10：版本化 C06 交换包权威文档 JSON 路径（contract_versions/capabilities/producer）；缺失时检查点记 durable block，不猜补字段",
     )
     parser.add_argument(
+        "--recover-checkpoints",
+        action="store_true",
+        help="与--seal-deliveries合用：仅恢复原owner已捕获的已付费响应，严格原确认/题义/来源校验，模型请求为0",
+    )
+    parser.add_argument(
         "--seal-deliveries",
         action="store_true",
         help="Q10：重启补封入口——只把已落定的检查点封存成 C06 包或记录阻断，模型请求为 0；不与 --company/--batch 同时使用",
@@ -374,8 +379,10 @@ def main():
     args = parser.parse_args()
 
     # 验证参数互斥性
+    if args.recover_checkpoints and not args.seal_deliveries:
+        parser.error("--recover-checkpoints requires --seal-deliveries")
     if args.seal_deliveries:
-        if args.company or args.batch:
+        if args.batch or (args.company and not args.recover_checkpoints):
             parser.error("--seal-deliveries 不能与 --company/--batch 同时使用")
     elif not args.company and not args.batch:
         parser.error("必须指定 --company 或 --batch 参数")
@@ -401,6 +408,7 @@ def main():
             spend_authorization=args.spend_authorization,
             c06_authority=args.c06_authority,
             seal_deliveries=args.seal_deliveries,
+            **({"recover_checkpoints": True} if args.recover_checkpoints else {}),
             question_manifest=args.question_manifest,
             security_scope_id=args.security_scope_id,
             search_policy=args.search_policy,
