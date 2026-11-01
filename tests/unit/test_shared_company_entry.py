@@ -106,7 +106,10 @@ def test_original_cli_forwards_optional_shared_config_without_starting_clients(
     assert calls[0]["shared_company_config"] == str(tmp_path / "shared.json")
 
 
-def test_partial_export_is_not_published_and_resumes_original_checkpoint(tmp_path, monkeypatch):
+@pytest.mark.parametrize("resume_complete", [True, False])
+def test_partial_export_is_not_published_and_resumes_original_checkpoint(
+    tmp_path, monkeypatch, resume_complete
+):
     # This is the entry coordinator boundary. Native checkpoint authenticity,
     # SQL and SDK are covered by the separate original-owner software E2E.
     import hashlib
@@ -174,6 +177,7 @@ def test_partial_export_is_not_published_and_resumes_original_checkpoint(tmp_pat
         session_dir.mkdir()
         output.mkdir()
         (output / "complete.txt").write_text("completed original export")
+        return {"all_slots_completed": resume_complete}
 
     def finalize(task, services, output):
         calls.append("finalize")
@@ -191,6 +195,13 @@ def test_partial_export_is_not_published_and_resumes_original_checkpoint(tmp_pat
         module.run_shared_company_scan(lifecycle, client, **args)
     scope = next(tmp_path.glob("scan-*"))
     assert not (scope / "export").exists() and (scope / "export-0001/partial.txt").is_file()
+    if not resume_complete:
+        with pytest.raises(ValueError, match="scan_incomplete"):
+            module.run_shared_company_scan(lifecycle, client, **args)
+        assert not (scope / "export").exists()
+        assert (scope / "export-0002/complete.txt").is_file()
+        assert calls == ["execute", "resume"]
+        return
     assert module.run_shared_company_scan(lifecycle, client, **args)["status"] == "completed"
     assert (scope / "export-0001/partial.txt").is_file() and (
         scope / "export/complete.txt"

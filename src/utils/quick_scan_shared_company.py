@@ -205,7 +205,7 @@ def run_shared_company_scan(
             checkpoint = sessions[-1] / "checkpoint.json"
             if not checkpoint.is_file():
                 raise ValueError("shared_company_original_checkpoint_missing")
-            engine.resume_shared_engine(
+            outcome = engine.resume_shared_engine(
                 task,
                 services,
                 session_config,
@@ -215,7 +215,7 @@ def run_shared_company_scan(
                 transport_origin=transport_origin,
             )
         else:
-            engine.execute_shared_engine(
+            outcome = engine.execute_shared_engine(
                 task,
                 services,
                 session_config,
@@ -223,6 +223,8 @@ def run_shared_company_scan(
                 session_dir=next_session,
                 transport_origin=transport_origin,
             )
+        if outcome.get("all_slots_completed") is not True:
+            raise ValueError("shared_company_scan_incomplete")
         # Only publish a fully written original export. A failed candidate is
         # retained; recovery uses the existing native checkpoint in a new
         # segment and never mistakes a half-written directory for completion.
