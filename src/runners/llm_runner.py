@@ -2072,6 +2072,34 @@ class LLMRunner:
                 )
             ):
                 raise ValueError("received_checkpoint_complete_registered_inputs_required")
+            if shared_company_config is not None:
+                if not company or not require_search:
+                    raise ValueError("shared_recovery_original_company_required")
+                return self._run_single_company(
+                    company=company,
+                    provider=provider,
+                    config=config,
+                    output=output,
+                    config_format=config_format,
+                    entity_id=entity_id,
+                    require_search=True,
+                    identity_payload=load_identity_snapshot(
+                        cast(str, identity_snapshot), expected_entity_id=entity_id
+                    ),
+                    identity_snapshot_path=identity_snapshot,
+                    c06_authority_path=c06_authority,
+                    question_manifest=question_manifest,
+                    security_scope_id=security_scope_id,
+                    search_policy=search_policy,
+                    owner_refresh_config=owner_refresh_config,
+                    refresh_admission_config=refresh_admission_config,
+                    refresh_confirmation_id=refresh_confirmation_id,
+                    question_pack_size=question_pack_size,
+                    thinking_enabled=thinking_enabled,
+                    max_output_tokens=max_output_tokens,
+                    shared_company_config=shared_company_config,
+                    shared_company_recovery_only=True,
+                )
             from src.providers.llm_provider import _final_answer_diagnostic_policy
             from src.utils.quick_scan_refresh_execution import prepare_execution
 
@@ -2314,6 +2342,7 @@ class LLMRunner:
         max_output_tokens: Optional[int] = None,
         work_lease_seconds: float = 600.0,
         shared_company_config: Optional[str] = None,
+        shared_company_recovery_only: bool = False,
     ) -> int:
         """运行单公司处理模式。
 
@@ -2521,7 +2550,7 @@ class LLMRunner:
                 questions = [
                     question for question in question_items if question.question_id in selected
                 ]
-                if readonly_recovery:
+                if readonly_recovery and not shared_company_recovery_only:
                     report = approved_session.recovery_report()
                     destination = Path(output)
                     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -2535,7 +2564,11 @@ class LLMRunner:
                     )
                     print(json.dumps(report, ensure_ascii=False, allow_nan=False))
                     return 0
-                blocked = _spend_authorization_preflight(spend_authorization)
+                blocked = (
+                    None
+                    if shared_company_recovery_only
+                    else _spend_authorization_preflight(spend_authorization)
+                )
                 if blocked is not None:
                     print(
                         json.dumps(
@@ -2611,13 +2644,22 @@ class LLMRunner:
                         llm_config.config_file.parent / "quick_scan_health.sqlite"
                     )
                     route_providers: List[Optional[LLMProvider]] = []
+                    if shared_company_recovery_only:
+                        from src.utils.quick_scan_shared_company import (
+                            registered_recovery_routes,
+                        )
+
                     execution_routes = (
-                        approved_session.execution_routes(policy)
-                        if approved_session is not None
-                        else policy["routes"]
+                        registered_recovery_routes(approved_session, policy)
+                        if shared_company_recovery_only
+                        else (
+                            approved_session.execution_routes(policy)
+                            if approved_session is not None
+                            else policy["routes"]
+                        )
                     )
                     for route in execution_routes:
-                        if not route["eligible"]:
+                        if not route["eligible"] and not shared_company_recovery_only:
                             route_providers.append(None)
                             continue
                         route_provider = LLMProvider(
@@ -2774,11 +2816,15 @@ class LLMRunner:
                         (
                             r
                             for r in (
-                                approved_session.execution_routes(quick_scan_policy)
-                                if approved_session is not None
-                                else quick_scan_policy.get("routes", [])
+                                execution_routes
+                                if shared_company_recovery_only
+                                else (
+                                    approved_session.execution_routes(quick_scan_policy)
+                                    if approved_session is not None
+                                    else quick_scan_policy.get("routes", [])
+                                )
                             )
-                            if r.get("eligible")
+                            if r.get("eligible") or shared_company_recovery_only
                         ),
                         None,
                     )
@@ -2976,6 +3022,7 @@ class LLMRunner:
                     question_pack_size=question_pack_size,
                     thinking_enabled=thinking_enabled is not False,
                     max_output_tokens=max_output_tokens if max_output_tokens is not None else 8192,
+                    recovery_only=shared_company_recovery_only,
                 )
                 return qa_engine.hydrate_questions(cast(List[Question], questions))
 

@@ -94,6 +94,34 @@ def _bound_board(config, *, subject, company_ref, excerpt_cap):
     return board
 
 
+def registered_recovery_routes(session, policy):
+    """Read the route of the original received attempt, never current key rank."""
+    bindings: set[tuple[str, str, str]] = set()
+    for qid in session.requested_question_ids:
+        entry = session.entries[qid]
+        if entry["kind"] != "work":
+            continue
+        work = session.existing_work(qid)
+        rows = [
+            row
+            for row in session.service.store.list_attempts(work["work_item_id"])
+            if row["phase"] == "response_available"
+            and session.service.store.get_attempt_response(row["attempt_id"])
+        ]
+        bindings.update((row["route_id"], row["provider"], row["model_requested"]) for row in rows)
+    if len(bindings) != 1:
+        raise ValueError("shared_recovery_original_route_required")
+    binding = next(iter(bindings))
+    routes = [
+        r
+        for r in session.execution_routes(policy)
+        if (r["id"], r["provider_config_ref"], r["model"]) == binding
+    ]
+    if len(routes) != 1:
+        raise ValueError("shared_recovery_original_route_unavailable")
+    return routes
+
+
 def run_shared_company_scan(
     lifecycle,
     client,
@@ -105,6 +133,7 @@ def run_shared_company_scan(
     thinking_enabled=True,
     max_output_tokens=8192,
     transport_origin="stockqa_live",
+    recovery_only=False,
 ):
     """Reuse original services, durable engine checkpoint/export and finalizer.
 
@@ -196,6 +225,8 @@ def run_shared_company_scan(
     root = Path(config["state_root"]) / run_id
     export = root / "export"
     if not export.exists():
+        if recovery_only and not root.is_dir():
+            raise ValueError("shared_company_original_session_required")
         root.mkdir(parents=True, exist_ok=True)
         sessions = sorted(root.glob("session-[0-9][0-9][0-9][0-9]"))
         sequence = len(sessions) + 1
@@ -203,6 +234,19 @@ def run_shared_company_scan(
         candidate_export = root / ("export-%04d" % sequence)
         if sessions:
             checkpoint = sessions[-1] / "checkpoint.json"
+            if recovery_only and not (checkpoint.exists() or checkpoint.is_symlink()):
+                # A rejected replay can export diagnostics without creating a
+                # new send checkpoint. Re-read the latest original pending
+                # checkpoint under the same zero-send guard; keep diagnostics.
+                checkpoint = next(
+                    (
+                        folder / "checkpoint.json"
+                        for folder in reversed(sessions)
+                        if (folder / "checkpoint.json").exists()
+                        or (folder / "checkpoint.json").is_symlink()
+                    ),
+                    checkpoint,
+                )
             if not checkpoint.is_file():
                 raise ValueError("shared_company_original_checkpoint_missing")
             outcome = engine.resume_shared_engine(
@@ -213,8 +257,11 @@ def run_shared_company_scan(
                 candidate_export,
                 session_dir=next_session,
                 transport_origin=transport_origin,
+                replay_only=recovery_only,
             )
         else:
+            if recovery_only:
+                raise ValueError("shared_company_original_checkpoint_required")
             outcome = engine.execute_shared_engine(
                 task,
                 services,

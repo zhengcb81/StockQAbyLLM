@@ -201,6 +201,10 @@ def test_partial_export_is_not_published_and_resumes_original_checkpoint(
         assert not (scope / "export").exists()
         assert (scope / "export-0002/complete.txt").is_file()
         assert calls == ["execute", "resume"]
+        with pytest.raises(ValueError, match="scan_incomplete"):
+            module.run_shared_company_scan(lifecycle, client, recovery_only=True, **args)
+        assert calls == ["execute", "resume", "resume"]
+        assert (scope / "export-0002/complete.txt").is_file()
         return
     assert module.run_shared_company_scan(lifecycle, client, **args)["status"] == "completed"
     assert (scope / "export-0001/partial.txt").is_file() and (
@@ -220,3 +224,119 @@ def test_shared_runner_requires_original_approval_before_reading_config_or_creat
     with pytest.raises(ValueError, match="original_approved_single_company"):
         runner.run(company="Synthetic issuer", shared_company_config=str(tmp_path / "missing.json"))
     assert not list(tmp_path.glob("*.sqlite"))
+
+
+def test_shared_received_recovery_uses_original_single_entry_without_new_spend(
+    monkeypatch, tmp_path
+):
+    import src.runners.llm_runner as module
+
+    monkeypatch.chdir(tmp_path)
+    calls = []
+    monkeypatch.setattr(module, "load_identity_snapshot", lambda *a, **k: {"original": True})
+    runner = module.LLMRunner()
+    monkeypatch.setattr(runner, "_run_single_company", lambda **kwargs: calls.append(kwargs) or 0)
+    assert (
+        runner.run(
+            company="Synthetic issuer",
+            entity_id="E1",
+            require_search=True,
+            config="questions.json",
+            identity_snapshot="identity.json",
+            question_manifest="manifest.json",
+            c06_authority="authority.json",
+            owner_refresh_config="owner.json",
+            refresh_admission_config="admission.json",
+            refresh_confirmation_id="original",
+            seal_deliveries=True,
+            recover_checkpoints=True,
+            shared_company_config="shared.json",
+            question_pack_size=1,
+            thinking_enabled=True,
+            max_output_tokens=16384,
+        )
+        == 0
+    )
+    assert len(calls) == 1 and calls[0]["shared_company_recovery_only"] is True
+    assert calls[0]["identity_payload"] == {"original": True}
+    assert calls[0].get("spend_authorization") is None
+    assert calls[0]["max_output_tokens"] == 16384
+    assert not list(tmp_path.glob("*.sqlite"))
+
+
+def test_received_recovery_uses_original_nonfirst_keyless_route():
+    from src.utils.quick_scan_shared_company import registered_recovery_routes
+
+    routes = [
+        dict(id="first", provider_config_ref="a", model="m1", eligible=True),
+        dict(id="original", provider_config_ref="b", model="m2", eligible=False),
+    ]
+    store = SimpleNamespace(
+        list_attempts=lambda w: [
+            dict(
+                attempt_id="A1",
+                phase="response_available",
+                route_id="original",
+                provider="b",
+                model_requested="m2",
+            )
+        ],
+        get_attempt_response=lambda a: {"receipt": "original"},
+    )
+    session = SimpleNamespace(
+        requested_question_ids=["Q1"],
+        entries={"Q1": {"kind": "work"}},
+        existing_work=lambda q: {"work_item_id": "W1"},
+        service=SimpleNamespace(store=store),
+        execution_routes=lambda p: routes,
+    )
+    assert registered_recovery_routes(session, {}) == [routes[1]]
+    assert routes[1]["eligible"] is False
+    store.get_attempt_response = lambda a: None
+    with pytest.raises(ValueError, match="original_route_required"):
+        registered_recovery_routes(session, {})
+
+
+def test_comparison_scope_read_does_not_require_new_dispatch_key():
+    from src.utils.quick_scan_refresh_admission import AdmissionRejected
+    from src.utils.quick_scan_refresh_execution import ApprovedRefreshSession
+    from src.utils.quick_scan_result_outbox import canonical_sha256
+
+    policy = {
+        "policy_id": "original",
+        "routes": [dict(id="r", provider_config_ref="p", model="m", eligible=False)],
+    }
+    expected = dict(
+        provider="p",
+        model="m",
+        qa=dict(route_id="r", provider_config_ref="p", policy_id="original"),
+    )
+    target = dict(
+        provider="p",
+        model="m",
+        route_id="r",
+        provider_config_ref="p",
+        policy_id="original",
+        owner_policy_sha256=canonical_sha256(expected),
+    )
+    session = ApprovedRefreshSession.__new__(ApprovedRefreshSession)
+    session.proof = {"request": {"protocol": "iqs.refresh_request/1.3.0"}, "owner_policy": expected}
+    session.work = {"Q1": {"status": "leased"}}
+    session.deferred = set()
+    session.entries = {
+        "Q1": {
+            "kind": "work",
+            "specification": {
+                "owner_refresh_binding": {"owner_control": {"comparison_target": target}}
+            },
+        }
+    }
+    assert session.execution_routes(policy) == policy["routes"]
+    assert policy["routes"][0]["eligible"] is False
+    session.work["Q1"]["status"] = "pending"
+    with pytest.raises(AdmissionRejected, match="route_unavailable"):
+        session.execution_routes(policy)
+    session.work["Q1"]["status"] = "leased"
+    target["route_id"] = "foreign"
+    with pytest.raises(AdmissionRejected, match="not_approved"):
+        session.execution_routes(policy)

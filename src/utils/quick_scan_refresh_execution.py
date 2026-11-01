@@ -860,7 +860,7 @@ class ApprovedRefreshSession:
             if route["id"] == qa["route_id"]
             and route["provider_config_ref"] == qa["provider_config_ref"]
             and route["model"] == expected["model"]
-            and route.get("eligible") is True
+            and (route.get("eligible") is True or not self.needs_new_dispatch)
         ]
         if len(selected) != 1 or policy["policy_id"] != qa["policy_id"]:
             raise AdmissionRejected("refresh_execution_target_route_unavailable")
