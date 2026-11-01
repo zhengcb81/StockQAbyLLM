@@ -247,8 +247,15 @@ def validate_exchange_package(package: object) -> dict:
     return copy.deepcopy(package)
 
 
-def validate_checkpoint_binding(package: dict, checkpoint: dict) -> None:
-    """Bind exchange fields present in Q07's checkpoint without inventing others."""
+def validate_checkpoint_binding(
+    package: dict, checkpoint: dict, *, verified_provided_source_urls: tuple[str, ...] = ()
+) -> None:
+    """Bind Q07 fields; extra sources must be revalidated by the store first.
+
+    A caller-supplied checkpoint summary alone never expands the default URL set.
+    The store supplies the explicit extra set only after re-reading its original
+    intent/receipt bindings inside the same sealing transaction.
+    """
     payload = checkpoint.get("payload")
     if not isinstance(payload, dict):
         raise ValueError("checkpoint payload is missing")
@@ -370,11 +377,28 @@ def validate_checkpoint_binding(package: dict, checkpoint: dict) -> None:
         raise ValueError("scored exchange answer requires evidence")
     if any(not isinstance(source_url, str) or not source_url.strip() for source_url in source_urls):
         raise ValueError("checkpoint evidence provenance is invalid")
+    allowed_source_urls = list(source_urls)
+    if verified_provided_source_urls:
+        provided = provenance.get("provided_context_sources")
+        if (
+            not isinstance(verified_provided_source_urls, tuple)
+            or not isinstance(provided, list)
+            or any(not isinstance(row, dict) for row in provided)
+            or any(row.get("origin") != "provided_context" for row in provided)
+            or verified_provided_source_urls != tuple(row.get("source_url") for row in provided)
+            or any(
+                not isinstance(url, str) or not url.strip() for url in verified_provided_source_urls
+            )
+            or provenance.get("search_status") != "executed"
+            or not source_urls
+        ):
+            raise ValueError("verified provided answer source projection mismatch")
+        allowed_source_urls.extend(verified_provided_source_urls)
     for entry in evidence:
         if (
             not isinstance(entry, dict)
             or not isinstance(entry.get("url"), str)
-            or entry["url"] not in source_urls
+            or entry["url"] not in allowed_source_urls
         ):
             raise ValueError("exchange package evidence URL is not bound to checkpoint")
     execution = observation.get("execution")

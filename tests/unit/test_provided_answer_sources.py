@@ -150,8 +150,9 @@ def send(f, *, omitted=False):
         f.task, f.dynamic, store=f.store, work_item_ids=[f.work_id], subject=f.subject
     )
     prompt = canonical({**f.dynamic, "evidence": []} if omitted else f.dynamic)
-    with _bindings((f.store, ((f.work_id, f.lease),), [1800000000.0])), bind_intent(
-        f.store, "a" * 64, "b" * 64, [f.work_id], provided_context=prepared
+    with (
+        _bindings((f.store, ((f.work_id, f.lease),), [1800000000.0])),
+        bind_intent(f.store, "a" * 64, "b" * 64, [f.work_id], provided_context=prepared),
     ):
         return f.client.send_search_request(
             prompt,
@@ -162,9 +163,7 @@ def send(f, *, omitted=False):
         )
 
 
-def test_actual_sent_provided_only_citation_checkpoints_and_reopens_without_changing_search_receipt(
-    provided,
-):
+def _checkpoint_provided_only_citation(provided):
     f = provided
     result = send(f)
     execution = result.execution_metadata
@@ -227,6 +226,12 @@ def test_actual_sent_provided_only_citation_checkpoints_and_reopens_without_chan
     )
     assert observation["answer"]["evidence"][0]["url"] == "https://issuer.example.invalid/annual"
     assert observation["execution"]["search_receipt_id"] == receipt["search_receipt_id"]
+
+
+def test_actual_sent_provided_only_citation_checkpoints_and_reopens_without_changing_search_receipt(
+    provided,
+):
+    _checkpoint_provided_only_citation(provided)
 
 
 @pytest.mark.parametrize("fault", ["unsent", "issuer", "excerpt", "future", "board"])
@@ -351,8 +356,9 @@ def test_v25_migration_keeps_old_intent_and_receipt_bytes(provided):
 
     f = provided
     # An ordinary old intent has no provided data and retains its exact hash.
-    with _bindings((f.store, ((f.work_id, f.lease),), [1800000000.0])), bind_intent(
-        f.store, "a" * 64, "c" * 64, [f.work_id]
+    with (
+        _bindings((f.store, ((f.work_id, f.lease),), [1800000000.0])),
+        bind_intent(f.store, "a" * 64, "c" * 64, [f.work_id]),
     ):
         result = f.client.send_search_request(
             "Original old input",
@@ -441,8 +447,9 @@ def test_original_research_sdk_messages_carrier_binds_provided_context(provided,
     prepared = prepare_provided_context(
         f.task, f.dynamic, store=f.store, work_item_ids=[f.work_id], subject=f.subject
     )
-    with _bindings((f.store, ((f.work_id, f.lease),), [1800000000.0])), bind_intent(
-        f.store, "a" * 64, "d" * 64, [f.work_id], provided_context=prepared
+    with (
+        _bindings((f.store, ((f.work_id, f.lease),), [1800000000.0])),
+        bind_intent(f.store, "a" * 64, "d" * 64, [f.work_id], provided_context=prepared),
     ):
         result = ResearchChatSession(f.client, system_prefix="Original rules", tools=TOOLS).step(
             user_context="Original directive\n" + canonical(f.dynamic)
@@ -477,3 +484,139 @@ def test_future_reported_period_is_not_a_future_publication(provided, field):
         )
         assert projected["provided_context_sources"][0]["period_end"] == "2030-12-31"
         assert len(f.sent) == 1
+
+
+def _sealed_provided_input(f, tmp_path):
+    """Drive the original SDK/SQLite checkpoint and original complete adapter."""
+    from pathlib import Path
+
+    from src.utils.quick_scan_c06_authority import load_c06_authority
+    from src.utils.quick_scan_result_outbox import canonical_sha256
+    from tests.unit.test_quick_scan_question_pack_transport import MANIFEST
+
+    _checkpoint_provided_only_citation(f)
+    meta = f.context["questions"]["IQS_01"]["metadata"]
+    item = f.store.get_item(f.work_id)
+    identity = {
+        key: item[key]
+        for key in (
+            "identity_revision",
+            "source_binding_version",
+            "identity_state",
+            "source_binding_ref",
+            "identity_snapshot_sha256",
+        )
+    }
+    identity["source_binding_refs"] = ["BND_PACK"]
+    question = next(q for q in MANIFEST["questions"] if q["id"] == "IQS_01")
+    # Map the actual frozen run labels via the original attach API, never relabel.
+    attached = f.store.create_or_attach(
+        entity_id=item["entity_id"],
+        question_id="IQS_01",
+        generation=1,
+        scope="entity",
+        scope_id=item["entity_id"],
+        **identity,
+        question_fingerprint=item["question_fingerprint"],
+        routing_fingerprint=item["routing_fingerprint"],
+        run_id=meta["run_id"],
+        scan_id=meta["scan_id"],
+    )
+    assert attached["work_item_id"] == f.work_id
+    doc = json.loads(
+        (
+            Path(__file__).parents[1] / "fixtures" / "quick_scan_c06_authority_v2_fixture.json"
+        ).read_text(encoding="utf8")
+    )
+    doc.update(
+        schema_version="3.0.0",
+        observation_context=f.context,
+        observation_context_sha256=canonical_sha256(f.context),
+    )
+    path = tmp_path / "authority-v3.json"
+    path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf8")
+    from src.utils.quick_scan_question_manifest import load_question_manifest
+
+    manifest = load_question_manifest(
+        Path(__file__).parents[1] / "fixtures" / "quick_scan_c06_manifest_v2_fixture.json"
+    )
+    authority = load_c06_authority(
+        path, manifest=manifest, identity_snapshot_sha256=f.context["identity_snapshot_sha256"]
+    )
+    return authority, identity, question
+
+
+def test_provided_only_source_seals_exports_reopens_and_hydrates_without_resend(provided, tmp_path):
+    from src.core.models import Question
+    from src.core.qa_engine import QAEngine
+    from src.runners.llm_runner import QuickScanWorkLifecycle
+    from src.utils.quick_scan_delivery_seal import seal_result_delivery
+    from src.utils.quick_scan_result_outbox import validate_checkpoint_binding
+
+    f = provided
+    authority, identity, question = _sealed_provided_input(f, tmp_path)
+    attempt = f.store.list_attempts(f.work_id)[0]["attempt_id"]
+    original_receipt = f.store.get_attempt_response(attempt)["receipt"]
+    original_cp = f.store.get_answer_checkpoint(f.work_id)
+    result = seal_result_delivery(f.store, f.work_id, authority=authority)
+    assert result["action"] == "sealed"
+    delivery = f.store.get_result_delivery(f.work_id)
+    assert delivery["state"] == "ready"
+    assert (
+        delivery["package"]["items"][0]["observation"]["answer"]["evidence"][0]["url"]
+        == "https://issuer.example.invalid/annual"
+    )
+    # Pure validation stays strict without a source set verified by the store.
+    with pytest.raises(ValueError, match="evidence URL is not bound"):
+        validate_checkpoint_binding(delivery["package"], original_cp)
+    trusted_urls = ("https://issuer.example.invalid/annual",)
+    validate_checkpoint_binding(
+        delivery["package"], original_cp, verified_provided_source_urls=trusted_urls
+    )
+    bad_package = copy.deepcopy(delivery["package"])
+    bad_package["items"][0]["observation"]["answer"]["evidence"][0][
+        "url"
+    ] = "https://arbitrary.invalid/answer"
+    with pytest.raises(ValueError, match="evidence URL is not bound"):
+        validate_checkpoint_binding(
+            bad_package, original_cp, verified_provided_source_urls=trusted_urls
+        )
+    with pytest.raises(ValueError, match="provided answer source projection mismatch"):
+        validate_checkpoint_binding(
+            delivery["package"],
+            original_cp,
+            verified_provided_source_urls=("https://arbitrary.invalid/answer",),
+        )
+    forged_cp = copy.deepcopy(original_cp)
+    forged_cp["payload"]["provenance"]["provided_context_sources"][0][
+        "source_url"
+    ] = "https://arbitrary.invalid/answer"
+    with pytest.raises(ValueError, match="evidence URL is not bound"):
+        validate_checkpoint_binding(bad_package, forged_cp)
+    # The original supersede path must use the same verified projection, too.
+    assert (
+        f.store.supersede_result_delivery(f.work_id, delivery["package"])["package_bytes"]
+        == delivery["package_bytes"]
+    )
+    reopened = QuickScanWorkStore(f.store.path)
+    assert reopened.get_result_delivery(f.work_id)["package_bytes"] == delivery["package_bytes"]
+    assert reopened.get_answer_checkpoint(f.work_id) == original_cp
+    assert reopened.get_attempt_response(attempt)["receipt"] == original_receipt
+    meta = f.context["questions"]["IQS_01"]["metadata"]
+    lifecycle = QuickScanWorkLifecycle(
+        reopened,
+        entity_id=meta["entity_id"],
+        identity=identity,
+        run_id=meta["run_id"],
+        scan_id=meta["scan_id"],
+        routing_fingerprint="e" * 64,
+    )
+    no_send = Mock()
+    no_send.get_provider_name.return_value = "synthetic-read-only"
+    no_send.search.side_effect = AssertionError("hydrate must not dispatch")
+    batch = QAEngine(no_send, work_item_lifecycle=lifecycle).hydrate_questions(
+        [Question(text=question["prompt"], question_id="IQS_01")]
+    )
+    assert batch.results[0].answer.score == 8
+    assert batch.results[0].answer.status == "scored"
+    assert len(f.sent) == 1

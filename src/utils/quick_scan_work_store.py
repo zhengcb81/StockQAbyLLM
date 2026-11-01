@@ -5538,7 +5538,19 @@ class QuickScanWorkStore:
                     publisher_authority,
                     preauthorized_grant=preauthorized_grant,
                 )
-            validate_checkpoint_binding(validated, checkpoint)
+            # _checkpoint_record has just revalidated these sources against the
+            # original sent intent/receipt in this same transaction. Do not let
+            # the pure package validator trust an arbitrary checkpoint summary.
+            validate_checkpoint_binding(
+                validated,
+                checkpoint,
+                verified_provided_source_urls=tuple(
+                    row["source_url"]
+                    for row in checkpoint["payload"]["provenance"].get(
+                        "provided_context_sources", []
+                    )
+                ),
+            )
             self._assert_complete_observation_binding(
                 connection,
                 work_item_id=work_item_id,
@@ -5688,7 +5700,19 @@ class QuickScanWorkStore:
             if checkpoint_row is None:
                 raise WorkConflictError("result-ready work has no answer checkpoint")
             checkpoint = self._checkpoint_record(connection, checkpoint_row, validate_status=True)
-            validate_checkpoint_binding(validated, checkpoint)
+            # _checkpoint_record has just revalidated these sources against the
+            # original sent intent/receipt in this same transaction. Do not let
+            # the pure package validator trust an arbitrary checkpoint summary.
+            validate_checkpoint_binding(
+                validated,
+                checkpoint,
+                verified_provided_source_urls=tuple(
+                    row["source_url"]
+                    for row in checkpoint["payload"]["provenance"].get(
+                        "provided_context_sources", []
+                    )
+                ),
+            )
             self._assert_complete_observation_binding(
                 connection,
                 work_item_id=work_item_id,
