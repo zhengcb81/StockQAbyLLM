@@ -51,7 +51,7 @@ def provided(tmp_path, monkeypatch):
         perimeter_sha256="d" * 64,
         decision_id="route_" + "e" * 64,
         anchor_version=1,
-        manifest_raw_sha256="c" * 64,
+        manifest_raw_sha256=context["manifest_file_sha256"],
         provider="mimo",
         model="mimo-v2.6-flash",
         information_cutoff=meta["information_cutoff"],
@@ -77,7 +77,14 @@ def provided(tmp_path, monkeypatch):
         source_binding_refs=["BND_PACK"],
         identity_snapshot_sha256=context["identity_snapshot_sha256"],
         question_fingerprint=row["work_prompt_sha256"],
-        routing_fingerprint="e" * 64,
+        routing_fingerprint=hashlib.sha256(
+            canonical(
+                dict(
+                    subject_key=binding["subject_key"],
+                    request_identity_key=binding["request_identity_key"],
+                )
+            ).encode()
+        ).hexdigest(),
         run_id="RUN_SYNTHETIC_PACK",
         scan_id="SCAN_SYNTHETIC_PACK",
         owner_refresh_binding=binding,
@@ -609,7 +616,7 @@ def test_provided_only_source_seals_exports_reopens_and_hydrates_without_resend(
         identity=identity,
         run_id=meta["run_id"],
         scan_id=meta["scan_id"],
-        routing_fingerprint="e" * 64,
+        routing_fingerprint=reopened.get_item(f.work_id)["routing_fingerprint"],
     )
     no_send = Mock()
     no_send.get_provider_name.return_value = "synthetic-read-only"
@@ -620,3 +627,130 @@ def test_provided_only_source_seals_exports_reopens_and_hydrates_without_resend(
     assert batch.results[0].answer.score == 8
     assert batch.results[0].answer.status == "scored"
     assert len(f.sent) == 1
+
+
+def test_original_approved_owner_restores_provided_only_checkpoint_without_new_send(
+    provided, tmp_path
+):
+    from pathlib import Path
+
+    from src.core.models import Question
+    from src.core.qa_engine import QAEngine
+    from src.runners.llm_runner import QuickScanWorkLifecycle
+    from src.utils.quick_scan_delivery_seal import seal_result_delivery
+    from src.utils.quick_scan_question_manifest import load_question_manifest
+    from src.utils.quick_scan_refresh_execution import (
+        ApprovedRefreshSession,
+        registered_scope,
+    )
+
+    f = provided
+    authority, identity, question_data = _sealed_provided_input(f, tmp_path)
+    assert seal_result_delivery(f.store, f.work_id, authority=authority)["action"] == "sealed"
+    work = f.store.get_item(f.work_id)
+    binding = f.store.get_owner_refresh_binding(f.work_id)["binding"]
+    qid = "IQS_01"
+    question = Question(question_data["prompt"], question_id=qid)
+    identity = {**identity, "entity_id": work["entity_id"]}
+    spec = dict(
+        **identity,
+        question_id=qid,
+        generation=work["generation"],
+        scope=work["scope"],
+        scope_id=work["scope_id"],
+        question_fingerprint=work["question_fingerprint"],
+        routing_fingerprint=work["routing_fingerprint"],
+        owner_refresh_binding=binding,
+    )
+    manifest = load_question_manifest(
+        Path(__file__).parents[1] / "fixtures" / "quick_scan_c06_manifest_v2_fixture.json"
+    )
+    bundle = dict(
+        identity=identity, manifest=manifest, questions={qid: question}, authority=authority
+    )
+    item = dict(
+        question_id=qid,
+        field_id=f.context["questions"][qid]["metadata"]["field_id"],
+        subject_ref=f.subject,
+        generation=work["generation"],
+        decision="resume_existing_work",
+        reuse_observation_id=None,
+        existing_work_status="result_ready",
+    )
+    confirmation = "rc2_" + "f" * 64
+    record = dict(
+        inputs=dict(
+            action=dict(confirmation_id=confirmation), specifications=[spec], references=[]
+        ),
+        receipt=dict(
+            items=[
+                {
+                    k: work[k]
+                    for k in (
+                        "work_item_id",
+                        "entity_id",
+                        "question_id",
+                        "generation",
+                        "scope",
+                        "scope_id",
+                    )
+                }
+            ]
+        ),
+    )
+    proof = dict(
+        confirmation=dict(confirmation_id=confirmation),
+        request=dict(
+            protocol="iqs.refresh_request/1.1.0",
+            source_query=dict(payload=dict(information_cutoff=binding["information_cutoff"])),
+        ),
+        preview=dict(
+            items=[item],
+            provider=binding["provider"],
+            model=binding["model"],
+            scope_sha256="a" * 64,
+        ),
+        owner_policy=dict(provider=binding["provider"], model=binding["model"]),
+    )
+    session = ApprovedRefreshSession.__new__(ApprovedRefreshSession)
+    session.plan, session.proof, session.record = copy.deepcopy(binding), proof, record
+    session.bundle, session.bundles = bundle, {}
+    session.input_paths, session.input_raw = {}, {}
+    session._policy_check, session.deferred = None, {}
+    session.fields = {qid: dict(decision="resume_existing_work")}
+    session.entries = registered_scope(
+        [item], bundle, record, information_cutoff=binding["information_cutoff"]
+    )
+    session.native = SimpleNamespace(
+        plan=copy.deepcopy(session.plan),
+        current=dict(
+            anchor_version=binding["anchor_version"], expected_decision_id=binding["decision_id"]
+        ),
+        check=Mock(),
+    )
+    session.service = SimpleNamespace(
+        store=f.store,
+        _inputs_unchanged=Mock(),
+        _record=Mock(return_value=copy.deepcopy(record)),
+        bridge=SimpleNamespace(inspect=Mock(return_value=copy.deepcopy(proof))),
+    )
+    before = f.store.path.read_bytes()
+    original = f.store.get_answer_checkpoint(f.work_id)
+    restored = session.restore_registered_checkpoint(question, store=f.store)
+    assert restored["payload"] == original["payload"]
+    lifecycle = QuickScanWorkLifecycle(
+        f.store,
+        entity_id=work["entity_id"],
+        identity=identity,
+        run_id="SYNTHETIC_OUTER_RUN",
+        scan_id="SYNTHETIC_OUTER_SCAN",
+        transport_managed=True,
+        owner_refresh_session=session,
+    )
+    provider = Mock()
+    provider.get_provider_name.return_value = "hydrate-only"
+    provider.search.side_effect = AssertionError("no new search")
+    batch = QAEngine(provider, work_item_lifecycle=lifecycle).hydrate_questions([question])
+    assert batch.results[0].answer.score == 8
+    assert batch.results[0].metadata["answer_checkpoint"]["attempt_id"] == original["attempt_id"]
+    assert f.store.path.read_bytes() == before and len(f.sent) == 1

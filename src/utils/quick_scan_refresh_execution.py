@@ -677,7 +677,15 @@ class ApprovedRefreshSession:
             standard["answer"],
             metadata=bound["metadata"],
             normalized_answer=checkpoint["payload"]["answer"],
-            source_urls=provenance["source_urls"],
+            # get_answer_checkpoint has re-read the original sent intent and
+            # response binding. Preserve its native search projection, while
+            # validating citations against the independently verified context.
+            source_urls=list(
+                dict.fromkeys(
+                    provenance["source_urls"]
+                    + [row["source_url"] for row in provenance.get("provided_context_sources", [])]
+                )
+            ),
         )
         response = store.get_attempt_response(checkpoint["attempt_id"])
         if response is None:
