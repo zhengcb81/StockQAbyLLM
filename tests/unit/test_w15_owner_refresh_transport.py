@@ -397,3 +397,206 @@ def test_partial_delivery_resume_uses_original_outbox_and_missing_owner_ack_neve
         after_ack.binding("IQS_05")
     assert len(store.find_work_items(entity_id=UUID_ENTITY, question_ids=["IQS_05"])["IQS_05"]) == 1
     assert original_store.get_result_delivery(wid)["package_bytes"] == original[0]
+
+
+def _registered_paid_entry(client, manifest, store, identity):
+    from tests.unit.test_quick_scan_work_store import (
+        _created,
+        _successful_search_attempt,
+    )
+
+    client.plan_fixture["provider"] = "openai"
+    client.plan_fixture["refresh_id"] = "refresh_" + canonical_sha256(
+        {
+            k: v
+            for k, v in client.plan_fixture.items()
+            if k not in {"refresh_id", "reused_observations"}
+        }
+    )
+    original = client.prepare(
+        manifest, store, identity=identity, provider="openai", model="M1", now=NOW
+    )
+    qid = manifest["questions"][0]["id"]
+    binding = original.binding(qid)
+    spec = dict(
+        identity,
+        question_id=qid,
+        scope_id=identity["entity_id"],
+        generation=binding["target_generation"],
+        owner_refresh_binding=binding,
+    )
+    work = _created(store, **spec)
+    lease, attempt, receipt = _successful_search_attempt(
+        store, work["work_item_id"], provider="openai", model="M1"
+    )
+    entries = {
+        qid: dict(
+            kind="work",
+            work_item_id=work["work_item_id"],
+            specification=dict(generation=work["generation"], owner_refresh_binding=binding),
+        )
+    }
+    return entries, receipt
+
+
+def test_paid_native_view_does_not_replan_or_require_new_execution(tmp_path):
+    client, manifest, store, identity = _fixture(tmp_path)
+    entries, receipt = _registered_paid_entry(client, manifest, store, identity)
+    original_call = client._call
+    calls = []
+
+    def expired_new_send(operation, extra):
+        calls.append(operation)
+        if operation in {"current", "refresh"}:
+            raise OwnerRefreshRejected("manual route override expired at execution")
+        return original_call(operation, extra)
+
+    client._call = expired_new_send
+    before = store.path.read_bytes()
+    session = client.prepare(
+        manifest,
+        store,
+        identity=identity,
+        provider="openai",
+        model="M1",
+        now=NOW,
+        recovery_entries=entries,
+    )
+    assert calls == ["anchor", "anchor"]
+    assert session.plan["protocol"] == "stockqa.registered_response_recovery_view/1.0.0"
+    assert session.recovery_only and session.plan["new_execution_authorized"] is False
+    assert session.plan["fields"][0]["decision"] == "resume_existing_work"
+    assert store.path.read_bytes() == before
+    with pytest.raises(OwnerRefreshRejected, match="cannot_dispatch"):
+        session.binding(manifest["questions"][0]["id"])
+    with pytest.raises(OwnerRefreshRejected, match="cannot_dispatch"):
+        session.register_subject_dispatch({})
+
+
+@pytest.mark.parametrize("fault", ["subject", "scope", "decision", "anchor", "withdrawn"])
+def test_paid_native_view_rejects_original_scope_or_current_anchor_drift(tmp_path, fault):
+    client, manifest, store, identity = _fixture(tmp_path)
+    entries, _ = _registered_paid_entry(client, manifest, store, identity)
+    entry = next(iter(entries.values()))
+    binding = entry["specification"]["owner_refresh_binding"]
+    if fault == "subject":
+        binding["subject_key"] = "other-subject"
+    elif fault == "scope":
+        binding["scope_id"] = "other-scope"
+    elif fault == "decision":
+        binding["decision_id"] = "route_" + "0" * 64
+    elif fault == "anchor":
+        binding["anchor_version"] = 99
+    else:
+
+        def withdrawn(operation, extra):
+            raise OwnerRefreshRejected("route_current_unavailable")
+
+        client._call = withdrawn
+    before = store.path.read_bytes()
+    with pytest.raises(OwnerRefreshRejected):
+        client.prepare(
+            manifest,
+            store,
+            identity=identity,
+            provider="openai",
+            model="M1",
+            now=NOW,
+            recovery_entries=entries,
+        )
+    assert store.path.read_bytes() == before
+
+
+def test_paid_native_anchor_survives_real_iqs_manual_override_expiry(tmp_path, monkeypatch):
+    """Real IQS expiry oracle + original SQLite safe; owner RPC alone is typed."""
+    import importlib.util
+    import sys
+
+    iqs = Path(__file__).resolve().parents[3] / "invest-quick-scan"
+    if not (iqs / "tests/test_routing.py").is_file():
+        pytest.skip("requires sibling IQS source for real offline route oracle")
+    monkeypatch.syspath_prepend(str(iqs / "scripts"))
+    spec = importlib.util.spec_from_file_location(
+        "paid_expiry_routing_fixture", iqs / "tests/test_routing.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    fixture = module.RoutingFixture()
+    fixture.setUp()
+    try:
+        expiry = "2026-10-10T00:00:00Z"
+        decision = fixture.route(
+            now_utc=NOW,
+            user_policy={
+                "manual_overrides": [
+                    dict(
+                        module_id="semiconductors",
+                        decision="selected",
+                        actor="synthetic-owner",
+                        reason="Synthetic reviewed classification",
+                        valid_until=expiry,
+                    )
+                ]
+            },
+        )
+        module.routing.validate_recorded_route_execution(decision, now_utc=NOW, root=fixture.root)
+        with pytest.raises(ValueError, match="expired at execution"):
+            module.routing.validate_recorded_route_execution(
+                decision, now_utc=expiry, root=fixture.root
+            )
+        client, manifest, store, identity = _fixture(tmp_path)
+        entries, receipt = _registered_paid_entry(client, manifest, store, identity)
+        original_call = client._call
+
+        def original_owner(operation, extra):
+            if operation in {"current", "refresh"}:
+                module.routing.validate_recorded_route_execution(
+                    decision, now_utc=expiry, root=fixture.root
+                )
+                pytest.fail("new send was unexpectedly allowed after override deadline")
+            return original_call(operation, extra)
+
+        client._call = original_owner
+        before = store.path.read_bytes()
+        session = client.prepare(
+            manifest,
+            store,
+            identity=identity,
+            provider="openai",
+            model="M1",
+            now=expiry,
+            recovery_entries=entries,
+        )
+        assert session.recovery_only and session.plan["new_execution_authorized"] is False
+        assert store.path.read_bytes() == before
+        work_id = next(iter(entries.values()))["work_item_id"]
+        assert (
+            store.get_attempt_response(store.list_attempts(work_id)[-1]["attempt_id"])["receipt"]
+            == receipt
+        )
+    finally:
+        fixture.doCleanups()
+
+
+def test_paid_view_uses_registered_scan_cutoff_not_older_classification_date(tmp_path):
+    client, manifest, store, identity = _fixture(tmp_path)
+    entries, _ = _registered_paid_entry(client, manifest, store, identity)
+    original_binding = next(iter(entries.values()))["specification"]["owner_refresh_binding"]
+    original_binding["information_cutoff"] = "2026-10-09"
+    assert (
+        json.loads(base64.b64decode(client.current_fixture["snapshot"]["route_raw_base64"]))[
+            "as_of"
+        ]
+        == "2026-10-08"
+    )
+    session = client.prepare(
+        manifest,
+        store,
+        identity=identity,
+        provider="openai",
+        model="M1",
+        now=NOW,
+        recovery_entries=entries,
+    )
+    assert session.plan["information_cutoff"] == "2026-10-09"
+    assert original_binding["information_cutoff"] == "2026-10-09"

@@ -122,6 +122,17 @@ def registered_recovery_routes(session, policy):
     return routes
 
 
+def load_original_company_task(checkpoint):
+    load_checkpoint = importlib.import_module("iqs_company_agent_lab.checkpoint").load_checkpoint
+    task_from_bundle = importlib.import_module("iqs_company_agent_lab.task").task_from_bundle
+    check_traceable_links = importlib.import_module(
+        "iqs_company_agent_lab.pathsafety"
+    ).check_traceable_links
+
+    check_traceable_links(checkpoint)
+    return task_from_bundle(load_checkpoint(checkpoint)["task_bundle"])
+
+
 def run_shared_company_scan(
     lifecycle,
     client,
@@ -140,15 +151,9 @@ def run_shared_company_scan(
     The caller hydrates the resulting original checkpoints into its normal
     output. An interrupted or rejected engine never falls back to asking again.
     """
-    if (
-        thinking_enabled is False
-        or type(max_output_tokens) is not int
-        or not 1 <= max_output_tokens <= 16384
-    ):
-        raise ValueError("shared_company_requires_thinking_and_output_at_most_16384")
+    from src.utils.quick_scan_company_context import company_scan_capabilities
+
     native_search = lifecycle._external_retrieval is None
-    if native_search and (client.provider_name != "mimo" or not client.supports_web_search):
-        raise ValueError("shared_company_native_search_endpoint_not_qualified")
     engine, factory = _modules(config)
     owner = lifecycle._owner_refresh
     ids = [q.question_id for q in questions]
@@ -166,42 +171,74 @@ def run_shared_company_scan(
         }
     )
     run_id = "scan-" + identity[:48]
-    limits = {
-        **config.get("limits", {}),
-        "logical_max_output_tokens_including_reasoning_per_request": max_output_tokens,
-    }
-    kwargs = dict(
-        experiment_id="company-scan",
-        run_id=run_id,
-        question_ids=selected,
-        limits=limits,
-        pack_by=config.get("pack_by", "module"),
-        max_questions_per_pack=question_pack_size,
+    # Read the original task before inspecting NEW control/evidence settings.
+    # A paid scan retains its frozen identity, board and session limits.
+    root = Path(config["state_root"]) / run_id
+    checkpoints = (
+        [root / "export" / "checkpoint.json"]
+        if (root / "export").exists()
+        else sorted(root.glob("session-[0-9][0-9][0-9][0-9]/checkpoint.json"), reverse=True)
     )
-    # Project the original issuer with the same public serializer as the
-    # task factory. Do not build/validate the entire admitted task twice just
-    # to obtain this reference before attaching short source records.
-    canonical = importlib.import_module("iqs_company_agent_lab.canonical")
-    profiles = importlib.import_module("iqs_company_agent_lab.scan_profile")
+    if checkpoints:
+        task = load_original_company_task(checkpoints[0])
+        if task.question_ids != selected:
+            raise ValueError("shared_company_original_question_selection_changed")
+        max_output_tokens = task.limits["logical_max_output_tokens_including_reasoning_per_request"]
+        question_pack_size = max(map(len, task.raw["execution_profile"]["packs"]))
+        thinking_enabled = True  # Original one-shot scan protocol always requires thinking.
+    else:
+        if recovery_only:
+            raise ValueError("shared_company_original_checkpoint_required")
+        limits = {
+            **config.get("limits", {}),
+            "logical_max_output_tokens_including_reasoning_per_request": max_output_tokens,
+        }
+        kwargs = dict(
+            experiment_id="company-scan",
+            run_id=run_id,
+            question_ids=selected,
+            limits=limits,
+            pack_by=config.get("pack_by", "module"),
+            max_questions_per_pack=question_pack_size,
+        )
+        # Project the original issuer with the same public serializer as the
+        # task factory. Do not build/validate the entire admitted task twice just
+        # to obtain this reference before attaching short source records.
+        canonical = importlib.import_module("iqs_company_agent_lab.canonical")
+        profiles = importlib.import_module("iqs_company_agent_lab.scan_profile")
 
-    identity_payload = strict_json_loads(owner.input_raw["identity.json"].decode("utf8"))["payload"]
-    subject = lifecycle._observation_context["questions"][selected[0]]["subject_binding"][
-        "subject_ref"
-    ]
-    company = profiles.native_company_projection(identity_payload, subject)
-    company_bytes = canonical.canonical_json(company).encode("utf8")
-    reference = dict(
-        path="native-derived/company.json",
-        bytes=len(company_bytes),
-        sha256=canonical.sha256_hex(company_bytes),
-    )
-    board = _bound_board(
-        config,
-        subject=subject,
-        company_ref=reference,
-        excerpt_cap=profiles.scan_limits(limits)["excerpt_chars_per_source"],
-    )
-    task = factory.create_company_scan_task(lifecycle, evidence_board=board, **kwargs)
+        identity_payload = strict_json_loads(owner.input_raw["identity.json"].decode("utf8"))[
+            "payload"
+        ]
+        subject = lifecycle._observation_context["questions"][selected[0]]["subject_binding"][
+            "subject_ref"
+        ]
+        company = profiles.native_company_projection(identity_payload, subject)
+        company_bytes = canonical.canonical_json(company).encode("utf8")
+        reference = dict(
+            path="native-derived/company.json",
+            bytes=len(company_bytes),
+            sha256=canonical.sha256_hex(company_bytes),
+        )
+        board = _bound_board(
+            config,
+            subject=subject,
+            company_ref=reference,
+            excerpt_cap=profiles.scan_limits(limits)["excerpt_chars_per_source"],
+        )
+        task = factory.create_company_scan_task(lifecycle, evidence_board=board, **kwargs)
+    if not recovery_only:
+        capabilities = company_scan_capabilities(client)
+        if (
+            thinking_enabled is False
+            or type(max_output_tokens) is not int
+            or not 1 <= max_output_tokens <= capabilities["max_output_tokens"]
+        ):
+            raise ValueError("shared_company_requires_thinking_and_supported_output")
+        if native_search and not capabilities["native_web_search"]:
+            raise ValueError("shared_company_native_search_endpoint_not_qualified")
+        if question_pack_size > 1 and not capabilities["question_packs"]:
+            raise ValueError("shared_company_question_packs_not_supported")
     from src.utils.quick_scan_owner_research import OwnerResearchServices
 
     services = OwnerResearchServices(

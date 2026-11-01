@@ -250,7 +250,7 @@ def readiness(tmp_path, monkeypatch):
     )
     checks, calls = [], []
     mapper = OwnerResearchServices.__new__(OwnerResearchServices)
-    mapper._assert_registered_inputs = lambda: checks.append("checked")
+    mapper._assert_registered_inputs = lambda **kw: checks.append(kw.get("check_current", True))
     mapper.owner = SimpleNamespace(
         native=SimpleNamespace(
             client=SimpleNamespace(
@@ -315,7 +315,7 @@ def test_initialized_schema_uses_fixed_readonly_cli_and_cleans_up(readiness, ver
     assert Path(kwargs["env"]["TEMP"]).parent == runs
     assert not Path(kwargs["env"]["TEMP"]).exists()
     assert not list(runs.iterdir())
-    assert checks == ["checked", "checked"]
+    assert checks == [True, False]
     assert sentinel.read_bytes() == b"original-owned-workspace"
 
 

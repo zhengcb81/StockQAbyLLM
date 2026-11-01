@@ -181,7 +181,11 @@ class OwnerResearchServices:
             copy.deepcopy(lifecycle._model_resolution),
         )
         self._context_sha256 = canonical_sha256(lifecycle._observation_context)
-        self.subject_dispatch_readiness = self.preflight_subject_dispatch()
+        self.subject_dispatch_readiness = (
+            {"status": "not_required_for_paid_response_recovery", "dispatch_started": False}
+            if getattr(self.owner, "recovery_only", False)
+            else self.preflight_subject_dispatch()
+        )
 
     def preflight_subject_dispatch(self):
         """Read the original owner's capability CLI before any paid retrieval.
@@ -334,7 +338,7 @@ class OwnerResearchServices:
                 }.issubset(native[0]["selectors"])
             ):
                 raise OwnerResearchRejected("subject_dispatch_capability_contract_mismatch")
-            self._assert_registered_inputs()
+            self._assert_registered_inputs(check_current=False)
             return dict(
                 protocol="stockqa.subject_dispatch_readiness/1.0.0",
                 capabilities_schema_version="1.1.0",
@@ -419,7 +423,7 @@ class OwnerResearchServices:
             raise OwnerResearchRejected("native_task_owner_binding_mismatch")
         self._task_binding = copy.deepcopy(binding)
 
-    def _assert_registered_inputs(self):
+    def _assert_registered_inputs(self, *, check_current=True):
         if (
             self.native_search != self._native_search_snapshot
             or type(self.native_search) is not bool
@@ -445,10 +449,11 @@ class OwnerResearchServices:
             != _budget_policy_projection(self.owner.service.budget)
         ):
             raise OwnerResearchRejected("registered_runtime_inputs_changed")
-        self.owner.check()
+        if check_current:
+            self.owner.check()
 
-    def _validate_envelope(self, envelope):
-        self._assert_registered_inputs()
+    def _validate_envelope(self, envelope, *, check_current=True):
+        self._assert_registered_inputs(check_current=check_current)
         if self._task_binding is None:
             raise OwnerResearchRejected("runtime_task_binding_required")
         dynamic = envelope.get("dynamic_context")
@@ -501,6 +506,8 @@ class OwnerResearchServices:
 
     @contextmanager
     def generation_scope(self, envelope):
+        if getattr(self.owner, "recovery_only", False):
+            raise OwnerResearchRejected("paid_recovery_cannot_dispatch")
         from src.utils.quick_scan_work_transport import (
             bind_quick_scan_budget,
             bind_quick_scan_route,
@@ -633,10 +640,13 @@ class OwnerResearchServices:
             self._active = False
 
     def client_for(self, envelope):
-        self._validate_envelope(envelope)
+        # Selecting a client is pure. generation_scope/search recheck at send.
+        self._validate_envelope(envelope, check_current=False)
         return self.client
 
     def search(self, envelope):
+        if getattr(self.owner, "recovery_only", False):
+            raise OwnerResearchRejected("paid_recovery_cannot_dispatch")
         self._validate_envelope(envelope)
         if self.search_service is None:
             raise OwnerResearchRejected("original_search_service_not_configured")
@@ -956,7 +966,12 @@ class OwnerResearchServices:
         ):
             raise OwnerResearchRejected("finalization_original_lease_changed")
         lease = Lease(attempt["lease_token"], attempt["lease_epoch"])
-        self.store._assert_lease(item, lease, self.store._now())
+        if getattr(self.owner, "recovery_only", False):
+            self.owner.assert_received_checkpoint_recovery(
+                work_id, attempt["attempt_id"], store=self.store
+            )
+        else:
+            self.store._assert_lease(item, lease, self.store._now())
         handle = dict(
             claimed=True,
             reason="restored_original_finalization_handle",
@@ -976,7 +991,8 @@ class OwnerResearchServices:
         """Use original native checkpoints; does not manufacture search proof.
 
         Answer contract/schema/evidence failures are enforced by the original
-        lifecycle and stay recoverable. An expired lease remains refused.
+        lifecycle and stay recoverable. Only the original paid-response recovery
+        session may preserve a settled response after its send lease expired.
         """
         import json
 

@@ -152,3 +152,76 @@ def test_preview_reloads_current_reservation_instead_of_caching_budget(tmp_path)
     )
     assert after["quote"]["budget_state_sha256"] != before["quote"]["budget_state_sha256"]
     assert ledger.path.read_bytes() == recorded
+
+
+def test_public_continuation_snapshot_is_atomic_readonly_and_detached(tmp_path, monkeypatch):
+    ledger, request, item, policy = setup(tmp_path)
+    with closing(sqlite3.connect(ledger.path)) as writer:
+        writer.execute("PRAGMA journal_mode=WAL")
+    original = QuickScanWorkStore.get_owner_refresh_binding
+    observed = []
+
+    def concurrent_change(view, work_id):
+        # A separate committed writer changes the row between the two reads.
+        with closing(sqlite3.connect(ledger.path)) as writer:
+            writer.execute("UPDATE work_item SET status='failed' WHERE work_item_id=?", (work_id,))
+            writer.commit()
+        with closing(view._connect()) as reader:
+            observed.append(
+                reader.execute(
+                    "SELECT status FROM work_item WHERE work_item_id=?", (work_id,)
+                ).fetchone()[0]
+            )
+            assert reader.in_transaction
+            with pytest.raises(sqlite3.OperationalError):
+                reader.execute("DELETE FROM work_item")
+        return original(view, work_id)
+
+    monkeypatch.setattr(QuickScanWorkStore, "get_owner_refresh_binding", concurrent_change)
+    view = ReadOnlyWorkView(ledger.path)
+    rows = view.continuation_binding_snapshot(
+        entity_id=request["entity_id"],
+        question_ids=request["question_ids"],
+        scope_bindings=request["scope_bindings"],
+    )
+    assert rows["IQS_05"]["work"]["status"] == "pending"
+    assert rows["IQS_05"]["binding_record"] is None
+    assert observed == ["pending"]
+    assert view._inspection_connection is None
+    # Once the snapshot closes, the committed finished row is naturally skipped.
+    assert (
+        view.continuation_binding_snapshot(
+            entity_id=request["entity_id"],
+            question_ids=request["question_ids"],
+            scope_bindings=request["scope_bindings"],
+        )
+        == {}
+    )
+
+
+def test_public_snapshot_failure_closes_original_transaction(tmp_path, monkeypatch):
+    ledger, request, item, policy = setup(tmp_path)
+    view = ReadOnlyWorkView(ledger.path)
+    before = ledger.path.read_bytes()
+
+    def broken(*args):
+        raise ValueError("binding corruption")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(QuickScanWorkStore, "get_owner_refresh_binding", broken)
+        with pytest.raises(ValueError, match="binding corruption"):
+            view.continuation_binding_snapshot(
+                entity_id=request["entity_id"],
+                question_ids=request["question_ids"],
+                scope_bindings=request["scope_bindings"],
+            )
+    assert view._inspection_connection is None
+    assert ledger.path.read_bytes() == before
+    assert (
+        view.continuation_binding_snapshot(
+            entity_id=request["entity_id"],
+            question_ids=request["question_ids"],
+            scope_bindings=request["scope_bindings"],
+        )["IQS_05"]["work"]["status"]
+        == "pending"
+    )

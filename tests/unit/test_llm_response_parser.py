@@ -616,3 +616,68 @@ def test_pack_diagnostics_precise_identity_and_member_fields_do_not_leak_values(
         json.dumps({"answers": [_question_pack_item("IQS_02")]}), ["IQS_02"]
     )
     assert clean is not None and clean_diagnostic["rejections"] == []
+
+
+@pytest.mark.parametrize("description_object", [False, True])
+def test_standard_pack_omitted_outer_date_uses_original_inner_date(description_object):
+    body = {
+        "question_id": "IQS_01",
+        "response_kind": "score",
+        "status": "scored",
+        "score": 8,
+        "information_as_of": "2026-10-09",
+    }
+    description = body if description_object else json.dumps(body)
+    member = _question_pack_item("IQS_01", description=description)
+    member.pop("information_as_of", None)
+    result = LLMResponseParser().parse_question_pack_response(
+        json.dumps({"answers": [member]}), ["IQS_01"], standard_answer_objects=True
+    )
+    assert result is not None and result.invalid_question_ids == ()
+    answer = result.answers[0]
+    assert answer.information_as_of == body["information_as_of"]
+    assert json.loads(answer.description) == body
+    assert "information_as_of" not in member
+
+
+@pytest.mark.parametrize("description_object", [False, True])
+@pytest.mark.parametrize("outer_date", [None, "2026-10-08", "2026-02-30", 20261009])
+def test_standard_pack_explicit_outer_date_cannot_be_replaced(outer_date, description_object):
+    body = {
+        "question_id": "IQS_01",
+        "response_kind": "score",
+        "status": "scored",
+        "score": 8,
+        "information_as_of": "2026-10-09",
+    }
+    member = _question_pack_item(
+        "IQS_01",
+        description=body if description_object else json.dumps(body),
+        information_as_of=outer_date,
+    )
+    result = LLMResponseParser().parse_question_pack_response(
+        json.dumps({"answers": [member]}), ["IQS_01"], standard_answer_objects=True
+    )
+    assert result is not None and result.answers == ()
+    assert result.invalid_question_ids == ("IQS_01",)
+
+
+@pytest.mark.parametrize("inner_date", ["2026-02-30", "2026-10-09 ", 20261009])
+def test_standard_pack_omitted_outer_date_never_normalizes_invalid_inner_date(inner_date):
+    member = _question_pack_item(
+        "IQS_01",
+        description=json.dumps(
+            {
+                "question_id": "IQS_01",
+                "response_kind": "score",
+                "status": "scored",
+                "score": 8,
+                "information_as_of": inner_date,
+            }
+        ),
+    )
+    result = LLMResponseParser().parse_question_pack_response(
+        json.dumps({"answers": [member]}), ["IQS_01"], standard_answer_objects=True
+    )
+    assert result is not None and result.answers == ()
+    assert result.invalid_question_ids == ("IQS_01",)

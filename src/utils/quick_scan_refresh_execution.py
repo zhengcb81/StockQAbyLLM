@@ -140,10 +140,16 @@ def registered_scope(items, bundle, record, *, information_cutoff):
     return result
 
 
-def prepare_execution(config_path, confirmation_id, *, input_paths, process_env=None):
+def prepare_execution(
+    config_path, confirmation_id, *, input_paths, process_env=None, recovery_only=False
+):
     """Trusted original runner calls this after full manifest/context validation."""
     service = RefreshAdmissionService(config_path, process_env=process_env)
-    proof, bundles, record = service.read_registered(confirmation_id)
+    proof, bundles, record = (
+        service.read_registered(confirmation_id, recovery_only=True)
+        if recovery_only
+        else service.read_registered(confirmation_id)
+    )
     expected = {
         "manifest.json",
         "identity.json",
@@ -175,6 +181,11 @@ def prepare_execution(config_path, confirmation_id, *, input_paths, process_env=
         record,
         information_cutoff=proof["request"]["source_query"]["payload"]["information_cutoff"],
     )
+    if recovery_only:
+        # Reuse references are already retained in the original journal/store.
+        # This invocation preserves paid work only; today's cache TTL is irrelevant.
+        entries = {qid: entry for qid, entry in entries.items() if entry["kind"] == "work"}
+    native_options = {"recovery_entries": entries} if recovery_only else {}
     native = bundle["owner"].prepare(
         bundle["manifest"],
         service.store,
@@ -183,16 +194,43 @@ def prepare_execution(config_path, confirmation_id, *, input_paths, process_env=
         model=proof["preview"]["model"],
         now=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         observation_context=bundle["authority"]["observation_context"],
+        **native_options,
     )
-    return ApprovedRefreshSession(
-        service, proof, bundles, bundle, record, entries, native, input_paths, raw
+    session = ApprovedRefreshSession(
+        service,
+        proof,
+        bundles,
+        bundle,
+        record,
+        entries,
+        native,
+        input_paths,
+        raw,
+        recovery_only=recovery_only,
     )
+    session.original_registered_question_count = len(items)
+    if recovery_only:
+        session.check()
+    return session
 
 
 class ApprovedRefreshSession:
     """Compose current owner session with immutable original action work IDs."""
 
-    def __init__(self, service, proof, bundles, bundle, record, entries, native, input_paths, raw):
+    def __init__(
+        self,
+        service,
+        proof,
+        bundles,
+        bundle,
+        record,
+        entries,
+        native,
+        input_paths,
+        raw,
+        *,
+        recovery_only=False,
+    ):
         self.service, self.proof, self.bundles, self.bundle, self.record = (
             service,
             proof,
@@ -201,13 +239,17 @@ class ApprovedRefreshSession:
             record,
         )
         self.entries, self.native = entries, native
+        self.original_registered_question_count = len(entries)
         self.input_paths, self.input_raw = dict(input_paths), dict(raw)
         self.plan = copy.deepcopy(native.plan)  # Original owner plan/hash remains unchanged.
         self.scope_bindings = {qid: copy.deepcopy(native.scope_bindings[qid]) for qid in entries}
         self.fields, self.work, self.deferred = {}, {}, {}
+        self.recovery_only = recovery_only
         self._policy_check = None
         self._execution_controls = None
         self._refresh_states()
+        if self.recovery_only:
+            self._assert_paid_responses()
 
     def _refresh_states(self):
         self.work, self.deferred = {}, {}
@@ -225,7 +267,7 @@ class ApprovedRefreshSession:
                     raise AdmissionRejected("refresh_execution_original_reference_unavailable")
             else:
                 item = self.service.store.get_item(entry["work_item_id"])
-                if item["status"] == "leased":
+                if item["status"] == "leased" and not self.recovery_only:
                     self.service.store.recover_expired(item["work_item_id"])
                     item = self.service.store.get_item(item["work_item_id"])
                 self.work[qid] = item
@@ -292,7 +334,12 @@ class ApprovedRefreshSession:
         ):
             raise AdmissionRejected("refresh_execution_invocation_changed")
         current = self.service.bridge.inspect(
-            self.proof["confirmation"]["confirmation_id"], mode="current_permissions"
+            self.proof["confirmation"]["confirmation_id"],
+            mode=(
+                "paid_response_recovery"
+                if getattr(self, "recovery_only", False)
+                else "current_permissions"
+            ),
         )
         if any(
             canonical_bytes(current[key]) != canonical_bytes(self.proof[key])
@@ -307,6 +354,23 @@ class ApprovedRefreshSession:
         if self._policy_check is not None:
             self._policy_check()
         self.native.check()
+        if getattr(self, "recovery_only", False):
+            self._assert_paid_responses()
+
+    def _assert_paid_responses(self):
+        for entry in self.entries.values():
+            if entry.get("kind") != "work":
+                continue
+            work_id = entry["work_item_id"]
+            work = self.service.store.get_item(work_id)
+            attempts = self.service.store.list_attempts(work_id)
+            if (
+                work["status"] in {"pending", "uncertain"}
+                or not attempts
+                or attempts[-1].get("phase") != "response_available"
+                or self.service.store.get_attempt_response(attempts[-1]["attempt_id"]) is None
+            ):
+                raise AdmissionRejected("paid_recovery_original_response_required")
 
     def _assert_original_registered_binding(self, qid, original_work, original_binding, *, store):
         """Additional pure resume fence after the runner's fresh ``check()``.
@@ -459,7 +523,9 @@ class ApprovedRefreshSession:
                     )
                     attached.append(work_id)
                 continue
-            if item["status"] != "failed":
+            if item["status"] != "failed" and not (
+                getattr(self, "recovery_only", False) and item["status"] == "leased"
+            ):
                 continue  # Pending/security and unknown/in-flight work are never dispatched here.
             attempts = store.list_attempts(work_id)
             if not attempts:
@@ -588,7 +654,7 @@ class ApprovedRefreshSession:
                         standard_answer=body,
                         _recovery_session=self,
                     )
-                    if item["status"] == "failed":
+                    if item["status"] in {"failed", "leased"}:
                         recovered.append(wid)
                 if _snapshot(path)[1] != raw:
                     raise AdmissionRejected("received_checkpoint_original_body_changed")
@@ -731,6 +797,8 @@ class ApprovedRefreshSession:
         This does not bind or memoize permission for transport. Every subsequent
         SDK POST retains its separate original current-owner/budget checks.
         """
+        if getattr(self, "recovery_only", False):
+            raise AdmissionRejected("paid_recovery_cannot_dispatch")
         if (
             not isinstance(question_ids, (list, tuple))
             or not 1 <= len(question_ids) <= 30
@@ -897,6 +965,8 @@ class ApprovedRefreshSession:
         return self.native.reference(question)
 
     def register_subject_dispatch(self, request):
+        if getattr(self, "recovery_only", False):
+            raise AdmissionRejected("paid_recovery_cannot_dispatch")
         qid = request.get("question_id")
         if (
             qid not in self.entries
@@ -907,6 +977,18 @@ class ApprovedRefreshSession:
             raise AdmissionRejected("refresh_execution_dispatch_scope_not_approved")
         self.check()
         return self.native.register_subject_dispatch(request)
+
+    def _recovery_scope_metadata(self):
+        if not getattr(self, "recovery_only", False):
+            return {}
+        return dict(
+            scope_label="registered_paid_work_subset",
+            original_registered_question_count=getattr(
+                self, "original_registered_question_count", len(self.entries)
+            ),
+            recovered_work_question_count=len(self.entries),
+            original_cached_references_retained=True,
+        )
 
     def dispatch_scope_report(self, batch):
         """Explicit subset denominator; never claim financial correctness."""
@@ -926,6 +1008,7 @@ class ApprovedRefreshSession:
         return dict(
             protocol="stockqa.refresh_execution/1.0.0",
             mode="approved_scope_answers",
+            **self._recovery_scope_metadata(),
             confirmation_id=self.proof["confirmation"]["confirmation_id"],
             scope_sha256=self.proof["preview"]["scope_sha256"],
             reported_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
@@ -1012,6 +1095,7 @@ class ApprovedRefreshSession:
         return dict(
             protocol="stockqa.refresh_execution/1.0.0",
             mode="original_references_and_recovery",
+            **self._recovery_scope_metadata(),
             confirmation_id=self.proof["confirmation"]["confirmation_id"],
             scope_sha256=self.proof["preview"]["scope_sha256"],
             requested_question_ids=self.requested_question_ids,

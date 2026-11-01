@@ -309,7 +309,28 @@ class RefreshAdmissionService:
             execution_inputs_sha256=input_sha,
         )
 
-    def read_registered(self, confirmation_id):
+    def _assert_received_response_scope(self, record):
+        """Read the original registered responses; never permit a new send."""
+        items = record["receipt"]["items"]
+        if not items:
+            raise AdmissionRejected("paid_recovery_registered_work_required")
+        for original in items:
+            work_id = original["work_item_id"]
+            work = self.store.get_item(work_id)
+            attempts = self.store.list_attempts(work_id)
+            if (
+                work["status"] not in {"leased", "failed", "result_ready", "delivered"}
+                or any(
+                    work.get(key) != original[key]
+                    for key in ("entity_id", "question_id", "generation", "scope", "scope_id")
+                )
+                or not attempts
+                or attempts[-1]["phase"] != "response_available"
+                or self.store.get_attempt_response(attempts[-1]["attempt_id"]) is None
+            ):
+                raise AdmissionRejected("paid_recovery_original_response_required")
+
+    def read_registered(self, confirmation_id, *, recovery_only=False):
         """Authenticate an existing action; never register from a replay read."""
         if not isinstance(confirmation_id, str) or not re.fullmatch(
             "rc[12]_[a-f0-9]{64}", confirmation_id
@@ -319,12 +340,21 @@ class RefreshAdmissionService:
         record = self._record(confirmation_id)
         if record is None:
             raise AdmissionRejected("refresh_execution_registered_action_required")
-        proof = self.bridge.inspect(confirmation_id, mode="current_permissions")
-        bundles = self._proof_inputs(proof)
+        proof = self.bridge.inspect(
+            confirmation_id,
+            mode=("paid_response_recovery" if recovery_only else "current_permissions"),
+        )
+        bundle_proof = copy.deepcopy(proof)
+        if recovery_only:
+            # This local input-validation projection is not a historical policy.
+            bundle_proof["owner_policy"]["ttl_hours"] = proof["owner_state"]["ttl_hours"]
+        bundles = self._proof_inputs(bundle_proof)
         if canonical_bytes(record["inputs"]["action"]) != canonical_bytes(
             self._action_binding(proof, bundles)
         ):
             raise AdmissionRejected("refresh_admission_idempotency_conflict")
+        if recovery_only:
+            self._assert_received_response_scope(record)
         return proof, bundles, record
 
     def admit(self, confirmation_id):

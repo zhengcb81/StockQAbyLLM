@@ -184,7 +184,7 @@ def test_missing_duplicate_and_unapproved_output_are_not_scope_success(qids):
         assert report_session().dispatch_scope_report(batch)["requested_scope_answered"] is False
 
 
-def state_session(store, work_id, *, projected_work_id=None):
+def state_session(store, work_id, *, projected_work_id=None, recovery_only=False):
     """Component fixture only: native consent is NOT authenticated here."""
     from types import SimpleNamespace as NS
 
@@ -221,6 +221,7 @@ def state_session(store, work_id, *, projected_work_id=None):
         native,
         {},
         {},
+        recovery_only=recovery_only,
     )
     session.check = lambda: None  # Pure state tests, not a native permission proof.
     return session
@@ -884,7 +885,8 @@ def test_received_recovery_runner_uses_original_inputs_before_model_spend_and_ge
     )
     seen = []
 
-    def prepare(config, confirmation, *, input_paths):
+    def prepare(config, confirmation, *, input_paths, recovery_only=False):
+        assert recovery_only is True
         seen.append((config, confirmation, input_paths))
         return SimpleNamespace(
             recover_received_checkpoints=lambda **kw: dict(
@@ -921,3 +923,173 @@ def test_received_recovery_runner_uses_original_inputs_before_model_spend_and_ge
         "authority.json",
         "owner-config.json",
     }
+
+
+@pytest.mark.parametrize(
+    "status,phase,response,allowed",
+    [
+        ("leased", "response_available", {"receipt": {}}, True),
+        ("delivered", "response_available", {"receipt": {}}, True),
+        ("pending", "response_available", {"receipt": {}}, False),
+        ("uncertain", "send_intent", None, False),
+        ("leased", "response_available", None, False),
+    ],
+)
+def test_paid_recovery_requires_known_original_response(status, phase, response, allowed):
+    from types import SimpleNamespace as NS
+
+    session = ApprovedRefreshSession.__new__(ApprovedRefreshSession)
+    session.entries = {"Q": {"kind": "work", "work_item_id": "W"}}
+    session.service = NS(
+        store=NS(
+            get_item=lambda wid: {"status": status},
+            list_attempts=lambda wid: [{"attempt_id": "A", "phase": phase}],
+            get_attempt_response=lambda aid: response,
+        )
+    )
+    if allowed:
+        session._assert_paid_responses()
+    else:
+        with pytest.raises(AdmissionRejected, match="original_response_required"):
+            session._assert_paid_responses()
+
+
+def test_paid_recovery_session_cannot_claim_or_register_new_send():
+    session = ApprovedRefreshSession.__new__(ApprovedRefreshSession)
+    session.recovery_only = True
+    with pytest.raises(AdmissionRejected, match="cannot_dispatch"):
+        session.claim_registered_question_batch(["Q"], run_id="R", scan_id="S", lease_seconds=10)
+    with pytest.raises(AdmissionRejected, match="cannot_dispatch"):
+        session.register_subject_dispatch({"question_id": "Q"})
+
+
+def test_paid_session_initialization_preserves_expired_settled_response(tmp_path):
+    from tests.unit.test_quick_scan_work_store import (
+        _created,
+        _store,
+        _successful_search_attempt,
+    )
+
+    clock = [1800000000.0]
+    store = _store(tmp_path, clock)
+    item = _created(store)
+    lease, attempt, receipt = _successful_search_attempt(store, item["work_item_id"])
+    before = store.get_item(item["work_item_id"])
+    clock[0] += 1000
+    session = state_session(store, item["work_item_id"], recovery_only=True)
+    assert session.recovery_only and not session.needs_new_dispatch
+    assert store.get_item(item["work_item_id"]) == before
+    assert session.work["IQS_05"]["status"] == "leased"
+    assert session.work["IQS_05"]["lease_token"] == lease.lease_token
+    assert len(store.list_attempts(item["work_item_id"])) == 1
+
+
+def test_paid_session_initialization_rejects_unknown_send_without_reclassifying_it(tmp_path):
+    from tests.unit.test_quick_scan_work_store import _created, _prepared, _store
+
+    clock = [1800000000.0]
+    store = _store(tmp_path, clock)
+    item = _created(store)
+    lease = store.claim(item["work_item_id"], lease_seconds=30)
+    attempt = _prepared(store, item["work_item_id"], lease)
+    store.mark_send_intent(item["work_item_id"], lease, attempt["attempt_id"])
+    before = store.get_item(item["work_item_id"])
+    clock[0] += 1000
+    with pytest.raises(AdmissionRejected, match="original_response_required"):
+        state_session(store, item["work_item_id"], recovery_only=True)
+    assert store.get_item(item["work_item_id"]) == before
+
+
+def test_paid_prepare_keeps_original_mixed_scope_but_materializes_work_only(tmp_path, monkeypatch):
+    """Real registered_scope/prepare path; native consent is a component seam."""
+    from types import SimpleNamespace as NS
+
+    import src.utils.quick_scan_refresh_execution as mod
+
+    item, bundle, record = materials()
+    reference = copy.deepcopy(item)
+    reference.update(
+        question_id="IQS_10",
+        field_id="reference-field",
+        decision="reuse",
+        reuse_observation_id="obs-original",
+    )
+    bundle["manifest"]["questions"].append(dict(id="IQS_10", field_id="reference-field"))
+    bundle["questions"]["IQS_10"] = Question("Original cached question", question_id="IQS_10")
+    context = bundle["authority"]["observation_context"]["questions"]
+    context["IQS_10"] = copy.deepcopy(context["IQS_05"])
+    context["IQS_10"]["metadata"]["field_id"] = "reference-field"
+    record["inputs"]["references"] = [
+        dict(
+            subject_ref=reference["subject_ref"],
+            question_id="IQS_10",
+            field_id="reference-field",
+            observation_id="obs-original",
+            payload_sha256="f" * 64,
+        )
+    ]
+    proof = dict(
+        confirmation={"confirmation_id": "original-confirmation"},
+        request={"source_query": {"payload": {"information_cutoff": "2026-10-10"}}},
+        preview=dict(
+            items=[item, reference], provider="openai", model="fixture-model", scope_sha256="a" * 64
+        ),
+    )
+    before = copy.deepcopy((proof, record, bundle["manifest"]))
+    paths = {}
+    bundle["snapshots"] = {}
+    for name in (
+        "manifest.json",
+        "identity.json",
+        "authority.json",
+        "owner-config.json",
+        "questions.json",
+    ):
+        path = tmp_path / name
+        path.write_bytes(b"{}")
+        paths[name] = path
+        bundle["snapshots"][name] = ({}, b"{}")
+    calls = []
+
+    def native_prepare(*args, recovery_entries, **kwargs):
+        calls.append(copy.deepcopy(recovery_entries))
+        field = dict(
+            field_id="IQS_05",
+            decision="resume_existing_work",
+            generation=1,
+            reuse_observation_id=None,
+        )
+        return NS(
+            plan={"fields": [field]},
+            fields={"IQS_05": field},
+            scope_bindings={"IQS_05": {"scope": "entity", "scope_id": "ENT_SYNTHETIC"}},
+            projection={"IQS_05": {"work_item_id": "WORK_SYNTHETIC"}},
+        )
+
+    bundle["owner"] = NS(prepare=native_prepare)
+    service = NS(
+        read_registered=lambda *a, **kw: (proof, {"one": bundle}, record),
+        store=NS(
+            get_item=lambda wid: {"work_item_id": wid, "status": "leased", "generation": 1},
+            list_attempts=lambda wid: [{"attempt_id": "A", "phase": "response_available"}],
+            get_attempt_response=lambda aid: {"receipt": {}},
+        ),
+    )
+    # The selected key must be the canonical subject ref, as in actual admission.
+    key = canonical_sha256(item["subject_ref"])
+    service.read_registered = lambda *a, **kw: (proof, {key: bundle}, record)
+    monkeypatch.setattr(mod, "RefreshAdmissionService", lambda *a, **kw: service)
+    monkeypatch.setattr(ApprovedRefreshSession, "check", lambda self: None)
+    session = mod.prepare_execution(
+        "registered.json", "original-confirmation", input_paths=paths, recovery_only=True
+    )
+    assert list(calls[0]) == ["IQS_05"] and list(session.entries) == ["IQS_05"]
+    assert (proof, record, bundle["manifest"]) == before
+    report = session.dispatch_scope_report(
+        NS(results=[NS(question=NS(question_id="IQS_05"), answer=NS(status="unknown"))])
+    )
+    assert report["scope_label"] == "registered_paid_work_subset"
+    assert report["original_registered_question_count"] == 2
+    assert report["recovered_work_question_count"] == 1
+    assert report["whole_manifest_answered"] is False
+    assert report["original_cached_references_retained"] is True

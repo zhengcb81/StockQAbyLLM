@@ -51,7 +51,9 @@ def _utc(value):
     return datetime.fromisoformat(value[:-1] + "+00:00")
 
 
-def validate_delegated_native(result, *, workspace_root, budget_policy_file, now):
+def validate_delegated_native(
+    result, *, workspace_root, budget_policy_file, now, recovery_only=False
+):
     receipt = result["confirmation"]
     if (
         set(receipt) != CONFIRMATION_FIELDS
@@ -118,7 +120,7 @@ def validate_delegated_native(result, *, workspace_root, budget_policy_file, now
         model=preview["model"],
         cohort_id=request.get("cohort_id"),
         quote=preview["quote"],
-        qa=result["owner_policy"]["qa"],
+        qa=grant["binding"]["qa"] if recovery_only else result["owner_policy"]["qa"],
         budget_policy_sha256=hashlib.sha256(Path(budget_policy_file).read_bytes()).hexdigest(),
     )
     if (
@@ -143,7 +145,10 @@ def validate_delegated_native(result, *, workspace_root, budget_policy_file, now
     )
     if grant["grant_id"] != grant_id or receipt["confirmation_id"] != expected_id:
         raise ValueError("delegated single action identifier mismatch")
-    if not _utc(grant["created_at"]) <= _utc(receipt["confirmed_at"]) <= _utc(now) < _utc(
-        grant["expires_at"]
-    ) or _utc(grant["expires_at"]) - _utc(grant["created_at"]) > timedelta(hours=24):
+    if (
+        not _utc(grant["created_at"]) <= _utc(receipt["confirmed_at"]) < _utc(grant["expires_at"])
+        or _utc(receipt["confirmed_at"]) > _utc(now)
+        or (not recovery_only and _utc(now) >= _utc(grant["expires_at"]))
+        or _utc(grant["expires_at"]) - _utc(grant["created_at"]) > timedelta(hours=24)
+    ):
         raise ValueError("delegated action expired or future")

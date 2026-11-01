@@ -137,6 +137,7 @@ def test_partial_export_is_not_published_and_resumes_original_checkpoint(
     )
     limits = dict(
         excerpt_chars_per_source=2000,
+        logical_max_output_tokens_including_reasoning_per_request=8192,
         session_input_tokens=240000,
         session_output_tokens_including_reasoning=48000,
         company_wall_seconds=900,
@@ -158,9 +159,16 @@ def test_partial_export_is_not_published_and_resumes_original_checkpoint(
             scan_limits=lambda value: limits,
         ),
     )
-    factory = SimpleNamespace(
-        create_company_scan_task=lambda *a, **k: SimpleNamespace(limits=limits)
+    original_task = SimpleNamespace(
+        limits=limits, question_ids=["Q1"], raw={"execution_profile": {"packs": [["Q1"]]}}
     )
+    factory = SimpleNamespace(create_company_scan_task=lambda *a, **k: original_task)
+
+    def read_original(path):
+        assert path.read_text() == "original-checkpoint"
+        return original_task
+
+    monkeypatch.setattr(module, "load_original_company_task", read_original)
     calls = []
 
     def execute(task, services, config, output, *, session_dir, **kwargs):
@@ -174,9 +182,11 @@ def test_partial_export_is_not_published_and_resumes_original_checkpoint(
     def resume(task, services, config, checkpoint, output, *, session_dir, **kwargs):
         calls.append("resume")
         assert checkpoint.read_text() == "original-checkpoint"
+        assert config["max_output_tokens"] == 8192  # frozen, never the new 32768 setting
         session_dir.mkdir()
         output.mkdir()
         (output / "complete.txt").write_text("completed original export")
+        (output / "checkpoint.json").write_text("original-checkpoint")
         return {"all_slots_completed": resume_complete}
 
     def finalize(task, services, output):
@@ -194,6 +204,7 @@ def test_partial_export_is_not_published_and_resumes_original_checkpoint(
     with pytest.raises(OSError, match="scripted_partial_export"):
         module.run_shared_company_scan(lifecycle, client, **args)
     scope = next(tmp_path.glob("scan-*"))
+    args["max_output_tokens"] = 32768
     assert not (scope / "export").exists() and (scope / "export-0001/partial.txt").is_file()
     if not resume_complete:
         with pytest.raises(ValueError, match="scan_incomplete"):
@@ -357,3 +368,73 @@ def test_replay_only_internal_entry_never_falls_back_to_regular_questions(tmp_pa
             shared_company_recovery_only=True,
         )
     assert not list(tmp_path.iterdir())
+
+
+def test_scan_capabilities_follow_original_sdk_not_provider_brand():
+    from src.providers.llm_client import LLMClient
+    from src.utils.quick_scan_company_context import company_scan_capabilities
+
+    client = LLMClient(
+        api_key="synthetic",
+        model="mimo-v2.6-pro",
+        base_url="https://api.xiaomimimo.com/v1",
+        provider_name="mimo",
+    )
+    caps = company_scan_capabilities(client)
+    assert caps["question_packs"] and caps["native_web_search"]
+    assert caps["max_output_tokens"] >= 32768
+    # External retrieval uses the same structured pack transport even without
+    # a native search endpoint; the original request still validates its route.
+    client.provider_name = "unsupported"
+    assert company_scan_capabilities(client)["native_web_search"]
+    client.base_url = "https://example.invalid/v1"
+    assert not company_scan_capabilities(client)["native_web_search"]
+    assert company_scan_capabilities(client)["question_packs"]
+
+
+def test_company_scan_input_projection_is_detached_and_has_no_io(monkeypatch):
+    # These uninitialized real classes test data projection ONLY, never consent
+    # or paid execution. The original executor still authenticates before send.
+    from pathlib import Path
+
+    from src.runners.llm_runner import QuickScanWorkLifecycle
+    from src.utils.quick_scan_company_context import company_scan_inputs
+    from src.utils.quick_scan_owner_refresh import OwnerRefreshSession
+    from src.utils.quick_scan_refresh_execution import ApprovedRefreshSession
+
+    context = {"schema": "stockqa.quick_scan_observation_context/2.0.0", "questions": {"Q1": {}}}
+    store = object()
+    native = OwnerRefreshSession.__new__(OwnerRefreshSession)
+    native.store, native.observation_context = store, copy.deepcopy(context)
+    owner = ApprovedRefreshSession.__new__(ApprovedRefreshSession)
+    owner.native, owner.service = native, SimpleNamespace(store=store)
+    owner.entries = {"Q1": {"kind": "work"}}
+    owner.bundle = {"manifest": {"questions": [{"id": "Q1"}]}}
+    owner.input_raw, owner.plan, owner.proof = (
+        {"identity.json": b"original"},
+        {"model": "original"},
+        {},
+    )
+    lifecycle = QuickScanWorkLifecycle.__new__(QuickScanWorkLifecycle)
+    lifecycle._owner_refresh, lifecycle._store = owner, store
+    lifecycle._transport_managed, lifecycle._observation_context, lifecycle._route_id = (
+        True,
+        context,
+        "r",
+    )
+
+    def forbidden(*a, **k):
+        raise AssertionError("pure projection must not perform I/O or current-permission checks")
+
+    owner.check = forbidden
+    monkeypatch.setattr(Path, "read_bytes", forbidden)
+    projected = company_scan_inputs(lifecycle)
+    assert not hasattr(projected, "check")
+    projected.entries["Q1"]["kind"] = "changed"
+    projected.plan["model"] = "changed"
+    assert owner.entries["Q1"]["kind"] == "work" and owner.plan["model"] == "original"
+    with pytest.raises(ValueError, match="original_native_lifecycle_required"):
+        company_scan_inputs(SimpleNamespace(**vars(lifecycle)))
+    lifecycle._owner_refresh = SimpleNamespace(**vars(owner))
+    with pytest.raises(ValueError, match="original_admitted_native_owner_required"):
+        company_scan_inputs(lifecycle)

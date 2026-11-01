@@ -113,7 +113,7 @@ class RefreshConsentClient:
         if (
             not isinstance(confirmation_id, str)
             or not re.fullmatch("rc[12]_[a-f0-9]{64}", confirmation_id)
-            or mode not in {"fresh_registration", "current_permissions"}
+            or mode not in {"fresh_registration", "current_permissions", "paid_response_recovery"}
         ):
             raise OwnerRefreshRejected("refresh_consent_inspection_request_invalid")
         c = self.owner.config
@@ -199,6 +199,22 @@ class RefreshConsentClient:
             raise ValueError("unsupported explicit refresh dialect")
         names = (refresh_name, "query-v2.schema.json", "query-v2.6.schema.json")
         schemas = [_read((root / name).read_bytes()) for name in names]
+        policy_schema = schemas[0]
+        if mode == "paid_response_recovery":
+            policy_protocol = result["owner_policy"].get("protocol", "")
+            policy_dialect = policy_protocol.removeprefix("stockwiki.refresh_owner_policy/")
+            policy_name = {
+                "1.0.0": "refresh-v1.schema.json",
+                "1.1.0": "refresh-v1.1.schema.json",
+                "1.2.0": "refresh-v1.2.schema.json",
+                "1.3.0": "refresh-v1.3.schema.json",
+                "1.4.0": "refresh-v1.4.schema.json",
+                "1.5.0": "refresh-v1.5.schema.json",
+            }.get(policy_dialect)
+            if policy_name is None:
+                raise ValueError("unsupported current owner policy dialect")
+            policy_schema = _read((root / policy_name).read_bytes())
+            schemas.append(policy_schema)
         registry = Registry().with_resources((s["$id"], Resource.from_contents(s)) for s in schemas)
         for field, kind in [
             ("request", "Request"),
@@ -207,7 +223,11 @@ class RefreshConsentClient:
             ("owner_policy", "OwnerPolicy"),
         ]:
             Draft202012Validator(
-                {"$ref": schemas[0]["$id"] + "#/$defs/" + kind},
+                {
+                    "$ref": (policy_schema if field == "owner_policy" else schemas[0])["$id"]
+                    + "#/$defs/"
+                    + kind
+                },
                 registry=registry,
                 format_checker=FormatChecker(),
             ).validate(result[field])
@@ -232,7 +252,10 @@ class RefreshConsentClient:
             != "rv1_" + canonical_sha256({k: v for k, v in preview.items() if k != "preview_id"})
             or preview["request_sha256"] != canonical_sha256(result["request"])
             or preview["owner_state_sha256"] != canonical_sha256(state)
-            or preview["policy_sha256"] != canonical_sha256(policy)
+            or (
+                mode != "paid_response_recovery"
+                and preview["policy_sha256"] != canonical_sha256(policy)
+            )
             or any(
                 receipt[k] != preview[k]
                 for k in (
@@ -245,8 +268,12 @@ class RefreshConsentClient:
             or preview["status"] != "ready"
             or preview["requires_user_confirmation"] is not True
             or preview["items"] != state["items"]
-            or preview["provider"] != policy["provider"]
-            or preview["model"] != policy["model"]
+            or (
+                mode != "paid_response_recovery"
+                and (
+                    preview["provider"] != policy["provider"] or preview["model"] != policy["model"]
+                )
+            )
         ):
             raise ValueError("native consent scope mismatch")
         for key, expected in [
@@ -257,7 +284,11 @@ class RefreshConsentClient:
             if Path(policy["qa"][key]).resolve() != expected:
                 raise ValueError("native consent deployment mismatch")
         budget = _budget_policy_projection(_read(self.budget_policy_file.read_bytes()))
-        qa = policy["qa"]
+        qa = (
+            receipt["delegation"]["binding"]["qa"]
+            if delegated and mode == "paid_response_recovery"
+            else policy["qa"]
+        )
         route = budget["route_identity"].get(qa["route_id"])
         if (
             qa["policy_id"] != budget["policy_id"]
@@ -265,7 +296,7 @@ class RefreshConsentClient:
             or state["quote"] != preview["quote"]
             or route is None
             or route["provider_config_ref"] != qa["provider_config_ref"]
-            or route["model"] != policy["model"]
+            or (mode != "paid_response_recovery" and route["model"] != policy["model"])
         ):
             raise ValueError("native consent executor policy mismatch")
         if (
@@ -290,4 +321,5 @@ class RefreshConsentClient:
                 workspace_root=self.owner.config["stockwiki_workspace_root"],
                 budget_policy_file=self.budget_policy_file,
                 now=self.clock(),
+                recovery_only=mode == "paid_response_recovery",
             )

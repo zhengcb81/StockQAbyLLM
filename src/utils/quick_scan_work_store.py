@@ -4444,8 +4444,17 @@ class QuickScanWorkStore:
                     "SELECT * FROM attempt WHERE attempt_id=? AND work_item_id=?",
                     (attempt_id, work_item_id),
                 ).fetchone()
-                if attempt_for_recovery is None or not terminal_received_failure(
-                    connection, item, attempt_for_recovery, "answer_validation_rejected"
+                recovering_leased_response = bool(
+                    getattr(_recovery_session, "recovery_only", False)
+                    and item["status"] == "leased"
+                    and attempt_for_recovery is not None
+                    and attempt_for_recovery["phase"] == "response_available"
+                )
+                if attempt_for_recovery is None or not (
+                    recovering_leased_response
+                    or terminal_received_failure(
+                        connection, item, attempt_for_recovery, "answer_validation_rejected"
+                    )
                 ):
                     raise WorkConflictError("received_checkpoint_original_failed_member_required")
                 if connection.execute(
@@ -4571,7 +4580,7 @@ class QuickScanWorkStore:
                     now,
                 ),
             )
-            if _recovery_session is not None:
+            if _recovery_session is not None and not recovering_leased_response:
                 _recovery_session.assert_received_checkpoint_recovery(
                     work_item_id, attempt_id, store=self
                 )
@@ -4582,6 +4591,10 @@ class QuickScanWorkStore:
                     (now, work_item_id, lease.lease_epoch),
                 ).rowcount
             else:
+                if _recovery_session is not None:
+                    _recovery_session.assert_received_checkpoint_recovery(
+                        work_item_id, attempt_id, store=self
+                    )
                 changed = connection.execute(
                     "UPDATE work_item SET status='result_ready',lease_token=NULL,"
                     "lease_expires_at=NULL,uncertain_attempt_id=NULL,updated_at=? "
@@ -4597,7 +4610,7 @@ class QuickScanWorkStore:
                 lease.lease_epoch,
                 now,
                 attempt_id=attempt_id,
-                old="failed" if recovered_received else "leased",
+                old=item["status"],
                 new="result_ready",
             )
             row = connection.execute(

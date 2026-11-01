@@ -240,3 +240,31 @@ def test_research_scope_refuses_missing_budget_or_foreign_owner(native, missing)
     )
     with pytest.raises(ValueError, match="original_owner_budget_required"):
         lifecycle.dispatch_context(handle, research_budget_managed=True)
+
+
+def test_paid_mode_restores_expired_original_handle_without_renewal(native):
+    mapper, item, lease, attempt, receipt, clock = native
+    clock[0] += 61
+    before = mapper.store.get_item(item["work_item_id"])
+    seen = []
+    mapper.owner.recovery_only = True
+    mapper.owner.assert_received_checkpoint_recovery = lambda wid, aid, **kw: seen.append(
+        (wid, aid)
+    )
+    handle = mapper.restore_finalization_handle(
+        "IQS_05", native_reference="stockqa:" + receipt["attempt_id"]
+    )
+    assert handle["lease"] == lease
+    assert seen == [(item["work_item_id"], attempt["attempt_id"])]
+    assert mapper.store.get_item(item["work_item_id"]) == before
+    assert len(mapper.store.list_attempts(item["work_item_id"])) == 1
+
+
+def test_paid_mode_cannot_enter_model_or_search_transport():
+    mapper = OwnerResearchServices.__new__(OwnerResearchServices)
+    mapper.owner = SimpleNamespace(recovery_only=True)
+    with pytest.raises(OwnerResearchRejected, match="cannot_dispatch"):
+        with mapper.generation_scope({}):
+            pytest.fail("paid recovery may not enter transport")
+    with pytest.raises(OwnerResearchRejected, match="cannot_dispatch"):
+        mapper.search({})

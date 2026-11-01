@@ -1362,6 +1362,11 @@ class QuickScanWorkLifecycle:
                 execution_receipt=receipt,
                 observation_context=observation_context,
                 standard_answer=standard_body,
+                _recovery_session=(
+                    self._owner_refresh
+                    if getattr(self._owner_refresh, "recovery_only", False)
+                    else None
+                ),
                 external_context_use=(
                     None
                     if search_projection is None
@@ -2109,6 +2114,7 @@ class LLMRunner:
             session = prepare_execution(
                 refresh_admission_config,
                 refresh_confirmation_id,
+                recovery_only=True,
                 input_paths={
                     "questions.json": config,
                     "identity.json": identity_snapshot,
@@ -2448,6 +2454,7 @@ class LLMRunner:
                 approved_session = prepare_execution(
                     refresh_admission_config,
                     refresh_confirmation_id,
+                    recovery_only=shared_company_recovery_only,
                     input_paths={
                         "manifest.json": question_manifest,
                         "identity.json": identity_snapshot_path,

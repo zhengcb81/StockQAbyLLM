@@ -367,7 +367,6 @@ class LLMResponseParser:
                     separators=(",", ":"),
                     allow_nan=False,
                 )
-            member_content = json.dumps(member, ensure_ascii=False, allow_nan=False)
             context = _PACK_DIAGNOSTICS.get()
             token = None
             if context is not None:
@@ -379,17 +378,42 @@ class LLMResponseParser:
                     }
                 )
             try:
+                standard_body = None
+                if standard_answer_objects:
+                    try:
+                        candidate = json.loads(
+                            member.get("description", ""),
+                            object_pairs_hook=_reject_duplicate_json_keys,
+                            parse_constant=reject_constant,
+                            parse_float=finite_float,
+                        )
+                    except (TypeError, ValueError, RecursionError):
+                        candidate = None
+                    if (
+                        isinstance(candidate, dict)
+                        and "question_id" in candidate
+                        and "response_kind" in candidate
+                        and "information_as_of" in candidate
+                    ):
+                        standard_body = candidate
+                # An omitted transport field may inherit the original full
+                # standard body's date. An explicit null/value is a claim:
+                # never replace it or invent a date during paid recovery.
+                if standard_body is not None and "information_as_of" not in member:
+                    member = dict(member, information_as_of=standard_body["information_as_of"])
                 claimed_date = member.get("information_as_of")
-                if (
-                    standard_answer_objects
-                    and claimed_date is not None
-                    and information_date(claimed_date) != claimed_date
+                if standard_answer_objects and (
+                    (claimed_date is not None and information_date(claimed_date) != claimed_date)
+                    or (
+                        standard_body is not None
+                        and claimed_date != standard_body["information_as_of"]
+                    )
                 ):
                     _record_parse_diagnostic("invalid_information_date", "/information_as_of")
                     answer = None
                 else:
                     answer = self.parse_structured_response(
-                        member_content,
+                        json.dumps(member, ensure_ascii=False, allow_nan=False),
                         expected_question_id=qid,
                         expected_entity_id=expected_entity_id,
                         expected_company_name=expected_company_name,

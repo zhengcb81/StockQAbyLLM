@@ -703,3 +703,43 @@ def test_quote_navigation_does_not_hide_security_or_content_changes(other):
 def test_quote_navigation_is_not_ignored_outside_exact_stock_path(url):
     with pytest.raises(ValueError):
         api._matching_evidence_source_url(url, [url + "?jump_to_web=true"])
+
+
+def period_metric_body():
+    body = metric_body()
+    body["metrics"][0].update(period_start="2024-01-01", period_end="2024-12-31")
+    return body
+
+
+def test_metric_multiple_years_reach_actual_standard_checkpoint_validator():
+    body = period_metric_body()
+    body["metrics"].append(
+        dict(body["metrics"][0], period_start="2025-01-01", period_end="2025-12-31")
+    )
+    assert validate(body) == body
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"value": 99, "definition": "Another segment must not be hidden in prose"},
+        {"period_start": None},
+        {"period_start": None, "period_end": None},
+        {"period_start": "2025-01-01", "period_end": "2025-12-31", "unit": "count"},
+        {"period_start": "2025-01-01", "period_end": "2025-12-31", "evidence_ids": ["foreign"]},
+    ],
+)
+def test_metric_coordinates_do_not_weaken_duplicate_units_or_source_checks(change):
+    body = period_metric_body()
+    body["metrics"].append(dict(body["metrics"][0], **change))
+    with pytest.raises(ValueError):
+        validate(body)
+
+
+def test_metric_distinct_basis_and_currency_are_preserved():
+    body = period_metric_body()
+    metric = body["metrics"][0]
+    # Use a canonical currency metric so currency is an economic coordinate.
+    metric.update(metric_id="financial.fcf", unit="currency", currency="USD")
+    body["metrics"].extend([dict(metric, basis="normalized"), dict(metric, currency="CNY")])
+    assert validate(body) == body

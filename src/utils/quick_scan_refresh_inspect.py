@@ -78,6 +78,48 @@ class ReadOnlyWorkView(QuickScanWorkStore):
             raise
         return connection
 
+    def continuation_binding_snapshot(
+        self, *, entity_id, question_ids, scope_bindings, comparison_refs=()
+    ):
+        """Read continuation rows/bindings atomically, without claiming authority.
+
+        The owner retains the SQLite transaction lifecycle. Finished unrelated
+        rows are not inspected; exact comparison references can select their
+        original delivered row. Missing bindings remain None for the consumer
+        to report, rather than inventing or initializing owner records.
+        """
+        refs = set(comparison_refs)
+        snapshot = ReadOnlyWorkView(self.path)
+        with closing(snapshot._connect()) as connection:
+            connection.execute("BEGIN")
+            snapshot._inspection_connection = connection
+            try:
+                rows = snapshot.owner_refresh_projection(
+                    entity_id=entity_id,
+                    question_ids=question_ids,
+                    scope_bindings=scope_bindings,
+                    include_owner_decisions=bool(refs),
+                )
+                result = {}
+                for qid, row in rows.items():
+                    comparison = (
+                        row["status"] == "delivered"
+                        and row.get("retry_purpose") == "comparison"
+                        and (row["work_item_id"], row.get("retry_decision_id")) in refs
+                    )
+                    if (
+                        row["status"] not in {"pending", "leased", "uncertain", "result_ready"}
+                        and not comparison
+                    ):
+                        continue
+                    result[qid] = {
+                        "work": row,
+                        "binding_record": snapshot.get_owner_refresh_binding(row["work_item_id"]),
+                    }
+                return result
+            finally:
+                snapshot._inspection_connection = None
+
     def _transaction(self):
         raise ValueError("refresh_inspection_is_read_only")
 

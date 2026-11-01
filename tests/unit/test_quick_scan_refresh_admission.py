@@ -132,3 +132,51 @@ def test_matching_is_full_subject_and_contract_not_entity_or_question_name_only(
         ] = "2025-01-01"
     with pytest.raises(AdmissionRejected):
         match_question(item, bundle, information_cutoff="2026-10-10")
+
+
+@pytest.mark.parametrize("known", [True, False])
+def test_paid_registered_scope_requires_actual_original_response_without_new_work(tmp_path, known):
+    from tests.unit.test_quick_scan_work_store import (
+        _created,
+        _prepared,
+        _store,
+        _successful_search_attempt,
+    )
+
+    clock = [1800000000.0]
+    store = _store(tmp_path, clock)
+    work = _created(store)
+    if known:
+        _successful_search_attempt(store, work["work_item_id"])
+    else:
+        lease = store.claim(work["work_item_id"], lease_seconds=30)
+        attempt = _prepared(store, work["work_item_id"], lease)
+        store.mark_send_intent(work["work_item_id"], lease, attempt["attempt_id"])
+    clock[0] += 1000
+    record = {
+        "receipt": {
+            "items": [
+                {
+                    key: work[key]
+                    for key in (
+                        "work_item_id",
+                        "entity_id",
+                        "question_id",
+                        "generation",
+                        "scope",
+                        "scope_id",
+                    )
+                }
+            ]
+        }
+    }
+    service = RefreshAdmissionService.__new__(RefreshAdmissionService)
+    service.store = store
+    before = store.path.read_bytes()
+    if known:
+        service._assert_received_response_scope(record)
+    else:
+        with pytest.raises(AdmissionRejected, match="original_response_required"):
+            service._assert_received_response_scope(record)
+    assert store.path.read_bytes() == before
+    assert len(store.list_attempts(work["work_item_id"])) == 1

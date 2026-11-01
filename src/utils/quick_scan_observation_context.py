@@ -17,6 +17,7 @@ from typing import Any
 from jsonschema import Draft202012Validator, FormatChecker, ValidationError
 from referencing import Registry, Resource
 
+from .quick_scan_metric_coordinates import validate_metric_coordinates
 from .quick_scan_result_outbox import canonical_sha256, strict_json_loads
 
 CONTEXT_SCHEMA = "stockqa.quick_scan_observation_context/1.0.0"
@@ -564,9 +565,8 @@ def validate_standard_answer(
         _matching_evidence_source_url(evidence["url"], source_urls)
         if evidence["published_at"] is not None and evidence["published_at"] > cutoff:
             raise ValueError("evidence URL/date is not bound to search/cutoff")
-    metric_ids = []
+    validate_metric_coordinates(content["metrics"])
     for metric in content["metrics"]:
-        metric_ids.append(metric["metric_id"])
         known = metrics["metrics"].get(metric["metric_id"])
         if (known is None and not metric["metric_id"].startswith("custom.")) or (
             known is not None and metric["unit"] != known["unit"]
@@ -589,8 +589,6 @@ def validate_standard_answer(
             and metric["basis"] != "forward"
         ):
             raise ValueError("invalid metric period")
-    if len(metric_ids) != len(set(metric_ids)):
-        raise ValueError("duplicate metric ID")
     return copy.deepcopy(content)
 
 
