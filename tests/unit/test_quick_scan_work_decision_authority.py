@@ -88,3 +88,91 @@ def test_invalid_owner_id_cannot_reach_native_process(tmp_path, bad):
             consumer_id=c.consumer_id,
             confirmation_id=bad,
         )
+
+
+def test_comparison_carrier_keeps_exact_binding_and_expiry_without_granting_authority(tmp_path):
+    import copy
+
+    from src.utils.quick_scan_result_outbox import canonical_sha256
+
+    authority = client(tmp_path)
+    authority.clock = lambda: "2026-11-01T01:00:00Z"
+    principal = "synthetic-local-owner"
+    request = {
+        "kind": "retry_decision",
+        "purpose": "comparison",
+        "work_item_id": "WORK_fixture",
+        "attempt_id": "ATTEMPT_fixture",
+    }
+    receipt = {
+        key: "a" * 64
+        for key in (
+            "preview_id",
+            "preview_record_sha256",
+            "request_sha256",
+            "outer_request_sha256",
+            "permission_request_sha256",
+            "owner_state_sha256",
+            "policy_sha256",
+            "owner_store_id",
+            "action_id",
+        )
+    }
+    receipt.update(owner_principal=principal, confirmed_at="2026-11-01T00:01:00Z")
+    binding = {
+        key: receipt[key]
+        for key in (
+            "preview_id",
+            "preview_record_sha256",
+            "request_sha256",
+            "outer_request_sha256",
+            "permission_request_sha256",
+            "owner_state_sha256",
+            "policy_sha256",
+            "owner_store_id",
+            "action_id",
+        )
+    }
+    binding.update(request)
+    grant = {
+        "protocol": "stockwiki.work_delegation/1.0.0",
+        "owner_principal": principal,
+        "workspace_root": str(Path(authority.owner.config["stockwiki_workspace_root"]).resolve()),
+        "consumer_id": authority.consumer_id,
+        "agent": {
+            "profile_id": "synthetic-agent",
+            "profile_sha256": "b" * 64,
+            "harness_ref": "synthetic",
+        },
+        "agent_assurance": "local_owner_namespace",
+        "authorization_basis": "recorded_user_authorization",
+        "authorization_reference": "synthetic test only",
+        "binding": binding,
+        "created_at": "2026-11-01T00:00:00Z",
+        "expires_at": "2026-11-01T02:00:00Z",
+    }
+    identity = {key: grant[key] for key in ("owner_principal", "workspace_root", "consumer_id")}
+    identity["preview_id"] = binding["preview_id"]
+    grant["grant_id"] = "wdg1_" + canonical_sha256(identity)
+    grant["record_sha256"] = canonical_sha256(grant)
+    receipt["delegation"] = grant
+    value = {
+        "confirmation": receipt,
+        "request": {"decision_request": request},
+        "principal": principal,
+    }
+    assert authority._validate_control_delegation(value) is None
+    for field, bad in [
+        ("request_sha256", "f" * 64),
+        ("work_item_id", "WORK_other"),
+        ("purpose", "retry_unusable_answer"),
+    ]:
+        changed = copy.deepcopy(value)
+        changed["confirmation"]["delegation"]["binding"][field] = bad
+        with pytest.raises(ValueError):
+            authority._validate_control_delegation(changed)
+    authority.clock = lambda: "2026-11-01T02:00:00Z"
+    with pytest.raises(ValueError):
+        authority._validate_control_delegation(value)
+    # This carrier check is never a transport, native confirmation or fee grant.
+    assert not authority.work_store.exists() and not authority.budget_policy_file.exists()

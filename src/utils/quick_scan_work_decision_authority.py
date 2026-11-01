@@ -315,7 +315,7 @@ class StockWikiWorkDecisionAuthority(OwnerWorkDecisionAuthority):
             request["kind"] == "known_response_resolution"
             and purpose is None
             or request["kind"] == "retry_decision"
-            and purpose in {"retry_unusable_answer", "retry_unusable_checkpoint"}
+            and purpose in {"retry_unusable_answer", "retry_unusable_checkpoint", "comparison"}
         ):
             raise ValueError("owner_work_delegation_action_not_allowed")
         if (
