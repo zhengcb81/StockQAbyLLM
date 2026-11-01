@@ -340,3 +340,20 @@ def test_comparison_scope_read_does_not_require_new_dispatch_key():
     target["route_id"] = "foreign"
     with pytest.raises(AdmissionRejected, match="not_approved"):
         session.execution_routes(policy)
+
+
+def test_replay_only_internal_entry_never_falls_back_to_regular_questions(tmp_path, monkeypatch):
+    from src.runners.llm_runner import LLMRunner
+
+    monkeypatch.chdir(tmp_path)
+    runner = LLMRunner()
+    with pytest.raises(ValueError, match="no_legacy_fallback"):
+        runner._run_single_company(
+            company="Synthetic",
+            provider="mimo",
+            config="missing.json",
+            output="out.json",
+            config_format="json",
+            shared_company_recovery_only=True,
+        )
+    assert not list(tmp_path.iterdir())

@@ -2356,6 +2356,8 @@ class LLMRunner:
         Returns:
             退出码
         """
+        if shared_company_recovery_only and shared_company_config is None:
+            raise ValueError("shared_recovery_original_config_required_no_legacy_fallback")
         work_lease_seconds = validate_work_lease_seconds(work_lease_seconds)
         try:
             # Bound on every path below before first read, so no branch can
