@@ -97,6 +97,13 @@ def test_real_pack_send_path_uses_mode_specific_generated_prompt(
         result = provider.search_question_pack(questions)
     send.assert_called_once()
     assert send.call_args.args[0] == expected
+    for rule in (
+        "show the original inputs for EACH period",
+        "same-year operating cash flow minus cash paid to acquire long-term assets",
+        "Secondary or AI-generated articles are search leads",
+        "remove that derived value and its dependent trend claims",
+    ):
+        assert rule in send.call_args.args[0]
     assert ("Top-level period_start/period_end describe" in expected) is standard
     assert result.missing_question_ids == ("IQS_19",)
 
@@ -149,3 +156,21 @@ def test_full_standard_pack_never_uses_unknown_as_answer_status(subject):
     assert "unknown/insufficient_evidence answer" not in prompt
     assert "unknown or not_applicable answers" not in prompt
     assert "basis=current|trailing|normalized|stress|forward|not_applicable" in prompt
+
+
+def test_real_single_question_path_sends_quality_rules_without_rewriting_frozen_text(subject):
+    provider, questions = subject
+    provider.require_search = True
+    stopped = Mock(side_effect=RuntimeError("synthetic SDK boundary stop"))
+    provider._call_llm_api = stopped
+    original = questions[0].text
+    with standard_answer_transport(True), pytest.raises(
+        RuntimeError, match="synthetic SDK boundary stop"
+    ):
+        provider.search_question(questions[0])
+    stopped.assert_called_once()
+    prompt = stopped.call_args.args[0]
+    assert original in prompt and questions[0].text == original
+    assert "show the original inputs for EACH period" in prompt
+    assert "Secondary or AI-generated articles are search leads" in prompt
+    assert stopped.call_args.kwargs["expected_question_id"] == questions[0].question_id

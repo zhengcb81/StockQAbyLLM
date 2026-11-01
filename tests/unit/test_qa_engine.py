@@ -247,3 +247,71 @@ def test_uncertain_projection_rejects_untyped_or_unbounded_exception_chains(kind
             cursor = child
         cursor.__cause__ = QuickScanWorkUncertainError("fixture-attempt", {})
     assert _uncertain_transport_metadata(error) == {}
+
+
+def test_hydrate_only_reuses_original_reference_checkpoint_and_timestamp_without_claim_or_send():
+    from datetime import datetime, timezone
+    from types import SimpleNamespace
+
+    from src.core.models import QAResult
+
+    questions = [Question("Frozen one", question_id="Q1"), Question("Frozen two", question_id="Q2")]
+    old_time = datetime(2025, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
+    reference = QAResult(
+        question=questions[0],
+        answer=Answer(
+            "Original reference", score=8, status="scored", source="original", created_at=old_time
+        ),
+    )
+    checkpoint = {
+        "payload": {
+            "answer": {"description": "Original checkpoint", "score": 7, "status": "scored"},
+            "provenance": {
+                "response_completed_at": "2025-01-02T03:04:05Z",
+                "actual_model": "original-model",
+            },
+        },
+        "attempt_id": "ORIGINAL_ATTEMPT",
+        "work_item_id": "ORIGINAL_WORK",
+    }
+    lifecycle = SimpleNamespace(
+        reference_question=Mock(side_effect=lambda q: reference if q.question_id == "Q1" else None),
+        hydrate_question=Mock(return_value=checkpoint),
+        before_question=Mock(side_effect=AssertionError("Must not claim")),
+    )
+    provider = Mock()
+    engine = QAEngine(provider, work_item_lifecycle=lifecycle)
+    result = engine.hydrate_questions(questions)
+    assert result.processed_count == 2 and result.results[0] is reference
+    assert result.results[1].answer.created_at == old_time
+    assert result.results[1].answer.metadata["actual_model"] == "original-model"
+    assert result.results[1].metadata["answer_checkpoint"]["attempt_id"] == "ORIGINAL_ATTEMPT"
+    lifecycle.before_question.assert_not_called()
+    provider.search.assert_not_called()
+    provider.search_question.assert_not_called()
+
+
+@pytest.mark.parametrize("fault", ["missing", "restore_error", "duplicate", "no_id"])
+def test_hydrate_only_never_falls_through_to_a_new_question_when_restore_is_incomplete(fault):
+    from types import SimpleNamespace
+
+    questions = [Question("Frozen one", question_id="Q1")]
+    if fault == "duplicate":
+        questions *= 2
+    elif fault == "no_id":
+        questions = [Question("Unidentified")]
+    hydrate = Mock(return_value=None)
+    if fault == "restore_error":
+        hydrate.side_effect = ValueError("Original checkpoint restore rejected")
+    lifecycle = SimpleNamespace(
+        reference_question=Mock(return_value=None),
+        hydrate_question=hydrate,
+        before_question=Mock(side_effect=AssertionError("Must not claim")),
+    )
+    provider = Mock()
+    engine = QAEngine(provider, work_item_lifecycle=lifecycle)
+    with pytest.raises(ValueError):
+        engine.hydrate_questions(questions)
+    lifecycle.before_question.assert_not_called()
+    provider.search.assert_not_called()
+    provider.search_question.assert_not_called()

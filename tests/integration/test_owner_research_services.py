@@ -29,7 +29,7 @@ def test_arbitrary_owner_double_refused_before_any_sdk():
         OwnerResearchServices(SimpleNamespace(), SimpleNamespace(), task=SimpleNamespace())
 
 
-def _setup(actual, tmp_path):
+def _setup(actual, tmp_path, *, compact=False):
     policy = _policy(model="deepseek-flash", max_cost_per_attempt=1)
     prepared = setup_admission(
         actual, tmp_path, policy=policy, provider="deepseek", selected_question_count=2
@@ -97,7 +97,16 @@ def _setup(actual, tmp_path):
         provider_name=route["provider_config_ref"],
         model_requested="deepseek-flash",
         budget_policy=policy,
-        budget_route=route,
+        budget_route=(
+            {
+                "route_id": route["id"],
+                "provider": route["provider_config_ref"],
+                "model_requested": route["model"],
+                "quota_group": route["quota_group"],
+            }
+            if compact
+            else route
+        ),
         owner_refresh_session=session,
         observation_context=context,
         scope_by_question=session.scope_bindings,
@@ -301,3 +310,24 @@ def test_original_registered_owner_two_sdk_turns_and_scope_recovery(actual, tmp_
         is None
     )
     assert len(posts) == 2
+
+
+@pytest.mark.parametrize("actual", ["1.2.0"], indirect=True)
+def test_original_runner_compact_route_is_accepted_without_relaxing_any_route_identity(
+    actual, tmp_path
+):
+    services, _, _ = _setup(actual, tmp_path, compact=True)
+    original = copy.deepcopy(services.lifecycle._budget_route)
+    assert set(original) == {"route_id", "provider", "model_requested", "quota_group"}
+    before = services.store.path.read_bytes()
+    try:
+        for key in (*original, "unexpected"):
+            changed = {**original, key: "WRONG_ROUTE"}
+            services.lifecycle._budget_route = changed
+            with pytest.raises(
+                OwnerResearchRejected, match="approved_native_budget_route_required"
+            ):
+                OwnerResearchServices(services.lifecycle, services.client, task=services.task)
+            assert services.store.path.read_bytes() == before
+    finally:
+        services.lifecycle._budget_route = original

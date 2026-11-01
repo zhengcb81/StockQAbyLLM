@@ -413,6 +413,35 @@ class QAEngine:
         self.progress_reporter.finish_batch(summary)
         return batch_result
 
+    def hydrate_questions(self, questions: List[Question]) -> QABatchResult:
+        """Project original saved results only; never claim, send or fall back.
+
+        A shared-engine caller uses this after native finalization. Missing or
+        failed restoration must surface instead of creating another paid call.
+        """
+        ids = [q.question_id for q in questions if isinstance(q, Question)]
+        if (
+            not questions
+            or len(ids) != len(questions)
+            or any(not qid for qid in ids)
+            or len(set(ids)) != len(ids)
+            or self.work_item_lifecycle is None
+        ):
+            raise ValueError("hydrate_only_identified_original_questions_required")
+        lifecycle = self.work_item_lifecycle
+        batch = QABatchResult(total_questions=len(questions))
+        for question in questions:
+            reference = getattr(lifecycle, "reference_question", None)
+            result = reference(question) if callable(reference) else None
+            if result is None:
+                hydrate = getattr(lifecycle, "hydrate_question", None)
+                checkpoint = hydrate(question) if callable(hydrate) else None
+                if checkpoint is None:
+                    raise ValueError("hydrate_only_checkpoint_missing:" + str(question.question_id))
+                result = self._hydrate_pack_checkpoint(question, checkpoint)
+            batch.add_result(result)
+        return batch
+
     @staticmethod
     def _hydrate_pack_checkpoint(question: Question, checkpoint: Dict[str, Any]) -> QAResult:
         # Same original checkpoint projection as the single path; no new timestamp.

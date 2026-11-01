@@ -71,6 +71,18 @@ def _native_batch_scope(store, task, entries, sdk_id):
     return selected
 
 
+def _same_budget_route(route, bound):
+    """The original runner binds a compact projection of the approved route."""
+    if route == bound:
+        return True
+    return bound == {
+        "route_id": route["id"],
+        "provider": route["provider_config_ref"],
+        "model_requested": route["model"],
+        "quota_group": route["quota_group"],
+    }
+
+
 class OwnerResearchServices:
     """Production service adapter requiring a real registered native action.
 
@@ -123,7 +135,7 @@ class OwnerResearchServices:
         ]
         if (
             len(routes) != 1
-            or routes[0] != lifecycle._budget_route
+            or not _same_budget_route(routes[0], lifecycle._budget_route)
             or lifecycle._provider_name != routes[0]["provider_config_ref"]
             or not isinstance(routes[0].get("quota_group"), str)
         ):
