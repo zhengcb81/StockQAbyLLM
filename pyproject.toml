@@ -45,9 +45,13 @@ dev = [
     "pip-audit==2.10.0",
 ]
 docs = [
-    "mkdocs>=1.6.0",
-    "mkdocs-material>=9.7.7",
-    "mkdocstrings[python]>=0.25.0",
+    # Python 3.10-compatible toolchain; keep in sync with requirements-lock.txt.
+    # pymdown >=12.2 requires a Highlight API absent in mkdocstrings 1.0.6.
+    "mkdocs==1.6.1",
+    "mkdocs-material==9.7.7",
+    "mkdocstrings[python]==1.0.6",
+    "mkdocstrings-python==2.0.9",
+    "pymdown-extensions==12.1",
 ]
 
 [build-system]
