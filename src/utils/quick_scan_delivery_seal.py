@@ -358,48 +358,62 @@ def seal_pending_deliveries(
     authority: dict[str, Any] | None,
     limit: int = 100,
 ) -> dict[str, Any]:
-    """Restart/finish entry: seal every settle-able checkpoint with LLM=0.
+    """Finish up to ``limit`` new seals/revisions with LLM=0.
 
-    Scans three waiting groups — checkpoints with no delivery row yet,
-    deliveries durably blocked only because the authority used to be missing,
-    and deliveries already sealed but not yet dispatched. Mid-flight and
-    terminal deliveries are never touched.
+    A finite ID snapshot includes checkpoints without a delivery, blocked rows,
+    then ready unsent rows. Already matching rows and work-local failures do
+    not consume useful progress, so they cannot starve later paid answers.
+    Mid-flight and terminal deliveries remain immutable. Diagnostics retain
+    their original lists, sampled at ``limit`` with explicit total counts.
     """
+    if type(limit) is not int or not 1 <= limit <= 1000:
+        raise ValueError("delivery candidate limit must be from 1 to 1000")
     sealed: list[dict[str, Any]] = []
     blocked: list[dict[str, Any]] = []
     already: list[dict[str, Any]] = []
     untouched: list[dict[str, Any]] = []
-    seen: set[str] = set()
+    diagnostics = {"blocked": blocked, "already_sealed": already, "untouched": untouched}
+    counts = dict.fromkeys(diagnostics, 0)
+    completed = 0
+    processed = 0
+    candidates = store.list_result_seal_candidates()
 
-    candidates = list(store.list_result_ready_without_delivery(limit=limit))
-    for record in store.list_result_deliveries(states=["blocked", "ready"], limit=limit):
-        candidates.append(record["work_item_id"])
+    def record_diagnostic(kind: str, outcome: dict[str, Any]) -> None:
+        counts[kind] += 1
+        if len(diagnostics[kind]) < limit:
+            diagnostics[kind].append(outcome)
 
     for work_item_id in candidates:
-        if work_item_id in seen:
-            continue
-        seen.add(work_item_id)
+        if completed >= limit:
+            break
+        processed += 1
+        before = None
         try:
+            before = store.get_result_delivery(work_item_id)
             outcome = seal_result_delivery(store, work_item_id, authority=authority)
         except (ValueError, WorkConflictError, LeaseFencedError) as error:
-            # A work-local failure does not discard later independent paid
-            # checkpoints. A successful commit may precede its diagnostic;
-            # use the actual immutable delivery rather than the exception alone.
+            # A diagnostic can fail after its durable commit. Count a newly
+            # completed target, preserving the old already-sealed report shape.
             current = get_matching_sealed_delivery(store, work_item_id, authority=authority)
             if current is not None:
-                already.append(_sealed_outcome(work_item_id, current, "already_sealed"))
+                record_diagnostic(
+                    "already_sealed", _sealed_outcome(work_item_id, current, "already_sealed")
+                )
+                if before is None or before.get("package_bytes") != current.get("package_bytes"):
+                    completed += 1
             else:
                 logger.error("封存跳过 %s：%s", work_item_id, error)
-                untouched.append({"work_item_id": work_item_id, "reason": str(error)})
+                record_diagnostic("untouched", {"work_item_id": work_item_id, "reason": str(error)})
             continue
         if outcome["action"] in {"sealed", "superseded"}:
             sealed.append(outcome)
+            completed += 1
         elif outcome["action"] == "blocked":
-            blocked.append(outcome)
+            record_diagnostic("blocked", outcome)
         elif outcome["action"] == "already_sealed":
-            already.append(outcome)
+            record_diagnostic("already_sealed", outcome)
         else:
-            untouched.append(outcome)
+            record_diagnostic("untouched", outcome)
 
     return {
         "sealed": sealed,
@@ -407,4 +421,11 @@ def seal_pending_deliveries(
         "already_sealed": already,
         "untouched": untouched,
         "model_calls": 0,
+        "newly_sealed_count": completed,
+        "candidate_count": len(candidates),
+        "processed_count": processed,
+        "diagnostic_counts": counts,
+        "diagnostics_truncated": any(
+            counts[kind] > len(rows) for kind, rows in diagnostics.items()
+        ),
     }

@@ -128,18 +128,25 @@ def _standard_body() -> dict:
     }
 
 
-def _checkpointed(tmp_path, *, with_context: bool = True, with_answer: bool = True) -> tuple:
+def _checkpointed(
+    tmp_path,
+    *,
+    with_context: bool = True,
+    with_answer: bool = True,
+    store=None,
+    generation: int = 1,
+) -> tuple:
     """Drive one durable checkpoint; the complete inputs are ONE pair.
 
     ``with_context=False`` means no side tables at all — a complete standard
     body cannot be stored without its frozen context — so the body is left for
     ``attach_standard_inputs`` instead of being half-saved.
     """
-    store = _store(tmp_path)
+    store = _store(tmp_path) if store is None else store
     item = store.create_or_attach(
         entity_id=ENTITY,
         question_id=QID,
-        generation=1,
+        generation=generation,
         scope="entity",
         scope_id=ENTITY,
         identity_revision=1,
@@ -162,19 +169,22 @@ def _checkpointed(tmp_path, *, with_context: bool = True, with_answer: bool = Tr
         route_id="route-1",
         provider="mimo",
         model_requested=MODEL,
-        request_cache_key="REQ_" + hashlib.sha256(b"complete-seal").hexdigest(),
+        request_cache_key="REQ_"
+        + hashlib.sha256(
+            b"complete-seal" if generation == 1 else f"complete-seal-{generation}".encode()
+        ).hexdigest(),
         prompt_sha256="e" * 64,
     )
     store.mark_send_intent(work_id, lease, attempt["attempt_id"])
     receipt = {
         "provider": "mimo",
-        "request_id": "req_complete_01",
-        "response_id": "resp_complete_01",
+        "request_id": f"req_complete_{generation:02d}",
+        "response_id": f"resp_complete_{generation:02d}",
         "actual_model": MODEL,
         "search_status": "executed",
         "response_status": "completed",
         "http_status_code": 200,
-        "attempt_id": "provider_attempt_complete_01",
+        "attempt_id": f"provider_attempt_complete_{generation:02d}",
         "prompt_sha256": hashlib.sha256(b"provider prompt only").hexdigest(),
         "search_receipt_id": "search_complete_01",
         "completed_at": "2026-09-27T12:00:00Z",

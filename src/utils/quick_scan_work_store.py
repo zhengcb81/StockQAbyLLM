@@ -5487,6 +5487,27 @@ class QuickScanWorkStore:
             ).fetchall()
             return [row["work_item_id"] for row in rows]
 
+    def list_result_seal_candidates(self) -> list[str]:
+        """Snapshot IDs needing first sealing or an unsent revision check.
+
+        One read fixes this invocation's finite candidate set before any seal
+        updates timestamps. IDs only keep package blobs out of batch discovery;
+        the sealer still rechecks each work's current state and authority.
+        """
+        with closing(self._connect()) as connection:
+            rows = connection.execute(
+                "SELECT work_item_id FROM ("
+                "SELECT w.work_item_id,0 AS priority,w.updated_at AS sort_time "
+                "FROM work_item w JOIN answer_checkpoint c USING (work_item_id) "
+                "LEFT JOIN quick_scan_result_delivery d USING (work_item_id) "
+                "WHERE w.status='result_ready' AND d.work_item_id IS NULL "
+                "UNION ALL "
+                "SELECT work_item_id,CASE state WHEN 'blocked' THEN 1 ELSE 2 END,updated_at "
+                "FROM quick_scan_result_delivery WHERE state IN ('blocked','ready')"
+                ") ORDER BY priority,sort_time,work_item_id"
+            ).fetchall()
+            return [row["work_item_id"] for row in rows]
+
     def mark_result_delivery_blocked(self, work_item_id: str, reason_code: str) -> dict:
         """Durably record why a completed answer cannot yet form a C06 package."""
         from .quick_scan_result_outbox import _SAFE_TOKEN
