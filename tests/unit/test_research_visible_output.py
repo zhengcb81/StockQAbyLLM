@@ -239,16 +239,35 @@ def test_v22_migration_preserves_original_receipt_without_backfill(tmp_path, tra
         )
     with sqlite3.connect(store.path) as conn:
         original = conn.execute("SELECT * FROM quick_scan_attempt_response").fetchall()
-        conn.execute("DROP TABLE quick_scan_owner_continuation_cell")
+        import re
+
+        from src.utils.quick_scan_work_store import _DDL_V24_ADDITIONS
+
+        for statement in reversed(_DDL_V24_ADDITIONS):
+            kind, name = re.match(r"CREATE (TABLE|TRIGGER) ([A-Za-z_]+)", statement).groups()
+            conn.execute("DROP " + kind + " IF EXISTS " + name)
+        conn.execute("DROP TABLE IF EXISTS quick_scan_owner_continuation_cell")
         conn.execute("DROP TABLE quick_scan_research_intent")
         conn.execute("DROP TABLE quick_scan_research_turn")
         conn.execute("DROP TABLE quick_scan_research_session")
         conn.execute("DROP TABLE quick_scan_research_visible_output")
+        from src.utils.quick_scan_work_store import (
+            _DDL_CHECKPOINT_V11,
+            _DDL_V2_ADDITIONS,
+        )
+
+        assert conn.execute("SELECT count(*) FROM answer_checkpoint").fetchone()[0] == 0
+        conn.execute("DROP TABLE answer_checkpoint")
+        conn.execute(_DDL_CHECKPOINT_V11)
+        for statement in _DDL_V2_ADDITIONS[1:]:
+            conn.execute(statement)
         conn.execute("PRAGMA user_version=22")
     reopened = QuickScanWorkStore(store.path)
     assert reopened.get_research_visible_output(result["receipt"]["attempt_id"]) is None
     with sqlite3.connect(store.path) as conn:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 24
+        from src.utils.quick_scan_work_store import SCHEMA_VERSION
+
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         assert conn.execute("SELECT * FROM quick_scan_attempt_response").fetchall() == original
     assert len(transport[1]) == 1
 

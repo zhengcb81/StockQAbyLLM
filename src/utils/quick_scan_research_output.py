@@ -92,10 +92,36 @@ def normalize(value):
             raise ValueError("research_visible_json_invalid")
 
     private_guard(value)
+    try:
+        from src.providers.llm_response_parser import load_visible_answer_json
+
+        decoded = load_visible_answer_json(value["content"])
+    except (ValueError, TypeError) as error:
+        if str(error) in {
+            "private_channel_field_in_visible_answer",
+            "private_thought_tag_in_visible_answer",
+        }:
+            raise ValueError("research_visible_private_field_forbidden") from error
+        decoded = None
     encoded = _canonical(value)
     if len(encoded.encode("utf8")) > 2000000:
         raise ValueError("research_visible_output_too_large")
     return json.loads(encoded)
+
+
+def public_final_output(content, *, credential=None):
+    """Common visible final projection, before answer parsing, for every bound scan.
+
+    Unsafe output keeps its charged native receipt but is never copied into
+    the replay journal. This is data retention, not answer validation.
+    """
+    if not isinstance(content, str) or (credential and credential in content):
+        return None
+    output = {"content": content, "tool_calls": [], "finish_reason": "stop"}
+    try:
+        return normalize(output)
+    except (ValueError, TypeError, RecursionError):
+        return None
 
 
 def visible_output_sha256(value):
@@ -112,8 +138,8 @@ def _source(store, connection, attempt_id):
     source = store._response_record(connection, row)
     receipt = source["receipt"]
     if (
-        receipt.get("search_protocol") not in {"deepseek_chat_completions", "mimo_chat_completions"}
-        or receipt.get("actual_model") != receipt.get("requested_model")
+        not isinstance(receipt.get("search_protocol"), str)
+        or receipt.get("actual_model") != source["model_resolved"]
         or not isinstance(receipt.get("http_status_code"), int)
         or not 200 <= receipt["http_status_code"] < 300
     ):

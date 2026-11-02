@@ -1171,17 +1171,40 @@ def project_question_pack_transport(execution_metadata: dict) -> dict:
         ) from error
 
 
+def parse_standard_pack_member(answer, *, context, source_urls):
+    """Interpret one original member identically on first save and paid replay."""
+    from src.utils.quick_scan_observation_context import (
+        parse_standard_answer,
+        validate_standard_answer,
+    )
+
+    body = parse_standard_answer(answer["description"])
+    if body is None:
+        raise ValueError("full standard body is required")
+    if answer.get("information_as_of") != body.get("information_as_of"):
+        raise ValueError("outer and standard information dates conflict")
+    normalized = {
+        "entity_id": answer["entity_id"],
+        "question_id": answer["question_id"],
+        "status": answer["status"],
+        "score": answer["score"],
+        "description": body["summary"],
+    }
+    validate_standard_answer(
+        body,
+        metadata=context["metadata"],
+        normalized_answer=normalized,
+        source_urls=source_urls,
+    )
+    return body
+
+
 def validate_question_pack_standard_answers(execution_metadata: dict, answers: list[dict]) -> dict:
     """Validate supplied bodies against original owner context and physical URLs.
 
     No defaults or research content are synthesized. Binding/receipt failures
     remain transport failures; only body/schema failures are member-invalid.
     """
-    from src.utils.quick_scan_observation_context import (
-        parse_standard_answer,
-        validate_standard_answer,
-    )
-
     project_question_pack_transport(execution_metadata)
     binding = _QUESTION_PACK_BINDING.get()
     if binding is None:
@@ -1201,22 +1224,9 @@ def validate_question_pack_standard_answers(execution_metadata: dict, answers: l
         qid = answer["question_id"]
         item, context = rows[qid]
         try:
-            body = parse_standard_answer(answer["description"])
-            if body is None:
-                raise ValueError("full standard body is required")
-            if answer.get("information_as_of") != body.get("information_as_of"):
-                raise ValueError("outer and standard information dates conflict")
-            normalized = {
-                "entity_id": answer["entity_id"],
-                "question_id": qid,
-                "status": answer["status"],
-                "score": answer["score"],
-                "description": body["summary"],
-            }
-            validate_standard_answer(
-                body,
-                metadata=context["metadata"],
-                normalized_answer=normalized,
+            parse_standard_pack_member(
+                answer,
+                context=context,
                 source_urls=list(execution_metadata.get("source_urls") or []),
             )
         except (ValueError, KeyError, TypeError):

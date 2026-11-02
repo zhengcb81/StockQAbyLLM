@@ -2105,8 +2105,6 @@ class LLMRunner:
             policy = _final_answer_diagnostic_policy(
                 Path.cwd() / "llm_apis.json", recovery_only=True
             )
-            if policy is None:
-                raise ValueError("received_checkpoint_saved_answer_directory_missing")
             session = prepare_execution(
                 refresh_admission_config,
                 refresh_confirmation_id,

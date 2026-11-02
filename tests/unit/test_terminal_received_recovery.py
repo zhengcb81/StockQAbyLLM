@@ -228,9 +228,11 @@ def test_expired_original_paid_lease_saves_without_new_claim_or_budget(tmp_path,
     assert not any(e["to_status"] == "failed" for e in events)
 
 
+@pytest.mark.parametrize("journal", [False, True])
+@pytest.mark.parametrize("member_fault", [None, "missing", "invalid", "semantic_invalid"])
 @pytest.mark.parametrize("description_object", [False, True])
 def test_captured_leased_paid_pack_recovers_original_final_json_after_expiry(
-    tmp_path, monkeypatch, description_object
+    tmp_path, monkeypatch, description_object, member_fault, journal
 ):
     """Real parser/capture/SQLite/physical-save chain; current actor is a seam."""
     import hashlib
@@ -273,7 +275,47 @@ def test_captured_leased_paid_pack_recovers_original_final_json_after_expiry(
         entries[qid] = dict(
             kind="work", work_item_id=member["work_item_id"], item={"question_id": qid}
         )
+    if member_fault == "missing":
+        payloads.pop()
+    elif member_fault == "invalid":
+        payloads[-1]["score"] = 0
+    if member_fault == "semantic_invalid":
+        bad_body = payloads[-1]["description"]
+        bad_body = bad_body if isinstance(bad_body, dict) else json.loads(bad_body)
+        bad_body["items"] = [{"name": "invalid score-fact mixture"}]
+        payloads[-1]["description"] = bad_body if description_object else json.dumps(bad_body)
     text = json.dumps({"answers": payloads})
+    if journal:
+        from src.utils.quick_scan_research_output import persist, visible_output_sha256
+        from tests.unit import test_quick_scan_known_outcome as fixtures
+
+        visible = dict(content=text, tool_calls=[], finish_reason="stop")
+        original_receipt = fixtures._receipt
+
+        def anchored_receipt(**kwargs):
+            return {
+                **original_receipt(**kwargs),
+                "research_visible_output_sha256": visible_output_sha256(visible),
+            }
+
+        monkeypatch.setattr(fixtures, "_receipt", anchored_receipt)
+        journal_root = tmp_path / "journal"
+        journal_root.mkdir()
+        store, clock, members, pack, receipt, _, context = fixture(
+            journal_root, response_status="completed", currency="USD"
+        )
+        pack = store.get_question_pack(pack["pack_id"])
+        entries = {
+            m["question_id"]: dict(
+                kind="work", work_item_id=m["work_item_id"], item={"question_id": m["question_id"]}
+            )
+            for m in pack["members"]
+        }
+        with store._transaction() as connection:
+            persist(store, connection, pack["budget_attempt_id"], visible)
+        from src.utils.quick_scan_work_store import QuickScanWorkStore
+
+        store = QuickScanWorkStore(store.path, clock=lambda: clock[0])
     original = store.get_attempt_response(pack["members"][0]["attempt_id"])
     capture = dict(
         record_kind="final_answer_diagnostic",
@@ -329,15 +371,21 @@ def test_captured_leased_paid_pack_recovers_original_final_json_after_expiry(
     clock[0] += 1000
     original_responses = [store.get_attempt_response(m["attempt_id"]) for m in pack["members"]]
     budget = store.get_quick_scan_budget_status("pack-policy")
-    report = owner.recover_received_checkpoints(capture_policy={"directory": directory})
-    assert set(report["recovered_work_item_ids"]) == {m["work_item_id"] for m in pack["members"]}
+    policy = None if journal else {"directory": directory}
+    report = owner.recover_received_checkpoints(capture_policy=policy)
+    valid_members = pack["members"][:-1] if member_fault else pack["members"]
+    assert set(report["recovered_work_item_ids"]) == {m["work_item_id"] for m in valid_members}
+    assert report["status"] == ("partial" if member_fault else "completed")
+    again = owner.recover_received_checkpoints(capture_policy=policy)
+    assert again["recovered_work_item_ids"] == []
+    assert set(again["attached_work_item_ids"]) == {m["work_item_id"] for m in valid_members}
     assert report["API_requests"] == report["new_attempts"] == report["model_calls"] == 0
     assert report["dispatch_started"] is False
     assert [
         store.get_attempt_response(m["attempt_id"]) for m in pack["members"]
     ] == original_responses
     assert store.get_quick_scan_budget_status("pack-policy") == budget
-    for member in pack["members"]:
+    for member in valid_members:
         assert (
             store.get_answer_checkpoint(member["work_item_id"])["attempt_id"]
             == member["attempt_id"]

@@ -563,7 +563,7 @@ class ApprovedRefreshSession:
             raise AdmissionRejected("received_checkpoint_original_binding_required")
         self._assert_original_registered_binding(qid, work, original["binding"], store=store)
 
-    def recover_received_checkpoints(self, *, capture_policy):
+    def recover_received_checkpoints(self, *, capture_policy=None):
         """Re-decode only configured owner-captured, settled original pack bodies.
 
         No caller answers, new attempts, leases, budget reservation or HTTP.
@@ -581,12 +581,12 @@ class ApprovedRefreshSession:
         from .quick_scan_result_outbox import strict_json_loads
         from .quick_scan_work_store import Lease
 
-        if not isinstance(capture_policy, dict) or not isinstance(
-            capture_policy.get("directory"), Path
+        directory = None if capture_policy is None else capture_policy.get("directory")
+        if directory is not None and (
+            not isinstance(directory, Path)
+            or directory.is_symlink()
+            or directory.resolve() != directory.absolute()
         ):
-            raise AdmissionRejected("received_checkpoint_configured_capture_required")
-        directory = capture_policy["directory"]
-        if directory.is_symlink() or directory.resolve() != directory.absolute():
             raise AdmissionRejected("received_checkpoint_capture_path_invalid")
         self.check()
         store = self.service.store
@@ -628,6 +628,7 @@ class ApprovedRefreshSession:
                 raise AdmissionRejected("received_checkpoint_exact_registered_pack_required")
             packs[pack["pack_id"]] = pack
         recovered = []
+        remaining = []
         for pack in packs.values():
             original = store.get_attempt_response(pack["members"][0]["attempt_id"])
             receipt = original["receipt"]
@@ -645,7 +646,10 @@ class ApprovedRefreshSession:
                 ],
             )
             matches: dict[str, tuple[Path, bytes, str]] = {}
-            for path in directory.glob("*.final.json"):
+            visible = store.get_research_visible_output(pack["budget_attempt_id"])
+            for path in (
+                () if visible is not None or directory is None else directory.glob("*.final.json")
+            ):
                 if not re.fullmatch(r"[a-f0-9]{64}\.final\.json", path.name):
                     continue
                 try:
@@ -680,9 +684,14 @@ class ApprovedRefreshSession:
                 ):
                     raise AdmissionRejected("received_checkpoint_original_body_binding_mismatch")
                 matches.setdefault(final_sha, (path, raw, text))
-            if len(matches) != 1:
-                raise AdmissionRejected("received_checkpoint_unique_original_body_required")
-            path, raw, text = next(iter(matches.values()))
+            replay_path: Path | None
+            if visible is not None:
+                text = visible["visible_output"]["content"]
+                replay_path, raw = None, None
+            else:
+                if len(matches) != 1:
+                    raise AdmissionRejected("received_checkpoint_unique_original_body_required")
+                replay_path, raw, text = next(iter(matches.values()))
             identity_doc = strict_json_loads(self.input_raw["identity.json"].decode("utf8"))
             parsed = LLMResponseParser().parse_question_pack_response(
                 text,
@@ -691,16 +700,22 @@ class ApprovedRefreshSession:
                 expected_company_name=identity_doc["payload"]["canonical_name"],
                 standard_answer_objects=True,
             )
-            if parsed is None or parsed.invalid_question_ids or parsed.missing_question_ids:
+            if parsed is None:
                 raise AdmissionRejected("received_checkpoint_original_body_invalid")
             answers = {a.question_id: a for a in parsed.answers}
             self.check()
-            with store._transaction():
-                if _snapshot(path)[1] != raw:
-                    raise AdmissionRejected("received_checkpoint_original_body_changed")
-                for member in pack["members"]:
+            for member in pack["members"]:
+                with store._transaction():
+                    if replay_path is not None and _snapshot(replay_path)[1] != raw:
+                        raise AdmissionRejected("received_checkpoint_original_body_changed")
                     wid = member["work_item_id"]
                     qid = member["question_id"]
+                    if qid not in answers:
+                        remaining.append(wid)
+                        continue
+                    if store.get_answer_checkpoint(wid) is not None:
+                        attached.append(wid)
+                        continue
                     answer = answers[qid]
                     frozen = store.get_observation_context(wid)
                     if frozen is None:
@@ -715,9 +730,24 @@ class ApprovedRefreshSession:
                         scope=item["scope"],
                         scope_id=item["scope_id"],
                     )
-                    body = parse_standard_answer(answer.description)
-                    if body is None or answer.information_as_of != body.get("information_as_of"):
-                        raise AdmissionRejected("received_checkpoint_full_standard_body_required")
+                    from .quick_scan_work_transport import parse_standard_pack_member
+
+                    try:
+                        body = parse_standard_pack_member(
+                            dict(
+                                question_id=qid,
+                                entity_id=answer.entity_id,
+                                status=answer.status,
+                                score=answer.score,
+                                description=answer.description,
+                                information_as_of=answer.information_as_of,
+                            ),
+                            context=frozen["context"]["questions"][qid],
+                            source_urls=list(receipt.get("source_urls") or []),
+                        )
+                    except (ValueError, KeyError, TypeError):
+                        remaining.append(wid)
+                        continue
                     store.save_answer_checkpoint(
                         wid,
                         Lease(member["lease_token"], member["lease_epoch"]),
@@ -736,9 +766,9 @@ class ApprovedRefreshSession:
                     )
                     if item["status"] in {"failed", "leased"}:
                         recovered.append(wid)
-                if _snapshot(path)[1] != raw:
-                    raise AdmissionRejected("received_checkpoint_original_body_changed")
-                self.check()
+                    if replay_path is not None and _snapshot(replay_path)[1] != raw:
+                        raise AdmissionRejected("received_checkpoint_original_body_changed")
+                    self.check()
         if not recovered and not attached:
             raise AdmissionRejected("received_checkpoint_known_response_required")
         deliveries = []
@@ -746,6 +776,8 @@ class ApprovedRefreshSession:
             self.check()
             deliveries.append(seal_result_delivery(store, wid, authority=self.bundle["authority"]))
         return dict(
+            remaining_work_item_ids=remaining,
+            status="partial" if remaining else "completed",
             recovered_work_item_ids=recovered,
             attached_work_item_ids=attached,
             deliveries=deliveries,

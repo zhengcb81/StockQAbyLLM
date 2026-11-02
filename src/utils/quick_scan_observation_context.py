@@ -50,10 +50,42 @@ def _subject_version(context, *, bound=False):
 
 
 def _visible_answer_schema(schema):
-    """Compatible runtime view, without changing frozen resources or hashes."""
+    """A compatible read view; frozen schema bytes and answer data stay intact."""
     view = copy.deepcopy(schema)
     view["additionalProperties"] = True
-    view["properties"]["summary"].pop("maxLength", None)
+    # Fact-list cardinality and prose lengths are generation/display preferences. The
+    # transport's byte ceiling bounds resources; these must not discard a paid
+    # answer. Identifier bounds, types, enums and financial coordinates remain.
+    prose = {
+        "summary",
+        "unit_detail",
+        "definition",
+        "description",
+        "claim",
+        "counterevidence",
+        "reason",
+        "title",
+        "name",
+        "segment",
+    }
+
+    def relax(node, field=None):
+        if isinstance(node, dict):
+            if field == "items":
+                node.pop("maxItems", None)
+            if field in prose:
+                node.pop("maxLength", None)
+            for key, value in node.items():
+                if key == "properties" and isinstance(value, dict):
+                    for name, child in value.items():
+                        relax(child, name)
+                else:
+                    relax(value, field)
+        elif isinstance(node, list):
+            for child in node:
+                relax(child, field)
+
+    relax(view)
     return view
 
 
@@ -593,9 +625,14 @@ def validate_standard_answer(
     if not successful and content["metrics"] and not research_only:
         raise ValueError("unavailable answer cannot assert metrics")
     cutoff = metadata["information_cutoff"]
-    for key in ("information_as_of", "period_end"):
-        if content[key] is not None and content[key] > cutoff:
-            raise ValueError("answer information after cutoff")
+    if content["information_as_of"] is not None and content["information_as_of"] > cutoff:
+        raise ValueError("answer information after cutoff")
+    if (
+        content["period_end"] is not None
+        and content["period_end"] > cutoff
+        and content["basis"] != "forward"
+    ):
+        raise ValueError("answer information after cutoff")
     if (
         content["period_start"]
         and content["period_end"]

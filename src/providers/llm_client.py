@@ -1655,13 +1655,17 @@ class LLMClient:
         if thinking_enabled is not None or max_output_tokens is not None or json_mode:
             result.execution_metadata["request_generation"] = _request_generation_metadata(data)
         visible = None
-        if research_final_json:
-            from src.utils.quick_scan_research_output import visible_output_sha256
-
-            visible = {"content": result.content, "tool_calls": [], "finish_reason": "stop"}
-            result.execution_metadata["research_visible_output_sha256"] = visible_output_sha256(
-                visible
+        if research_final_json or work_attempt is not None:
+            from src.utils.quick_scan_research_output import (
+                public_final_output,
+                visible_output_sha256,
             )
+
+            visible = public_final_output(result.content, credential=self.api_key)
+            if visible is not None:
+                result.execution_metadata["research_visible_output_sha256"] = visible_output_sha256(
+                    visible
+                )
         if work_attempt is not None:
             work_attempt.record_response(
                 http_status_code=_response_status_code(response),
@@ -1884,11 +1888,23 @@ class AsyncLLMClient:
             result.execution_metadata["request_payload_sha256"] = request_payload_sha256
         if thinking_enabled is not None or max_output_tokens is not None or json_mode:
             result.execution_metadata["request_generation"] = _request_generation_metadata(data)
+        visible = None
         if work_attempt is not None:
+            from src.utils.quick_scan_research_output import (
+                public_final_output,
+                visible_output_sha256,
+            )
+
+            visible = public_final_output(result.content, credential=self.api_key)
+            if visible is not None:
+                result.execution_metadata["research_visible_output_sha256"] = visible_output_sha256(
+                    visible
+                )
             work_attempt.record_response(
                 http_status_code=_response_status_code(response),
                 request_id=result.request_id,
                 receipt=result.execution_metadata,
+                research_visible_output=visible,
             )
             # Private transport provenance comes from this actual HTTP,
             # never from model-generated answer JSON or merged repair history.
