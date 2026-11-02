@@ -449,11 +449,12 @@ def test_company_scan_input_projection_is_detached_and_has_no_io(monkeypatch):
     owner.bundle = {"manifest": {"questions": [{"id": "Q1"}]}}
     owner.input_raw, owner.plan, owner.proof = (
         {"identity.json": b"original"},
-        {"model": "original"},
-        {},
+        {"model": "original", "provider": "mimo"},
+        {"request": {"protocol": "iqs.refresh_request/1.1.0"}},
     )
     lifecycle = QuickScanWorkLifecycle.__new__(QuickScanWorkLifecycle)
     lifecycle._owner_refresh, lifecycle._store = owner, store
+    lifecycle._model_requested = "original"
     lifecycle._transport_managed, lifecycle._observation_context, lifecycle._route_id = (
         True,
         context,

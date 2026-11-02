@@ -6,6 +6,7 @@ Only a configured first-party owner transport may construct a binding for run.
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import re
@@ -58,13 +59,47 @@ def sha(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def ordered_targets(value, *, provider=None, model=None):
+    """Validate immutable 1.6 wire data, never authenticate or grant permission."""
+    fields = {"provider", "model", "route_id", "provider_config_ref", "quota_group"}
+    if (
+        not isinstance(value, list)
+        or not 1 <= len(value) <= 16
+        or any(
+            not isinstance(row, dict)
+            or set(row) != fields
+            or any(
+                not isinstance(item, str) or not 1 <= len(item) <= 160 or item != item.strip()
+                for item in row.values()
+            )
+            for row in value
+        )
+    ):
+        raise ValueError("owner_refresh_ordered_targets_invalid")
+    if (
+        len({row["route_id"] for row in value}) != len(value)
+        or len({(row["provider_config_ref"], row["model"]) for row in value}) != len(value)
+        or (provider is not None and value[0]["provider"] != provider)
+        or (model is not None and value[0]["model"] != model)
+    ):
+        raise ValueError("owner_refresh_ordered_targets_invalid")
+    return copy.deepcopy(value)
+
+
 def normalize(binding: dict, item: dict) -> tuple[str, str]:
     subject_required = isinstance(binding, dict) and binding.get("protocol") in {
         "stockqa.owner_refresh_binding/2.0.0",
         "stockqa.owner_refresh_binding/3.0.0",
         "stockqa.owner_refresh_binding/4.0.0",
+        "stockqa.owner_refresh_binding/5.0.0",
     }
     keys = _KEYS | {"subject_context_schema"} if subject_required else _KEYS
+    ordered = (
+        isinstance(binding, dict)
+        and binding.get("protocol") == "stockqa.owner_refresh_binding/5.0.0"
+    )
+    if ordered:
+        keys |= {"ordered_route_targets"}
     controlled = isinstance(binding, dict) and binding.get("protocol") in {
         "stockqa.owner_refresh_binding/3.0.0",
         "stockqa.owner_refresh_binding/4.0.0",
@@ -78,6 +113,7 @@ def normalize(binding: dict, item: dict) -> tuple[str, str]:
         "stockqa.owner_refresh_binding/2.0.0",
         "stockqa.owner_refresh_binding/3.0.0",
         "stockqa.owner_refresh_binding/4.0.0",
+        "stockqa.owner_refresh_binding/5.0.0",
     }:
         raise ValueError("owner_refresh_binding_invalid")
     if (
@@ -88,7 +124,13 @@ def normalize(binding: dict, item: dict) -> tuple[str, str]:
     if any(
         not isinstance(binding[k], str) or not binding[k] or len(binding[k]) > 256
         for k in keys
-        - {"anchor_version", "target_generation", "identity_revision", "owner_control"}
+        - {
+            "anchor_version",
+            "target_generation",
+            "identity_revision",
+            "owner_control",
+            "ordered_route_targets",
+        }
     ):
         raise ValueError("owner_refresh_binding_invalid")
     for key in ("anchor_version", "target_generation", "identity_revision"):
@@ -107,6 +149,10 @@ def normalize(binding: dict, item: dict) -> tuple[str, str]:
             raise ValueError("owner_refresh_binding_item_mismatch")
     if binding["target_generation"] != item["generation"]:
         raise ValueError("owner_refresh_binding_item_mismatch")
+    if ordered:
+        ordered_targets(
+            binding["ordered_route_targets"], provider=binding["provider"], model=binding["model"]
+        )
     if controlled and (
         not isinstance(binding["owner_control"], dict)
         or ("comparison_target" in binding["owner_control"])
@@ -370,6 +416,7 @@ def guard_unresolved(
         if binding is not None and binding["protocol"] in {
             "stockqa.owner_refresh_binding/1.0.0",
             "stockqa.owner_refresh_binding/2.0.0",
+            "stockqa.owner_refresh_binding/5.0.0",
         }:
             successor = delivered_checkpoint_successor(connection, row)
             if successor is not None and item["generation"] > successor["generation"]:

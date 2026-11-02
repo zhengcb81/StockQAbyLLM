@@ -19,11 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import quick_scan_refresh_admission_journal as journal
-from .quick_scan_owner_refresh import (
-    OwnerRefreshClient,
-    OwnerRefreshRejected,
-    routing_fingerprints,
-)
+from .quick_scan_owner_refresh import OwnerRefreshClient
 from .quick_scan_refresh_batch import register_refresh_action
 from .quick_scan_refresh_consent import OwnerConsentEndpoint, RefreshConsentClient
 from .quick_scan_result_outbox import (
@@ -387,6 +383,12 @@ class RefreshAdmissionService:
             else:
                 specifications, references = [], []
                 for bundle in bundles.values():
+                    ordered_options = {}
+                    if proof["request"]["protocol"] == "iqs.refresh_request/1.6.0":
+                        ordered_options = dict(
+                            ordered_route_targets=copy.deepcopy(preview["ordered_route_targets"]),
+                            cache_clock=policy.get("cache_clock", "information_as_of"),
+                        )
                     bundle["session"] = bundle["owner"].prepare(
                         bundle["manifest"],
                         self.store,
@@ -395,6 +397,7 @@ class RefreshAdmissionService:
                         model=preview["model"],
                         now=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                         observation_context=bundle["authority"]["observation_context"],
+                        **ordered_options,
                     )
                     sessions.append(bundle["session"])
                 for item in preview["items"]:

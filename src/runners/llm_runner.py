@@ -3005,20 +3005,14 @@ class LLMRunner:
                     or not quick_scan_policy["configured"]
                 ):
                     raise ValueError("shared_company_original_configured_owner_required")
-                candidates = [
-                    p
-                    for r, p in zip(execution_routes, route_providers)
-                    if r["id"] == work_lifecycle._route_id
-                    and p is not None
-                    and r["model"] == work_lifecycle._model_requested
-                ]
-                if len(candidates) != 1:
-                    raise ValueError("shared_company_original_route_client_required")
-                from src.utils.quick_scan_shared_company import run_shared_company_scan
+                from src.utils.quick_scan_shared_routes import run_ordered_company_scan
 
-                run_shared_company_scan(
+                run_ordered_company_scan(
                     work_lifecycle,
-                    candidates[0].client,
+                    [
+                        (route, provider.client if provider is not None else None)
+                        for route, provider in zip(execution_routes, route_providers)
+                    ],
                     config=shared_document,
                     questions=questions,
                     cost_resolver=cost_resolver,

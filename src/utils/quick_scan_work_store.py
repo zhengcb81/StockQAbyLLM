@@ -2370,8 +2370,10 @@ class QuickScanWorkStore:
         model_resolution: Optional[dict] = None,
         work_item_id: Optional[str] = None,
         independent_task: Optional[dict] = None,
+        company_request_scope=None,
     ) -> dict:
         _safe(budget_attempt_id, "budget_attempt_id")
+        QuickScanWorkStore._check_company_request_scope_tx(connection, company_request_scope)
         if work_attempt_id is not None:
             _safe(work_attempt_id, "work_attempt_id")
         route_id = _safe_text(route_id, "route_id", maximum=200)
@@ -2551,6 +2553,7 @@ class QuickScanWorkStore:
         quota_group: str,
         model_resolution: Optional[dict] = None,
         independent_task: Optional[dict] = None,
+        company_request_scope=None,
     ) -> dict:
         """Atomically reserve cost, request count, and global/group/route slots."""
         normalized = self.configure_quick_scan_budget(policy)
@@ -2567,6 +2570,7 @@ class QuickScanWorkStore:
                 now=self._now(),
                 model_resolution=model_resolution,
                 independent_task=independent_task,
+                company_request_scope=company_request_scope,
             )
 
     def configure_prepaid_search_quota(self, budget_policy, search_policy):
@@ -3256,7 +3260,8 @@ class QuickScanWorkStore:
         """Claim exact existing admitted work atomically; no owner/network authority.
 
         The original approved session separately checks current native permission.
-        This primitive never creates work, recovers a lease or reserves a request.
+        This primitive never creates work or reserves a request. Only v1.6
+        settled refusals can retain a live lease or use original expired-lease recovery.
         Original transport still authenticates current permission before every POST.
         """
         from .quick_scan_refresh_admission_journal import read_record
@@ -3293,7 +3298,36 @@ class QuickScanWorkStore:
             for work_id in work_item_ids:
                 row = self._item(connection, work_id)
                 if row["status"] != "pending":
-                    raise WorkConflictError("refresh_batch_work_not_pending")
+                    from .quick_scan_owner_refresh_journal import read
+
+                    bound = read(connection, work_id)
+                    latest = connection.execute(
+                        "SELECT * FROM attempt WHERE work_item_id=? "
+                        "ORDER BY ordinal DESC LIMIT 1",
+                        (work_id,),
+                    ).fetchone()
+                    if (
+                        bound is None
+                        or bound["binding"]["protocol"] != "stockqa.owner_refresh_binding/5.0.0"
+                        or row["status"] != "leased"
+                        or latest is None
+                        or latest["phase"] != "confirmed_failure"
+                        or latest["lease_epoch"] != row["lease_epoch"]
+                        or latest["lease_token"] != row["lease_token"]
+                        or not self._attempt_failure_settled_tx(connection, latest)
+                        or connection.execute(
+                            "SELECT 1 FROM answer_checkpoint WHERE work_item_id=?", (work_id,)
+                        ).fetchone()
+                        is not None
+                    ):
+                        raise WorkConflictError("refresh_batch_work_not_pending")
+                    if row["lease_expires_at"] <= self._now():
+                        # Original expiry logic fences the old worker. Unknown
+                        # sends are excluded above and remain unreplayable.
+                        self.recover_expired(work_id)
+                        row = self._item(connection, work_id)
+                        if row["status"] != "pending":
+                            raise WorkConflictError("refresh_batch_work_not_pending")
                 later = connection.execute(
                     "SELECT 1 FROM work_item WHERE entity_id=? AND question_id=? "
                     "AND scope=? AND scope_id=? AND generation>? LIMIT 1",
@@ -3325,8 +3359,12 @@ class QuickScanWorkStore:
                         row["lease_epoch"],
                         now,
                     )
-                lease = self._claim_pending_in_transaction(
-                    connection, row["work_item_id"], seconds, now
+                lease = (
+                    Lease(row["lease_token"], row["lease_epoch"])
+                    if row["status"] == "leased"
+                    else self._claim_pending_in_transaction(
+                        connection, row["work_item_id"], seconds, now
+                    )
                 )
                 if lease is None:
                     raise LeaseFencedError("refresh_batch_claim_lost_race")
@@ -3368,6 +3406,38 @@ class QuickScanWorkStore:
                 "SELECT * FROM attempt WHERE work_item_id=? ORDER BY ordinal DESC LIMIT 1",
                 (work_item_id,),
             ).fetchone()
+            from .quick_scan_owner_refresh_journal import read
+
+            bound = read(connection, work_item_id)
+            if (
+                bound is not None
+                and bound["binding"]["protocol"] == "stockqa.owner_refresh_binding/5.0.0"
+            ):
+                targets = bound["binding"]["ordered_route_targets"]
+
+                def rank(route, ref, model):
+                    found = [
+                        i
+                        for i, t in enumerate(targets)
+                        if (t["route_id"], t["provider_config_ref"], t["model"])
+                        == (route, ref, model)
+                    ]
+                    if len(found) != 1:
+                        raise WorkConflictError("ordered_route_not_approved")
+                    return found[0]
+
+                current_rank = rank(route_id, provider, model_requested)
+                if previous is not None:
+                    previous_rank = rank(
+                        previous["route_id"], previous["provider"], previous["model_requested"]
+                    )
+                    if previous["phase"] == "confirmed_failure" and (
+                        current_rank <= previous_rank
+                        or not self._attempt_failure_settled_tx(connection, previous)
+                    ):
+                        raise WorkConflictError("ordered_route_must_advance_after_settled_refusal")
+                    if previous["phase"] == "abandoned_unsent" and current_rank < previous_rank:
+                        raise WorkConflictError("ordered_route_cannot_move_backwards")
             research_turn_index = None
             if research_session_id is None and research_intent_sha256 is not None:
                 raise WorkConflictError("research intent requires original registration")
@@ -3528,6 +3598,7 @@ class QuickScanWorkStore:
         *,
         budget_policy: Optional[dict] = None,
         budget_route: Optional[dict] = None,
+        company_request_scope=None,
     ) -> SendPermit:
         """Commit intent with synchronous=FULL before returning permission to POST."""
         _safe(attempt_id, "attempt_id")
@@ -3575,6 +3646,7 @@ class QuickScanWorkStore:
                     model_requested=model_requested,
                     quota_group=quota_group,
                     now=now,
+                    company_request_scope=company_request_scope,
                 )
             changed = connection.execute(
                 "UPDATE attempt SET phase='send_intent',send_intent_at=? "
@@ -6317,6 +6389,92 @@ class QuickScanWorkStore:
             )
             return "cancelled"
 
+    @staticmethod
+    def _company_request_count_tx(connection, work_ids):
+        marks = ",".join("?" for _ in work_ids)
+        return connection.execute(
+            "SELECT COUNT(DISTINCT b.budget_attempt_id) FROM quick_scan_budget_attempt b "
+            "LEFT JOIN attempt a ON a.attempt_id=b.work_attempt_id "
+            "LEFT JOIN quick_scan_question_pack_send s ON s.budget_attempt_id=b.budget_attempt_id "
+            "LEFT JOIN quick_scan_question_pack_member m ON m.pack_id=s.pack_id "
+            "WHERE b.request_counted=1 AND (a.work_item_id IN (" + marks + ") "
+            "OR m.work_item_id IN (" + marks + "))",
+            (*work_ids, *work_ids),
+        ).fetchone()[0]
+
+    @staticmethod
+    def _attempt_failure_settled_tx(connection, attempt):
+        return (
+            connection.execute(
+                "SELECT 1 FROM quick_scan_budget_attempt b "
+                "JOIN quick_scan_budget_terminal t USING(budget_attempt_id) "
+                "LEFT JOIN quick_scan_question_pack_send s USING(budget_attempt_id) "
+                "LEFT JOIN quick_scan_question_pack_member m ON m.pack_id=s.pack_id "
+                "WHERE (b.work_attempt_id=? OR m.attempt_id=?) AND b.status='settled' "
+                "AND t.terminal_outcome='confirmed_failure' LIMIT 1",
+                (attempt["attempt_id"], attempt["attempt_id"]),
+            ).fetchone()
+            is not None
+        )
+
+    @staticmethod
+    def _check_company_request_scope_tx(connection, scope):
+        if scope is None:
+            return
+        work_ids, cap = scope
+        if (
+            not isinstance(work_ids, (list, tuple))
+            or not work_ids
+            or len(set(work_ids)) != len(work_ids)
+            or type(cap) is not int
+            or cap < 1
+        ):
+            raise ValueError("original_company_request_scope_required")
+        from .quick_scan_owner_refresh_journal import read
+
+        for wid in work_ids:
+            binding = read(connection, wid)
+            if (
+                binding is None
+                or binding["binding"]["protocol"] != "stockqa.owner_refresh_binding/5.0.0"
+            ):
+                raise ValueError("original_company_ordered_binding_required")
+        if QuickScanWorkStore._company_request_count_tx(connection, work_ids) >= cap:
+            raise BudgetAdmissionError("shared_company_model_request_cap_reached")
+
+    def company_scan_progress(self, work_item_ids):
+        """Original native rows and physical request count; detached, read-only."""
+        if (
+            not isinstance(work_item_ids, (list, tuple))
+            or not work_item_ids
+            or len(set(work_item_ids)) != len(work_item_ids)
+        ):
+            raise ValueError("company_scan_exact_work_scope_required")
+        rows = []
+        with closing(self._connect()) as connection:
+            connection.execute("BEGIN")
+            for wid in work_item_ids:
+                item = self._item(connection, wid)
+                last = connection.execute(
+                    "SELECT * FROM attempt WHERE work_item_id=? " "ORDER BY ordinal DESC LIMIT 1",
+                    (wid,),
+                ).fetchone()
+                checkpoint = connection.execute(
+                    "SELECT checkpoint_id FROM answer_checkpoint " "WHERE work_item_id=?", (wid,)
+                ).fetchone()
+                attempt = None if last is None else dict(last)
+                if attempt is not None:
+                    attempt["settled"] = self._attempt_failure_settled_tx(connection, last)
+                rows.append(
+                    dict(
+                        question_id=item["question_id"],
+                        checkpoint_id=None if checkpoint is None else checkpoint[0],
+                        latest_attempt=attempt,
+                    )
+                )
+            count = self._company_request_count_tx(connection, work_item_ids)
+        return dict(rows=rows, model_requests=count)
+
     def get_item(self, work_item_id: str) -> dict:
         with closing(self._connect()) as connection:
             return dict(self._item(connection, work_item_id))
@@ -6494,14 +6652,20 @@ class QuickScanWorkStore:
         )
 
     def mark_question_pack_send_intent(
-        self, pack_id: str, *, budget_policy: dict, budget_route: dict
+        self, pack_id: str, *, budget_policy: dict, budget_route: dict, company_request_scope=None
     ) -> dict:
         """Atomically mark every member and reserve exactly one physical budget."""
         from src.utils.quick_scan_question_pack_journal import mark
 
         return cast(
             dict,
-            mark(self, pack_id, budget_policy=budget_policy, budget_route=budget_route),
+            mark(
+                self,
+                pack_id,
+                budget_policy=budget_policy,
+                budget_route=budget_route,
+                company_request_scope=company_request_scope,
+            ),
         )
 
     def validate_question_pack_for_post(self, pack_id: str) -> dict:

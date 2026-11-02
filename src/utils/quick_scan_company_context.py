@@ -45,6 +45,16 @@ def company_scan_inputs(lifecycle):
                 proof=owner.proof,
                 observation_context=context,
                 route_id=lifecycle._route_id,
+                route_provider=(
+                    next(
+                        t["provider"]
+                        for t in owner.ordered_route_targets
+                        if t["route_id"] == lifecycle._route_id
+                    )
+                    if owner.proof["request"].get("protocol") == "iqs.refresh_request/1.6.0"
+                    else owner.plan["provider"]
+                ),
+                route_model=lifecycle._model_requested,
             )
         )
     )

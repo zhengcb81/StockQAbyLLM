@@ -32,8 +32,9 @@ def setup_delegated(
     provider="openai",
     selected_question_count=1,
     information_cutoff=None,
+    ordered_route_targets=None,
 ):
-    assert refresh_version in {"1.0.0", "1.1.0"}
+    assert refresh_version in {"1.0.0", "1.1.0", "1.6.0"}
     if information_cutoff not in (None, "2026-10-13"):
         raise ValueError("synthetic fixture unsupported information cutoff")
     routes, current, config, authority, manifest, identity_file = actual
@@ -115,15 +116,18 @@ def setup_delegated(
             provider_config_ref=policy["routes"][0]["provider_config_ref"],
         ),
     )
-    if refresh_version == "1.1.0":
-        owner_policy["qa"]["quote_schema_version"] = "1.1.0"
+    if refresh_version in {"1.1.0", "1.6.0"}:
+        owner_policy["qa"]["quote_schema_version"] = refresh_version
+    if refresh_version == "1.6.0":
+        assert ordered_route_targets is not None
+        owner_policy["ordered_route_targets"] = ordered_route_targets
     paths = routes.identity.paths
     paths.config_dir.mkdir(parents=True, exist_ok=True)
     policy_file = paths.config_dir / "quick_scan_refresh.json"
     policy_file.write_text(json.dumps(owner_policy), encoding="utf-8")
     request = dict(
         message_type="request",
-        schema_version="2.6.0" if refresh_version == "1.1.0" else "2.0.0",
+        schema_version="2.6.0" if refresh_version in {"1.1.0", "1.6.0"} else "2.0.0",
         request_id="admit-query",
         consumer_id="invest-quick-scan",
         operation="get_profiles",

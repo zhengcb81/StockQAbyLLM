@@ -104,6 +104,7 @@ class OwnerResearchServices:
         native_max_turns=24,
         owner_batch_claim=False,
         native_search=False,
+        request_scope=None,
     ):
         if not isinstance(lifecycle, QuickScanWorkLifecycle) or not isinstance(client, LLMClient):
             raise OwnerResearchRejected("original_lifecycle_and_client_required")
@@ -125,7 +126,7 @@ class OwnerResearchServices:
             raise OwnerResearchRejected("native_visible_output_durability_required")
         if (
             client.model != lifecycle._model_requested
-            or client.provider_name != owner.plan["provider"]
+            or client.provider_name != self._approved_provider(lifecycle)
         ):
             raise OwnerResearchRejected("approved_client_route_mismatch")
         owner.assert_provider_model(client.provider_name, client.model)
@@ -142,6 +143,8 @@ class OwnerResearchServices:
         ):
             raise OwnerResearchRejected("approved_native_budget_route_required")
         self.lifecycle, self.client, self.owner = lifecycle, client, owner
+        self.request_scope = copy.deepcopy(request_scope)
+        self._request_scope_snapshot = copy.deepcopy(request_scope)
         self.store, self.task = lifecycle._store, task
         self.cost_resolver, self.search_service = cost_resolver, search_service
         if (
@@ -186,6 +189,22 @@ class OwnerResearchServices:
             if getattr(self.owner, "recovery_only", False)
             else self.preflight_subject_dispatch()
         )
+
+    @staticmethod
+    def _approved_provider(lifecycle):
+        owner = lifecycle._owner_refresh
+        if owner.proof["request"].get("protocol") == "iqs.refresh_request/1.6.0":
+            matches = [
+                t
+                for t in owner.ordered_route_targets
+                if t["route_id"] == lifecycle._route_id
+                and t["provider_config_ref"] == lifecycle._provider_name
+                and t["model"] == lifecycle._model_requested
+            ]
+            if len(matches) != 1:
+                raise OwnerResearchRejected("approved_client_route_mismatch")
+            return matches[0]["provider"]
+        return owner.plan["provider"]
 
     def preflight_subject_dispatch(self):
         """Read the original owner's capability CLI before any paid retrieval.
@@ -431,7 +450,8 @@ class OwnerResearchServices:
 
     def _assert_registered_inputs(self, *, check_current=True):
         if (
-            self.native_search != self._native_search_snapshot
+            self.request_scope != self._request_scope_snapshot
+            or self.native_search != self._native_search_snapshot
             or type(self.native_search) is not bool
             or type(self.owner_batch_claim) is not bool
             or self.owner_batch_claim != self._owner_batch_claim_snapshot
@@ -442,7 +462,7 @@ class OwnerResearchServices:
             or getattr(self.task, "limits", {}) != self._limits_snapshot
             or self.client.base_url != self._client_endpoint_snapshot
             or self.client.model != self.lifecycle._model_requested
-            or self.client.provider_name != self.owner.plan["provider"]
+            or self.client.provider_name != self._approved_provider(self.lifecycle)
             or self._route_snapshot
             != (
                 self.lifecycle._route_id,
@@ -520,6 +540,19 @@ class OwnerResearchServices:
         )
 
         self._validate_envelope(envelope)
+        if self.request_scope is not None:
+            ids, cap = self.request_scope
+            if (
+                self.owner.ordered_route_targets is None
+                or type(cap) is not int
+                or cap < 1
+                or cap != self.task.limits["max_model_requests_per_session"]
+                or set(ids)
+                != {e["work_item_id"] for e in self.owner.entries.values() if e["kind"] == "work"}
+            ):
+                raise OwnerResearchRejected("original_company_request_scope_required")
+            if self.store.company_scan_progress(ids)["model_requests"] >= cap:
+                raise OwnerResearchRejected("shared_company_model_request_cap_reached")
         if self._active:
             raise OwnerResearchRejected("owner_generation_already_active")
         selected = envelope["dynamic_context"]["requested_question_ids"]
@@ -639,7 +672,12 @@ class OwnerResearchServices:
                     )
                 )
                 stack.enter_context(
-                    bind_quick_scan_budget(self.store, policy, cost_resolver=self.cost_resolver)
+                    bind_quick_scan_budget(
+                        self.store,
+                        policy,
+                        cost_resolver=self.cost_resolver,
+                        company_request_scope=self.request_scope,
+                    )
                 )
                 yield
         finally:

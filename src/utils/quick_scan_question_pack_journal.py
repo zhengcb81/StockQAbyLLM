@@ -457,7 +457,7 @@ def prepare(
         return _read(connection, pack_id)
 
 
-def mark(store, pack_id, *, budget_policy, budget_route):
+def mark(store, pack_id, *, budget_policy, budget_route, company_request_scope=None):
     from .quick_scan_work_store import Lease, WorkConflictError
 
     with _operation(store, pack_id) as connection:
@@ -475,6 +475,7 @@ def mark(store, pack_id, *, budget_policy, budget_route):
         store.reserve_budget_attempt(
             budget_policy,
             budget_attempt_id=budget_id,
+            company_request_scope=company_request_scope,
             **budget_route,
             model_resolution=pack["model_resolution"],
         )

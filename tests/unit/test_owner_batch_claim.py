@@ -19,7 +19,7 @@ def sha(text):
     return hashlib.sha256(text.encode()).hexdigest()
 
 
-def prepare(tmp_path, count=2):
+def prepare(tmp_path, count=2, binding_transform=None):
     clock = [1000.0]
     store = QuickScanWorkStore(tmp_path / "native.sqlite", clock=lambda: clock[0])
     confirmation = "rc2_" + sha("synthetic action")
@@ -60,6 +60,8 @@ def prepare(tmp_path, count=2):
             entity_id="ENT_fixture",
             identity_revision=1,
         )
+        if binding_transform is not None:
+            spec["owner_refresh_binding"] = binding_transform(spec["owner_refresh_binding"])
         row = store.create_or_attach(**spec, run_id="ORIGINAL", scan_id="ORIGINAL")
         specs.append(spec)
         items.append({key: row[key] for key in journal.ITEM_FIELDS})

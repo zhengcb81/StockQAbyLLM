@@ -109,6 +109,23 @@ def registered_recovery_routes(session, policy):
             and session.service.store.get_attempt_response(row["attempt_id"])
         ]
         bindings.update((row["route_id"], row["provider"], row["model_requested"]) for row in rows)
+    selected = getattr(session, "ordered_route_targets", None)
+    if selected is not None:
+        available = session.execution_routes(policy)
+        routes = []
+        for target in selected:
+            binding = (target["route_id"], target["provider_config_ref"], target["model"])
+            if binding not in bindings:
+                continue
+            matches = [
+                r for r in available if (r["id"], r["provider_config_ref"], r["model"]) == binding
+            ]
+            if len(matches) != 1:
+                raise ValueError("shared_recovery_original_route_unavailable")
+            routes.append(matches[0])
+        if not bindings or len(routes) != len(bindings):
+            raise ValueError("shared_recovery_original_route_unavailable")
+        return routes
     if len(bindings) != 1:
         raise ValueError("shared_recovery_original_route_required")
     binding = next(iter(bindings))
@@ -133,6 +150,32 @@ def load_original_company_task(checkpoint):
     return task_from_bundle(load_checkpoint(checkpoint)["task_bundle"])
 
 
+class SharedCompanyIncomplete(ValueError):
+    """Original export is partial; only native receipts may permit fallback."""
+
+    def __init__(self):
+        super().__init__("shared_company_scan_incomplete")
+
+
+def ordered_task_root(config, owner, scope, route_id):
+    identity = canonical_sha256(
+        dict(
+            confirmation_id=owner.proof["confirmation"]["confirmation_id"],
+            question_ids=scope,
+            route_id=route_id,
+        )
+    )
+    return Path(config["state_root"]) / ("scan-" + identity[:48])
+
+
+def original_task_checkpoint(root):
+    if (root / "export" / "checkpoint.json").is_file():
+        return root / "export" / "checkpoint.json"
+    return next(
+        iter(sorted(root.glob("session-[0-9][0-9][0-9][0-9]/checkpoint.json"), reverse=True)), None
+    )
+
+
 def run_shared_company_scan(
     lifecycle,
     client,
@@ -145,6 +188,8 @@ def run_shared_company_scan(
     max_output_tokens=8192,
     transport_origin="stockqa_live",
     recovery_only=False,
+    ordered_scope=None,
+    request_scope=None,
 ):
     """Reuse original services, durable engine checkpoint/export and finalizer.
 
@@ -174,6 +219,11 @@ def run_shared_company_scan(
     # Read the original task before inspecting NEW control/evidence settings.
     # A paid scan retains its frozen identity, board and session limits.
     root = Path(config["state_root"]) / run_id
+    if ordered_scope is not None:
+        if owner.ordered_route_targets is None or not set(selected) <= set(ordered_scope):
+            raise ValueError("shared_company_ordered_scope_not_approved")
+        root = ordered_task_root(config, owner, ordered_scope, lifecycle._route_id)
+        run_id = root.name
     checkpoints = (
         [root / "export" / "checkpoint.json"]
         if (root / "export").exists()
@@ -181,7 +231,11 @@ def run_shared_company_scan(
     )
     if checkpoints:
         task = load_original_company_task(checkpoints[0])
-        if task.question_ids != selected:
+        if (
+            task.question_ids != selected
+            if ordered_scope is None
+            else not set(selected) <= set(task.question_ids) <= set(ordered_scope)
+        ):
             raise ValueError("shared_company_original_question_selection_changed")
         max_output_tokens = task.limits["logical_max_output_tokens_including_reasoning_per_request"]
         question_pack_size = max(map(len, task.raw["execution_profile"]["packs"]))
@@ -248,6 +302,18 @@ def run_shared_company_scan(
         cost_resolver=cost_resolver,
         owner_batch_claim=True,
         native_search=lifecycle._external_retrieval is None,
+        request_scope=(
+            None
+            if request_scope is None
+            else (
+                request_scope[0],
+                (
+                    request_scope[1]
+                    if request_scope[1] is not None
+                    else task.limits["max_model_requests_per_session"]
+                ),
+            )
+        ),
     )
     session_config = {
         "protocol": "iqs.agent-runtime-lab.session-config/1.1.0",
@@ -259,7 +325,6 @@ def run_shared_company_scan(
         "wall_seconds": task.limits["company_wall_seconds"],
         "logical_clock": False,
     }
-    root = Path(config["state_root"]) / run_id
     export = root / "export"
     if not export.exists():
         if recovery_only and not root.is_dir():
@@ -321,7 +386,7 @@ def run_shared_company_scan(
                 engine.finalize_shared_engine(
                     task, services, candidate_export, question_ids=completed
                 )
-            raise ValueError("shared_company_scan_incomplete")
+            raise SharedCompanyIncomplete()
         # Only publish a fully written original export. A failed candidate is
         # retained; recovery uses the existing native checkpoint in a new
         # segment and never mistakes a half-written directory for completion.

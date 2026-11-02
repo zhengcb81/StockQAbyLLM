@@ -18,7 +18,6 @@ import subprocess  # nosec B404
 import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any
 
 from src.utils.quick_scan_result_outbox import canonical_sha256, strict_json_loads
 from src.utils.quick_scan_work_store import QuickScanWorkStore
@@ -253,7 +252,17 @@ class OwnerRefreshClient:
         now: str,
         observation_context: dict | None = None,
         recovery_entries: dict | None = None,
+        ordered_route_targets: list[dict] | None = None,
+        cache_clock: str = "information_as_of",
     ) -> "OwnerRefreshSession":
+        if cache_clock not in {"information_as_of", "successful_scan"}:
+            raise OwnerRefreshRejected("owner_refresh_cache_clock_invalid")
+        if ordered_route_targets is not None:
+            from .quick_scan_owner_refresh_journal import ordered_targets
+
+            ordered_route_targets = ordered_targets(
+                ordered_route_targets, provider=provider, model=model
+            )
         current = (
             self._call("anchor", ["--now-utc", now, "--include-raw-bundle"])
             if recovery_entries is not None
@@ -376,6 +385,7 @@ class OwnerRefreshClient:
                 store,
                 observation_context=observation_context if subject_context_active else None,
                 recovery_only=True,
+                ordered_route_targets=ordered_route_targets,
             )
         runs = Path(c["runs_dir"])
         runs.mkdir(parents=True, exist_ok=True)
@@ -385,6 +395,16 @@ class OwnerRefreshClient:
                 json.dumps(projection, ensure_ascii=False, allow_nan=False),
                 encoding="utf-8",
             )
+            ordered_options = []
+            if ordered_route_targets is not None:
+                targets_path = Path(temporary) / "ordered-route-targets.json"
+                targets_path.write_text(
+                    json.dumps(ordered_route_targets, ensure_ascii=False, allow_nan=False),
+                    encoding="utf-8",
+                )
+                ordered_options = ["--ordered-route-targets", str(targets_path)]
+            if cache_clock != "information_as_of":
+                ordered_options += ["--cache-clock", cache_clock]
             plan = self._call(
                 "refresh",
                 [
@@ -399,6 +419,7 @@ class OwnerRefreshClient:
                     "--work-projection",
                     str(path),
                 ]
+                + ordered_options
                 + (["--c06-subject-bound"] if subject_context_active else []),
             )
         self.assert_current(current, now)
@@ -426,6 +447,8 @@ class OwnerRefreshClient:
         ):
             if plan.get(k) != value or type(plan.get(k)) is not type(value):
                 raise OwnerRefreshRejected("owner_refresh_plan_binding_mismatch")
+        if plan.get("cache_clock", "information_as_of") != cache_clock:
+            raise OwnerRefreshRejected("owner_refresh_plan_cache_clock_mismatch")
         fields = plan.get("fields")
         if (
             not isinstance(fields, list)
@@ -446,6 +469,7 @@ class OwnerRefreshClient:
             identity,
             store,
             observation_context=observation_context if subject_context_active else None,
+            ordered_route_targets=ordered_route_targets,
         )
 
     def _paid_response_view(
@@ -539,6 +563,7 @@ class OwnerRefreshSession:
         store: QuickScanWorkStore,
         observation_context: dict | None = None,
         recovery_only: bool = False,
+        ordered_route_targets: list[dict] | None = None,
     ):
         self.recovery_only = recovery_only
         self.client, self.current, self.plan = (
@@ -554,6 +579,7 @@ class OwnerRefreshSession:
         )
         self.fields = {f["field_id"]: f for f in self.plan["fields"]}
         self.observation_context = copy.deepcopy(observation_context)
+        self.ordered_route_targets = copy.deepcopy(ordered_route_targets)
 
     def check(self) -> None:
         from datetime import datetime, timezone
@@ -580,6 +606,9 @@ class OwnerRefreshSession:
     def binding(self, qid: str, *, owner_control: dict | None = None) -> dict | None:
         if getattr(self, "recovery_only", False):
             raise OwnerRefreshRejected("paid_recovery_cannot_dispatch")
+        ordered = getattr(self, "ordered_route_targets", None)
+        if ordered is not None and (owner_control is not None or self.observation_context is None):
+            raise OwnerRefreshRejected("owner_refresh_ordered_context_required")
         row = self.fields[qid]
         if owner_control is not None:
             if self.observation_context is None:
@@ -608,15 +637,20 @@ class OwnerRefreshSession:
         scope = self.scope_bindings[qid]
         binding = dict(
             protocol=(
-                "stockqa.owner_refresh_binding/4.0.0"
-                if owner_control is not None and owner_control.get("comparison_target") is not None
+                "stockqa.owner_refresh_binding/5.0.0"
+                if ordered is not None
                 else (
-                    "stockqa.owner_refresh_binding/3.0.0"
+                    "stockqa.owner_refresh_binding/4.0.0"
                     if owner_control is not None
+                    and owner_control.get("comparison_target") is not None
                     else (
-                        "stockqa.owner_refresh_binding/2.0.0"
-                        if self.observation_context is not None
-                        else "stockqa.owner_refresh_binding/1.0.0"
+                        "stockqa.owner_refresh_binding/3.0.0"
+                        if owner_control is not None
+                        else (
+                            "stockqa.owner_refresh_binding/2.0.0"
+                            if self.observation_context is not None
+                            else "stockqa.owner_refresh_binding/1.0.0"
+                        )
                     )
                 )
             ),
@@ -640,6 +674,8 @@ class OwnerRefreshSession:
             binding["subject_context_schema"] = self.observation_context["schema"]
         if owner_control is not None:
             binding["owner_control"] = copy.deepcopy(owner_control)
+        if ordered is not None:
+            binding["ordered_route_targets"] = copy.deepcopy(ordered)
         return binding
 
     def existing_work(self, qid: str) -> dict | None:
@@ -777,8 +813,18 @@ class OwnerRefreshSession:
             != (scope["scope_id"] if scope["scope"] == "security" else None)
             or payload.get("segment_id")
             != (scope["scope_id"] if scope["scope"] == "segment" else None)
-            or payload.get("execution", {}).get("provider") != self.plan["provider"]
-            or payload.get("execution", {}).get("model_resolved") != self.plan["model"]
+            or (
+                payload.get("execution", {}).get("provider"),
+                payload.get("execution", {}).get("model_resolved"),
+            )
+            not in (
+                {
+                    (target["provider"], target["model"])
+                    for target in (self.ordered_route_targets or [])
+                }
+                if getattr(self, "ordered_route_targets", None) is not None
+                else {(self.plan["provider"], self.plan["model"])}
+            )
         ):
             raise OwnerRefreshRejected("owner_refresh_reuse_binding_mismatch")
         answer, execution = payload["answer"], payload["execution"]
@@ -792,12 +838,32 @@ class OwnerRefreshSession:
             raise OwnerRefreshRejected("owner_refresh_reference_status_unsupported")
         from datetime import timedelta, timezone
 
-        info = answer["information_as_of"]
-        stamp = info if "T" in info else info + "T00:00:00Z"
-        valid_until = min(
-            datetime.fromisoformat(payload["observed_at"].replace("Z", "+00:00")),
-            datetime.fromisoformat(stamp.replace("Z", "+00:00")),
-        ) + timedelta(hours=self.plan["ttl_hours"])
+        observed = datetime.fromisoformat(payload["observed_at"].replace("Z", "+00:00"))
+        if self.plan.get("cache_clock", "information_as_of") == "successful_scan":
+            try:
+                answered = datetime.fromisoformat(execution["answered_at"].replace("Z", "+00:00"))
+                valid_until = observed + timedelta(hours=self.plan["ttl_hours"])
+                declared = datetime.fromisoformat(row["cache_valid_until"].replace("Z", "+00:00"))
+                if (
+                    answered != observed
+                    or row.get("cache_clock") != "successful_scan"
+                    or datetime.fromisoformat(row["cache_started_at"].replace("Z", "+00:00"))
+                    != observed
+                    or declared != valid_until
+                    or execution.get("search_status") != "executed"
+                    or not isinstance(execution.get("search_receipt_id"), str)
+                    or not execution["search_receipt_id"].strip()
+                    or observed > datetime.now(timezone.utc)
+                ):
+                    raise ValueError("successful scan clock mismatch")
+            except (KeyError, TypeError, ValueError) as error:
+                raise OwnerRefreshRejected("owner_refresh_reuse_scan_clock_invalid") from error
+        else:
+            info = answer["information_as_of"]
+            stamp = info if "T" in info else info + "T00:00:00Z"
+            valid_until = min(
+                observed, datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+            ) + timedelta(hours=self.plan["ttl_hours"])
         if datetime.now(timezone.utc) >= valid_until:
             raise OwnerRefreshRejected("owner_refresh_reuse_expired")
         return QAResult(

@@ -5,6 +5,7 @@ The quote is a conservative shared-budget ceiling, not a model price forecast.
 Approval/paid dispatch must separately recheck and reserve via original Q09.
 """
 
+import copy
 import json
 import sqlite3
 import stat
@@ -125,8 +126,17 @@ class ReadOnlyWorkView(QuickScanWorkStore):
 
 
 def inspect_refresh(
-    path, request, *, policy, schema_version="1.0.0", admission_config=None, budget_policy_file=None
+    path,
+    request,
+    *,
+    policy,
+    schema_version="1.0.0",
+    admission_config=None,
+    budget_policy_file=None,
+    _snapshot_view=None,
 ):
+    if schema_version == "1.6.0":
+        return _inspect_ordered_refresh(path, request, policy=policy)
     if schema_version not in {"1.0.0", "1.1.0", "1.2.0", "1.3.0", "1.4.0", "1.5.0"}:
         raise ValueError("refresh_inspection_schema_unsupported")
     required = {
@@ -198,16 +208,18 @@ def inspect_refresh(
             for c in exposure_control["cells"]
         ):
             raise ValueError("refresh_exposure_native_target_mismatch")
-    view = ReadOnlyWorkView(path)
+    view = _snapshot_view if _snapshot_view is not None else ReadOnlyWorkView(path)
     with closing(view._connect()) as connection:
-        connection.execute("BEGIN")
+        if _snapshot_view is None:
+            connection.execute("BEGIN")
         # Bind schema and rows to the same native read transaction. A schema
         # change after the initial connection check must not be overlooked.
         version = connection.execute("PRAGMA user_version").fetchone()[0]
         if version not in READ_ONLY_SCHEMA_VERSIONS:
             raise ValueError("refresh_executor_schema_unavailable")
         view._validate_schema(connection, schema_version=version, audit_records=False)
-        view._inspection_connection = connection
+        if _snapshot_view is None:
+            view._inspection_connection = connection
         try:
             stored = connection.execute(
                 "SELECT * FROM quick_scan_budget_policy WHERE policy_id=?",
@@ -468,5 +480,73 @@ def inspect_refresh(
                 API_requests=0,
             )
         finally:
+            if _snapshot_view is None:
+                view._inspection_connection = None
+                connection.rollback()
+
+
+def _inspect_ordered_refresh(path, request, *, policy):
+    """Compose native 1.1 reads inside one original ledger read snapshot."""
+    from .quick_scan_owner_refresh_journal import ordered_targets
+
+    if not isinstance(request, dict) or "ordered_route_targets" not in request:
+        raise ValueError("refresh_inspection_request_invalid")
+    selected = ordered_targets(request["ordered_route_targets"], model=request.get("model"))
+    if any(selected[0][key] != request.get(key) for key in ("route_id", "provider_config_ref")):
+        raise ValueError("refresh_executor_policy_route_mismatch")
+    frozen_policy = copy.deepcopy(policy)
+    normalized = _budget_policy_projection(frozen_policy)
+    for target in selected:
+        if normalized["route_identity"].get(target["route_id"]) != {
+            key: target[key] for key in ("provider_config_ref", "model", "quota_group")
+        }:
+            raise ValueError("refresh_executor_policy_route_mismatch")
+    view = ReadOnlyWorkView(path)
+    inspections = []
+    with closing(view._connect()) as connection:
+        connection.execute("BEGIN")
+        view._inspection_connection = connection
+        try:
+            for target in selected:
+                current = {
+                    key: copy.deepcopy(value)
+                    for key, value in request.items()
+                    if key != "ordered_route_targets"
+                }
+                current.update(
+                    {key: target[key] for key in ("route_id", "provider_config_ref", "model")}
+                )
+                inspections.append(
+                    inspect_refresh(
+                        path,
+                        current,
+                        policy=frozen_policy,
+                        schema_version="1.1.0",
+                        _snapshot_view=view,
+                    )
+                )
+        finally:
             view._inspection_connection = None
             connection.rollback()
+    original = inspections[0]
+    if any(
+        value["ledger_budget_sha256"] != original["ledger_budget_sha256"] for value in inspections
+    ):
+        raise ValueError("refresh_executor_budget_snapshot_changed")
+    result = copy.deepcopy(original)
+    result.update(
+        protocol="stockqa.refresh_inspection/1.6.0", request_sha256=canonical_sha256(request)
+    )
+    # These are alternative routes under ONE cap, never independent budgets.
+    result["quote"].update(
+        max_cost_micros=min(value["quote"]["max_cost_micros"] for value in inspections),
+        max_http_requests=min(value["quote"]["max_http_requests"] for value in inspections),
+        budget_available=all(value["quote"]["budget_available"] for value in inspections),
+        budget_state_sha256=canonical_sha256(
+            dict(
+                ordered_route_targets=selected,
+                quotes=[value["quote"]["budget_state_sha256"] for value in inspections],
+            )
+        ),
+    )
+    return result

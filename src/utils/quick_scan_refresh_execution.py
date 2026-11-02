@@ -97,6 +97,7 @@ def registered_scope(items, bundle, record, *, information_cutoff):
                 "stockqa.owner_refresh_binding/2.0.0",
                 "stockqa.owner_refresh_binding/3.0.0",
                 "stockqa.owner_refresh_binding/4.0.0",
+                "stockqa.owner_refresh_binding/5.0.0",
             }
             or (
                 binding.get("protocol")
@@ -181,11 +182,28 @@ def prepare_execution(
         record,
         information_cutoff=proof["request"]["source_query"]["payload"]["information_cutoff"],
     )
+    ordered = proof["request"].get("protocol") == "iqs.refresh_request/1.6.0"
+    for entry in entries.values():
+        if entry["kind"] != "work":
+            continue
+        binding = entry["specification"]["owner_refresh_binding"]
+        if (
+            (binding["protocol"] == "stockqa.owner_refresh_binding/5.0.0") != ordered
+            or ordered
+            and canonical_bytes(binding["ordered_route_targets"])
+            != canonical_bytes(proof["preview"]["ordered_route_targets"])
+        ):
+            raise AdmissionRejected("refresh_execution_ordered_binding_mismatch")
     if recovery_only:
         # Reuse references are already retained in the original journal/store.
         # This invocation preserves paid work only; today's cache TTL is irrelevant.
         entries = {qid: entry for qid, entry in entries.items() if entry["kind"] == "work"}
     native_options = {"recovery_entries": entries} if recovery_only else {}
+    if ordered:
+        native_options.update(
+            ordered_route_targets=copy.deepcopy(proof["preview"]["ordered_route_targets"]),
+            cache_clock=proof["owner_policy"].get("cache_clock", "information_as_of"),
+        )
     native = bundle["owner"].prepare(
         bundle["manifest"],
         service.store,
@@ -304,6 +322,15 @@ class ApprovedRefreshSession:
                     else:
                         self.deferred[qid] = "original_delivery_historical_or_refresh_required"
             self.fields[qid] = field
+
+    @property
+    def ordered_route_targets(self):
+        if (
+            getattr(self, "proof", {}).get("request", {}).get("protocol")
+            != "iqs.refresh_request/1.6.0"
+        ):
+            return None
+        return copy.deepcopy(self.proof["preview"]["ordered_route_targets"])
 
     @property
     def requested_question_ids(self):
@@ -449,6 +476,14 @@ class ApprovedRefreshSession:
             original_binding["information_cutoff"] != cutoff
             or original_binding["provider"] != self.proof["preview"]["provider"]
             or original_binding["model"] != self.proof["preview"]["model"]
+        ):
+            reject()
+        if original_binding[
+            "protocol"
+        ] == "stockqa.owner_refresh_binding/5.0.0" and canonical_bytes(
+            original_binding["ordered_route_targets"]
+        ) != canonical_bytes(
+            self.ordered_route_targets
         ):
             reject()
 
@@ -734,10 +769,29 @@ class ApprovedRefreshSession:
         ):
             raise AdmissionRejected("refresh_checkpoint_original_subject_changed")
         provenance = checkpoint["payload"]["provenance"]
-        if (
-            provenance["model_requested"] != binding["model"]
-            or provenance["actual_provider"] != binding["provider"]
-        ):
+        selected = (
+            binding.get("ordered_route_targets")
+            if binding["protocol"] == "stockqa.owner_refresh_binding/5.0.0"
+            else None
+        )
+        matches = (
+            any(
+                all(
+                    provenance.get(actual) == target[expected]
+                    for actual, expected in (
+                        ("route_id", "route_id"),
+                        ("route_provider", "provider_config_ref"),
+                        ("actual_provider", "provider"),
+                        ("model_requested", "model"),
+                    )
+                )
+                for target in selected
+            )
+            if selected is not None
+            else provenance["model_requested"] == binding["model"]
+            and provenance["actual_provider"] == binding["provider"]
+        )
+        if not matches:
             raise AdmissionRejected("refresh_checkpoint_original_model_changed")
         validate_standard_answer(
             standard["answer"],
@@ -897,17 +951,55 @@ class ApprovedRefreshSession:
         expected = _budget_policy_projection(self.service.budget)
         if canonical_bytes(_budget_policy_projection(policy)) != canonical_bytes(expected):
             raise AdmissionRejected("refresh_execution_confirmed_model_policy_required")
-        if policy_reader is not None:
+        selected = self.ordered_route_targets
+        original_routes = None
+        if selected is not None and not getattr(self, "recovery_only", False):
+            original_routes = self._ordered_route_config(config_file, selected)
+            self._ordered_vendor_routes = copy.deepcopy(original_routes)
+        if policy_reader is not None or original_routes is not None:
 
             def check_policy():
-                if canonical_bytes(_budget_policy_projection(policy_reader())) != canonical_bytes(
-                    expected
-                ):
+                if policy_reader is not None and canonical_bytes(
+                    _budget_policy_projection(policy_reader())
+                ) != canonical_bytes(expected):
                     raise AdmissionRejected("refresh_execution_model_policy_changed")
+                if (
+                    original_routes is not None
+                    and self._ordered_route_config(config_file, selected) != original_routes
+                ):
+                    raise AdmissionRejected("refresh_execution_model_configuration_changed")
 
             self._policy_check = check_policy
 
+    @staticmethod
+    def _ordered_route_config(config_file, selected):
+        from src.providers.llm_client import _search_endpoint
+
+        document = _snapshot(config_file)[0]
+        projection = {}
+        try:
+            for target in selected:
+                alias = target["provider_config_ref"]
+                base_url = document["providers"][alias]["base_url"]
+                endpoint, provider, protocol = _search_endpoint(
+                    base_url, target["model"], alias, external_context_only=True
+                )
+                if provider != target["provider"]:
+                    raise ValueError("original provider type changed")
+                projection[target["route_id"]] = dict(
+                    provider=provider, base_url=base_url, endpoint=endpoint, protocol=protocol
+                )
+        except (KeyError, TypeError, ValueError, RuntimeError) as error:
+            raise AdmissionRejected("refresh_execution_target_configuration_unavailable") from error
+        return projection
+
     def assert_provider_model(self, provider, model):
+        if self.ordered_route_targets is not None:
+            if (provider, model) not in {
+                (row["provider"], row["model"]) for row in self.ordered_route_targets
+            }:
+                raise AdmissionRejected("refresh_execution_target_route_not_approved")
+            return
         if provider != self.proof["preview"]["provider"] or model != self.proof["preview"]["model"]:
             raise AdmissionRejected("refresh_execution_primary_route_changed")
 
@@ -918,6 +1010,71 @@ class ApprovedRefreshSession:
 
     def execution_routes(self, policy):
         """Select approved targets without editing the original budget snapshot."""
+        if self.ordered_route_targets is not None:
+            expected = self.proof["owner_policy"]
+            vendors = getattr(self, "_ordered_vendor_routes", None)
+            recovery = getattr(self, "recovery_only", False)
+            if policy["policy_id"] != expected["qa"]["policy_id"] or (
+                vendors is None and not recovery
+            ):
+                raise AdmissionRejected("refresh_execution_target_route_unavailable")
+            paid_routes = set()
+            if recovery:
+                for entry in self.entries.values():
+                    if entry["kind"] != "work":
+                        raise AdmissionRejected("paid_recovery_registered_work_required")
+                    attempts = self.service.store.list_attempts(entry["work_item_id"])
+                    attempt = attempts[-1] if attempts else None
+                    response = (
+                        self.service.store.get_attempt_response(attempt["attempt_id"])
+                        if attempt
+                        else None
+                    )
+                    receipt = response.get("receipt") if isinstance(response, dict) else None
+                    matches = [
+                        target
+                        for target in self.ordered_route_targets
+                        if attempt is not None
+                        and attempt["phase"] == "response_available"
+                        and isinstance(receipt, dict)
+                        and all(
+                            attempt[key] == target[field]
+                            for key, field in (
+                                ("route_id", "route_id"),
+                                ("provider", "provider_config_ref"),
+                                ("model_requested", "model"),
+                            )
+                        )
+                        and receipt.get("provider") == target["provider"]
+                    ]
+                    if len(matches) != 1:
+                        raise AdmissionRejected("paid_recovery_original_target_response_required")
+                    paid_routes.add(matches[0]["route_id"])
+            result = []
+            for target in self.ordered_route_targets:
+                if recovery and target["route_id"] not in paid_routes:
+                    continue
+                matches = [
+                    route
+                    for route in policy["routes"]
+                    if all(
+                        route.get(key) == target[field]
+                        for key, field in (
+                            ("id", "route_id"),
+                            ("provider_config_ref", "provider_config_ref"),
+                            ("model", "model"),
+                            ("quota_group", "quota_group"),
+                        )
+                    )
+                ]
+                if len(matches) != 1 or (
+                    not recovery
+                    and (vendors or {}).get(target["route_id"], {}).get("provider")
+                    != target["provider"]
+                ):
+                    raise AdmissionRejected("refresh_execution_target_route_unavailable")
+                result.append(copy.deepcopy(matches[0]))
+            return result
         if self.proof["request"]["protocol"] != "iqs.refresh_request/1.3.0":
             return copy.deepcopy(policy["routes"])
         expected = self.proof["owner_policy"]

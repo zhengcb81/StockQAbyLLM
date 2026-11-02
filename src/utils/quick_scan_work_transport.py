@@ -95,6 +95,7 @@ class QuickScanBudgetBinding:
     policy: dict
     cost_resolver: Optional[Callable[[dict], Optional[dict]]] = None
     independent_task: Optional[dict] = None
+    company_request_scope: Optional[tuple] = None
 
 
 @dataclass
@@ -750,6 +751,7 @@ def bind_quick_scan_budget(
     *,
     cost_resolver: Optional[Callable[[dict], Optional[dict]]] = None,
     independent_task: Optional[dict] = None,
+    company_request_scope=None,
 ) -> Iterator[None]:
     """Bind the current immutable policy to the shared durable budget owner."""
     try:
@@ -759,7 +761,7 @@ def bind_quick_scan_budget(
     from src.utils.quick_scan_uncertain_seal import normalize_independent_task
 
     task = normalize_independent_task(independent_task)
-    binding = QuickScanBudgetBinding(store, policy, cost_resolver, task)
+    binding = QuickScanBudgetBinding(store, policy, cost_resolver, task, company_request_scope)
     token = _BUDGET_BINDING.set(binding)
     try:
         yield
@@ -1308,6 +1310,7 @@ def _begin_question_pack_send(
                 intent = binding.store.mark_question_pack_send_intent(
                     pack["pack_id"],
                     budget_policy=budget.policy,
+                    company_request_scope=budget.company_request_scope,
                     budget_route={
                         "route_id": route.route_id,
                         "provider": route.provider,
@@ -1567,6 +1570,9 @@ def begin_quick_scan_send(
                         work.lease,
                         prepared["attempt_id"],
                         budget_policy=None if budget is None else budget.policy,
+                        company_request_scope=(
+                            None if budget is None else budget.company_request_scope
+                        ),
                         budget_route=budget_route,
                     )
                     break

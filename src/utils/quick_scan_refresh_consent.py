@@ -194,6 +194,7 @@ class RefreshConsentClient:
             "iqs.refresh_request/1.3.0": "refresh-v1.3.schema.json",
             "iqs.refresh_request/1.4.0": "refresh-v1.4.schema.json",
             "iqs.refresh_request/1.5.0": "refresh-v1.5.schema.json",
+            "iqs.refresh_request/1.6.0": "refresh-v1.6.schema.json",
         }.get(dialect)
         if refresh_name is None:
             raise ValueError("unsupported explicit refresh dialect")
@@ -210,6 +211,7 @@ class RefreshConsentClient:
                 "1.3.0": "refresh-v1.3.schema.json",
                 "1.4.0": "refresh-v1.4.schema.json",
                 "1.5.0": "refresh-v1.5.schema.json",
+                "1.6.0": "refresh-v1.6.schema.json",
             }.get(policy_dialect)
             if policy_name is None:
                 raise ValueError("unsupported current owner policy dialect")
@@ -299,6 +301,33 @@ class RefreshConsentClient:
             or (mode != "paid_response_recovery" and route["model"] != policy["model"])
         ):
             raise ValueError("native consent executor policy mismatch")
+        if dialect == "iqs.refresh_request/1.6.0":
+            from .quick_scan_owner_refresh_journal import ordered_targets
+
+            selected = ordered_targets(
+                preview["ordered_route_targets"],
+                provider=preview["provider"],
+                model=preview["model"],
+            )
+            if (
+                selected != state["ordered_route_targets"]
+                or mode != "paid_response_recovery"
+                and (
+                    selected != policy["ordered_route_targets"]
+                    or any(
+                        selected[0][key] != qa[key] for key in ("route_id", "provider_config_ref")
+                    )
+                    or any(
+                        budget["route_identity"].get(target["route_id"])
+                        != {
+                            key: target[key]
+                            for key in ("provider_config_ref", "model", "quota_group")
+                        }
+                        for target in selected
+                    )
+                )
+            ):
+                raise ValueError("native consent ordered executor policy mismatch")
         if (
             not _utc(preview["created_at"])
             <= _utc(receipt["confirmed_at"])
