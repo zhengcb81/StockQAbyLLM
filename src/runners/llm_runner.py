@@ -1124,10 +1124,9 @@ class QuickScanWorkLifecycle:
                 raise WorkConflictError("question_pack_terminal_duplicate_member")
             ids = [a["attempt_id"] for a in attempts]
             membership = connection.execute(
-                "SELECT pack_id,attempt_id FROM quick_scan_question_pack_member WHERE attempt_id IN ("
-                + ",".join("?" for _ in ids)
-                + ")",
-                ids,
+                "SELECT pack_id,attempt_id FROM quick_scan_question_pack_member "
+                "WHERE attempt_id IN (SELECT value FROM json_each(?))",
+                (json.dumps(ids),),
             ).fetchall()
             if len(membership) != len(ids) or len({m["pack_id"] for m in membership}) != 1:
                 raise WorkConflictError("question_pack_terminal_membership_changed")

@@ -6424,15 +6424,16 @@ class QuickScanWorkStore:
 
     @staticmethod
     def _company_request_count_tx(connection, work_ids):
-        marks = ",".join("?" for _ in work_ids)
+        encoded_ids = json.dumps(list(work_ids))
         return connection.execute(
             "SELECT COUNT(DISTINCT b.budget_attempt_id) FROM quick_scan_budget_attempt b "
             "LEFT JOIN attempt a ON a.attempt_id=b.work_attempt_id "
             "LEFT JOIN quick_scan_question_pack_send s ON s.budget_attempt_id=b.budget_attempt_id "
             "LEFT JOIN quick_scan_question_pack_member m ON m.pack_id=s.pack_id "
-            "WHERE b.request_counted=1 AND (a.work_item_id IN (" + marks + ") "
-            "OR m.work_item_id IN (" + marks + "))",
-            (*work_ids, *work_ids),
+            "WHERE b.request_counted=1 "
+            "AND (a.work_item_id IN (SELECT value FROM json_each(?)) "
+            "OR m.work_item_id IN (SELECT value FROM json_each(?)))",
+            (encoded_ids, encoded_ids),
         ).fetchone()[0]
 
     @staticmethod

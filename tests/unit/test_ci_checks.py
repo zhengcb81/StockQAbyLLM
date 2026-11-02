@@ -34,6 +34,7 @@ DAILY_UNIT_FILES = (
     "tests/unit/test_quick_scan_budget.py",
     "tests/unit/test_q09_budget_concurrency.py",
     "tests/unit/test_ci_checks.py",
+    "tests/unit/test_sql_scope_queries.py",
 )
 
 PUBLIC_CLI_NODES = (

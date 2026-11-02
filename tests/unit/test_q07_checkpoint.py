@@ -785,7 +785,7 @@ def test_complete_c06_never_marks_unusable_standard_ready(
             json.dumps({"score": 8, "description": "Legacy compact"})
             if kind == "compact"
             else (
-                json.dumps(body)[:-1] + ', "score": 8}'
+                json.dumps(body)[:-1] + ', "score": 7}'
                 if kind == "duplicate_key"
                 else json.dumps(body)
             )
@@ -812,12 +812,18 @@ def test_complete_c06_never_marks_unusable_standard_ready(
 
 
 @pytest.mark.parametrize("authority_version", ["2.0.0", "3.0.0"])
-def test_complete_c06_original_standard_remains_checkpointable(tmp_path, authority_version):
+@pytest.mark.parametrize("identical_duplicate", [False, True])
+def test_complete_c06_original_standard_remains_checkpointable(
+    tmp_path, authority_version, identical_duplicate
+):
     from tests.unit.test_quick_scan_observation_context import content
 
     body = content()
+    description = json.dumps(body)
+    if identical_duplicate:
+        description = description[:-1] + ', "score": 8}'
     store, lc, question, handle, attempt, result, before, old, old_cp, sealed = (
-        _received_complete_lifecycle(tmp_path, authority_version, json.dumps(body))
+        _received_complete_lifecycle(tmp_path, authority_version, description)
     )
     output = _run_received_answer(lc, question, handle, result)
     assert output.answer.status == "scored" and output.answer.score == 8

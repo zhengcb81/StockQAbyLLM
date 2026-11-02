@@ -107,6 +107,7 @@ DAILY_TEST_TARGETS: Tuple[str, ...] = (
     "tests/unit/test_quick_scan_budget.py",
     "tests/unit/test_q09_budget_concurrency.py",
     "tests/unit/test_ci_checks.py",
+    "tests/unit/test_sql_scope_queries.py",
     "tests/integration/test_ci_checks_cli.py",
     "tests/integration/test_quick_scan_cli.py"
     "::test_public_cli_exports_eight_score_entity_timestamp_model_and_search_receipt",

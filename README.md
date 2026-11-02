@@ -181,6 +181,13 @@ python -B scripts/checks.py --list-steps
 退出码语义：格式、类型、测试、离线安全、CLI smoke、工具缺失/启动失败/超时都是**真实失败**并原样上抛；
 pylint / radon / coverage 数值只是诊断输出，不构成通过门槛。
 
+`pre-commit` 只运行轻量格式、类型、文件完整性和密钥检查，不包含 Bandit 与日常 pytest；
+hooks 成功或 push 成功不能称为远端 CI 通过。在一个实现节点交付时运行上述默认短检查，
+并查看该 commit 对应 Actions 的 `Checks` 结论；尚未完成就记为待验证，不必每个小提交跑全套。
+安全扫描失败应先核具体源码：优先使用固定 SQL 和绑定值（列表沿已支持的 `json_each(?)`），
+不以关闭 Bandit、全局跳过规则或吞退出码处理。检查恢复到 pytest 后，也要修复此前被遮住的真实失败。
+
+
 ### 运行测试
 
 ```bash

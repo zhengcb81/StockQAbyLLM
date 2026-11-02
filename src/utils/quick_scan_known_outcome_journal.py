@@ -629,12 +629,11 @@ def terminal_received_failure(con, item, attempt, reason):
         or item["lease_epoch"] != attempt["lease_epoch"]
     ):
         return False
-    if any(
-        con.execute(
-            "SELECT 1 FROM " + table + " WHERE work_item_id=?", (item["work_item_id"],)
-        ).fetchone()
-        for table in ("answer_checkpoint", "quick_scan_result_delivery")
-    ):
+    if con.execute(
+        "SELECT 1 FROM answer_checkpoint WHERE work_item_id=? "
+        "UNION ALL SELECT 1 FROM quick_scan_result_delivery WHERE work_item_id=? LIMIT 1",
+        (item["work_item_id"], item["work_item_id"]),
+    ).fetchone():
         return False
     reasons = {
         "missing_question_answer": {"missing_question"},

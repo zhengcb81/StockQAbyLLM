@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import json
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
@@ -547,7 +548,10 @@ def test_budget_denial_happens_before_sync_http_post(tmp_path, monkeypatch):
     session.post.assert_not_called()
 
 
-def test_async_search_settles_the_same_durable_budget_ledger(tmp_path, monkeypatch):
+@pytest.mark.parametrize("is_async", [False, True])
+def test_search_clients_settle_and_persist_the_same_durable_budget_ledger(
+    tmp_path, monkeypatch, is_async
+):
     store = QuickScanWorkStore(tmp_path / "budget.sqlite")
     policy = _policy(max_cost=10, max_cost_per_attempt=2)
     response = Mock()
@@ -574,12 +578,17 @@ def test_async_search_settles_the_same_durable_budget_ledger(tmp_path, monkeypat
         ],
     }
     http_client = Mock()
-    http_client.post = AsyncMock(return_value=response)
-    monkeypatch.setattr(
-        "src.providers.llm_client.http_client_manager.get_async_client",
-        AsyncMock(return_value=http_client),
-    )
-    client = AsyncLLMClient(
+    http_client.post = AsyncMock(return_value=response) if is_async else Mock(return_value=response)
+    if is_async:
+        monkeypatch.setattr(
+            "src.providers.llm_client.http_client_manager.get_async_client",
+            AsyncMock(return_value=http_client),
+        )
+    else:
+        monkeypatch.setattr(
+            "src.providers.llm_client.http_client_manager.get_sync_session", lambda: http_client
+        )
+    client = (AsyncLLMClient if is_async else LLMClient)(
         api_key="fixture-only",
         model="fixture-a",
         base_url="https://api.openai.com/v1/responses",
@@ -602,13 +611,29 @@ def test_async_search_settles_the_same_durable_budget_ledger(tmp_path, monkeypat
                 model_requested="fixture-a",
                 quota_group="A",
             ):
-                return await client.send_search_request_async("fixture question")
+                if is_async:
+                    return await client.send_search_request_async("fixture question")
+                return client.send_search_request("fixture question")
 
     result = asyncio.run(dispatch())
     status = store.get_quick_scan_budget_status(policy["policy_id"])
     assert result.search_verified is True
-    assert http_client.post.await_count == 1
+    assert http_client.post.call_count == 1
+    if is_async:
+        assert http_client.post.await_count == 1
     assert status["requests"] == 1
     assert status["spent_micros"] == 750_000
     assert status["reserved_micros"] == 0
     assert status["in_flight"] == 0
+
+    sent = http_client.post.call_args.kwargs["json"]
+    digest = hashlib.sha256(
+        json.dumps(
+            sent, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
+        ).encode("utf8")
+    ).hexdigest()
+    assert result.execution_metadata["request_payload_sha256"] == digest
+    attempt_id = result.execution_metadata["work_transport"]["work_attempt_id"]
+    saved = store.get_research_visible_output(attempt_id)
+    assert saved["request_payload_sha256"] == digest
+    assert saved["visible_output"]["content"] == "fixture"

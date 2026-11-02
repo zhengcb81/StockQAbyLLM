@@ -849,18 +849,11 @@ def bind_owner_refresh_guard(guard):
 
 
 def quick_scan_request_identity_required() -> bool:
-    """The frozen work profile selects receipt identity, not caller answers."""
-    if _QUESTION_PACK_BINDING.get() is not None:
-        return True
-    work = _WORK_BINDING.get()
-    if work is None:
-        return False
-    stored = work.store.get_observation_context(work.work_item_id)
-    if stored is None:
-        return False
-    question = work.store.get_item(work.work_item_id)["question_id"]
-    version = stored["context"]["questions"][question]["metadata"]["schema_version"]
-    return isinstance(version, str) and version == "1.2.0"
+    """Every native journal needs the actual request digest, even with defaults."""
+    return any(
+        binding is not None
+        for binding in (_WORK_BINDING.get(), _QUESTION_PACK_BINDING.get(), _BUDGET_BINDING.get())
+    )
 
 
 def frozen_quick_scan_model_resolution(model_resolution: Any = None) -> dict:
