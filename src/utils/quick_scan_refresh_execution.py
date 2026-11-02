@@ -728,7 +728,11 @@ class ApprovedRefreshSession:
                         if qid not in answers:
                             remaining.append(wid)
                             continue
-                        if store.get_answer_checkpoint(wid) is not None:
+                        existing = store.get_answer_checkpoint(wid)
+                        if existing is not None:
+                            self.assert_received_checkpoint_recovery(
+                                wid, existing["attempt_id"], store=store
+                            )
                             attached.append(wid)
                             continue
                         answer = answers[qid]
@@ -820,13 +824,37 @@ class ApprovedRefreshSession:
         saved_ids = set(recovered + attached)
         remaining = [wid for wid in wanted if wid not in saved_ids]
         deliveries = []
+        delivery_pending = []
         for wid in dict.fromkeys(recovered + attached):
             self.check()
-            deliveries.append(seal_result_delivery(store, wid, authority=self.bundle["authority"]))
+            try:
+                delivery = seal_result_delivery(store, wid, authority=self.bundle["authority"])
+            except (WorkConflictError, LeaseFencedError) as error:
+                self.check()
+                recovery_errors.append(
+                    dict(stage="delivery", work_item_ids=[wid], reason=str(error))
+                )
+                current = store.get_result_delivery(wid)
+                if current is not None and current["state"] in {"ready", "delivered"}:
+                    deliveries.append(
+                        dict(
+                            action="already_sealed",
+                            work_item_id=wid,
+                            state=current["state"],
+                            package_id=current["package_id"],
+                        )
+                    )
+                continue
+            deliveries.append(delivery)
+        for wid in dict.fromkeys(recovered + attached):
+            current = store.get_result_delivery(wid)
+            if current is None or current["state"] not in {"ready", "delivered"}:
+                delivery_pending.append(wid)
         return dict(
             recovery_errors=recovery_errors,
             remaining_work_item_ids=remaining,
-            status="partial" if remaining else "completed",
+            delivery_pending_work_item_ids=delivery_pending,
+            status="partial" if remaining or delivery_pending else "completed",
             recovered_work_item_ids=recovered,
             attached_work_item_ids=attached,
             deliveries=deliveries,

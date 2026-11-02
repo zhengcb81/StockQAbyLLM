@@ -627,10 +627,8 @@ def validate_standard_answer(
     cutoff = metadata["information_cutoff"]
     if content["information_as_of"] is not None and content["information_as_of"] > cutoff:
         raise ValueError("answer information after cutoff")
-    if (
-        content["period_end"] is not None
-        and content["period_end"] > cutoff
-        and content["basis"] != "forward"
+    if content["basis"] != "forward" and any(
+        content[key] is not None and content[key] > cutoff for key in ("period_start", "period_end")
     ):
         raise ValueError("answer information after cutoff")
     if (
@@ -671,9 +669,11 @@ def validate_standard_answer(
             metric["period_start"]
             and metric["period_end"]
             and metric["period_start"] > metric["period_end"]
-            or metric["period_end"]
-            and metric["period_end"] > cutoff
-            and metric["basis"] != "forward"
+            or metric["basis"] != "forward"
+            and any(
+                metric[key] is not None and metric[key] > cutoff
+                for key in ("period_start", "period_end")
+            )
         ):
             raise ValueError("invalid metric period")
     return copy.deepcopy(content)

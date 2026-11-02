@@ -96,3 +96,26 @@ def test_forecast_period_is_distinct_from_disclosure_cutoff(basis, information_f
     else:
         with pytest.raises(ValueError, match="after cutoff"):
             validate(body)
+
+
+@pytest.mark.parametrize("target", ["answer", "metric"])
+@pytest.mark.parametrize("basis", ["current", "forward"])
+@pytest.mark.parametrize(
+    "start,end", [("2027-01-01", None), (None, "2027-12-31"), ("2027-12-31", "2027-01-01")]
+)
+def test_period_endpoints_are_checked_independently(target, basis, start, end):
+    from tests.unit.test_quick_scan_observation_context import content, validate
+
+    body = content()
+    value = body
+    if target == "metric":
+        from tests.unit.test_quick_scan_observation_context import metric_body
+
+        body["metrics"] = metric_body()["metrics"]
+        value = body["metrics"][0]
+    value.update(basis=basis, period_start=start, period_end=end)
+    if basis == "forward" and not (start and end and start > end):
+        validate(body)
+    else:
+        with pytest.raises(ValueError):
+            validate(body)

@@ -232,7 +232,14 @@ def test_expired_original_paid_lease_saves_without_new_claim_or_budget(tmp_path,
 @pytest.mark.parametrize("member_fault", [None, "missing", "invalid", "semantic_invalid"])
 @pytest.mark.parametrize("description_object", [False, True])
 def test_captured_leased_paid_pack_recovers_original_final_json_after_expiry(
-    tmp_path, monkeypatch, description_object, member_fault, journal, mixed_state=None
+    tmp_path,
+    monkeypatch,
+    description_object,
+    member_fault,
+    journal,
+    mixed_state=None,
+    delivery_fault=None,
+    preexisting_rejected=False,
 ):
     """Real parser/capture/SQLite/physical-save chain; current actor is a seam."""
     import hashlib
@@ -513,10 +520,81 @@ def test_captured_leased_paid_pack_recovers_original_final_json_after_expiry(
                 raise LeaseFencedError("original synthetic lease was superseded")
 
     owner.assert_received_checkpoint_recovery = assert_original
+    if delivery_fault or preexisting_rejected:
+        from tests.unit.test_q10_delivery import _c06_authority
+
+        owner.bundle["authority"] = _c06_authority()
+    if preexisting_rejected:
+        from src.utils.quick_scan_work_store import WorkConflictError
+
+        original_save = store.save_answer_checkpoint
+        middle = pack["members"][1]["work_item_id"]
+
+        def save_middle_only(wid, *args, **kwargs):
+            if wid != middle:
+                raise WorkConflictError("synthetic first-pass member not yet saved")
+            return original_save(wid, *args, **kwargs)
+
+        monkeypatch.setattr(store, "save_answer_checkpoint", save_middle_only)
+        owner.recover_received_checkpoints(
+            capture_policy=None if journal else {"directory": directory}
+        )
+        monkeypatch.setattr(store, "save_answer_checkpoint", original_save)
+        existing_middle = store.get_answer_checkpoint(middle)
+        assert existing_middle is not None
+
+        def reject_existing_middle(wid, *args, **kwargs):
+            if wid == middle:
+                from src.utils.quick_scan_refresh_admission import AdmissionRejected
+
+                raise AdmissionRejected("received_checkpoint_registered_work_superseded")
+            return assert_original(wid, *args, **kwargs)
+
+        owner.assert_received_checkpoint_recovery = reject_existing_middle
+    seal_calls = []
+    if delivery_fault:
+        import sqlite3
+
+        from src.utils import quick_scan_delivery_seal as sealing
+        from src.utils.quick_scan_work_store import LeaseFencedError, WorkConflictError
+
+        original_seal = sealing.seal_result_delivery
+
+        def fail_middle_seal(store_, wid, **kwargs):
+            seal_calls.append(wid)
+            if wid == pack["members"][1]["work_item_id"]:
+                if delivery_fault == "permission":
+                    raise PermissionError("synthetic global actor revoked")
+                if delivery_fault == "database":
+                    raise sqlite3.DatabaseError("synthetic database corruption")
+                if delivery_fault == "after_success_conflict":
+                    original_seal(store_, wid, **kwargs)
+                    raise WorkConflictError("synthetic diagnostic after original seal committed")
+                if delivery_fault == "work_conflict":
+                    raise WorkConflictError("synthetic local delivery race")
+                if delivery_fault == "lease_fenced":
+                    raise LeaseFencedError("synthetic local delivery fence")
+                if delivery_fault == "blocked":
+                    return {"work_item_id": wid, "action": "blocked", "state": "blocked"}
+                if delivery_fault == "in_flight":
+                    return {
+                        "work_item_id": wid,
+                        "action": "left_in_flight",
+                        "state": "send_uncertain",
+                    }
+            return original_seal(store_, wid, **kwargs)
+
+        monkeypatch.setattr(sealing, "seal_result_delivery", fail_middle_seal)
     clock[0] += 1000
     original_responses = [store.get_attempt_response(m["attempt_id"]) for m in pack["members"]]
     budget = store.get_quick_scan_budget_status("pack-policy")
     policy = None if journal else {"directory": directory}
+    if delivery_fault in {"permission", "database"}:
+        error = PermissionError if delivery_fault == "permission" else sqlite3.DatabaseError
+        with pytest.raises(error):
+            owner.recover_received_checkpoints(capture_policy=policy)
+        assert store.get_quick_scan_budget_status("pack-policy") == budget
+        return
     report = owner.recover_received_checkpoints(capture_policy=policy)
     valid_members = (
         []
@@ -527,8 +605,30 @@ def test_captured_leased_paid_pack_recovers_original_final_json_after_expiry(
         valid_members = [pack["members"][0], pack["members"][2]]
         assert store.get_answer_checkpoint(pack["members"][1]["work_item_id"]) is None
         assert report["recovery_errors"]
+    if preexisting_rejected:
+        valid_members = [pack["members"][0], pack["members"][2]]
+        assert store.get_answer_checkpoint(middle) == existing_middle
+        assert middle not in report["attached_work_item_ids"]
+        assert middle in report["remaining_work_item_ids"]
+    if delivery_fault:
+        assert seal_calls == [m["work_item_id"] for m in pack["members"]]
+        assert report["delivery_pending_work_item_ids"] == (
+            []
+            if delivery_fault == "after_success_conflict"
+            else [pack["members"][1]["work_item_id"]]
+        )
+        assert report["remaining_work_item_ids"] == []
+        for member in (pack["members"][0], pack["members"][2]):
+            assert store.get_result_delivery(member["work_item_id"])["state"] == "ready"
     assert set(report["recovered_work_item_ids"]) == {m["work_item_id"] for m in valid_members}
-    assert report["status"] == ("partial" if member_fault or mixed_state else "completed")
+    assert report["status"] == (
+        "partial"
+        if member_fault
+        or mixed_state
+        or preexisting_rejected
+        or report["delivery_pending_work_item_ids"]
+        else "completed"
+    )
     assert set(extra_ids) <= set(report["remaining_work_item_ids"])
     if mixed_state in {
         "missing_body",
@@ -586,4 +686,34 @@ def test_mixed_scope_recovers_paid_members_without_touching_unavailable_work(
         None,
         journal,
         mixed_state=mixed_state,
+    )
+
+
+@pytest.mark.parametrize("journal", [False, True])
+@pytest.mark.parametrize(
+    "delivery_fault",
+    [
+        "work_conflict",
+        "lease_fenced",
+        "blocked",
+        "in_flight",
+        "permission",
+        "database",
+        "after_success_conflict",
+    ],
+)
+def test_paid_recovery_seals_independent_members_and_reports_saved_pending_separately(
+    tmp_path, monkeypatch, journal, delivery_fault
+):
+    test_captured_leased_paid_pack_recovers_original_final_json_after_expiry(
+        tmp_path, monkeypatch, False, None, journal, delivery_fault=delivery_fault
+    )
+
+
+@pytest.mark.parametrize("journal", [False, True])
+def test_existing_checkpoint_rejected_during_collection_is_not_reattached_by_its_pack(
+    tmp_path, monkeypatch, journal
+):
+    test_captured_leased_paid_pack_recovers_original_final_json_after_expiry(
+        tmp_path, monkeypatch, False, None, journal, preexisting_rejected=True
     )
