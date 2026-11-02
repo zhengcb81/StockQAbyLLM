@@ -866,3 +866,55 @@ def test_current_additive_answer_resources_are_provenance_not_a_static_hash_allo
     bad["questions"][QID]["metadata"]["entity_id"] = "WRONG_ISSUER"
     with pytest.raises(ValueError):
         api.check_context_matches_manifest(bad, MANIFEST)
+
+
+def test_new_answer_format_does_not_change_existing_observation_profiles(monkeypatch):
+    """A new format is additive; existing public files remain the frozen v1."""
+    api._resources.cache_clear()
+    old_answer, old_metrics = copy.deepcopy(api._resources("1.1.0")[1:3])
+    new_answer = copy.deepcopy(old_answer)
+    new_answer["required"].append("new_format_field")
+    new_metrics = copy.deepcopy(old_metrics)
+    metric_id = next(iter(new_metrics["metrics"]))
+    new_metrics["metrics"][metric_id]["unit"] = "other"
+    original_read = Path.read_text
+
+    def read_resource(path, *args, **kwargs):
+        if path.name == "answer-format-v2.json":
+            return json.dumps(new_answer)
+        if path.name == "metric-format-v2.json":
+            return json.dumps(new_metrics)
+        return original_read(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", read_resource)
+    monkeypatch.setitem(
+        api._ANSWER_FORMATS, "2.0.0", ("answer-format-v2.json", "metric-format-v2.json")
+    )
+    monkeypatch.setitem(
+        api._OBSERVATION_FORMATS, "1.3.0", ("quick_scan_observation.v1.2.schema.json", "2.0.0")
+    )
+    try:
+        for version in ("1.1.0", "1.2.0"):
+            assert api._resources(version)[1:3] == (old_answer, old_metrics)
+            metadata = copy.deepcopy(CONTEXT["questions"][QID]["metadata"])
+            metadata["schema_version"] = version
+            assert (
+                api.validate_standard_answer(
+                    content(),
+                    metadata=metadata,
+                    normalized_answer=normalized(content()),
+                    source_urls=["https://example.invalid/company"],
+                )
+                == content()
+            )
+        metadata["schema_version"] = "1.3.0"
+        with pytest.raises(ValueError, match="frozen standard schema"):
+            api.validate_standard_answer(
+                content(),
+                metadata=metadata,
+                normalized_answer=normalized(content()),
+                source_urls=["https://example.invalid/company"],
+            )
+        assert api._resources("1.3.0")[1:3] == (new_answer, new_metrics)
+    finally:
+        api._resources.cache_clear()

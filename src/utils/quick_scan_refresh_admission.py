@@ -43,13 +43,20 @@ PATH_KEYS = ROOT_KEYS | {
     "runs_dir",
 }
 CONFIG_KEYS = PATH_KEYS | {"protocol", "consumer_id"}
-BUNDLE_FILES = (
-    "manifest.json",
-    "identity.json",
-    "authority.json",
-    "owner-config.json",
-    "questions.json",
-)
+_INPUT_FILENAMES = {
+    "manifest": "manifest.json",
+    "identity_snapshot": "identity.json",
+    "c06_authority": "authority.json",
+    "owner_config": "owner-config.json",
+    "questions": "questions.json",
+}
+BUNDLE_FILES = tuple(_INPUT_FILENAMES.values())
+
+
+def execution_input_paths(inputs_root, subject_ref):
+    """Return the original admission input locations for a frozen subject."""
+    directory = Path(inputs_root) / ("subject_" + canonical_sha256(subject_ref))
+    return {role: directory / filename for role, filename in _INPUT_FILENAMES.items()}
 
 
 class AdmissionRejected(ValueError):
@@ -218,11 +225,10 @@ class RefreshAdmissionService:
             load_question_manifest,
         )
 
-        directory = Path(self.config["execution_inputs_root"]) / (
-            "subject_" + canonical_sha256(ref)
-        )
+        paths = execution_input_paths(self.config["execution_inputs_root"], ref)
+        directory = paths["manifest"].parent
         _plain_path(directory, directory=True)
-        snapshots = {name: _snapshot(directory / name) for name in BUNDLE_FILES}
+        snapshots = {path.name: _snapshot(path) for path in paths.values()}
         # Original loaders read only byte copies of the already strict snapshot.
         with tempfile.TemporaryDirectory(
             prefix="admission-", dir=None if self.recovery_only else self.config["runs_dir"]

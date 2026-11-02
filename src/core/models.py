@@ -494,7 +494,15 @@ class QABatchResult:
         requested_model: Optional[str],
         work_store: Any = None,
     ) -> Dict[str, Any]:
-        """Serialize a stable, per-question quick-scan envelope with a separate execution receipt."""
+        """Serialize a stable per-question envelope and separate execution receipt.
+
+        External search bindings expose owner-verified identity, source and
+        response hashes. ``retrievals[].route_kind`` is opaque provider metadata,
+        not a closed consumer capability enum. ``native_receipt`` may gain
+        optional sanitized fields without changing binding semantics; its hash
+        always covers the complete original object, extensions included. Readers
+        must not grant extra verification based on uninterpreted metadata.
+        """
         answers: Dict[str, Dict[str, Any]] = {}
         execution_receipts: Dict[str, Dict[str, Any]] = {}
         transport_providers: set[str] = set()

@@ -481,15 +481,28 @@ def test_public_external_result_rejects_raw_native_receipt_drift(tmp_path, monke
 
 
 @pytest.mark.parametrize("hybrid", [False, True])
-def test_public_actual_producer_to_iqs_routing_preserves_binding(tmp_path, monkeypatch, hybrid):
+@pytest.mark.parametrize("search_kind", ["brave", "deepseek_search"])
+def test_public_actual_producer_to_iqs_routing_preserves_binding(
+    tmp_path, monkeypatch, hybrid, search_kind
+):
     """Real durable producer -> public JSON -> pure consumer; HTTP only is fake."""
+    import os
     import sys
     from datetime import datetime, timezone
     from pathlib import Path
 
     from src.providers.llm_client import LLMClient
 
-    root = Path(__file__).resolve().parents[5]
+    configured_root = os.environ.get("IQS_CONTRACT_ROOT")
+    root = (
+        Path(configured_root)
+        if configured_root
+        else Path(__file__).resolve().parents[3].parent / "invest-quick-scan"
+    )
+    if not (root / "scripts" / "routing.py").is_file():
+        if configured_root:
+            pytest.fail("IQS_CONTRACT_ROOT must point to the selected consumer checkout")
+        pytest.skip("Optional IQS producer/consumer integration requires its checkout")
     monkeypatch.syspath_prepend(str(root / "scripts"))
     monkeypatch.syspath_prepend(str(root / "tests"))
     import routing
@@ -509,7 +522,7 @@ def test_public_actual_producer_to_iqs_routing_preserves_binding(tmp_path, monke
         )
         prompt = request["questions"][0]["questions"][0]["text"]
         args, context, search, sync, _, model, url, _, clock = _external_answer_fixture(
-            tmp_path, monkeypatch, hybrid=hybrid, question_id="ROUTE_02"
+            tmp_path, monkeypatch, hybrid=hybrid, question_id="ROUTE_02", search_kind=search_kind
         )
         facts = fixture.normal()
         for fact in facts:
@@ -554,6 +567,9 @@ def test_public_actual_producer_to_iqs_routing_preserves_binding(tmp_path, monke
             requested_model=model,
             work_store=args["store"],
         )
+        binding = public["execution_receipts"]["ROUTE_02"]["search_binding"]
+        assert binding["external_context_use"]["retrievals"][0]["route_kind"] == search_kind
+        assert len(binding["native_receipt"]["request_payload_sha256"]) == 64
         # JSON serialization is the actual cross-process wire, with no Python owner object.
         wire = json.loads(json.dumps(public, ensure_ascii=False))
         decision = routing.resolve_route_decision(
@@ -2493,18 +2509,42 @@ def _external_answer_fixture(
     protocol="responses",
     hybrid=False,
     question_id="IQS_05",
+    search_kind="brave",
 ):
     from unittest.mock import AsyncMock, Mock
 
     from tests.unit.test_quick_scan_budget import _policy as model_policy
 
     def change(document):
+        if search_kind == "deepseek_search":
+            document["schema_version"] = "1.2.0"
+            document["external_routes"][0].update(
+                kind=search_kind,
+                endpoint="https://api.deepseek.com/v1/tools/search",
+                credential_env="DEEPSEEK_API_KEY",
+            )
+            route = document["external_routes"][0]
+            route["pricing"]["basis"] = "per_search"
+            route["dispatch"].update(
+                quota_group="deepseek_tools_search", max_in_flight=1, quota_group_max_in_flight=1
+            )
+            route["metering"].update(
+                charge_policy="successful_nonempty_only",
+                usage_unit="search_calls",
+                rejected_request_cost_micros=0,
+            )
+            for query in document["execution_plan"]["queries"]:
+                query.update(
+                    operation="search", source_operation_id=None, source_receipt_sha256=None
+                )
         if hybrid:
             document["selection"].update(
                 mode="explicit_hybrid", hybrid_plan_reference="synthetic-hybrid/1"
             )
             document["execution_plan"]["answer_search_mode"] = "native_with_external_context"
 
+    if search_kind == "deepseek_search":
+        monkeypatch.setenv("DEEPSEEK_API_KEY", "synthetic-test-only")
     args, search_session, clock = _coordinator_fixture(
         tmp_path, monkeypatch, mutate=change, question_id=question_id
     )
@@ -2516,6 +2556,23 @@ def _external_answer_fixture(
     }[provider]
     args["model_policy"] = model_policy(max_cost=100, model=model)
     args["model_policy"]["routes"][0]["provider_config_ref"] = provider
+    if search_kind == "deepseek_search":
+        from tests.unit.test_external_search_provider import _response
+
+        search_session.request.return_value = _response(
+            json.dumps(
+                {
+                    "results": [
+                        {
+                            "title": "Synthetic issuer",
+                            "url": "https://fixture.example/ir",
+                            "snippet": "Margin disclosure",
+                            "date": "2026-10-01",
+                        }
+                    ]
+                }
+            ).encode()
+        )
     context = _retrieve(args)
     content = json.dumps(
         {

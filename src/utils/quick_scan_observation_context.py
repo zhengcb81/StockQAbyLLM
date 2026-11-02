@@ -89,27 +89,28 @@ def _visible_answer_schema(schema):
     return view
 
 
-@lru_cache(maxsize=2)
+# These previously published paths are the immutable answer-format 1.0.0
+# resources, not mutable "latest" aliases. A new format gets separate files and
+# an explicit observation-profile mapping; existing work keeps its original map.
+_ANSWER_FORMATS = {
+    "1.0.0": ("quick_scan_answer_content.schema.json", "quick_scan_metric_registry.json"),
+}
+_OBSERVATION_FORMATS = {
+    "1.1.0": ("quick_scan_observation.schema.json", "1.0.0"),
+    "1.2.0": ("quick_scan_observation.v1.2.schema.json", "1.0.0"),
+}
+
+
+@lru_cache(maxsize=4)
 def _resources(version="1.1.0"):
-    if not isinstance(version, str) or version not in {"1.1.0", "1.2.0"}:
+    if not isinstance(version, str) or version not in _OBSERVATION_FORMATS:
         raise ValueError("unsupported observation execution profile")
     root = Path(__file__).resolve().parents[1] / "config"
-    observation = strict_json_loads(
-        (
-            root
-            / (
-                "quick_scan_observation.schema.json"
-                if version == "1.1.0"
-                else "quick_scan_observation.v1.2.schema.json"
-            )
-        ).read_text(encoding="utf-8")
-    )
-    answer = strict_json_loads(
-        (root / "quick_scan_answer_content.schema.json").read_text(encoding="utf-8")
-    )
-    metrics = strict_json_loads(
-        (root / "quick_scan_metric_registry.json").read_text(encoding="utf-8")
-    )
+    observation_name, answer_version = _OBSERVATION_FORMATS[version]
+    answer_name, metrics_name = _ANSWER_FORMATS[answer_version]
+    observation = strict_json_loads((root / observation_name).read_text(encoding="utf-8"))
+    answer = strict_json_loads((root / answer_name).read_text(encoding="utf-8"))
+    metrics = strict_json_loads((root / metrics_name).read_text(encoding="utf-8"))
     registry = Registry().with_resources(
         [
             (schema["$id"], Resource.from_contents(schema))
@@ -598,7 +599,7 @@ def validate_standard_answer(
     """Validate the model's actual body and provenance; add no answer defaults."""
     from src.providers.llm_response_parser import load_visible_answer_json
 
-    _, schema, metrics, registry = _resources()
+    _, schema, metrics, registry = _resources(metadata.get("schema_version", "1.1.0"))
     _validate(content, _visible_answer_schema(schema), registry)
     load_visible_answer_json(json.dumps(content, ensure_ascii=False, allow_nan=False))
     if "raw_html" in content:

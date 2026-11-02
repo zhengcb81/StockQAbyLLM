@@ -6,6 +6,7 @@ Approval/paid dispatch must separately recheck and reserve via original Q09.
 """
 
 import copy
+import hashlib
 import json
 import sqlite3
 import stat
@@ -130,6 +131,203 @@ class ReadOnlyWorkView(QuickScanWorkStore):
 
     def _transaction(self):
         raise ValueError("refresh_inspection_is_read_only")
+
+
+def delivery_scope_projection(path: Path, request: dict) -> dict:
+    """Project original work and sealed packages for the requested delivery scope."""
+    store = ReadOnlyWorkView(path)
+    items = []
+    work_items = []
+    consumers = []
+    qids = request["question_ids"]
+    if not isinstance(qids, list) or not qids or len(set(qids)) != len(qids):
+        raise ValueError("original_work_scope_invalid")
+    bindings = request.get("scope_bindings") or {
+        qid: {"scope": "entity", "scope_id": request["entity_id"]} for qid in qids
+    }
+    if set(bindings) != set(qids) or any(
+        not isinstance(value, dict)
+        or set(value) != {"scope", "scope_id"}
+        or value["scope"] not in {"entity", "security", "segment"}
+        or not isinstance(value["scope_id"], str)
+        or not value["scope_id"]
+        or value["scope"] == "entity"
+        and value["scope_id"] != request["entity_id"]
+        for value in bindings.values()
+    ):
+        raise ValueError("original_work_scope_invalid")
+    work_ids = request.get("work_ids")
+    registered = {}
+    if request.get("confirmation_id"):
+        record = store.get_registered_refresh_action(request["confirmation_id"])
+        if record is None or record["receipt"]["confirmation_id"] != request["confirmation_id"]:
+            raise ValueError("original_refresh_action_missing")
+        registered = {
+            row["work_item_id"]: row
+            for row in record["receipt"]["items"]
+            if row["entity_id"] == request["entity_id"]
+            and row["question_id"] in qids
+            and all(row[key] == bindings[row["question_id"]][key] for key in ("scope", "scope_id"))
+        }
+        references = {
+            row["question_id"]
+            for row in record["inputs"].get("references", [])
+            if row["subject_ref"]["entity_id"] == request["entity_id"]
+            and row["question_id"] in qids
+            and all(
+                row["subject_ref"][key] == bindings[row["question_id"]][key]
+                for key in ("scope", "scope_id")
+            )
+        }
+        covered = {row["question_id"] for row in registered.values()}
+        if covered | references != set(qids):
+            raise ValueError("original_registered_scope_mismatch")
+        work_ids = list(registered)
+        for qid in references - covered:
+            items.append(
+                {
+                    "question_id": qid,
+                    "work_item_id": None,
+                    "status": "referenced",
+                    "reason": "original_observation_reference",
+                }
+            )
+    elif work_ids is None:
+        if not request.get("read_only_scope"):
+            raise ValueError("original_refresh_action_required")
+        projection = store.owner_refresh_projection(
+            entity_id=request["entity_id"], question_ids=qids, scope_bindings=bindings
+        )
+        work_ids = [projection[qid]["work_item_id"] for qid in qids if qid in projection]
+        for qid in qids:
+            if qid not in projection:
+                work_items.append({"question_id": qid, "work_item_id": None, "status": "missing"})
+                items.append(
+                    {
+                        "question_id": qid,
+                        "work_item_id": None,
+                        "status": "not_exportable",
+                        "reason": "missing",
+                    }
+                )
+    for work_id in work_ids:
+        work = store.get_item(work_id)
+        qid = work["question_id"]
+        if (
+            work["entity_id"] != request["entity_id"]
+            or qid not in qids
+            or any(work[key] != bindings[qid][key] for key in ("scope", "scope_id"))
+        ):
+            raise ValueError("original_work_scope_mismatch")
+        if work_id in registered and any(
+            work[key] != registered[work_id][key]
+            for key in (
+                "work_item_id",
+                "entity_id",
+                "question_id",
+                "generation",
+                "scope",
+                "scope_id",
+            )
+        ):
+            raise ValueError("original_registered_work_mismatch")
+        work_items.append(
+            {key: work[key] for key in ("question_id", "work_item_id", "status", "generation")}
+        )
+        if request.get("read_only_scope"):
+            continue
+        row = store.get_result_delivery(work_id)
+        if request.get("receiver_only"):
+            binding = None if row is None else row.get("consumer_binding")
+            consumers.append(
+                {
+                    "work_item_id": work_id,
+                    "consumer": None if binding is None else binding["consumer"],
+                    "work_store": str(path.resolve()),
+                    "package_id": None if row is None else row.get("package_id"),
+                    "observation_id": None if row is None else row.get("observation_id"),
+                }
+            )
+            continue
+        if (
+            row is None
+            or row["state"] not in {"ready", "delivered", "send_uncertain"}
+            or row["package_bytes"] is None
+        ):
+            items.append(
+                {
+                    "work_item_id": work_id,
+                    "status": "not_exportable",
+                    "reason": None if row is None else row.get("block_code") or row["state"],
+                }
+            )
+            continue
+        raw = row["package_bytes"]
+        items.append(
+            {
+                "work_item_id": work_id,
+                "status": "exportable",
+                "observation_id": row["observation_id"],
+                "package_id": row["package_id"],
+                "package_json": raw.decode("utf8"),
+                "package_bytes_sha256": hashlib.sha256(raw).hexdigest(),
+                "delivery_state": row["state"],
+            }
+        )
+    return {
+        "items": items,
+        "work_items": work_items,
+        "consumers": consumers,
+        "API_requests": 0,
+        "network_calls": 0,
+    }
+
+
+def continuation_bank_bindings(path: Path, request: dict) -> dict:
+    """Resolve the exact original continuation bank for a subject and scope."""
+    view = ReadOnlyWorkView(path)
+    result = []
+    controls = request.get("controlled_work_refs", [])
+    controlled_refs = {(ref["work_item_id"], ref["decision_id"]) for ref in controls}
+    snapshot = view.continuation_binding_snapshot(
+        entity_id=request["entity_id"],
+        question_ids=list(request["scope_bindings"]),
+        scope_bindings=request["scope_bindings"],
+        comparison_refs=controlled_refs,
+    )
+    for qid, entry in snapshot.items():
+        row, record = entry["work"], entry["binding_record"]
+        if record is None:
+            raise ValueError("existing_work_binding_unavailable")
+        binding = record["binding"]
+        if any(
+            binding.get(k) != request[k]
+            for k in (
+                "entity_id",
+                "subject_key",
+                "perimeter_sha256",
+                "identity_revision",
+                "information_cutoff",
+            )
+        ):
+            raise ValueError("existing_work_subject_binding_changed")
+        if any(binding.get(k) != v for k, v in request["scope_bindings"][qid].items()):
+            raise ValueError("existing_work_scope_changed")
+        result.append(
+            {
+                "question_id": qid,
+                "work_item_id": row["work_item_id"],
+                "generation": row["generation"],
+                "manifest_raw_sha256": binding["manifest_raw_sha256"],
+                "binding_sha256": canonical_sha256(binding),
+            }
+        )
+    return {
+        "protocol": "iqs.original_work_bank_bindings/1.0.0",
+        "rows": result,
+        "API_requests": 0,
+        "database_writes": 0,
+    }
 
 
 def inspect_refresh(

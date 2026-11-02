@@ -191,7 +191,7 @@ class LLMConfig:
 
         if not isinstance(policy, dict):
             raise ValueError("quick_scan_model_policy必须是对象")
-        self._validate_quick_scan_policy(policy)
+        self.validate_quick_scan_model_policy(policy)
 
         routes: List[Dict[str, Any]] = []
         providers = self.config.get("providers", {})
@@ -264,7 +264,7 @@ class LLMConfig:
         A running LLMRunner retains the snapshot it loaded at run start. This
         method never stores provider credentials inside the policy object.
         """
-        self._validate_quick_scan_policy(policy)
+        self.validate_quick_scan_model_policy(policy)
         # Validate provider references and model selection before touching disk.
         snapshot_policy = copy.deepcopy(self.config)
         snapshot_policy["quick_scan_model_policy"] = copy.deepcopy(policy)
@@ -305,7 +305,16 @@ class LLMConfig:
 
     @staticmethod
     def _validate_quick_scan_policy(policy: Dict[str, Any]) -> None:
-        """Validate the complete active v2 contract without a runtime dependency."""
+        """Compatibility entry for existing callers of the former private API."""
+        LLMConfig.validate_quick_scan_model_policy(policy)
+
+    @staticmethod
+    def validate_quick_scan_model_policy(policy: Dict[str, Any]) -> None:
+        """Validate a policy without file I/O, provider setup, or mutation.
+
+        Public callers can validate a draft before saving it. Provider-reference
+        resolution remains part of ``get/save_quick_scan_model_policy``.
+        """
         if not isinstance(policy, dict):
             raise ValueError("quick_scan_model_policy必须是对象")
         LLMConfig._reject_secret_fields(policy)

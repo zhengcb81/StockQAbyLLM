@@ -1209,3 +1209,22 @@ class TestLLMConfigReload:
 
         # 应该使用默认配置
         assert "default_provider" in config.config
+
+
+def test_public_quick_scan_policy_validation_is_pure_and_keeps_legacy_compatibility():
+    import copy
+
+    policy = _quick_scan_policy()
+    before = copy.deepcopy(policy)
+    assert LLMConfig.validate_quick_scan_model_policy(policy) is None
+    assert LLMConfig._validate_quick_scan_policy(policy) is None
+    assert policy == before
+    for mutation in ({"api_key": "synthetic-not-allowed"}, {"schema_version": "unknown"}):
+        invalid = copy.deepcopy(policy)
+        invalid.update(mutation)
+        for validate in (
+            LLMConfig.validate_quick_scan_model_policy,
+            LLMConfig._validate_quick_scan_policy,
+        ):
+            with pytest.raises(ValueError):
+                validate(invalid)
