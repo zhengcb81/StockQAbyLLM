@@ -137,7 +137,7 @@ def test_context_tampering_or_self_approval_is_refused(kind):
         elif kind == "field":
             bad["unknown_field"] = "discarding this would be unsafe"
         elif kind == "schema":
-            bad["answer_schema_sha256"] = "0" * 64
+            bad["answer_schema_sha256"] = "not-a-digest"
         elif kind == "review":
             bad["questions"][QID]["metadata"]["evidence_review_status"] = "reviewed"
         elif kind == "date":
@@ -227,7 +227,9 @@ def test_incomplete_or_conflicting_standard_answer_is_refused(kind):
     elif kind == "unbound_url":
         body["evidence"][0]["url"] = "https://example.invalid/unsearched"
     elif kind == "duplicate_evidence":
-        body["evidence"].append(copy.deepcopy(body["evidence"][0]))
+        conflicting = copy.deepcopy(body["evidence"][0])
+        conflicting["claim"] = "A different claim under the same evidence id."
+        body["evidence"].append(conflicting)
     elif kind == "future_source":
         body["evidence"][0]["published_at"] = "2026-09-23"
     elif kind == "future_information":
@@ -375,16 +377,14 @@ def test_registered_metric_retains_declared_unit_and_evidence():
     assert validate(body) == body
 
 
-@pytest.mark.parametrize("kind", ["wrong_unit", "unknown_metric", "duplicate_metric", "nan"])
+@pytest.mark.parametrize("kind", ["wrong_unit", "duplicate_metric", "nan"])
 def test_metric_semantic_errors_are_refused(kind):
     body = metric_body()
     metric = body["metrics"][0]
     if kind == "wrong_unit":
         metric["unit"] = "ratio" if metric["unit"] != "ratio" else "percent"
-    elif kind == "unknown_metric":
-        metric["metric_id"] = "unregistered.fixture"
     elif kind == "duplicate_metric":
-        body["metrics"].append(copy.deepcopy(metric))
+        body["metrics"].append(dict(metric, value=metric["value"] + 1))
     elif kind == "nan":
         metric["value"] = float("nan")
     with pytest.raises(ValueError):
@@ -743,3 +743,126 @@ def test_metric_distinct_basis_and_currency_are_preserved():
     metric.update(metric_id="financial.fcf", unit="currency", currency="USD")
     body["metrics"].extend([dict(metric, basis="normalized"), dict(metric, currency="CNY")])
     assert validate(body) == body
+
+
+def test_unregistered_metric_labels_are_preserved_without_guessed_mapping():
+    body = content()
+    body["metrics"] = [
+        dict(
+            metric_id="financial.fcf_2024",
+            value=100,
+            unit="currency",
+            currency="CNY",
+            unit_detail=None,
+            period_start="2024-01-01",
+            period_end="2024-12-31",
+            basis="trailing",
+            definition="Synthetic cash flow definition, not a company fact",
+            evidence_ids=["e1"],
+        )
+    ]
+    before = copy.deepcopy(body)
+    result = validate(body)
+    assert result == before and body == before
+    assert result["metrics"][0]["metric_id"] == "financial.fcf_2024"
+
+
+def test_standard_body_uses_the_same_visible_json_format_compatibility():
+    body = content()
+    raw = json.dumps(body)
+    repeated = raw.replace(
+        '"information_as_of": "2026-09-01"',
+        '"information_as_of": "2026-09-01", "information_as_of": "2026-09-01"',
+    )
+    assert api.parse_standard_answer("```json\n" + repeated + "\n```") == body
+
+
+def test_exact_repeated_metric_and_evidence_rows_retain_actual_body():
+    body = metric_body()
+    body["metrics"].append(copy.deepcopy(body["metrics"][0]))
+    body["evidence"].append(copy.deepcopy(body["evidence"][0]))
+    before = copy.deepcopy(body)
+    assert validate(body) == before and body == before
+
+
+def test_same_evidence_id_with_different_content_is_still_ambiguous():
+    body = content()
+    body["evidence"].append(dict(body["evidence"][0], claim="Different unaligned claim"))
+    with pytest.raises(ValueError, match="evidence"):
+        validate(body)
+
+
+@pytest.mark.parametrize("length", [900, 5000, 6000])
+def test_extended_visible_explanation_preserves_raw_body_and_schema_context(length):
+    body = content()
+    body.update(
+        summary="A" * length,
+        confidence_rationale={"text": "Partial source coverage", "limitations": ["Synthetic only"]},
+    )
+    before = copy.deepcopy(body)
+    original_schema = copy.deepcopy(api._resources()[1])
+    result = api.validate_standard_answer(
+        body,
+        metadata=CONTEXT["questions"][QID]["metadata"],
+        normalized_answer=normalized(body),
+        source_urls=["https://example.invalid/company"],
+    )
+    assert result == before and body == before
+    assert api._resources()[1] == original_schema
+    assert api.split_standard_answer_transport(json.dumps(body))[0] == body["summary"]
+
+
+@pytest.mark.parametrize("fault", ["private", "entity", "unit"])
+def test_visible_explanation_extensions_never_hide_semantic_conflicts(fault):
+    body = content()
+    body["confidence_rationale"] = (
+        {"thinking_content": "SYNTHETIC_PRIVATE"} if fault == "private" else "Business rationale"
+    )
+    if fault == "entity":
+        body["entity_id"] = "ANOTHER_ISSUER"
+    elif fault == "unit":
+        body["metrics"] = [
+            dict(
+                metric_id="financial.net_margin",
+                value=10,
+                unit="currency",
+                currency="USD",
+                unit_detail="USD",
+                period_start=None,
+                period_end=None,
+                basis="current",
+                definition="Conflicting canonical unit",
+                evidence_ids=["e1"],
+            )
+        ]
+    with pytest.raises(ValueError):
+        api.validate_standard_answer(
+            body,
+            metadata=CONTEXT["questions"][QID]["metadata"],
+            normalized_answer=normalized(body),
+            source_urls=["https://example.invalid/company"],
+        )
+
+
+def test_current_additive_answer_resources_are_provenance_not_a_static_hash_allowlist():
+    iqs = Path(__file__).resolve().parents[3] / "invest-quick-scan"
+    context = copy.deepcopy(CONTEXT)
+    answer_schema = json.loads(
+        (iqs / "schemas/answer-content.schema.json").read_text(encoding="utf8")
+    )
+    metrics = json.loads((iqs / "questions/metric-registry.json").read_text(encoding="utf8"))
+    metrics["metrics"]["new.unrelated_metric"] = {"unit": "ratio"}
+    context.update(
+        answer_schema_sha256=canonical_sha256(answer_schema),
+        metric_registry_sha256=canonical_sha256(metrics),
+    )
+    before = copy.deepcopy(context)
+    assert (
+        api.validate_context_document(context, expected_sha256=canonical_sha256(context)) == before
+    )
+    api.check_context_matches_manifest(context, MANIFEST)
+    assert context == before
+    bad = copy.deepcopy(context)
+    bad["questions"][QID]["metadata"]["entity_id"] = "WRONG_ISSUER"
+    with pytest.raises(ValueError):
+        api.check_context_matches_manifest(bad, MANIFEST)

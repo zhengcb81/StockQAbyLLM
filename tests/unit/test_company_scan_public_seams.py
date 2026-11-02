@@ -199,20 +199,20 @@ def test_public_transport_keeps_original_strict_json_refusals(text):
         split_standard_answer_transport(text)
 
 
-def test_public_registered_validation_delegates_original_current_guard():
+def test_public_registered_validation_keeps_immutable_inputs_without_renewing_permission():
     from src.utils.quick_scan_owner_research import OwnerResearchServices
 
     mapper = OwnerResearchServices.__new__(OwnerResearchServices)
     calls = []
 
-    def current():
-        calls.append("current")
-        raise ValueError("original_current_actor_revoked")
+    def original(*, check_current):
+        calls.append(check_current)
+        raise ValueError("original_registered_inputs_changed")
 
-    mapper._assert_registered_inputs = current
-    with pytest.raises(ValueError, match="original_current_actor_revoked"):
+    mapper._assert_registered_inputs = original
+    with pytest.raises(ValueError, match="original_registered_inputs_changed"):
         mapper.validate_registered_inputs()
-    assert calls == ["current"]
+    assert calls == [False]
 
 
 @pytest.mark.parametrize(

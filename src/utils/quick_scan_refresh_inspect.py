@@ -14,6 +14,7 @@ from contextlib import closing
 from pathlib import Path
 from typing import Callable
 
+from src.utils.quick_scan_refresh_admission_journal import read_record
 from src.utils.quick_scan_result_outbox import canonical_sha256
 from src.utils.quick_scan_work_store import (
     SCHEMA_VERSION,
@@ -78,6 +79,12 @@ class ReadOnlyWorkView(QuickScanWorkStore):
             connection.close()
             raise
         return connection
+
+    def get_registered_refresh_action(self, confirmation_id: str) -> dict | None:
+        """Read the original immutable action through its native journal reader."""
+        with closing(self._connect()) as connection:
+            result: dict | None = read_record(connection, confirmation_id)
+            return result
 
     def continuation_binding_snapshot(
         self, *, entity_id, question_ids, scope_bindings, comparison_refs=()

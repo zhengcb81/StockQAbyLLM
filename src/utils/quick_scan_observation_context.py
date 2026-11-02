@@ -17,6 +17,8 @@ from typing import Any
 from jsonschema import Draft202012Validator, FormatChecker, ValidationError
 from referencing import Registry, Resource
 
+from src.core.models import QUICK_SCAN_ANSWER_DESCRIPTION_MAX_CHARS
+
 from .quick_scan_metric_coordinates import validate_metric_coordinates
 from .quick_scan_result_outbox import canonical_sha256, strict_json_loads
 
@@ -47,6 +49,14 @@ def _subject_version(context, *, bound=False):
     return context.get("schema") == (Q2 if bound else V2)
 
 
+def _visible_answer_schema(schema):
+    """Compatible runtime view, without changing frozen resources or hashes."""
+    view = copy.deepcopy(schema)
+    view["additionalProperties"] = True
+    view["properties"]["summary"].pop("maxLength", None)
+    return view
+
+
 @lru_cache(maxsize=2)
 def _resources(version="1.1.0"):
     if not isinstance(version, str) or version not in {"1.1.0", "1.2.0"}:
@@ -69,7 +79,10 @@ def _resources(version="1.1.0"):
         (root / "quick_scan_metric_registry.json").read_text(encoding="utf-8")
     )
     registry = Registry().with_resources(
-        [(schema["$id"], Resource.from_contents(schema)) for schema in (observation, answer)]
+        [
+            (schema["$id"], Resource.from_contents(schema))
+            for schema in (observation, _visible_answer_schema(answer))
+        ]
     )
     return observation, answer, metrics, registry
 
@@ -140,14 +153,17 @@ def _resource_hashes(document):
     version = versions[0]
     if any(candidate != version for candidate in versions):
         raise ValueError("mixed observation execution profiles")
-    observation, answer, metrics, _ = _resources(version)
-    for field, resource in [
-        ("observation_schema_sha256", observation),
-        ("answer_schema_sha256", answer),
-        ("metric_registry_sha256", metrics),
-    ]:
-        if document[field] != canonical_sha256(resource):
-            raise ValueError("unsupported frozen schema/metric registry hash")
+    observation, _, _, _ = _resources(version)
+    # The execution envelope is an actual supported wire profile. Whole answer
+    # schema/metric-registry hashes describe the original format resources;
+    # adding an unrelated metric or visible explanation must not block a paid
+    # response. Their digest spelling and complete context binding are still
+    # checked, while original question/subject and metric semantics are checked
+    # independently by their normal validators.
+    if document["observation_schema_sha256"] != canonical_sha256(observation):
+        raise ValueError("unsupported frozen observation execution schema hash")
+    for field in ("answer_schema_sha256", "metric_registry_sha256"):
+        _hash(document[field], field)
 
 
 def validate_context_document(context: dict[str, Any], *, expected_sha256: str) -> dict[str, Any]:
@@ -434,17 +450,20 @@ def parse_standard_answer(text: Any) -> dict[str, Any] | None:
     keys is plain prose — the caller keeps its historical compact handling. A
     description that IS shaped like a standard answer is never silently
     downgraded: the caller must validate it or refuse the answer. A JSON-shaped
-    body with duplicate keys or non-finite numbers is CORRUPT — it is refused
-    loudly (``ValueError``) instead of silently keeping the last value or
-    falling back to the legacy compact path.
+    body with conflicting repeated keys or non-finite numbers is refused
+    loudly (``ValueError``). Identical repeated fields and one complete JSON
+    fence use the same visible-answer parser as the original model transport.
     """
+
     if not isinstance(text, str):
         return None
     candidate = text.strip()
-    if not (candidate.startswith("{") and candidate.endswith("}")):
+    if not ((candidate.startswith("{") and candidate.endswith("}")) or candidate.startswith("```")):
         return None
+    from src.providers.llm_response_parser import load_visible_answer_json
+
     try:
-        body = strict_json_loads(candidate)
+        body = load_visible_answer_json(candidate)
     except json.JSONDecodeError:
         return None  # not JSON at all: plain prose keeps legacy handling
     except ValueError as error:
@@ -468,8 +487,8 @@ def split_standard_answer_transport(description: str) -> tuple[str, dict[str, An
     summary = body.get("summary")
     if not isinstance(summary, str) or not summary.strip():
         raise ValueError("standard answer does not carry a usable summary")
-    if len(summary) > 5000:
-        raise ValueError("standard answer summary exceeds the compact checkpoint bound")
+    if len(summary) > QUICK_SCAN_ANSWER_DESCRIPTION_MAX_CHARS:
+        raise ValueError("standard answer summary exceeds the safe answer transport bound")
     return summary, body
 
 
@@ -545,8 +564,16 @@ def validate_standard_answer(
     research_only: bool = False,
 ) -> dict[str, Any]:
     """Validate the model's actual body and provenance; add no answer defaults."""
+    from src.providers.llm_response_parser import load_visible_answer_json
+
     _, schema, metrics, registry = _resources()
-    _validate(content, schema, registry)
+    _validate(content, _visible_answer_schema(schema), registry)
+    load_visible_answer_json(json.dumps(content, ensure_ascii=False, allow_nan=False))
+    if "raw_html" in content:
+        raise ValueError("full document body is not a lightweight answer")
+    for field in ("entity_id", "security_id", "segment_id"):
+        if field in content and content[field] != metadata.get(field):
+            raise ValueError("standard answer subject mismatch: " + field)
     if (
         content["response_kind"] != "score"
         or content["items"]
@@ -576,8 +603,14 @@ def validate_standard_answer(
     ):
         raise ValueError("reversed answer period")
     ids = [item["id"] for item in content["evidence"]]
-    if len(ids) != len(set(ids)) or (successful and not ids):
-        raise ValueError("successful answer needs unique evidence")
+    if successful and not ids:
+        raise ValueError("successful answer needs evidence")
+    evidence_by_id: dict[str, dict[str, Any]] = {}
+    for entry in content["evidence"]:
+        previous = evidence_by_id.get(entry["id"])
+        if previous is not None and canonical_sha256(previous) != canonical_sha256(entry):
+            raise ValueError("conflicting duplicate evidence id")
+        evidence_by_id[entry["id"]] = entry
     for evidence in content["evidence"]:
         _matching_evidence_source_url(evidence["url"], source_urls)
         if evidence["published_at"] is not None and evidence["published_at"] > cutoff:
@@ -585,10 +618,10 @@ def validate_standard_answer(
     validate_metric_coordinates(content["metrics"])
     for metric in content["metrics"]:
         known = metrics["metrics"].get(metric["metric_id"])
-        if (known is None and not metric["metric_id"].startswith("custom.")) or (
-            known is not None and metric["unit"] != known["unit"]
-        ):
-            raise ValueError("unknown metric or incorrect canonical unit")
+        # Registration governs canonical comparison, not whether received
+        # content may be retained. Never guess aliases or rewrite model IDs.
+        if known is not None and metric["unit"] != known["unit"]:
+            raise ValueError("incorrect canonical metric unit")
         if not set(metric["evidence_ids"]) <= set(ids) or (
             metric["value"] is not None and not metric["evidence_ids"]
         ):

@@ -3249,7 +3249,7 @@ def test_released_unsent_classification_reads_original_events_without_writes(
     clock = [1_800_000_000.0]
     store = _store(tmp_path, clock)
     work_id = _created(store)["work_item_id"]
-    assert store.is_released_unsent(work_id) is False
+    assert store.is_released_unsent(work_id) is True  # Fresh epoch zero has no request.
     lease = store.claim(work_id, lease_seconds=60)
     if prepare:
         _prepared(store, work_id, lease)
@@ -3348,3 +3348,32 @@ def test_released_unsent_read_snapshot_does_not_authorize_a_later_claim(tmp_path
     assert store.get_item(work_id)["status"] == "leased"
     assert store.claim(work_id, lease_seconds=60) is None
     assert store.is_released_unsent(work_id) is False
+
+
+def test_fresh_unclaimed_work_is_read_only_proven_unsent(tmp_path):
+    store = _store(tmp_path, [1_800_000_000.0])
+    work_id = _created(store)["work_item_id"]
+    before = store.path.read_bytes(), store.list_events(work_id)
+    assert store.get_item(work_id)["lease_epoch"] == 0
+    assert store.list_attempts(work_id) == []
+    assert store.is_released_unsent(work_id) is True
+    assert (store.path.read_bytes(), store.list_events(work_id)) == before
+    lease = store.claim(work_id, lease_seconds=60)
+    assert store.is_released_unsent(work_id) is False
+    assert lease.lease_epoch == 1
+
+
+def test_long_visible_reason_is_preserved_through_original_checkpoint(tmp_path):
+    from src.core.models import serialize_answer_for_exchange
+
+    store = _store(tmp_path, [1_800_000_000.0])
+    item = _created(store)
+    lease, attempt, receipt = _successful_search_attempt(store, item["work_item_id"])
+    reason = ("Full business analysis. " * 300).rstrip()
+    answer = _answer_for(item, description=reason)
+    assert serialize_answer_for_exchange(item["question_id"], answer)["description"] == reason
+    checkpoint = store.save_answer_checkpoint(
+        item["work_item_id"], lease, attempt["attempt_id"], answer=answer, execution_receipt=receipt
+    )
+    assert checkpoint["payload"]["answer"]["description"] == reason
+    assert store.get_answer_checkpoint(item["work_item_id"]) == checkpoint

@@ -245,10 +245,12 @@ class RefreshConsentClient:
             != ("native_owner_delegated_agent" if delegated else "native_owner_terminal")
             or receipt["record_sha256"]
             != canonical_sha256({k: v for k, v in receipt.items() if k != "record_sha256"})
-            or receipt["owner_principal"] != policy["owner_principal"]
+            or mode != "paid_response_recovery"
+            and receipt["owner_principal"] != policy["owner_principal"]
             or receipt["consumer_id"] != self.consumer_id
             or result["request"]["consumer_id"] != self.consumer_id
-            or self.consumer_id not in policy["allowed_consumer_ids"]
+            or mode != "paid_response_recovery"
+            and self.consumer_id not in policy["allowed_consumer_ids"]
             or receipt["preview_id"] != preview["preview_id"]
             or preview["preview_id"]
             != "rv1_" + canonical_sha256({k: v for k, v in preview.items() if k != "preview_id"})
@@ -283,16 +285,20 @@ class RefreshConsentClient:
             ("work_store", self.work_store),
             ("budget_policy_file", self.budget_policy_file),
         ]:
-            if Path(policy["qa"][key]).resolve() != expected:
+            if mode != "paid_response_recovery" and Path(policy["qa"][key]).resolve() != expected:
                 raise ValueError("native consent deployment mismatch")
-        budget = _budget_policy_projection(_read(self.budget_policy_file.read_bytes()))
+        budget = (
+            None
+            if mode == "paid_response_recovery"
+            else _budget_policy_projection(_read(self.budget_policy_file.read_bytes()))
+        )
         qa = (
             receipt["delegation"]["binding"]["qa"]
             if delegated and mode == "paid_response_recovery"
             else policy["qa"]
         )
-        route = budget["route_identity"].get(qa["route_id"])
-        if (
+        route = None if budget is None else budget["route_identity"].get(qa["route_id"])
+        if budget is not None and (
             qa["policy_id"] != budget["policy_id"]
             or preview["quote"]["currency"] != budget["currency"]
             or state["quote"] != preview["quote"]
@@ -311,7 +317,7 @@ class RefreshConsentClient:
             )
             if (
                 selected != state["ordered_route_targets"]
-                or mode != "paid_response_recovery"
+                or budget is not None
                 and (
                     selected != policy["ordered_route_targets"]
                     or any(

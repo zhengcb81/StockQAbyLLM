@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterator, Optional, Sequence, cast
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
+from src.core.models import QUICK_SCAN_ANSWER_DESCRIPTION_MAX_CHARS
 from src.utils.quick_scan_external_journal import DDL_V9_ADDITIONS as _DDL_V9_ADDITIONS
 from src.utils.quick_scan_external_journal import (
     DDL_V10_ADDITIONS as _DDL_V10_ADDITIONS,
@@ -3955,7 +3956,7 @@ class QuickScanWorkStore:
         )
 
     def is_released_unsent(self, work_item_id: str) -> bool:
-        """Observe an original pure-unsent release in one read-only snapshot.
+        """Observe original never-sent pending work in one read-only snapshot.
 
         This is not dispatch authority: a later claimant still needs the normal
         atomic claim, current owner checks and native send permit. An old known
@@ -3993,7 +3994,14 @@ class QuickScanWorkStore:
                     "AND from_status='leased' AND to_status='pending' LIMIT 1",
                     (work_item_id, item["lease_epoch"]),
                 ).fetchone()
-                if released is None or self._unsent_release_blocked(
+                fresh = (
+                    item["lease_epoch"] == 0
+                    and connection.execute(
+                        "SELECT 1 FROM attempt WHERE work_item_id=? LIMIT 1", (work_item_id,)
+                    ).fetchone()
+                    is None
+                )
+                if (released is None and not fresh) or self._unsent_release_blocked(
                     connection, item, pure_history=True
                 ):
                     return False
@@ -4325,7 +4333,7 @@ class QuickScanWorkStore:
             or answer.get("question_id") != item["question_id"]
             or not isinstance(answer.get("description"), str)
             or not answer["description"].strip()
-            or len(answer["description"]) > 5000
+            or len(answer["description"]) > QUICK_SCAN_ANSWER_DESCRIPTION_MAX_CHARS
             or not isinstance(answer_status, str)
             or answer_status not in {"scored", "unknown", "insufficient_evidence", "not_applicable"}
             or (
@@ -4513,7 +4521,11 @@ class QuickScanWorkStore:
             raise ValueError("invalid answer entity_id")
         status = answer["status"]
         score = answer["score"]
-        description = _safe_text(answer["description"], "answer description", maximum=5000)
+        description = _safe_text(
+            answer["description"],
+            "answer description",
+            maximum=QUICK_SCAN_ANSWER_DESCRIPTION_MAX_CHARS,
+        )
         if not isinstance(status, str) or status not in {
             "scored",
             "unknown",

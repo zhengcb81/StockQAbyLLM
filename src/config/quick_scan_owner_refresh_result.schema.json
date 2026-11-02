@@ -9,7 +9,7 @@
     "decision_id": {"type": "string", "pattern": "^route_[a-f0-9]{64}$"},
     "anchor_version": {"type": "integer", "minimum": 1},
     "manifest_raw_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
-    "refresh_id": {"type": "string", "pattern": "^refresh_[a-f0-9]{64}$"},
+    "refresh_id": {"type": ["string", "null"], "pattern": "^refresh_[a-f0-9]{64}$"},
     "observation_references": {
       "type": "object",
       "additionalProperties": {

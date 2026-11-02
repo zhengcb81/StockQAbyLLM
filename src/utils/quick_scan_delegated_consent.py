@@ -71,7 +71,8 @@ def validate_delegated_native(
     if (
         grant["record_sha256"]
         != canonical_sha256({k: v for k, v in grant.items() if k != "record_sha256"})
-        or grant["owner_principal"] != result["owner_policy"]["owner_principal"]
+        or not recovery_only
+        and grant["owner_principal"] != result["owner_policy"]["owner_principal"]
         or grant["owner_principal"] != receipt["owner_principal"]
         or grant["workspace_root"] != str(Path(workspace_root).resolve())
     ):
@@ -121,7 +122,11 @@ def validate_delegated_native(
         cohort_id=request.get("cohort_id"),
         quote=preview["quote"],
         qa=grant["binding"]["qa"] if recovery_only else result["owner_policy"]["qa"],
-        budget_policy_sha256=hashlib.sha256(Path(budget_policy_file).read_bytes()).hexdigest(),
+        budget_policy_sha256=(
+            grant["binding"]["budget_policy_sha256"]
+            if recovery_only
+            else hashlib.sha256(Path(budget_policy_file).read_bytes()).hexdigest()
+        ),
     )
     if (
         grant["binding"] != expected

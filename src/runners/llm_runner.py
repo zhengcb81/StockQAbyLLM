@@ -2102,9 +2102,11 @@ class LLMRunner:
             from src.providers.llm_provider import _final_answer_diagnostic_policy
             from src.utils.quick_scan_refresh_execution import prepare_execution
 
-            policy = _final_answer_diagnostic_policy(Path.cwd() / "llm_apis.json")
+            policy = _final_answer_diagnostic_policy(
+                Path.cwd() / "llm_apis.json", recovery_only=True
+            )
             if policy is None:
-                raise ValueError("received_checkpoint_configured_capture_required")
+                raise ValueError("received_checkpoint_saved_answer_directory_missing")
             session = prepare_execution(
                 refresh_admission_config,
                 refresh_confirmation_id,
@@ -2358,7 +2360,8 @@ class LLMRunner:
         """
         if shared_company_recovery_only and shared_company_config is None:
             raise ValueError("shared_recovery_original_config_required_no_legacy_fallback")
-        work_lease_seconds = validate_work_lease_seconds(work_lease_seconds)
+        if not shared_company_recovery_only:
+            work_lease_seconds = validate_work_lease_seconds(work_lease_seconds)
         try:
             # Bound on every path below before first read, so no branch can
             # observe an unbound name (explicit over implicit control flow).
@@ -2373,10 +2376,14 @@ class LLMRunner:
                     read_shared_company_config,
                 )
 
-                shared_document = read_shared_company_config(shared_company_config)
+                shared_document = read_shared_company_config(
+                    shared_company_config,
+                    **({"recovery_only": True} if shared_company_recovery_only else {}),
+                )
             from src.providers.llm_client import _validate_search_generation_controls
 
-            _validate_search_generation_controls(thinking_enabled, max_output_tokens)
+            if not shared_company_recovery_only:
+                _validate_search_generation_controls(thinking_enabled, max_output_tokens)
             generation_options: _SearchGenerationOptions = {}
             if thinking_enabled is not None:
                 generation_options["thinking_enabled"] = thinking_enabled
@@ -2457,7 +2464,7 @@ class LLMRunner:
                         "questions.json": config,
                     },
                 )
-                if approved_session.needs_new_dispatch:
+                if approved_session.needs_new_dispatch and not shared_company_recovery_only:
                     approved_session.assert_execution_controls(
                         pack_size=question_pack_size,
                         thinking_enabled=generation_options.get("thinking_enabled"),
@@ -2466,6 +2473,23 @@ class LLMRunner:
             readonly_recovery = (
                 approved_session is not None and not approved_session.needs_new_dispatch
             )
+
+            if shared_company_recovery_only:
+                if approved_session is None or shared_document is None or identity_payload is None:
+                    raise ValueError("shared_recovery_original_registered_inputs_required")
+                selected = set(approved_session.requested_question_ids)
+                original_questions = [
+                    q for q in questions if isinstance(q, Question) and q.question_id in selected
+                ]
+                return self._recover_shared_company_answers(
+                    approved_session,
+                    shared_document,
+                    original_questions,
+                    identity=identity_payload,
+                    company=company,
+                    entity_id=entity_id,
+                    output=output,
+                )
 
             # Q02: import and admit the versioned search policy BEFORE any
             # attempt. The IQS fillable template is refused as non-executable,
@@ -3152,6 +3176,113 @@ class LLMRunner:
         except (ConnectionError, TimeoutError, OSError) as e:
             self.logger.error(f"处理失败: {e}", exc_info=True)
             return 1
+
+    def _recover_shared_company_answers(
+        self, session, shared_config, questions, *, identity, company, entity_id, output
+    ) -> int:
+        """Preserve paid answers without loading today's sending configuration.
+
+        The original SDK object carries only verified response/model metadata;
+        it has no credentials or network endpoint. All generation paths remain
+        forbidden by the original recovery-only owner.
+        """
+        from src.providers.llm_client import LLMClient
+        from src.utils.quick_scan_shared_routes import run_ordered_company_scan
+
+        routes = session.execution_routes(None)
+        pairs = []
+        for route in routes:
+            vendors = set()
+            for entry in session.entries.values():
+                if entry["kind"] != "work":
+                    continue
+                attempts = session.service.store.list_attempts(entry["work_item_id"])
+                for attempt in attempts:
+                    if attempt["phase"] != "response_available" or (
+                        attempt["route_id"],
+                        attempt["provider"],
+                        attempt["model_requested"],
+                    ) != (route["id"], route["provider_config_ref"], route["model"]):
+                        continue
+                    response = session.service.store.get_attempt_response(attempt["attempt_id"])
+                    if response is not None:
+                        vendors.add(response["receipt"]["provider"])
+            if len(vendors) != 1:
+                raise ValueError("paid_recovery_original_response_vendor_required")
+            pairs.append(
+                (
+                    route,
+                    LLMClient(
+                        api_key="",
+                        model=route["model"],
+                        base_url="",
+                        provider_name=next(iter(vendors)),
+                    ),
+                )
+            )
+        if pairs:
+            route = pairs[0][0]
+            lifecycle = QuickScanWorkLifecycle(
+                session.service.store,
+                entity_id=entity_id,
+                run_id=session.record["inputs"]["run_id"],
+                scan_id=session.record["inputs"]["scan_id"],
+                identity=identity,
+                transport_managed=True,
+                owner_refresh_session=session,
+                c06_authority=session.bundle["authority"],
+                route_id=route["id"],
+                provider_name=route["provider_config_ref"],
+                model_requested=route["model"],
+                observation_context=session.native.observation_context,
+                scope_by_question=session.scope_bindings,
+                generation_by_question={
+                    qid: session.existing_work(qid)["generation"]
+                    for qid, entry in session.entries.items()
+                    if entry["kind"] == "work"
+                },
+            )
+            run_ordered_company_scan(
+                lifecycle, pairs, config=shared_config, questions=questions, recovery_only=True
+            )
+            batch = QAEngine.hydrate_saved_questions(questions, lifecycle, allow_partial=True)
+        else:
+            from src.core.models import QABatchResult
+
+            batch = QABatchResult(total_questions=len(questions))
+        saved = [result.question.question_id for result in batch.results]
+        remaining = [q.question_id for q in questions if q.question_id not in saved]
+        QAEngine.output_results(
+            batch,
+            output,
+            quick_scan_context=dict(
+                entity_id=entity_id,
+                company_name=company,
+                provider_name=session.proof["owner_policy"]["qa"]["provider_config_ref"],
+                requested_model=session.plan["model"],
+                work_store=session.service.store,
+            ),
+            owner_refresh_session=session,
+        )
+        report = {
+            **session.dispatch_scope_report(batch),
+            "recovery_mode": "received_original_response",
+            "status": "partial" if remaining else "completed",
+            "saved_question_ids": saved,
+            "remaining_question_ids": remaining,
+            "original_question_count": len(questions),
+            "restored_question_count": len(saved),
+            "API_requests": 0,
+            "dispatch_started": False,
+        }
+        destination = Path(output)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.with_suffix(destination.suffix + ".scope.json").write_text(
+            json.dumps(report, ensure_ascii=False, allow_nan=False, indent=2) + "\n",
+            encoding="utf8",
+        )
+        print(json.dumps(report, ensure_ascii=False, allow_nan=False))
+        return 0
 
     def _run_batch_mode(
         self,

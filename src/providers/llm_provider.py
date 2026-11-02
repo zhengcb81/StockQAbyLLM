@@ -34,14 +34,35 @@ from .llm_client import (
     SearchCapabilityUnavailable,
     _validate_search_generation_controls,
 )
-from .llm_response_parser import ParsedLLMAnswer, ParsedQuestionPack
+from .llm_response_parser import (
+    FINAL_PRIVATE_FIELDS,
+    FINAL_PRIVATE_TAG_PATTERN,
+    ParsedLLMAnswer,
+    ParsedQuestionPack,
+    load_visible_answer_json,
+)
 
 logger = get_logger(__name__)
 
 
-def _final_answer_diagnostic_policy(config_file: Any) -> Optional[dict]:
+def _final_answer_diagnostic_policy(config_file: Any, *, recovery_only=False) -> Optional[dict]:
     """Explicit owner-local opt-in; never accepts an arbitrary output path."""
     runtime = Path(config_file).resolve().parent
+    if recovery_only:
+        # Existing owner-local data is independent of today's opt-in for
+        # collecting NEW answers. The original reader still verifies each
+        # body against the original response hash/receipt, within the original
+        # transport's absolute byte ceiling.
+        directory = runtime / "final-answer-diagnostics"
+        if not directory.exists():
+            return None
+        if (
+            directory.is_symlink()
+            or directory.resolve() != directory.absolute()
+            or not directory.is_dir()
+        ):
+            raise ValueError("received_checkpoint_saved_answer_directory_invalid")
+        return {"directory": directory, "max_final_answer_bytes": 1024 * 1024}
     control = runtime / "quick_scan_final_answer_diagnostics.json"
     try:
         if control.is_symlink():
@@ -123,50 +144,17 @@ def _safe_pack_diagnostics(value: dict) -> dict:
 
 
 def _final_answer_retention_rejection(content: str) -> Optional[str]:
-    """Inspect the complete decoded final JSON before optional local retention.
+    """Inspect only explicit private channels in the complete visible JSON.
 
-    This is deliberately stricter than answer parsing: malformed/trailing prose
-    and uninspectable nested data are hash-only. It never admits an answer or
-    attempts to extract model-private channels. Decode/work limits fail closed.
+    Ordinary business analysis and strings beginning with braces/quotes are
+    visible narrative, not hidden channels. The shared visible parser handles
+    harmless fences/repeated fields; actual private fields/tags remain hash-only.
+    This function never admits an answer or creates sending permission.
     """
-    private_keys = {
-        "reasoning_content",
-        "chain_of_thought",
-        "private_thoughts",
-        "thoughts",
-        "analysis",
-        "reasoning",
-        "thinking",
-    }
-    markers = re.compile(
-        r'(?is)<(?:think(?:ing)?|analysis|reasoning|reflection)\b|"(?:reasoning_content|chain_of_thought|private_thoughts|thoughts|analysis|reasoning|thinking)"\s*:'
-    )
-
-    def unique(pairs):
-        result = {}
-        for key, value in pairs:
-            if key in result:
-                raise ValueError()
-            result[key] = value
-        return result
-
-    def reject_constant(_):
-        raise ValueError()
-
-    def load_complete(raw):
-        text = raw.strip()
-        if text.startswith("```"):
-            fence = re.fullmatch(r"```(?:json)?[ \t]*\r?\n(.*?)\r?\n```", text, re.I | re.S)
-            if fence is None:
-                raise ValueError()
-            text = fence.group(1)
-        return json.loads(text, object_pairs_hook=unique, parse_constant=reject_constant)
-
     try:
-        decoded = load_complete(content)
+        decoded = load_visible_answer_json(content)
         if not isinstance(decoded, (dict, list)):
             return "non_json_final_channel"
-        # Bound both tree traversal and repeated description-JSON decoding.
         stack = [(decoded, 0, 0, False)]
         nodes, characters = 0, 0
         while stack:
@@ -176,7 +164,7 @@ def _final_answer_retention_rejection(content: str) -> Optional[str]:
                 return "final_answer_inspection_limit"
             if isinstance(value, dict):
                 for key, item in value.items():
-                    if key.casefold() in private_keys:
+                    if key.casefold() in FINAL_PRIVATE_FIELDS:
                         return "private_reasoning_marker"
                     stack.extend(
                         ((key, depth + 1, decodes, True), (item, depth + 1, decodes, False))
@@ -187,11 +175,12 @@ def _final_answer_retention_rejection(content: str) -> Optional[str]:
                 characters += len(value)
                 if characters > max(1024, len(content) * 8):
                     return "final_answer_inspection_limit"
-                if (is_key and value.casefold() in private_keys) or markers.search(value):
+                if (
+                    is_key and value.casefold() in FINAL_PRIVATE_FIELDS
+                ) or FINAL_PRIVATE_TAG_PATTERN.search(value):
                     return "private_reasoning_marker"
-                # Strings may themselves contain escaped JSON/Unicode, notably
-                # description JSON strings. Inspect decoded content, not raw regex
-                # alone. No decoded value is emitted or stored separately.
+                # Preserve escaped private-channel detection. This is an
+                # inspection only: never replace the original final text.
                 unescaped = re.sub(
                     r"(?:\\u[0-9a-fA-F]{4})+",
                     lambda match: json.loads('"' + match.group(0) + '"'),
@@ -201,10 +190,22 @@ def _final_answer_retention_rejection(content: str) -> Optional[str]:
                     stack.append((unescaped, depth + 1, decodes + 1, is_key))
                 visible = value.strip()
                 if visible.startswith(("{", "[", '"', "```")):
-                    nested = load_complete(visible)
+                    try:
+                        nested = load_visible_answer_json(visible)
+                    except json.JSONDecodeError:
+                        # A brace/quote in ordinary prose is not a claim that
+                        # this entire string must be a second JSON document.
+                        continue
                     stack.append((nested, depth + 1, decodes + 1, False))
         return None
-    except (ValueError, TypeError, RecursionError, UnicodeError):
+    except ValueError as error:
+        if str(error) in {
+            "private_channel_field_in_visible_answer",
+            "private_thought_tag_in_visible_answer",
+        }:
+            return "private_reasoning_marker"
+        return "non_json_final_channel"
+    except (TypeError, RecursionError, UnicodeError):
         return "non_json_final_channel"
 
 

@@ -10,7 +10,7 @@ from pathlib import Path
 from src.utils.quick_scan_result_outbox import canonical_sha256, strict_json_loads
 
 
-def read_shared_company_config(path):
+def read_shared_company_config(path, *, recovery_only=False):
     raw = Path(path).read_bytes()
     if len(raw) > 2 * 1024 * 1024:
         raise ValueError("shared_company_config_too_large")
@@ -25,7 +25,8 @@ def read_shared_company_config(path):
     if (
         not isinstance(config, dict)
         or not required <= set(config)
-        or set(config) - required - {"evidence_boards", "limits", "pack_by"}
+        or not recovery_only
+        and set(config) - required - {"evidence_boards", "limits", "pack_by"}
         or config.get("schema_version") != "1.0.0"
     ):
         raise ValueError("shared_company_config_invalid")
@@ -39,6 +40,8 @@ def read_shared_company_config(path):
     ):
         if not (Path(config[key]) / member).is_file():
             raise ValueError("shared_company_dependency_missing:" + key)
+    if recovery_only:
+        return {key: config[key] for key in required}
     boards = config.get("evidence_boards", [])
     if not isinstance(boards, list) or any(
         not isinstance(b, dict)
@@ -199,6 +202,24 @@ def run_shared_company_scan(
     from src.utils.quick_scan_company_context import company_scan_capabilities
 
     native_search = lifecycle._external_retrieval is None
+    if recovery_only:
+        # This is receipt provenance, not a guess from today's search config.
+        native_search = False
+        store = getattr(lifecycle, "_store", None)
+        if store is not None:
+            for qid, entry in lifecycle._owner_refresh.entries.items():
+                if entry["kind"] != "work":
+                    continue
+                attempts = store.list_attempts(entry["work_item_id"])
+                if (
+                    attempts
+                    and attempts[-1]["phase"] == "response_available"
+                    and attempts[-1]["route_id"] == lifecycle._route_id
+                ):
+                    native_search = (
+                        store.get_external_context_use(attempts[-1]["attempt_id"]) is None
+                    )
+                    break
     engine, factory = _modules(config)
     owner = lifecycle._owner_refresh
     ids = [q.question_id for q in questions]
@@ -301,7 +322,7 @@ def run_shared_company_scan(
         task=task,
         cost_resolver=cost_resolver,
         owner_batch_claim=True,
-        native_search=lifecycle._external_retrieval is None,
+        native_search=native_search,
         request_scope=(
             None
             if request_scope is None

@@ -145,7 +145,9 @@ def prepare_execution(
     config_path, confirmation_id, *, input_paths, process_env=None, recovery_only=False
 ):
     """Trusted original runner calls this after full manifest/context validation."""
-    service = RefreshAdmissionService(config_path, process_env=process_env)
+    service = RefreshAdmissionService(
+        config_path, process_env=process_env, recovery_only=recovery_only
+    )
     proof, bundles, record = (
         service.read_registered(confirmation_id, recovery_only=True)
         if recovery_only
@@ -263,6 +265,8 @@ class ApprovedRefreshSession:
         self.scope_bindings = {qid: copy.deepcopy(native.scope_bindings[qid]) for qid in entries}
         self.fields, self.work, self.deferred = {}, {}, {}
         self.recovery_only = recovery_only
+        self.recovery_work_item_ids = list(getattr(service, "recovery_work_item_ids", []))
+        self.remaining_work_item_ids = list(getattr(service, "remaining_work_item_ids", []))
         self._policy_check = None
         self._execution_controls = None
         self._refresh_states()
@@ -289,6 +293,12 @@ class ApprovedRefreshSession:
                     self.service.store.recover_expired(item["work_item_id"])
                     item = self.service.store.get_item(item["work_item_id"])
                 self.work[qid] = item
+                if self.recovery_only:
+                    # Preserve this exact historical generation, even if a newer
+                    # route/work now owns the current scanning slot.
+                    field.update(decision="resume_existing_work", generation=item["generation"])
+                    self.fields[qid] = field
+                    continue
                 projected = self.native.projection.get(qid)
                 if projected is None or projected["work_item_id"] != item["work_item_id"]:
                     self.deferred[qid] = "registered_work_superseded"
@@ -346,6 +356,18 @@ class ApprovedRefreshSession:
         )
 
     def check(self):
+        if getattr(self, "recovery_only", False):
+            # This operation cannot dispatch. Original immutable journal/response
+            # identity is sufficient; today's permission, budget and actor are not.
+            record = self.service._record(self.proof["confirmation"]["confirmation_id"])
+            if (
+                record is None
+                or canonical_bytes(record["inputs"]) != canonical_bytes(self.record["inputs"])
+                or canonical_bytes(record["receipt"]) != canonical_bytes(self.record["receipt"])
+            ):
+                raise AdmissionRejected("refresh_execution_original_action_changed")
+            self._assert_paid_responses()
+            return
         if (
             self.proof["request"]["protocol"]
             in {"iqs.refresh_request/1.2.0", "iqs.refresh_request/1.3.0"}
@@ -385,10 +407,31 @@ class ApprovedRefreshSession:
             self._assert_paid_responses()
 
     def _assert_paid_responses(self):
+        if not getattr(self, "recovery_work_item_ids", None):
+            received, remaining = [], []
+            for entry in self.entries.values():
+                if entry.get("kind") != "work":
+                    continue
+                wid = entry["work_item_id"]
+                attempts = self.service.store.list_attempts(wid)
+                if (
+                    attempts
+                    and attempts[-1].get("phase") == "response_available"
+                    and self.service.store.get_attempt_response(attempts[-1]["attempt_id"])
+                    is not None
+                ):
+                    received.append(wid)
+                else:
+                    remaining.append(wid)
+            if not received:
+                raise AdmissionRejected("paid_recovery_original_response_required")
+            self.recovery_work_item_ids, self.remaining_work_item_ids = received, remaining
         for entry in self.entries.values():
             if entry.get("kind") != "work":
                 continue
             work_id = entry["work_item_id"]
+            if work_id not in getattr(self, "recovery_work_item_ids", [work_id]):
+                continue
             work = self.service.store.get_item(work_id)
             attempts = self.service.store.list_attempts(work_id)
             if (
@@ -447,6 +490,8 @@ class ApprovedRefreshSession:
             )
         ):
             reject()
+        if getattr(self, "recovery_only", False):
+            return  # The exact immutable original binding above owns this saved result.
         old, current = original_binding["anchor_version"], self.plan["anchor_version"]
         if (
             type(old) is not int
@@ -948,6 +993,8 @@ class ApprovedRefreshSession:
         )
         if executor_path.resolve() != self.service.store.path.resolve():
             raise AdmissionRejected("refresh_execution_original_ledger_required")
+        if getattr(self, "recovery_only", False):
+            return  # No current model configuration or budget is used by a saved response.
         expected = _budget_policy_projection(self.service.budget)
         if canonical_bytes(_budget_policy_projection(policy)) != canonical_bytes(expected):
             raise AdmissionRejected("refresh_execution_confirmed_model_policy_required")
@@ -1008,8 +1055,68 @@ class ApprovedRefreshSession:
             raise AdmissionRejected("refresh_execution_question_not_approved")
         return None  # Every approved work already exists in the original Q13.
 
-    def execution_routes(self, policy):
-        """Select approved targets without editing the original budget snapshot."""
+    def execution_routes(self, policy=None):
+        """Select new routes or project historical received routes, never mint a budget."""
+        if getattr(self, "recovery_only", False):
+            received_routes = {}
+            approved_targets = self.ordered_route_targets
+            received_work_ids = set(getattr(self, "recovery_work_item_ids", []))
+            for qid, entry in self.entries.items():
+                if entry["kind"] != "work" or (
+                    received_work_ids and entry["work_item_id"] not in received_work_ids
+                ):
+                    continue
+                attempts = self.service.store.list_attempts(entry["work_item_id"])
+                received_attempt = attempts[-1] if attempts else None
+                received_response = (
+                    self.service.store.get_attempt_response(received_attempt["attempt_id"])
+                    if received_attempt and received_attempt["phase"] == "response_available"
+                    else None
+                )
+                if received_response is None or received_attempt is None:
+                    continue
+                received_receipt = received_response["receipt"]
+                received_target = next(
+                    (
+                        t
+                        for t in (approved_targets or [])
+                        if (t["route_id"], t["provider_config_ref"], t["model"], t["provider"])
+                        == (
+                            received_attempt["route_id"],
+                            received_attempt["provider"],
+                            received_attempt["model_requested"],
+                            received_receipt.get("provider"),
+                        )
+                    ),
+                    None,
+                )
+                if approved_targets is not None and received_target is None:
+                    raise AdmissionRejected("paid_recovery_original_target_response_required")
+                if approved_targets is None and (
+                    received_receipt.get("provider"),
+                    received_attempt["model_requested"],
+                ) != (
+                    self.proof["preview"]["provider"],
+                    self.proof["preview"]["model"],
+                ):
+                    raise AdmissionRejected("paid_recovery_original_target_response_required")
+                received_routes[received_attempt["route_id"]] = dict(
+                    id=received_attempt["route_id"],
+                    provider_config_ref=received_attempt["provider"],
+                    model=received_attempt["model_requested"],
+                    provider=received_receipt["provider"],
+                    quota_group=received_target["quota_group"] if received_target else None,
+                    eligible=False,
+                    unavailable_reason="received_response_only",
+                )
+            if not received_routes:
+                raise AdmissionRejected("paid_recovery_original_response_required")
+            order = (
+                [t["route_id"] for t in approved_targets]
+                if approved_targets is not None
+                else list(received_routes)
+            )
+            return [copy.deepcopy(received_routes[rid]) for rid in order if rid in received_routes]
         if self.ordered_route_targets is not None:
             expected = self.proof["owner_policy"]
             vendors = getattr(self, "_ordered_vendor_routes", None)
@@ -1143,7 +1250,10 @@ class ApprovedRefreshSession:
             original_registered_question_count=getattr(
                 self, "original_registered_question_count", len(self.entries)
             ),
-            recovered_work_question_count=len(self.entries),
+            recovered_work_question_count=len(
+                getattr(self, "recovery_work_item_ids", self.entries)
+            ),
+            remaining_work_item_ids=list(getattr(self, "remaining_work_item_ids", [])),
             original_cached_references_retained=True,
         )
 

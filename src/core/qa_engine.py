@@ -414,10 +414,17 @@ class QAEngine:
         return batch_result
 
     def hydrate_questions(self, questions: List[Question]) -> QABatchResult:
-        """Project original saved results only; never claim, send or fall back.
+        """Original complete hydration; missing answers never trigger a send."""
+        return self.hydrate_saved_questions(questions, self.work_item_lifecycle)
 
-        A shared-engine caller uses this after native finalization. Missing or
-        failed restoration must surface instead of creating another paid call.
+    @staticmethod
+    def hydrate_saved_questions(
+        questions: List[Question], lifecycle: Any, *, allow_partial=False
+    ) -> QABatchResult:
+        """Read saved answers without a search/provider instance.
+
+        Partial preservation retains the original denominator and original
+        answer timestamps; absent answers are never replaced or requested.
         """
         ids = [q.question_id for q in questions if isinstance(q, Question)]
         if (
@@ -425,10 +432,9 @@ class QAEngine:
             or len(ids) != len(questions)
             or any(not qid for qid in ids)
             or len(set(ids)) != len(ids)
-            or self.work_item_lifecycle is None
+            or lifecycle is None
         ):
             raise ValueError("hydrate_only_identified_original_questions_required")
-        lifecycle = self.work_item_lifecycle
         batch = QABatchResult(total_questions=len(questions))
         for question in questions:
             reference = getattr(lifecycle, "reference_question", None)
@@ -436,9 +442,11 @@ class QAEngine:
             if result is None:
                 hydrate = getattr(lifecycle, "hydrate_question", None)
                 checkpoint = hydrate(question) if callable(hydrate) else None
+                if checkpoint is None and allow_partial:
+                    continue
                 if checkpoint is None:
                     raise ValueError("hydrate_only_checkpoint_missing:" + str(question.question_id))
-                result = self._hydrate_pack_checkpoint(question, checkpoint)
+                result = QAEngine._hydrate_pack_checkpoint(question, checkpoint)
             batch.add_result(result)
         return batch
 
@@ -835,8 +843,8 @@ class QAEngine:
         self.progress_reporter.finish_batch(f"批量处理完成，成功: {success}/{len(questions)}")
         return batch
 
+    @staticmethod
     def output_results(
-        self,
         batch_result: QABatchResult,
         output_file: Optional[str] = None,
         quick_scan_context: Optional[Dict[str, Any]] = None,

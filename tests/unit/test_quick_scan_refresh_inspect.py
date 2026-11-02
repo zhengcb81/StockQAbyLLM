@@ -225,3 +225,26 @@ def test_public_snapshot_failure_closes_original_transaction(tmp_path, monkeypat
         )["IQS_05"]["work"]["status"]
         == "pending"
     )
+
+
+def test_public_original_action_reader_uses_native_journal_without_writes(tmp_path):
+    # Original synthetic journal metadata, not a new owner/consent positive.
+    from src.utils.quick_scan_refresh_admission_journal import read_record
+    from tests.unit.test_quick_scan_refresh_admission_journal import action, register
+
+    ledger = QuickScanWorkStore(tmp_path / "original-action.sqlite")
+    registered = register(ledger)
+    confirmation_id = action()["confirmation_id"]
+    with closing(sqlite3.connect(ledger.path)) as connection:
+        connection.row_factory = sqlite3.Row
+        expected = read_record(connection, confirmation_id)
+    before = ledger.path.read_bytes()
+    files = sorted(p.name for p in tmp_path.iterdir())
+    view = ReadOnlyWorkView(ledger.path)
+    observed = view.get_registered_refresh_action(confirmation_id)
+    assert observed == expected and observed["receipt"] == registered
+    assert view.get_registered_refresh_action("rc1_" + "0" * 64) is None
+    observed["receipt"]["items"].clear()
+    assert view.get_registered_refresh_action(confirmation_id) == expected
+    assert ledger.path.read_bytes() == before
+    assert sorted(p.name for p in tmp_path.iterdir()) == files

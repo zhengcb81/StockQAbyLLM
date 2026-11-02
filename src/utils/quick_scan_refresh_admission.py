@@ -142,7 +142,9 @@ def match_question(item, bundle, *, information_cutoff):
 
 
 class RefreshAdmissionService:
-    def __init__(self, config_path, *, process_env=None):
+    def __init__(self, config_path, *, process_env=None, recovery_only=False):
+        self.recovery_only = recovery_only
+        self.recovery_work_item_ids, self.remaining_work_item_ids = [], []
         self.config_path = Path(config_path).absolute()
         self.config, self.config_raw = _snapshot(self.config_path)
         c = self.config
@@ -155,9 +157,15 @@ class RefreshAdmissionService:
         ):
             raise AdmissionRejected("refresh_admission_deployment_invalid")
         for key in PATH_KEYS - {"work_store", "budget_policy_file"}:
-            _plain_path(c[key], directory=True)
+            if key != "runs_dir" or not recovery_only:
+                _plain_path(c[key], directory=True)
         _plain_path(c["work_store"])
-        self.budget, self.budget_raw = _snapshot(c["budget_policy_file"])
+        # Historical received data does not spend today's budget.
+        self.budget: dict | None
+        self.budget_raw: bytes | None
+        self.budget, self.budget_raw = (
+            (None, None) if recovery_only else _snapshot(c["budget_policy_file"])
+        )
         self.environment = process_env
         self.endpoint = OwnerConsentEndpoint({k: c[k] for k in ROOT_KEYS}, process_env=process_env)
         self.bridge = RefreshConsentClient(
@@ -217,7 +225,7 @@ class RefreshAdmissionService:
         snapshots = {name: _snapshot(directory / name) for name in BUNDLE_FILES}
         # Original loaders read only byte copies of the already strict snapshot.
         with tempfile.TemporaryDirectory(
-            prefix="admission-", dir=self.config["runs_dir"]
+            prefix="admission-", dir=None if self.recovery_only else self.config["runs_dir"]
         ) as temporary:
             frozen = Path(temporary)
             for name, (_, raw) in snapshots.items():
@@ -256,7 +264,7 @@ class RefreshAdmissionService:
         )
 
     def _inputs_unchanged(self, bundles):
-        if (
+        if not getattr(self, "recovery_only", False) and (
             _snapshot(self.config_path)[1] != self.config_raw
             or _snapshot(self.config["budget_policy_file"])[1] != self.budget_raw
         ):
@@ -283,10 +291,13 @@ class RefreshAdmissionService:
 
     def _action_binding(self, proof, bundles):
         preview = proof["preview"]
+        budget_raw = self.budget_raw
+        if budget_raw is None:
+            raise AdmissionRejected("paid_recovery_cannot_dispatch")
         input_sha = canonical_sha256(
             dict(
                 config_raw_sha256=hashlib.sha256(self.config_raw).hexdigest(),
-                budget_raw_sha256=hashlib.sha256(self.budget_raw).hexdigest(),
+                budget_raw_sha256=hashlib.sha256(budget_raw).hexdigest(),
                 bundles={
                     key: {
                         name: hashlib.sha256(raw).hexdigest()
@@ -310,21 +321,29 @@ class RefreshAdmissionService:
         items = record["receipt"]["items"]
         if not items:
             raise AdmissionRejected("paid_recovery_registered_work_required")
+        received, remaining = [], []
         for original in items:
             work_id = original["work_item_id"]
             work = self.store.get_item(work_id)
+            if any(
+                work.get(key) != original[key]
+                for key in ("entity_id", "question_id", "generation", "scope", "scope_id")
+            ):
+                raise AdmissionRejected("paid_recovery_original_scope_changed")
             attempts = self.store.list_attempts(work_id)
             if (
-                work["status"] not in {"leased", "failed", "result_ready", "delivered"}
-                or any(
-                    work.get(key) != original[key]
-                    for key in ("entity_id", "question_id", "generation", "scope", "scope_id")
-                )
-                or not attempts
-                or attempts[-1]["phase"] != "response_available"
-                or self.store.get_attempt_response(attempts[-1]["attempt_id"]) is None
+                work["status"] in {"leased", "failed", "result_ready", "delivered"}
+                and attempts
+                and attempts[-1]["phase"] == "response_available"
+                and self.store.get_attempt_response(attempts[-1]["attempt_id"]) is not None
             ):
-                raise AdmissionRejected("paid_recovery_original_response_required")
+                received.append(work_id)
+            else:
+                remaining.append(work_id)
+        if not received:
+            raise AdmissionRejected("paid_recovery_original_response_required")
+        self.recovery_work_item_ids, self.remaining_work_item_ids = received, remaining
+        return received
 
     def read_registered(self, confirmation_id, *, recovery_only=False):
         """Authenticate an existing action; never register from a replay read."""
@@ -345,15 +364,29 @@ class RefreshAdmissionService:
             # This local input-validation projection is not a historical policy.
             bundle_proof["owner_policy"]["ttl_hours"] = proof["owner_state"]["ttl_hours"]
         bundles = self._proof_inputs(bundle_proof)
-        if canonical_bytes(record["inputs"]["action"]) != canonical_bytes(
-            self._action_binding(proof, bundles)
-        ):
+        original_action = record["inputs"]["action"]
+        if recovery_only:
+            # The original journal owns its historical input hash. Re-reading a
+            # modified current budget/deployment cannot invalidate a paid answer.
+            expected_action = dict(
+                confirmation_id=proof["confirmation"]["confirmation_id"],
+                confirmation_sha256=canonical_sha256(proof["confirmation"]),
+                preview_id=proof["preview"]["preview_id"],
+                scope_sha256=proof["preview"]["scope_sha256"],
+                policy_sha256=proof["preview"]["policy_sha256"],
+                execution_inputs_sha256=original_action["execution_inputs_sha256"],
+            )
+        else:
+            expected_action = self._action_binding(proof, bundles)
+        if canonical_bytes(original_action) != canonical_bytes(expected_action):
             raise AdmissionRejected("refresh_admission_idempotency_conflict")
         if recovery_only:
             self._assert_received_response_scope(record)
         return proof, bundles, record
 
     def admit(self, confirmation_id):
+        if getattr(self, "recovery_only", False):
+            raise AdmissionRejected("paid_recovery_cannot_dispatch")
         if not isinstance(confirmation_id, str) or not re.fullmatch(
             "rc[12]_[a-f0-9]{64}", confirmation_id
         ):

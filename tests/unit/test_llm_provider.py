@@ -697,7 +697,7 @@ def test_final_answer_private_channel_markers_are_not_retained_even_below_cap(tm
     policy = _final_answer_diagnostic_policy(config)
     for final in [
         '<think>PRIVATE_CHAIN</think>{"answers":[]}',
-        '{"analysis":"PRIVATE_CHAIN","answers":[]}',
+        '{"thinking_content":"PRIVATE_CHAIN","answers":[]}',
         'PRIVATE_CHAIN prose before {"answers":[]}',
         "```analysis\nPRIVATE_CHAIN\n```",
         '<thinking>PRIVATE_CHAIN</thinking>{"answers":[]}',
@@ -767,7 +767,7 @@ def _diagnostic_pack_provider(tmp_path, monkeypatch, *, verified=True):
     provider.client.supports_web_search = True
     provider.client.supports_search_json_mode = True
     provider.client.send_search_request.return_value = NS(
-        content='{"answers":[],"extra":1}', execution_metadata=metadata, search_verified=verified
+        content='{"extra":1}', execution_metadata=metadata, search_verified=verified
     )
     return provider, config
 
@@ -921,3 +921,64 @@ def test_pack_diagnostic_target_regular_file_rejects_before_paid_dispatch(tmp_pa
         )
     assert provider.client.send_search_request.call_count == 0
     assert target.read_bytes() == b"owner-existing-file"
+
+
+@pytest.mark.parametrize(
+    "final",
+    [
+        '{"answers":[],"information_as_of":"2026-10-31","information_as_of":"2026-10-31"}',
+        json.dumps(
+            {
+                "answers": [],
+                "analysis": "Business analysis: demand may decline.",
+                "reasoning": "Cash generation supports reinvestment.",
+            }
+        ),
+        json.dumps(
+            {"answers": [{"summary": "{revenue minus costs} is a mnemonic, not nested JSON."}]}
+        ),
+        json.dumps({"answers": [{"summary": '"Strong franchise" is the product slogan.'}]}),
+        json.dumps(
+            {
+                "answers": [
+                    {"summary": "The protocol field reasoning_content is not a financial metric."}
+                ]
+            }
+        ),
+    ],
+)
+def test_visible_business_text_and_identical_redundancy_are_retained(tmp_path, final):
+    from src.providers.llm_provider import (
+        _capture_final_answer_diagnostic,
+        _final_answer_diagnostic_policy,
+    )
+
+    config, metadata, trusted = _final_diagnostic_fixture(tmp_path)
+    result = _capture_final_answer_diagnostic(
+        _final_answer_diagnostic_policy(config), final, metadata, trusted
+    )
+    artifact = json.loads(
+        (tmp_path / "final-answer-diagnostics" / result["artifact_name"]).read_bytes()
+    )
+    assert artifact["final_answer_retained"] is True
+    assert artifact["final_answer"] == final
+
+
+@pytest.mark.parametrize(
+    "key", ["reasoning_content", "thinking_content", "reflection_content", "private_thoughts"]
+)
+def test_private_final_protocol_fields_remain_hash_only(tmp_path, key):
+    from src.providers.llm_provider import (
+        _capture_final_answer_diagnostic,
+        _final_answer_diagnostic_policy,
+    )
+
+    config, metadata, trusted = _final_diagnostic_fixture(tmp_path)
+    final = json.dumps({"answers": [], key: "SYNTHETIC_PRIVATE_PLACEHOLDER"})
+    result = _capture_final_answer_diagnostic(
+        _final_answer_diagnostic_policy(config), final, metadata, trusted
+    )
+    artifact = json.loads(
+        (tmp_path / "final-answer-diagnostics" / result["artifact_name"]).read_bytes()
+    )
+    assert artifact["final_answer_retained"] is False and artifact["final_answer"] is None

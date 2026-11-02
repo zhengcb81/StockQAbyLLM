@@ -116,11 +116,12 @@ class OwnerResearchServices:
             or owner.native.store is not lifecycle._store
         ):
             raise OwnerResearchRejected("original_registered_owner_required")
-        if not lifecycle._transport_managed or not lifecycle._budget_policy:
+        recovery_only = getattr(owner, "recovery_only", False)
+        if not lifecycle._transport_managed or (not recovery_only and not lifecycle._budget_policy):
             raise OwnerResearchRejected("original_metered_transport_required")
-        if _budget_policy_projection(lifecycle._budget_policy) != _budget_policy_projection(
-            owner.service.budget
-        ):
+        if not recovery_only and _budget_policy_projection(
+            lifecycle._budget_policy
+        ) != _budget_policy_projection(owner.service.budget):
             raise OwnerResearchRejected("approved_budget_policy_required")
         if not callable(getattr(lifecycle._store, "get_research_visible_output", None)):
             raise OwnerResearchRejected("native_visible_output_durability_required")
@@ -137,9 +138,11 @@ class OwnerResearchServices:
         ]
         if (
             len(routes) != 1
-            or not _same_budget_route(routes[0], lifecycle._budget_route)
+            or not recovery_only
+            and not _same_budget_route(routes[0], lifecycle._budget_route)
             or lifecycle._provider_name != routes[0]["provider_config_ref"]
-            or not isinstance(routes[0].get("quota_group"), str)
+            or not recovery_only
+            and not isinstance(routes[0].get("quota_group"), str)
         ):
             raise OwnerResearchRejected("approved_native_budget_route_required")
         self.lifecycle, self.client, self.owner = lifecycle, client, owner
@@ -428,7 +431,8 @@ class OwnerResearchServices:
             self.lifecycle.question_pack_group_key(question)
         from .quick_scan_owner_budget_continuation import assert_research_task
 
-        assert_research_task(self.owner, self.task, search_service=self.search_service)
+        if not getattr(self.owner, "recovery_only", False):
+            assert_research_task(self.owner, self.task, search_service=self.search_service)
 
     def bind_task_owner_binding(self, binding):
         # This only binds immutable task inputs. The actual generation, claim
@@ -445,8 +449,8 @@ class OwnerResearchServices:
         self._task_binding = copy.deepcopy(binding)
 
     def validate_registered_inputs(self):
-        """Validate registered runtime inputs using the original live owner guard."""
-        self._assert_registered_inputs()
+        """Validate immutable runtime inputs without renewing dispatch permission."""
+        self._assert_registered_inputs(check_current=False)
 
     def _assert_registered_inputs(self, *, check_current=True):
         if (
@@ -471,8 +475,11 @@ class OwnerResearchServices:
                 self.lifecycle._model_resolution,
             )
             or canonical_sha256(self.lifecycle._observation_context) != self._context_sha256
-            or _budget_policy_projection(self.lifecycle._budget_policy)
-            != _budget_policy_projection(self.owner.service.budget)
+            or (
+                not getattr(self.owner, "recovery_only", False)
+                and _budget_policy_projection(self.lifecycle._budget_policy)
+                != _budget_policy_projection(self.owner.service.budget)
+            )
         ):
             raise OwnerResearchRejected("registered_runtime_inputs_changed")
         if check_current:
@@ -699,7 +706,7 @@ class OwnerResearchServices:
         return self.search_service.search(copy.deepcopy(envelope))
 
     def _accept_native(self, receipt):
-        self._assert_registered_inputs()
+        self._assert_registered_inputs(check_current=False)
         if not isinstance(receipt, dict) or not isinstance(receipt.get("attempt_id"), str):
             raise OwnerResearchRejected("original_native_attempt_receipt_required")
         sdk_id = receipt["attempt_id"]
@@ -795,7 +802,7 @@ class OwnerResearchServices:
         return None
 
     def inspect_attempt(self, ref):
-        self._assert_registered_inputs()
+        self._assert_registered_inputs(check_current=False)
         response = self._known_native(ref)
         if response is None:
             return dict(attempt_ref=ref, known=False, outcome_recorded=None, response_saved=None)
@@ -921,7 +928,7 @@ class OwnerResearchServices:
 
     def recover_intent(self, intent):
         """Read exact native task/work/intent after process loss; never POST."""
-        self._assert_registered_inputs()
+        self._assert_registered_inputs(check_current=False)
         if not isinstance(intent, dict):
             raise OwnerResearchRejected("registered_runtime_intent_required")
         selected = intent.get("question_ids")
@@ -993,7 +1000,7 @@ class OwnerResearchServices:
         """
         from src.utils.quick_scan_work_store import Lease
 
-        self._assert_registered_inputs()
+        self._assert_registered_inputs(check_current=False)
         entry = self.owner.entries.get(question_id)
         if (
             question_id not in self.questions
@@ -1038,7 +1045,7 @@ class OwnerResearchServices:
             existing.get("work_item_id") != work_id or existing.get("lease") != lease
         ):
             raise OwnerResearchRejected("finalization_existing_handle_conflict")
-        self._assert_registered_inputs()
+        self._assert_registered_inputs(check_current=False)
         self._handles[question_id] = handle
         return dict(handle)
 
@@ -1051,7 +1058,7 @@ class OwnerResearchServices:
         """
         import json
 
-        self._assert_registered_inputs()
+        self._assert_registered_inputs(check_current=False)
         response = self._known_native(native_reference)
         if response is None:
             raise OwnerResearchRejected("original_response_required_for_checkpoint")

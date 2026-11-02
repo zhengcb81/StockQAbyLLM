@@ -399,7 +399,7 @@ def test_partial_delivery_resume_uses_original_outbox_and_missing_owner_ack_neve
     assert original_store.get_result_delivery(wid)["package_bytes"] == original[0]
 
 
-def _registered_paid_entry(client, manifest, store, identity):
+def _registered_paid_entry(client, manifest, store, identity, *, information_cutoff=None):
     from tests.unit.test_quick_scan_work_store import (
         _created,
         _successful_search_attempt,
@@ -418,6 +418,8 @@ def _registered_paid_entry(client, manifest, store, identity):
     )
     qid = manifest["questions"][0]["id"]
     binding = original.binding(qid)
+    if information_cutoff is not None:
+        binding["information_cutoff"] = information_cutoff
     spec = dict(
         identity,
         question_id=qid,
@@ -462,7 +464,7 @@ def test_paid_native_view_does_not_replan_or_require_new_execution(tmp_path):
         now=NOW,
         recovery_entries=entries,
     )
-    assert calls == ["anchor", "anchor"]
+    assert calls == [] and session.current is None
     assert session.plan["protocol"] == "stockqa.registered_response_recovery_view/1.0.0"
     assert session.recovery_only and session.plan["new_execution_authorized"] is False
     assert session.plan["fields"][0]["decision"] == "resume_existing_work"
@@ -474,7 +476,7 @@ def test_paid_native_view_does_not_replan_or_require_new_execution(tmp_path):
 
 
 @pytest.mark.parametrize("fault", ["subject", "scope", "decision", "anchor", "withdrawn"])
-def test_paid_native_view_rejects_original_scope_or_current_anchor_drift(tmp_path, fault):
+def test_paid_native_view_checks_original_scope_without_today_anchor_gate(tmp_path, fault):
     client, manifest, store, identity = _fixture(tmp_path)
     entries, _ = _registered_paid_entry(client, manifest, store, identity)
     entry = next(iter(entries.values()))
@@ -494,8 +496,8 @@ def test_paid_native_view_rejects_original_scope_or_current_anchor_drift(tmp_pat
 
         client._call = withdrawn
     before = store.path.read_bytes()
-    with pytest.raises(OwnerRefreshRejected):
-        client.prepare(
+    if fault == "withdrawn":
+        session = client.prepare(
             manifest,
             store,
             identity=identity,
@@ -504,6 +506,18 @@ def test_paid_native_view_rejects_original_scope_or_current_anchor_drift(tmp_pat
             now=NOW,
             recovery_entries=entries,
         )
+        assert session.recovery_only and session.current is None
+    else:
+        with pytest.raises(OwnerRefreshRejected):
+            client.prepare(
+                manifest,
+                store,
+                identity=identity,
+                provider="openai",
+                model="M1",
+                now=NOW,
+                recovery_entries=entries,
+            )
     assert store.path.read_bytes() == before
 
 
@@ -580,9 +594,10 @@ def test_paid_native_anchor_survives_real_iqs_manual_override_expiry(tmp_path, m
 
 def test_paid_view_uses_registered_scan_cutoff_not_older_classification_date(tmp_path):
     client, manifest, store, identity = _fixture(tmp_path)
-    entries, _ = _registered_paid_entry(client, manifest, store, identity)
+    entries, _ = _registered_paid_entry(
+        client, manifest, store, identity, information_cutoff="2026-10-09"
+    )
     original_binding = next(iter(entries.values()))["specification"]["owner_refresh_binding"]
-    original_binding["information_cutoff"] = "2026-10-09"
     assert (
         json.loads(base64.b64decode(client.current_fixture["snapshot"]["route_raw_base64"]))[
             "as_of"

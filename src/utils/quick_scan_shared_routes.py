@@ -82,6 +82,25 @@ def routed_lifecycle(lifecycle, route, client):
     return clone
 
 
+def _saved_scope_summary(lifecycle):
+    owner = lifecycle._owner_refresh
+    scope = [qid for qid in owner.requested_question_ids if owner.entries[qid]["kind"] == "work"]
+    progress = lifecycle._store.company_scan_progress(
+        [owner.entries[q]["work_item_id"] for q in scope]
+    )
+    saved = [row["question_id"] for row in progress["rows"] if row["checkpoint_id"] is not None]
+    remaining = [row["question_id"] for row in progress["rows"] if row["checkpoint_id"] is None]
+    if not saved:
+        raise ValueError("shared_company_original_saved_response_required")
+    return dict(
+        status="partial" if remaining else "completed",
+        saved_question_ids=saved,
+        remaining_question_ids=remaining,
+        API_requests=0,
+        dispatch_started=False,
+    )
+
+
 def run_ordered_company_scan(lifecycle, route_clients, *, config, questions, **options):
     from src.utils.quick_scan_shared_company import (
         SharedCompanyIncomplete,
@@ -103,9 +122,17 @@ def run_ordered_company_scan(lifecycle, route_clients, *, config, questions, **o
         ]
         if len(matching) != 1:
             raise ValueError("shared_company_original_route_client_required")
-        return run_shared_company_scan(
-            lifecycle, matching[0], config=config, questions=questions, **options
-        )
+        try:
+            outcome = run_shared_company_scan(
+                lifecycle, matching[0], config=config, questions=questions, **options
+            )
+        except SharedCompanyIncomplete:
+            if not options.get("recovery_only"):
+                raise
+        else:
+            if not options.get("recovery_only"):
+                return outcome
+        return _saved_scope_summary(lifecycle)
     owner.check()
     scope = [qid for qid in owner.requested_question_ids if owner.entries[qid]["kind"] == "work"]
     requested = {q.question_id for q in questions}
@@ -156,19 +183,21 @@ def run_ordered_company_scan(lifecycle, route_clients, *, config, questions, **o
             Question(q["question"]["prompt"], question_id=q["question_id"]) for q in task.questions
         ]
         recovery_options = {**options, "recovery_only": True}
-        run_shared_company_scan(
-            current,
-            client,
-            config=config,
-            questions=original_questions,
-            ordered_scope=scope,
-            **recovery_options,
-        )
+        try:
+            run_shared_company_scan(
+                current,
+                client,
+                config=config,
+                questions=original_questions,
+                ordered_scope=scope,
+                **recovery_options,
+            )
+        except SharedCompanyIncomplete:
+            # The original engine can stop after exporting completed safe slots;
+            # unasked members remain in the same task and receive no new request.
+            pass
     if options.get("recovery_only"):
-        final = lifecycle._store.company_scan_progress(work_ids)
-        if any(r["question_id"] in requested and r["checkpoint_id"] is None for r in final["rows"]):
-            raise ValueError("shared_company_original_saved_response_required")
-        return None
+        return _saved_scope_summary(lifecycle)
     for index, target in enumerate(targets):
         progress = lifecycle._store.company_scan_progress(work_ids)
         if all(row["checkpoint_id"] is not None for row in progress["rows"]):

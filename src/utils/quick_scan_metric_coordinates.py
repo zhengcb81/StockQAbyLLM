@@ -6,6 +6,7 @@ metrics belong to separate fact items or explicitly scoped custom metric IDs.
 Single legacy rows may have unknown dates; repeated IDs need an explicit end.
 """
 
+import json
 from typing import Any
 
 
@@ -22,6 +23,10 @@ def validate_metric_coordinates(metrics: list[dict[str, Any]]) -> None:
         previous = by_id.setdefault(metric["metric_id"], [])
         for other in previous:
             if metric_coordinate(metric) == metric_coordinate(other):
+                if json.dumps(metric, sort_keys=True, allow_nan=False) == json.dumps(
+                    other, sort_keys=True, allow_nan=False
+                ):
+                    continue  # Identical redundancy, not a competing numeric claim.
                 raise ValueError("duplicate metric coordinate")
             if metric.get("unit") != other.get("unit"):
                 raise ValueError("repeated metric has incompatible unit")

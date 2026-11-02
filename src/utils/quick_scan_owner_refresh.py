@@ -18,6 +18,7 @@ import subprocess  # nosec B404
 import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import cast
 
 from src.utils.quick_scan_result_outbox import canonical_sha256, strict_json_loads
 from src.utils.quick_scan_work_store import QuickScanWorkStore
@@ -255,6 +256,18 @@ class OwnerRefreshClient:
         ordered_route_targets: list[dict] | None = None,
         cache_clock: str = "information_as_of",
     ) -> "OwnerRefreshSession":
+        if recovery_entries is not None:
+            return self._prepare_received_view(
+                manifest,
+                store,
+                identity=identity,
+                provider=provider,
+                model=model,
+                now=now,
+                observation_context=observation_context,
+                entries=recovery_entries,
+                ordered_route_targets=ordered_route_targets,
+            )
         if cache_clock not in {"information_as_of", "successful_scan"}:
             raise OwnerRefreshRejected("owner_refresh_cache_clock_invalid")
         if ordered_route_targets is not None:
@@ -263,11 +276,7 @@ class OwnerRefreshClient:
             ordered_route_targets = ordered_targets(
                 ordered_route_targets, provider=provider, model=model
             )
-        current = (
-            self._call("anchor", ["--now-utc", now, "--include-raw-bundle"])
-            if recovery_entries is not None
-            else self.current(now)
-        )
+        current = self.current(now)
         snap = current.get("snapshot", {})
         c = self.config
         try:
@@ -296,11 +305,7 @@ class OwnerRefreshClient:
                 or binding["subject_key"] != snap["subject_key"]
                 or binding["perimeter_sha256"] != snap["perimeter_sha256"]
                 or frozen["module_locks"] != snap["module_locks"]
-                or (
-                    current.get("new_execution_authorized") is not False
-                    if recovery_entries is not None
-                    else current["execution_validation"].get("new_execution_authorized") is not True
-                )
+                or current["execution_validation"].get("new_execution_authorized") is not True
             ):
                 raise OwnerRefreshRejected("owner_refresh_manifest_identity_mismatch")
         except (KeyError, TypeError, ValueError) as error:
@@ -363,30 +368,6 @@ class OwnerRefreshClient:
             question_ids=[q["id"] for q in frozen["questions"]],
             scope_bindings=scopes,
         )
-        if recovery_entries is not None:
-            plan = self._paid_response_view(
-                frozen,
-                current,
-                scopes,
-                recovery_entries,
-                identity=identity,
-                provider=provider,
-                model=model,
-                now=now,
-            )
-            self.assert_current(current, now)
-            return OwnerRefreshSession(
-                self,
-                current,
-                plan,
-                scopes,
-                projection,
-                identity,
-                store,
-                observation_context=observation_context if subject_context_active else None,
-                recovery_only=True,
-                ordered_route_targets=ordered_route_targets,
-            )
         runs = Path(c["runs_dir"])
         runs.mkdir(parents=True, exist_ok=True)
         with TemporaryDirectory(prefix="owner-refresh-", dir=runs) as temporary:
@@ -472,74 +453,108 @@ class OwnerRefreshClient:
             ordered_route_targets=ordered_route_targets,
         )
 
-    def _paid_response_view(
-        self, manifest, current, scopes, entries, *, identity, provider, model, now
-    ):
-        """Project original registered work, without running a new-send planner."""
-        snap = current["snapshot"]
-        if not entries or set(entries) - set(scopes):
+    def _prepare_received_view(
+        self,
+        manifest,
+        store,
+        *,
+        identity,
+        provider,
+        model,
+        now,
+        observation_context,
+        entries,
+        ordered_route_targets,
+    ) -> "OwnerRefreshSession":
+        """Original registered history, without a current anchor or a send plan."""
+        questions = {row["id"]: row for row in manifest["questions"]}
+        if not entries or set(entries) - set(questions):
             raise OwnerRefreshRejected("paid_recovery_registered_scope_required")
-        fields = []
-        cutoff = None
-        for q in manifest["questions"]:
-            qid = q["id"]
-            entry = entries.get(qid)
-            row = dict(
-                field_id=qid,
-                decision="defer",
-                generation=None,
-                reuse_observation_id=None,
-                request_identity_key=None,
+        bindings, scopes, projection = [], {}, {}
+        for qid, entry in entries.items():
+            if entry.get("kind") != "work":
+                raise OwnerRefreshRejected("paid_recovery_registered_work_required")
+            spec, wid = entry["specification"], entry["work_item_id"]
+            binding = spec["owner_refresh_binding"]
+            actual, original = store.get_item(wid), store.get_owner_refresh_binding(wid)
+            expected = dict(
+                subject_key=self.config["subject_key"],
+                manifest_raw_sha256=manifest["manifest_sha256"],
+                entity_id=identity["entity_id"],
+                identity_revision=identity["identity_revision"],
+                provider=provider,
+                model=model,
+                question_id=qid,
+                scope=spec.get("scope", binding["scope"]),
+                scope_id=spec.get("scope_id", binding["scope_id"]),
+                target_generation=spec["generation"],
             )
-            if entry is not None:
-                if entry.get("kind") != "work":
-                    raise OwnerRefreshRejected("paid_recovery_registered_work_required")
-                spec = entry["specification"]
-                binding = spec["owner_refresh_binding"]
-                expected = dict(
-                    subject_key=self.config["subject_key"],
-                    decision_id=current["expected_decision_id"],
-                    manifest_raw_sha256=snap["manifest_raw_sha256"],
-                    perimeter_sha256=snap["perimeter_sha256"],
-                    provider=provider,
-                    model=model,
-                    entity_id=identity["entity_id"],
-                    identity_revision=identity["identity_revision"],
-                    question_id=qid,
-                    **scopes[qid],
+            if (
+                original is None
+                or original["binding"] != binding
+                or any(binding.get(k) != v for k, v in expected.items())
+                or any(
+                    actual.get(k) != spec.get(k, binding.get(k))
+                    for k in ("entity_id", "question_id", "generation", "scope", "scope_id")
                 )
+            ):
+                raise OwnerRefreshRejected("paid_recovery_original_binding_mismatch")
+            bindings.append(binding)
+            scopes[qid] = {"scope": binding["scope"], "scope_id": binding["scope_id"]}
+            projection[qid] = actual
+        first = bindings[0]
+        shared = (
+            "subject_key",
+            "decision_id",
+            "manifest_raw_sha256",
+            "identity_revision",
+            "perimeter_sha256",
+            "provider",
+            "model",
+            "information_cutoff",
+        )
+        if any(any(b[k] != first[k] for k in shared) for b in bindings):
+            raise OwnerRefreshRejected("paid_recovery_original_scope_mismatch")
+        targets = first.get("ordered_route_targets")
+        if ordered_route_targets is not None and ordered_route_targets != targets:
+            raise OwnerRefreshRejected("paid_recovery_original_route_mismatch")
+        if observation_context is not None:
+            for qid in entries:
+                row = observation_context["questions"][qid]["subject_binding"]
+                ref = row["subject_ref"]
                 if (
-                    any(binding.get(k) != value for k, value in expected.items())
-                    or type(binding.get("anchor_version")) is not int
-                    or not 1 <= binding["anchor_version"] <= current["anchor_version"]
-                    or binding.get("target_generation") != spec["generation"]
-                    or (cutoff is not None and cutoff != binding["information_cutoff"])
+                    ref["entity_id"] != identity["entity_id"]
+                    or ref["perimeter_sha256"] != first["perimeter_sha256"]
+                    or row["identity_revision"] != identity["identity_revision"]
+                    or ref["analysis_subject_id"] + "@" + str(ref["analysis_subject_revision"])
+                    != first["subject_key"]
                 ):
-                    raise OwnerRefreshRejected("paid_recovery_original_subject_anchor_changed")
-                cutoff = binding["information_cutoff"]
-                row.update(
-                    decision="resume_existing_work",
-                    generation=spec["generation"],
-                    request_identity_key=binding["request_identity_key"],
-                )
-            fields.append(row)
+                    raise OwnerRefreshRejected("paid_recovery_original_subject_mismatch")
+        fields = [
+            dict(
+                field_id=qid,
+                decision="resume_existing_work" if qid in entries else "defer",
+                generation=entries[qid]["specification"]["generation"] if qid in entries else None,
+                reuse_observation_id=None,
+                request_identity_key=(
+                    entries[qid]["specification"]["owner_refresh_binding"]["request_identity_key"]
+                    if qid in entries
+                    else None
+                ),
+            )
+            for qid in questions
+        ]
         plan = dict(
             protocol="stockqa.registered_response_recovery_view/1.0.0",
-            subject_key=self.config["subject_key"],
+            **{k: copy.deepcopy(first[k]) for k in shared},
+            anchor_version=max(b["anchor_version"] for b in bindings),
             scope=self.config["scope"],
             scope_id=self.config["scope_id"],
-            decision_id=current["expected_decision_id"],
-            anchor_version=current["anchor_version"],
-            manifest_raw_sha256=snap["manifest_raw_sha256"],
-            identity_revision=identity["identity_revision"],
-            perimeter_sha256=snap["perimeter_sha256"],
-            provider=provider,
-            model=model,
             module_package_id=manifest["module_package_id"],
             module_release_id=manifest["module_release_id"],
-            module_locks=manifest["module_locks"],
-            information_cutoff=cutoff,
+            module_locks=copy.deepcopy(manifest["module_locks"]),
             cutoff_policy="exact_period",
+            refresh_id=first.get("refresh_id"),
             now=now,
             ttl_hours=self.config["ttl_hours"],
             fields=fields,
@@ -548,14 +563,26 @@ class OwnerRefreshClient:
             dispatch_started=False,
             model_API_requests=0,
         )
-        return plan
+        # No object pretending to be today's current anchor is constructed.
+        return OwnerRefreshSession(
+            self,
+            None,
+            plan,
+            scopes,
+            projection,
+            identity,
+            store,
+            observation_context=observation_context,
+            recovery_only=True,
+            ordered_route_targets=targets,
+        )
 
 
 class OwnerRefreshSession:
     def __init__(
         self,
         client: OwnerRefreshClient,
-        current: dict,
+        current: dict | None,
         plan: dict,
         scopes: dict,
         projection: dict,
@@ -582,10 +609,12 @@ class OwnerRefreshSession:
         self.ordered_route_targets = copy.deepcopy(ordered_route_targets)
 
     def check(self) -> None:
+        if self.recovery_only:
+            return  # Immutable registered history is checked by the original paid session.
         from datetime import datetime, timezone
 
         self.client.assert_current(
-            self.current, datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+            cast(dict, self.current), datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         )
 
     def register_subject_dispatch(self, request: dict) -> dict:
@@ -596,7 +625,7 @@ class OwnerRefreshSession:
         self.check()
         receipt = register(
             self.client.config,
-            self.current,
+            cast(dict, self.current),
             request,
             process_env=self.client._environment,
         )
@@ -713,13 +742,15 @@ class OwnerRefreshSession:
         payload = original["payload"]
         scope = self.scope_bindings[qid]
         frozen = _read(
-            base64.b64decode(self.current["snapshot"]["manifest_raw_base64"], validate=True)
+            base64.b64decode(
+                cast(dict, self.current)["snapshot"]["manifest_raw_base64"], validate=True
+            )
         )
         question_meta = next(q for q in frozen["questions"] if q["id"] == qid)
         subject_matches = (
             payload.get("identity_revision") == self.identity["identity_revision"]
             and payload.get("analysis_subject")
-            == self.current["snapshot"]["subject_binding"]["subject"]
+            == cast(dict, self.current)["snapshot"]["subject_binding"]["subject"]
         )
         if self.observation_context is not None:
             try:
@@ -942,7 +973,7 @@ def build_refresh_result(batch, session: OwnerRefreshSession, quick_scan_context
         "decision_id": session.plan["decision_id"],
         "anchor_version": session.plan["anchor_version"],
         "manifest_raw_sha256": session.plan["manifest_raw_sha256"],
-        "refresh_id": session.plan["refresh_id"],
+        "refresh_id": session.plan.get("refresh_id"),
         "observation_references": references,
         "question_actions": copy.deepcopy(session.plan["fields"]),
         "dispatched_result": (

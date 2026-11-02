@@ -240,7 +240,9 @@ QUICK_SCAN_ANSWER_FIELDS = (
     "check_level",
     "check_level_receipt_id",
 )
-QUICK_SCAN_ANSWER_DESCRIPTION_MAX_CHARS = 5000
+# The final-answer transport already bounds the complete visible body to 1 MiB.
+# A second display-length preference must not truncate a paid explanation.
+QUICK_SCAN_ANSWER_DESCRIPTION_MAX_CHARS = 1024 * 1024
 
 
 def serialize_answer_for_exchange(question_id: str, answer: Mapping[str, Any]) -> Dict[str, Any]:
@@ -262,7 +264,7 @@ def serialize_answer_for_exchange(question_id: str, answer: Mapping[str, Any]) -
     if not isinstance(description, str):
         description = "" if description is None else str(description)
     if len(description) > QUICK_SCAN_ANSWER_DESCRIPTION_MAX_CHARS:
-        description = description[:QUICK_SCAN_ANSWER_DESCRIPTION_MAX_CHARS]
+        raise ValueError("answer description exceeds visible response safety limit")
     source_urls = answer.get("source_urls")
     if not isinstance(source_urls, list):
         source_urls = []

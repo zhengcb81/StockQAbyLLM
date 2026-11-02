@@ -445,7 +445,7 @@ def test_question_pack_distinguishes_empty_partial_response_from_structural_reje
         {"description": ""},
         {"description": json.dumps({"id": "IQS_02", "status": "scored", "score": 3})},
         {"description": json.dumps({"id": "IQS_03", "status": "scored", "score": 8})},
-        {"description": '{"id":"IQS_02","id":"IQS_02","status":"scored","score":8}'},
+        {"description": '{"id":"IQS_02","id":"IQS_03","status":"scored","score":8}'},
     ],
 )
 def test_question_pack_reuses_single_answer_rejections_per_identified_member(changes):
@@ -471,15 +471,15 @@ def test_question_pack_reuses_single_answer_rejections_per_identified_member(cha
         "[]",
         "{}",
         '{"answers":{}}',
-        '{"answers":[],"reasoning":"hidden"}',
-        '{"answers":[],"answers":[]}',
-        '{"answers":[{"question_id":"IQS_01","question_id":"IQS_01","score":8,"description":"x"}]}',
+        '{"answers":[],"reasoning_content":"hidden"}',
+        '{"answers":[],"answers":[{}]}',
+        '{"answers":[{"question_id":"IQS_01","question_id":"IQS_02","score":8,"description":"x"}]}',
         '{"answers":[{"question_id":"IQS_01","score":8,"description":"x","metadata":{"x":1,"x":2}}]}',
         '{"answers":[{"question_id":"IQS_01","score":8,"description":"x","metadata":{"value":NaN}}]}',
         '{"answers":[null]}',
         '{"answers":[{"score":8,"description":"missing ID"}]}',
         '<think>private analysis</think>{"answers":[]}',
-        '```json\n{"answers":[]}\n```',
+        '```json\n{"answers":[]}\n``` trailing text',
         '{"answers":[]} trailing text',
         '{"answers":[]} {"answers":[]}',
         '{"answers":[' + "[" * 1200 + "0" + "]" * 1200 + "]}",
@@ -574,9 +574,9 @@ def test_question_pack_rejects_overflowed_json_number_without_raising():
 @pytest.mark.parametrize(
     "content,code,pointer",
     [
-        ('```json\n{"answers":[]}\n```', "invalid_json", ""),
-        ('{"answers":[],"private_field":"not exported"}', "pack_root_fields", ""),
-        ('{"answers":[],"answers":[]}', "duplicate_json_key", ""),
+        ('```json\n{"answers":[]}\n``` trailing', "invalid_json", ""),
+        ('{"answers":[],"reasoning_content":"not exported"}', "invalid_json", ""),
+        ('{"answers":[],"answers":[{}]}', "duplicate_json_key", ""),
     ],
 )
 def test_pack_diagnostics_identify_root_failure_without_relaxing_parser(content, code, pointer):
@@ -681,3 +681,74 @@ def test_standard_pack_omitted_outer_date_never_normalizes_invalid_inner_date(in
     )
     assert result is not None and result.answers == ()
     assert result.invalid_question_ids == ("IQS_01",)
+
+
+def test_visible_json_accepts_identical_repeated_fields_and_one_complete_fence():
+    from src.providers.llm_response_parser import load_visible_answer_json
+
+    raw = '{"question_id":"Q1","information_as_of":"2025-12-31","information_as_of":"2025-12-31","score":8}'
+    value = load_visible_answer_json("```json\n" + raw + "\n```")
+    assert value == {"question_id": "Q1", "information_as_of": "2025-12-31", "score": 8}
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        '{"score":7,"score":8}',
+        '{"score":true,"score":1}',
+        '{"question_id":"Q1","question_id":"Q2"}',
+        '{"value":NaN}',
+        '{"value":1e999}',
+        '{"reasoning_content":"PRIVATE_FIXTURE"}',
+        '{"notes":["<think>PRIVATE_FIXTURE</think>"]}',
+        '```json\n{"score":8}\n``` trailing',
+        '{"score":8}{"score":9}',
+    ],
+)
+def test_visible_json_preserves_conflict_nonfinite_and_private_field_refusals(raw):
+    from src.providers.llm_response_parser import load_visible_answer_json
+
+    with pytest.raises(ValueError):
+        load_visible_answer_json(raw)
+
+
+def test_pack_accepts_only_format_redundancy_without_rewriting_answers():
+    parser = LLMResponseParser()
+    answer = {
+        "question_id": "Q1",
+        "status": "scored",
+        "score": 8,
+        "description": "Synthetic rationale",
+    }
+    raw = (
+        "```json\n"
+        + json.dumps(
+            {"answers": [answer], "declared_question_ids": ["Q1"], "notes": "Extra visible note"}
+        )
+        + "\n```"
+    )
+    parsed = parser.parse_question_pack_response(raw, ("Q1",))
+    assert parsed is not None and len(parsed.answers) == 1
+    assert parsed.answers[0].score == 8 and parsed.answers[0].description == answer["description"]
+
+
+def test_pack_compatibility_keeps_conflicting_wrapper_score_or_subject_rejected():
+    parser = LLMResponseParser()
+    answer = {
+        "question_id": "Q1",
+        "status": "scored",
+        "score": 8,
+        "description": "Synthetic rationale",
+    }
+    assert (
+        parser.parse_question_pack_response(json.dumps({"answers": [answer], "score": 7}), ("Q1",))
+        is None
+    )
+    assert (
+        parser.parse_question_pack_response(
+            json.dumps({"answers": [answer], "entity_id": "OTHER"}),
+            ("Q1",),
+            expected_entity_id="EXPECTED",
+        )
+        is None
+    )

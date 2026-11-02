@@ -40,12 +40,80 @@ class _DuplicateJSONKeyError(ValueError):
 
 
 def _reject_duplicate_json_keys(pairs):
-    result = {}
+    result: Dict[str, Any] = {}
     for key, value in pairs:
         if key in result:
-            raise _DuplicateJSONKeyError("重复JSON字段")
-        result[key] = value
+            # Identical repeated wire fields add no competing claim. Compare
+            # canonical JSON, not Python equality (True must not equal 1).
+            if json.dumps(result[key], sort_keys=True, allow_nan=False) != json.dumps(
+                value, sort_keys=True, allow_nan=False
+            ):
+                raise _DuplicateJSONKeyError("冲突JSON字段")
+        else:
+            result[key] = value
     return result
+
+
+FINAL_PRIVATE_FIELDS = frozenset(
+    {
+        "reasoning_content",
+        "thinking",
+        "thinking_content",
+        "chain_of_thought",
+        "reflection_content",
+        "private_thoughts",
+    }
+)
+FINAL_PRIVATE_TAG_PATTERN = re.compile(
+    r"</?(?:think(?:ing)?|reflection)\b[^>]*>|</?antml:", re.IGNORECASE
+)
+
+
+def load_visible_answer_json(content: str):
+    """Decode one visible model value; ledger/receipt readers remain strict.
+
+    One complete JSON fence and exactly repeated fields are format redundancy.
+    Conflicting fields, private protocol fields, trailing values and non-finite
+    numbers are never repaired or selected by first/last-value guessing.
+    """
+    if not isinstance(content, str):
+        raise ValueError("visible_answer_text_required")
+    candidate = content.strip()
+    fence = re.fullmatch(r"```(?:json)?[ \t]*\r?\n([\s\S]*?)\r?\n```", candidate, re.IGNORECASE)
+    if fence is not None:
+        candidate = fence.group(1)
+
+    def pairs(values):
+        result = _reject_duplicate_json_keys(values)
+        if any(key.casefold() in FINAL_PRIVATE_FIELDS for key in result):
+            raise ValueError("private_channel_field_in_visible_answer")
+        return result
+
+    def constant(_):
+        raise ValueError("nonfinite_visible_answer_number")
+
+    def finite_float(value):
+        parsed = float(value)
+        if not math.isfinite(parsed):
+            raise ValueError("nonfinite_visible_answer_number")
+        return parsed
+
+    parsed = json.loads(
+        candidate, object_pairs_hook=pairs, parse_constant=constant, parse_float=finite_float
+    )
+
+    def guard_tags(value):
+        if isinstance(value, str) and FINAL_PRIVATE_TAG_PATTERN.search(value):
+            raise ValueError("private_thought_tag_in_visible_answer")
+        if isinstance(value, dict):
+            for item in value.values():
+                guard_tags(item)
+        elif isinstance(value, list):
+            for item in value:
+                guard_tags(item)
+
+    guard_tags(parsed)
+    return parsed
 
 
 def _nested_answer_conflicts_with_outer(
@@ -281,12 +349,7 @@ class LLMResponseParser:
                     raise ValueError("nonfinite JSON number")
                 return number
 
-            root = json.loads(
-                content,
-                object_pairs_hook=_reject_duplicate_json_keys,
-                parse_constant=reject_constant,
-                parse_float=finite_float,
-            )
+            root = load_visible_answer_json(content)
         except _DuplicateJSONKeyError:
             _record_parse_diagnostic("duplicate_json_key")
             return None
@@ -296,7 +359,7 @@ class LLMResponseParser:
         if not isinstance(root, dict):
             _record_parse_diagnostic("pack_root_type")
             return None
-        if set(root) != {"answers"}:
+        if "answers" not in root:
             _record_parse_diagnostic("pack_root_fields")
             return None
         if not isinstance(root["answers"], list):
@@ -306,6 +369,35 @@ class LLMResponseParser:
             _record_parse_diagnostic("pack_member_count", "/answers")
             return None
 
+        for field, expected_value in (
+            ("entity_id", expected_entity_id),
+            ("company_name", expected_company_name),
+        ):
+            if field in root and expected_value is not None and root[field] != expected_value:
+                _record_parse_diagnostic("foreign_" + field, "/" + field)
+                return None
+        for field in ("score", "status", "question_id", "id"):
+            if field not in root:
+                continue
+            inner_key = "question_id" if field == "id" else field
+            if (
+                len(root["answers"]) != 1
+                or not isinstance(root["answers"][0], dict)
+                or inner_key not in root["answers"][0]
+                or type(root[field]) is not type(root["answers"][0][inner_key])
+                or root[field] != root["answers"][0][inner_key]
+            ):
+                _record_parse_diagnostic("conflicting_wrapper_field", "/" + field)
+                return None
+        if "declared_question_ids" in root and (
+            not isinstance(root["declared_question_ids"], list)
+            or any(
+                not isinstance(qid, str) or qid not in expected
+                for qid in root["declared_question_ids"]
+            )
+        ):
+            _record_parse_diagnostic("pack_declaration_invalid")
+            return None
         members = {}
         for index, member in enumerate(root["answers"]):
             pointer = "/answers/" + str(index)

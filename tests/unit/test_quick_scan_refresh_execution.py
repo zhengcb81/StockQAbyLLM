@@ -878,11 +878,12 @@ def test_received_recovery_runner_uses_original_inputs_before_model_spend_and_ge
         "_spend_authorization_preflight",
         lambda *a: pytest.fail("no new spend for paid response"),
     )
-    monkeypatch.setattr(
-        provider,
-        "_final_answer_diagnostic_policy",
-        lambda path: dict(directory=tmp_path),
-    )
+
+    def diagnostic(path, **kwargs):
+        assert kwargs == {"recovery_only": True}
+        return dict(directory=tmp_path)
+
+    monkeypatch.setattr(provider, "_final_answer_diagnostic_policy", diagnostic)
     seen = []
 
     def prepare(config, confirmation, *, input_paths, recovery_only=False):
