@@ -232,7 +232,7 @@ def test_expired_original_paid_lease_saves_without_new_claim_or_budget(tmp_path,
 @pytest.mark.parametrize("member_fault", [None, "missing", "invalid", "semantic_invalid"])
 @pytest.mark.parametrize("description_object", [False, True])
 def test_captured_leased_paid_pack_recovers_original_final_json_after_expiry(
-    tmp_path, monkeypatch, description_object, member_fault, journal
+    tmp_path, monkeypatch, description_object, member_fault, journal, mixed_state=None
 ):
     """Real parser/capture/SQLite/physical-save chain; current actor is a seam."""
     import hashlib
@@ -354,6 +354,131 @@ def test_captured_leased_paid_pack_recovers_original_final_json_after_expiry(
     (directory / ("a" * 64 + ".final.json")).write_text(json.dumps(capture), encoding="utf8")
     owner = ApprovedRefreshSession.__new__(ApprovedRefreshSession)
     owner.recovery_only = True
+    extra_ids = []
+    extra_original = []
+    extra_statuses = {}
+    if mixed_state:
+        candidates = [q for q in context["questions"] if q not in entries][:2]
+        extra_members = []
+        for extra_qid in candidates:
+            row = context["questions"][extra_qid]
+            meta = row["metadata"]
+            extra = store.create_or_attach(
+                entity_id=meta["entity_id"],
+                question_id=extra_qid,
+                generation=1,
+                scope=meta["scope"],
+                scope_id=meta["entity_id"],
+                identity_revision=1,
+                source_binding_version=1,
+                identity_state="verified",
+                source_binding_ref="BND_FIXTURE",
+                source_binding_refs=["BND_FIXTURE"],
+                identity_snapshot_sha256=context["identity_snapshot_sha256"],
+                question_fingerprint=row["work_prompt_sha256"],
+                routing_fingerprint="e" * 64,
+                run_id="RUN_SYNTHETIC",
+                scan_id="SCAN_SYNTHETIC",
+            )
+            wid = extra["work_item_id"]
+            extra_ids.append(wid)
+            if mixed_state != "pending":
+                lease = store.claim(wid, lease_seconds=120)
+                store.freeze_observation_context_before_send(wid, lease, context)
+                extra_members.append(dict(work_item_id=wid, lease=lease))
+            entries[extra_qid] = dict(
+                kind="work", work_item_id=wid, item={"question_id": extra_qid}
+            )
+        if mixed_state in {
+            "unknown",
+            "in_flight",
+            "missing_body",
+            "corrupt_body",
+            "binding_conflict",
+            "store_conflict",
+            "lease_conflict",
+        }:
+            from tests.unit.test_quick_scan_question_pack_store import (
+                _mark,
+                _prepare,
+                _receipt,
+            )
+
+            extra_pack = _prepare(store, extra_members, execution_attempt_id="HTTP_PACK_EXTRA")
+            from src.utils import quick_scan_subject_journal as subject
+            from tests.unit.test_c06_subject_send import receipt as subject_receipt
+
+            with store._transaction() as con:
+                for extra_member in extra_pack["members"]:
+                    item = store._item(con, extra_member["work_item_id"])
+                    attempt = con.execute(
+                        "SELECT * FROM attempt WHERE attempt_id=?", (extra_member["attempt_id"],)
+                    ).fetchone()
+                    request = subject.dispatch_request(
+                        item,
+                        attempt,
+                        subject.bound_context(con, item),
+                        execution_attempt_id=extra_pack["execution_attempt_id"],
+                        provider_actual="mimo",
+                        provider_prompt_sha256=extra_pack["provider_prompt_sha256"],
+                    )
+                    lease = next(
+                        m["lease"]
+                        for m in extra_members
+                        if m["work_item_id"] == extra_member["work_item_id"]
+                    )
+                    store.persist_subject_dispatch_receipt(
+                        extra_member["work_item_id"],
+                        lease,
+                        extra_member["attempt_id"],
+                        subject_receipt(request),
+                        expected_request=request,
+                    )
+            _mark(store, extra_pack)
+            if mixed_state != "in_flight":
+                unknown = mixed_state == "unknown"
+                extra_receipt = _receipt(
+                    attempt_id="HTTP_PACK_EXTRA",
+                    response_id="resp-extra",
+                    response_sha256="b" * 64,
+                    source_urls=receipt["source_urls"],
+                    completed_at=receipt["completed_at"],
+                )
+                if unknown:
+                    extra_receipt.update(
+                        response_sha256=None,
+                        response_id=None,
+                        actual_model=None,
+                        http_status_code=None,
+                        search_status="unverified",
+                        response_status="unknown",
+                    )
+                store.record_question_pack_outcome(
+                    extra_pack["pack_id"],
+                    outcome="unknown" if unknown else "response_available",
+                    execution_receipt=extra_receipt,
+                    http_status_code=extra_receipt["http_status_code"],
+                    actual_cost=None if unknown else 0.02,
+                    cost_source_ref=None if unknown else "synthetic-cost",
+                )
+                if mixed_state == "corrupt_body":
+                    bad_capture = copy.deepcopy(capture)
+                    bad_capture.update(response_sha256="b" * 64)
+                    bad_capture["original_transport"].update(
+                        question_pack_id=extra_pack["pack_id"],
+                        execution_attempt_id="HTTP_PACK_EXTRA",
+                        physical_budget_attempt_id=extra_pack["budget_attempt_id"],
+                    )
+                    bad_capture["final_answer_sha256"] = "0" * 64
+                    (directory / ("b" * 64 + ".final.json")).write_text(
+                        json.dumps(bad_capture), encoding="utf8"
+                    )
+        extra_original = [store.list_attempts(wid) for wid in extra_ids]
+        extra_statuses = {wid: store.get_item(wid) for wid in extra_ids}
+    if mixed_state == "only_unsent":
+        entries = {
+            qid: entry for qid, entry in entries.items() if entry["work_item_id"] in extra_ids
+        }
     owner.entries = entries
     owner.service = NS(store=store)
     from tests.unit.test_quick_scan_observation_context import MANIFEST
@@ -367,15 +492,56 @@ def test_captured_leased_paid_pack_recovers_original_final_json_after_expiry(
         "identity.json": json.dumps({"payload": {"canonical_name": company_name}}).encode()
     }
     owner.check = lambda: None
-    owner.assert_received_checkpoint_recovery = lambda *args, **kwargs: None
+
+    def assert_original(work_id, *args, **kwargs):
+        if mixed_state == "member_conflict" and work_id == pack["members"][1]["work_item_id"]:
+            from src.utils.quick_scan_work_store import LeaseFencedError
+
+            raise LeaseFencedError("synthetic middle member superseded")
+        if work_id in extra_ids:
+            if mixed_state == "binding_conflict":
+                from src.utils.quick_scan_refresh_admission import AdmissionRejected
+
+                raise AdmissionRejected("received_checkpoint_original_binding_required")
+            if mixed_state == "store_conflict":
+                from src.utils.quick_scan_work_store import WorkConflictError
+
+                raise WorkConflictError("original synthetic item binding differs")
+            if mixed_state == "lease_conflict":
+                from src.utils.quick_scan_work_store import LeaseFencedError
+
+                raise LeaseFencedError("original synthetic lease was superseded")
+
+    owner.assert_received_checkpoint_recovery = assert_original
     clock[0] += 1000
     original_responses = [store.get_attempt_response(m["attempt_id"]) for m in pack["members"]]
     budget = store.get_quick_scan_budget_status("pack-policy")
     policy = None if journal else {"directory": directory}
     report = owner.recover_received_checkpoints(capture_policy=policy)
-    valid_members = pack["members"][:-1] if member_fault else pack["members"]
+    valid_members = (
+        []
+        if mixed_state == "only_unsent"
+        else (pack["members"][:-1] if member_fault else pack["members"])
+    )
+    if mixed_state == "member_conflict":
+        valid_members = [pack["members"][0], pack["members"][2]]
+        assert store.get_answer_checkpoint(pack["members"][1]["work_item_id"]) is None
+        assert report["recovery_errors"]
     assert set(report["recovered_work_item_ids"]) == {m["work_item_id"] for m in valid_members}
-    assert report["status"] == ("partial" if member_fault else "completed")
+    assert report["status"] == ("partial" if member_fault or mixed_state else "completed")
+    assert set(extra_ids) <= set(report["remaining_work_item_ids"])
+    if mixed_state in {
+        "missing_body",
+        "corrupt_body",
+        "binding_conflict",
+        "store_conflict",
+        "lease_conflict",
+    }:
+        assert report["recovery_errors"]
+    if mixed_state:
+        assert [store.list_attempts(wid) for wid in extra_ids] == extra_original
+        assert {wid: store.get_item(wid) for wid in extra_ids} == extra_statuses
+        assert all(store.get_answer_checkpoint(wid) is None for wid in extra_ids)
     again = owner.recover_received_checkpoints(capture_policy=policy)
     assert again["recovered_work_item_ids"] == []
     assert set(again["attached_work_item_ids"]) == {m["work_item_id"] for m in valid_members}
@@ -391,3 +557,33 @@ def test_captured_leased_paid_pack_recovers_original_final_json_after_expiry(
             == member["attempt_id"]
         )
         assert len(store.list_attempts(member["work_item_id"])) == 1
+
+
+@pytest.mark.parametrize(
+    "mixed_state",
+    [
+        "pending",
+        "claimed_unsent",
+        "unknown",
+        "in_flight",
+        "missing_body",
+        "corrupt_body",
+        "binding_conflict",
+        "only_unsent",
+        "store_conflict",
+        "lease_conflict",
+        "member_conflict",
+    ],
+)
+@pytest.mark.parametrize("journal", [False, True])
+def test_mixed_scope_recovers_paid_members_without_touching_unavailable_work(
+    tmp_path, monkeypatch, mixed_state, journal
+):
+    test_captured_leased_paid_pack_recovers_original_final_json_after_expiry(
+        tmp_path,
+        monkeypatch,
+        False,
+        None,
+        journal,
+        mixed_state=mixed_state,
+    )

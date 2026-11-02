@@ -579,7 +579,7 @@ class ApprovedRefreshSession:
             parse_standard_answer,
         )
         from .quick_scan_result_outbox import strict_json_loads
-        from .quick_scan_work_store import Lease
+        from .quick_scan_work_store import Lease, LeaseFencedError, WorkConflictError
 
         directory = None if capture_policy is None else capture_policy.get("directory")
         if directory is not None and (
@@ -593,43 +593,57 @@ class ApprovedRefreshSession:
         wanted = {e["work_item_id"]: qid for qid, e in self.entries.items() if e["kind"] == "work"}
         packs = {}
         attached = []
-        for work_id, qid in wanted.items():
-            item = store.get_item(work_id)
-            if item["status"] in {"result_ready", "delivered"}:
-                saved = store.get_answer_checkpoint(work_id)
-                if saved is not None:
-                    self.assert_received_checkpoint_recovery(
-                        work_id, saved["attempt_id"], store=store
-                    )
-                    attached.append(work_id)
-                continue
-            if item["status"] != "failed" and not (
-                getattr(self, "recovery_only", False) and item["status"] == "leased"
-            ):
-                continue  # Pending/security and unknown/in-flight work are never dispatched here.
-            attempts = store.list_attempts(work_id)
-            if not attempts:
-                raise AdmissionRejected("received_checkpoint_original_response_required")
-            attempt = attempts[-1]
-            self.assert_received_checkpoint_recovery(work_id, attempt["attempt_id"], store=store)
-            with store._transaction() as con:
-                member = con.execute(
-                    "SELECT pack_id FROM quick_scan_question_pack_member WHERE attempt_id=?",
-                    (attempt["attempt_id"],),
-                ).fetchone()
-            if member is None:
-                raise AdmissionRejected("received_checkpoint_original_pack_required")
-            pack = store.get_question_pack(member["pack_id"])
-            if (
-                pack["physical_outcome"] != "response_available"
-                or pack["members_uncertain"]
-                or any(m["work_item_id"] not in wanted for m in pack["members"])
-            ):
-                raise AdmissionRejected("received_checkpoint_exact_registered_pack_required")
-            packs[pack["pack_id"]] = pack
-        recovered = []
         remaining = []
-        for pack in packs.values():
+        recovery_errors = []
+        for work_id, qid in wanted.items():
+            try:
+                item = store.get_item(work_id)
+                if item["status"] in {"result_ready", "delivered"}:
+                    saved = store.get_answer_checkpoint(work_id)
+                    if saved is not None:
+                        self.assert_received_checkpoint_recovery(
+                            work_id, saved["attempt_id"], store=store
+                        )
+                        attached.append(work_id)
+                    continue
+                if item["status"] != "failed" and not (
+                    getattr(self, "recovery_only", False) and item["status"] == "leased"
+                ):
+                    remaining.append(work_id)
+                    continue  # Pending/security and unknown/in-flight work are never dispatched here.
+                attempts = store.list_attempts(work_id)
+                if not attempts or store.get_attempt_response(attempts[-1]["attempt_id"]) is None:
+                    remaining.append(work_id)
+                    continue  # Unsent/unknown work cannot supply a response, or block another work.
+                attempt = attempts[-1]
+                self.assert_received_checkpoint_recovery(
+                    work_id, attempt["attempt_id"], store=store
+                )
+                with store._transaction() as con:
+                    member = con.execute(
+                        "SELECT pack_id FROM quick_scan_question_pack_member WHERE attempt_id=?",
+                        (attempt["attempt_id"],),
+                    ).fetchone()
+                if member is None:
+                    raise AdmissionRejected("received_checkpoint_original_pack_required")
+                pack = store.get_question_pack(member["pack_id"])
+                if (
+                    pack["physical_outcome"] != "response_available"
+                    or pack["members_uncertain"]
+                    or any(m["work_item_id"] not in wanted for m in pack["members"])
+                ):
+                    raise AdmissionRejected("received_checkpoint_exact_registered_pack_required")
+                packs[pack["pack_id"]] = pack
+            except (AdmissionRejected, WorkConflictError, LeaseFencedError) as error:
+                if isinstance(error, AdmissionRejected) and not str(error).startswith(
+                    "received_checkpoint_"
+                ):
+                    raise
+                self.check()
+                recovery_errors.append(dict(work_item_ids=[work_id], reason=str(error)))
+        recovered = []
+
+        def recover_pack(pack):
             original = store.get_attempt_response(pack["members"][0]["attempt_id"])
             receipt = original["receipt"]
             transport = dict(
@@ -705,77 +719,112 @@ class ApprovedRefreshSession:
             answers = {a.question_id: a for a in parsed.answers}
             self.check()
             for member in pack["members"]:
-                with store._transaction():
-                    if replay_path is not None and _snapshot(replay_path)[1] != raw:
-                        raise AdmissionRejected("received_checkpoint_original_body_changed")
-                    wid = member["work_item_id"]
-                    qid = member["question_id"]
-                    if qid not in answers:
-                        remaining.append(wid)
-                        continue
-                    if store.get_answer_checkpoint(wid) is not None:
-                        attached.append(wid)
-                        continue
-                    answer = answers[qid]
-                    frozen = store.get_observation_context(wid)
-                    if frozen is None:
-                        raise AdmissionRejected("received_checkpoint_original_context_required")
-                    item = store.get_item(wid)
-                    bind_question_context(
-                        frozen["context"],
-                        manifest=self.bundle["manifest"],
-                        identity_snapshot_sha256=item["identity_snapshot_sha256"],
-                        entity_id=item["entity_id"],
-                        question_id=qid,
-                        scope=item["scope"],
-                        scope_id=item["scope_id"],
-                    )
-                    from .quick_scan_work_transport import parse_standard_pack_member
+                try:
+                    with store._transaction():
+                        if replay_path is not None and _snapshot(replay_path)[1] != raw:
+                            raise AdmissionRejected("received_checkpoint_original_body_changed")
+                        wid = member["work_item_id"]
+                        qid = member["question_id"]
+                        if qid not in answers:
+                            remaining.append(wid)
+                            continue
+                        if store.get_answer_checkpoint(wid) is not None:
+                            attached.append(wid)
+                            continue
+                        answer = answers[qid]
+                        frozen = store.get_observation_context(wid)
+                        if frozen is None:
+                            raise AdmissionRejected("received_checkpoint_original_context_required")
+                        item = store.get_item(wid)
+                        bind_question_context(
+                            frozen["context"],
+                            manifest=self.bundle["manifest"],
+                            identity_snapshot_sha256=item["identity_snapshot_sha256"],
+                            entity_id=item["entity_id"],
+                            question_id=qid,
+                            scope=item["scope"],
+                            scope_id=item["scope_id"],
+                        )
+                        from .quick_scan_work_transport import (
+                            parse_standard_pack_member,
+                        )
 
-                    try:
-                        body = parse_standard_pack_member(
-                            dict(
-                                question_id=qid,
+                        try:
+                            body = parse_standard_pack_member(
+                                dict(
+                                    question_id=qid,
+                                    entity_id=answer.entity_id,
+                                    status=answer.status,
+                                    score=answer.score,
+                                    description=answer.description,
+                                    information_as_of=answer.information_as_of,
+                                ),
+                                context=frozen["context"]["questions"][qid],
+                                source_urls=list(receipt.get("source_urls") or []),
+                            )
+                        except (ValueError, KeyError, TypeError):
+                            remaining.append(wid)
+                            continue
+                        store.save_answer_checkpoint(
+                            wid,
+                            Lease(member["lease_token"], member["lease_epoch"]),
+                            member["attempt_id"],
+                            answer=dict(
                                 entity_id=answer.entity_id,
+                                question_id=qid,
                                 status=answer.status,
                                 score=answer.score,
-                                description=answer.description,
-                                information_as_of=answer.information_as_of,
+                                description=body["summary"],
                             ),
-                            context=frozen["context"]["questions"][qid],
-                            source_urls=list(receipt.get("source_urls") or []),
+                            execution_receipt=receipt,
+                            observation_context=frozen["context"],
+                            standard_answer=body,
+                            _recovery_session=self,
                         )
-                    except (ValueError, KeyError, TypeError):
-                        remaining.append(wid)
-                        continue
-                    store.save_answer_checkpoint(
-                        wid,
-                        Lease(member["lease_token"], member["lease_epoch"]),
-                        member["attempt_id"],
-                        answer=dict(
-                            entity_id=answer.entity_id,
-                            question_id=qid,
-                            status=answer.status,
-                            score=answer.score,
-                            description=body["summary"],
-                        ),
-                        execution_receipt=receipt,
-                        observation_context=frozen["context"],
-                        standard_answer=body,
-                        _recovery_session=self,
-                    )
+                        if replay_path is not None and _snapshot(replay_path)[1] != raw:
+                            raise AdmissionRejected("received_checkpoint_original_body_changed")
+                        self.check()
+                    # Publish progress only after this member transaction commits.
                     if item["status"] in {"failed", "leased"}:
                         recovered.append(wid)
-                    if replay_path is not None and _snapshot(replay_path)[1] != raw:
-                        raise AdmissionRejected("received_checkpoint_original_body_changed")
+                except (AdmissionRejected, WorkConflictError, LeaseFencedError) as error:
+                    if isinstance(error, AdmissionRejected) and not str(error).startswith(
+                        "received_checkpoint_"
+                    ):
+                        raise
                     self.check()
-        if not recovered and not attached:
-            raise AdmissionRejected("received_checkpoint_known_response_required")
+                    recovery_errors.append(
+                        dict(work_item_ids=[member["work_item_id"]], reason=str(error))
+                    )
+
+        for pack in packs.values():
+            self.check()
+            try:
+                recover_pack(pack)
+            except (AdmissionRejected, WorkConflictError, LeaseFencedError) as error:
+                # A known original-body problem belongs to this physical pack.
+                # Global authority/SQLite failures still propagate. Work-local
+                # conflict/fencing errors remain explicit and are never retried.
+                if isinstance(error, AdmissionRejected) and not str(error).startswith(
+                    "received_checkpoint_"
+                ):
+                    raise
+                self.check()
+                recovery_errors.append(
+                    dict(
+                        pack_id=pack["pack_id"],
+                        reason=str(error),
+                        work_item_ids=[m["work_item_id"] for m in pack["members"]],
+                    )
+                )
+        saved_ids = set(recovered + attached)
+        remaining = [wid for wid in wanted if wid not in saved_ids]
         deliveries = []
         for wid in dict.fromkeys(recovered + attached):
             self.check()
             deliveries.append(seal_result_delivery(store, wid, authority=self.bundle["authority"]))
         return dict(
+            recovery_errors=recovery_errors,
             remaining_work_item_ids=remaining,
             status="partial" if remaining else "completed",
             recovered_work_item_ids=recovered,
