@@ -434,11 +434,13 @@ def test_original_message_carrier_matches_only_exact_user_dynamic_context(provid
 
 
 def test_original_research_sdk_messages_carrier_binds_provided_context(provided, monkeypatch):
+    from src.providers import llm_research_client
     from src.providers.llm_research_client import ResearchChatSession
     from src.utils.http_client import http_client_manager
     from tests.unit.test_llm_research_client import TOOLS
 
     f = provided
+    monkeypatch.setattr(llm_research_client, "_utc_now", lambda: "2027-01-15T08:00:00Z")
     f.client.base_url = "https://api.xiaomimimo.com/v1/chat/completions"
     posts = []
 

@@ -66,6 +66,25 @@ def bind_intent(store, task_sha256, intent_sha256, work_item_ids, *, provided_co
         _INTENT.reset(token)
 
 
+def binding_from_row(row) -> dict:
+    """Validate/decode an already loaded immutable row, without additional I/O."""
+    members = json.loads(row["work_item_ids_json"])
+    binding = {
+        key: row[key]
+        for key in ("task_sha256", "intent_sha256", "native_attempt_id", "request_payload_sha256")
+    }
+    binding["work_item_ids"] = members
+    provided_raw = row["provided_context_json"] if "provided_context_json" in row.keys() else None
+    if provided_raw is not None:
+        provided = json.loads(provided_raw)
+        if _encode(provided) != provided_raw:
+            raise ValueError("native_research_provided_context_corrupt")
+        binding["provided_context_sha256"] = _hash(provided)
+    if _encode(members) != row["work_item_ids_json"] or _hash(binding) != row["binding_sha256"]:
+        raise ValueError("native_research_intent_binding_corrupt")
+    return binding
+
+
 def get_intent_response(store, task_sha256, intent_sha256):
     """Only original DB rows are returned, including a truthful missing output."""
     from .quick_scan_work_store import _sha256
@@ -94,20 +113,8 @@ def get_intent_response(store, task_sha256, intent_sha256):
         )
     if row is None:
         return None
-    members = json.loads(row["work_item_ids_json"])
-    binding = {
-        key: row[key]
-        for key in ("task_sha256", "intent_sha256", "native_attempt_id", "request_payload_sha256")
-    }
-    binding["work_item_ids"] = members
-    provided_raw = row["provided_context_json"] if "provided_context_json" in row.keys() else None
-    if provided_raw is not None:
-        provided = json.loads(provided_raw)
-        if _encode(provided) != provided_raw:
-            raise ValueError("native_research_provided_context_corrupt")
-        binding["provided_context_sha256"] = _hash(provided)
-    if _encode(members) != row["work_item_ids_json"] or _hash(binding) != row["binding_sha256"]:
-        raise ValueError("native_research_intent_binding_corrupt")
+    binding = binding_from_row(row)
+    members = binding["work_item_ids"]
     if (single is None) == (pack is None):
         raise ValueError("native_research_intent_original_members_missing_or_ambiguous")
     if pack is not None:

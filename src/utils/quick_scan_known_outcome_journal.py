@@ -145,7 +145,7 @@ def _single_physical(store, con, item, attempt):
     """
     from .quick_scan_owner_refresh_journal import read as owner_binding
     from .quick_scan_question_pack_journal import _fingerprint
-    from .quick_scan_research_intent import _encode, _hash
+    from .quick_scan_research_intent import binding_from_row
     from .quick_scan_subject_journal import (
         bound_context,
         dispatch_request,
@@ -162,19 +162,14 @@ def _single_physical(store, con, item, attempt):
         raise WorkConflictError("owner_work_frozen_native_singleton_intent_required")
     # Revalidate the original join in THIS transaction, including table checks
     # during reopen (where store can be the original class, not an instance).
-    members = strict_json_loads(intent["work_item_ids_json"])
-    original = {
-        key: intent[key]
-        for key in ("task_sha256", "intent_sha256", "native_attempt_id", "request_payload_sha256")
-    }
-    original["work_item_ids"] = members
+    try:
+        original = binding_from_row(intent)
+    except ValueError as error:
+        raise WorkConflictError("owner_work_original_singleton_proof_required") from error
+    members = original["work_item_ids"]
     for key in ("task_sha256", "intent_sha256", "request_payload_sha256"):
         _sha(original[key])
-    if (
-        members != [item["work_item_id"]]
-        or _encode(members) != intent["work_item_ids_json"]
-        or _hash(original) != intent["binding_sha256"]
-    ):
+    if members != [item["work_item_id"]]:
         raise WorkConflictError("owner_work_original_singleton_proof_required")
     budget = con.execute(
         "SELECT * FROM quick_scan_budget_attempt WHERE budget_attempt_id=?", (aid,)

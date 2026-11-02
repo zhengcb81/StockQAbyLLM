@@ -33,7 +33,17 @@ from tests.unit.test_quick_scan_known_outcome import authority, immutable
 from tests.unit.test_w15_owner_refresh import _binding
 
 
-def single(tmp_path, wire, monkeypatch, *, anchored=True, bound=True, context=True, cost=True):
+def single(
+    tmp_path,
+    wire,
+    monkeypatch,
+    *,
+    anchored=True,
+    bound=True,
+    context=True,
+    cost=True,
+    provided=False,
+):
     """Only the native mocked SDK creates attempts, receipt, charge and intent."""
     from src.providers import llm_research_client as sdk
 
@@ -64,6 +74,20 @@ def single(tmp_path, wire, monkeypatch, *, anchored=True, bound=True, context=Tr
             identity_revision=1,
             provider="mimo",
             model="mimo-v2.6-pro",
+            **(
+                dict(
+                    information_cutoff=metadata["information_cutoff"],
+                    subject_key=ctx["questions"][qid]["subject_binding"]["subject_ref"][
+                        "analysis_subject_id"
+                    ]
+                    + "@1",
+                    perimeter_sha256=ctx["questions"][qid]["subject_binding"]["subject_ref"][
+                        "perimeter_sha256"
+                    ],
+                )
+                if provided
+                else {}
+            ),
         )
         item = store.create_or_attach(
             entity_id=metadata["entity_id"],
@@ -89,6 +113,55 @@ def single(tmp_path, wire, monkeypatch, *, anchored=True, bound=True, context=Tr
         current = client()
         current.provider_name, current.model = "mimo", "mimo-v2.6-pro"
         current.base_url = "https://api.xiaomimimo.com/v1/chat/completions"
+        prepared, user_context = None, "one"
+        if provided:
+            import hashlib
+            from types import SimpleNamespace
+
+            from src.utils.quick_scan_provided_context import (
+                canonical,
+                prepare_provided_context,
+            )
+
+            company_ref = dict(path="native-derived/company.json", bytes=10, sha256="a" * 64)
+            record = dict(
+                evidence_id="original-short-source",
+                source_url="https://issuer.example.invalid/annual",
+                published_at=metadata["information_cutoff"],
+                period_start=None,
+                period_end=None,
+                excerpt="Original same-company short evidence.",
+                issuer_ref=company_ref,
+            )
+            record["excerpt_sha256"] = hashlib.sha256(record["excerpt"].encode()).hexdigest()
+            board = {"records": [record]}
+            board_raw = canonical(board).encode()
+            task = SimpleNamespace(
+                raw=dict(
+                    protocol="iqs.company-scan-task/1.0.0",
+                    information_cutoff=metadata["information_cutoff"],
+                    evidence_epoch_ref=dict(
+                        path="native-derived/evidence-board.json",
+                        bytes=len(board_raw),
+                        sha256=hashlib.sha256(board_raw).hexdigest(),
+                    ),
+                ),
+                evidence_board_doc=board,
+                company_ref=company_ref,
+            )
+            dynamic = dict(
+                company_ref=company_ref,
+                information_cutoff=metadata["information_cutoff"],
+                evidence=[record],
+            )
+            prepared = prepare_provided_context(
+                task,
+                dynamic,
+                store=store,
+                work_item_ids=[item["work_item_id"]],
+                subject=ctx["questions"][qid]["subject_binding"]["subject_ref"],
+            )
+            user_context = canonical(dynamic)
         with bind_quick_scan_route(
             route_id="research", provider="mimo", model_requested="mimo-v2.6-pro", quota_group="A"
         ), bind_quick_scan_work(
@@ -96,12 +169,14 @@ def single(tmp_path, wire, monkeypatch, *, anchored=True, bound=True, context=Tr
         ), bind_subject_dispatch_registrar(
             subject_receipt
         ), (
-            bind_intent(store, "a" * 64, "b" * 64, [item["work_item_id"]])
+            bind_intent(
+                store, "a" * 64, "b" * 64, [item["work_item_id"]], provided_context=prepared
+            )
             if anchored
             else nullcontext()
         ):
             output = ResearchChatSession(current, system_prefix="stable", tools=TOOLS).step(
-                user_context="one"
+                user_context=user_context
             )
         attempt = store.list_attempts(item["work_item_id"])[0]
         saved = store.get_attempt_response(attempt["attempt_id"])
@@ -309,3 +384,89 @@ def test_rehashed_singleton_intent_cannot_replace_original_receipt_anchor(
     with pytest.raises((ValueError, RuntimeError), match="physical_receipt_mismatch"):
         store.resolve_known_response(item["work_item_id"], **args)
     assert store.path.read_bytes() == before
+
+
+def test_provided_context_singleton_reuses_original_physical_proof(
+    tmp_path, transport, monkeypatch
+):
+    from src.utils.quick_scan_research_intent import get_intent_response
+
+    store, clock, item, args, policy, _ = single(tmp_path, transport, monkeypatch, provided=True)
+    original = get_intent_response(store, "a" * 64, "b" * 64)
+    assert original["provided_context_sha256"]
+    clock[0] += 121
+    before = immutable(store)
+    derived = derive_work_decision(
+        store.path, intent_for(item, args), policy=policy, clock=lambda: clock[0]
+    )
+    physical = derived["request"]["physical"]
+    assert physical["proof_protocol"] == "stockqa.native_singleton_known_response/1.0.0"
+    assert (
+        physical["research_intent_binding_sha256"]
+        == original["native_receipt"]["research_intent_binding_sha256"]
+    )
+    assert immutable(store) == before
+    resolved = store.resolve_known_response(item["work_item_id"], **args)
+    reopened = QuickScanWorkStore(store.path, clock=lambda: clock[0])
+    assert reopened.resolve_known_response(item["work_item_id"], **args) == resolved
+    assert immutable(store) == before and len(transport[1]) == 1
+
+
+@pytest.mark.parametrize(
+    "fault", ["provided", "provided-noncanonical", "provided-rehashed", "binding"]
+)
+def test_provided_context_singleton_rejects_original_binding_corruption(
+    tmp_path, transport, monkeypatch, fault
+):
+    from src.utils.quick_scan_research_intent import get_intent_response
+
+    store, clock, item, args, policy, _ = single(tmp_path, transport, monkeypatch, provided=True)
+    clock[0] += 121
+    with sqlite3.connect(store.path) as connection:
+        connection.execute("DROP TRIGGER quick_scan_research_intent_no_update")
+        if fault == "binding":
+            connection.execute(
+                "UPDATE quick_scan_research_intent SET binding_sha256=?", ("0" * 64,)
+            )
+        elif fault == "provided":
+            connection.execute(
+                "UPDATE quick_scan_research_intent SET provided_context_json=?", ("{}",)
+            )
+        elif fault == "provided-rehashed":
+            import json
+
+            from src.utils.quick_scan_research_intent import _encode, _hash
+
+            connection.row_factory = sqlite3.Row
+            row = connection.execute("SELECT * FROM quick_scan_research_intent").fetchone()
+            context = json.loads(row["provided_context_json"])
+            context["records"][0]["source_url"] = "https://foreign.example.invalid/annual"
+            binding = {
+                key: row[key]
+                for key in (
+                    "task_sha256",
+                    "intent_sha256",
+                    "native_attempt_id",
+                    "request_payload_sha256",
+                )
+            }
+            binding.update(
+                work_item_ids=json.loads(row["work_item_ids_json"]),
+                provided_context_sha256=_hash(context),
+            )
+            connection.execute(
+                "UPDATE quick_scan_research_intent SET provided_context_json=?,binding_sha256=?",
+                (_encode(context), _hash(binding)),
+            )
+        else:
+            connection.execute(
+                "UPDATE quick_scan_research_intent SET provided_context_json=' ' || provided_context_json"
+            )
+    before = store.path.read_bytes()
+    with pytest.raises(ValueError):
+        get_intent_response(store, "a" * 64, "b" * 64)
+    with pytest.raises((ValueError, RuntimeError)):
+        derive_work_decision(
+            store.path, intent_for(item, args), policy=policy, clock=lambda: clock[0]
+        )
+    assert store.path.read_bytes() == before and len(transport[1]) == 1
