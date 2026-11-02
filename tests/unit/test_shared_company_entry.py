@@ -419,13 +419,14 @@ def test_scan_capabilities_follow_original_sdk_not_provider_brand():
     caps = company_scan_capabilities(client)
     assert caps["question_packs"] and caps["native_web_search"]
     assert caps["max_output_tokens"] >= 32768
-    # External retrieval uses the same structured pack transport even without
-    # a native search endpoint; the original request still validates its route.
+    # Generic SDK search may recognize a host while the research adapter does
+    # not implement its configured protocol/provider. Neither may overclaim.
     client.provider_name = "unsupported"
-    assert company_scan_capabilities(client)["native_web_search"]
+    assert not company_scan_capabilities(client)["native_web_search"]
+    assert not company_scan_capabilities(client)["question_packs"]
     client.base_url = "https://example.invalid/v1"
     assert not company_scan_capabilities(client)["native_web_search"]
-    assert company_scan_capabilities(client)["question_packs"]
+    assert not company_scan_capabilities(client)["question_packs"]
 
 
 def test_company_scan_input_projection_is_detached_and_has_no_io(monkeypatch):

@@ -50,11 +50,24 @@ def company_scan_inputs(lifecycle):
     )
 
 
-def company_scan_capabilities(client):
-    from src.providers.llm_client import _SEARCH_MAX_OUTPUT_TOKENS
+def company_scan_capabilities(client, *, native_search=True):
+    """Report the implemented research channel, not generic SDK web search."""
+    from src.providers.llm_research_client import research_channel_capabilities
 
+    capabilities = research_channel_capabilities(client)
     return dict(
-        native_web_search=bool(client.supports_web_search),
-        question_packs=callable(getattr(client, "send_search_request", None)),
-        max_output_tokens=_SEARCH_MAX_OUTPUT_TOKENS,
+        native_web_search=capabilities["native_final_json"],
+        question_packs=capabilities[
+            "native_final_json" if native_search else "external_final_json"
+        ],
+        max_output_tokens=capabilities["final_json_max_output_tokens"],
     )
+
+
+def validate_company_scan_task(lifecycle, task):
+    """Keep the existing v1.5 owner/task check behind the owner projection."""
+    owner = lifecycle._owner_refresh
+    if owner.proof["request"].get("protocol") == "iqs.refresh_request/1.5.0":
+        from src.utils.quick_scan_owner_budget_continuation import assert_research_task
+
+        assert_research_task(owner, task, search_service=None)

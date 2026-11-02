@@ -228,7 +228,7 @@ def run_shared_company_scan(
         )
         task = factory.create_company_scan_task(lifecycle, evidence_board=board, **kwargs)
     if not recovery_only:
-        capabilities = company_scan_capabilities(client)
+        capabilities = company_scan_capabilities(client, native_search=native_search)
         if (
             thinking_enabled is False
             or type(max_output_tokens) is not int

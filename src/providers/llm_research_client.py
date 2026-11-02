@@ -20,6 +20,7 @@ from urllib.parse import urlsplit
 from jsonschema import Draft202012Validator, ValidationError
 
 from src.providers.llm_client import (
+    _SEARCH_MAX_OUTPUT_TOKENS,
     LLMTransportAttemptError,
     _canonical_http_json,
     _failed_attempt_receipt,
@@ -213,6 +214,47 @@ def _usage(payload):
     return observation, usage
 
 
+_RESEARCH_TOOLS_MAX_OUTPUT_TOKENS = 16384
+_RESEARCH_CHAT_ENDPOINTS = frozenset(
+    {
+        ("deepseek", "api.deepseek.com", "/chat/completions", "deepseek-flash"),
+        ("deepseek", "api.deepseek.com", "/v1/chat/completions", "deepseek-flash"),
+        ("mimo", "api.xiaomimimo.com", "/v1/chat/completions", "mimo-v2.6-pro"),
+        ("mimo", "api.xiaomimimo.com", "/v1/chat/completions", "mimo-v2.6-flash"),
+    }
+)
+
+
+def research_channel_capabilities(client):
+    """Describe implemented research protocols without opening a session.
+
+    Ordinary SDK web search is broader than this conversation adapter. Native
+    final JSON currently uses its MiMo parser; external evidence and function
+    tools use the original, explicitly qualified chat-completions endpoints.
+    This projection grants no permission to send and never changes the client.
+    """
+    try:
+        endpoint = urlsplit(client.base_url)
+        chat = (
+            endpoint.scheme == "https"
+            and endpoint.netloc == endpoint.hostname
+            and not endpoint.query
+            and not endpoint.fragment
+            and (client.provider_name, endpoint.hostname, endpoint.path, client.model)
+            in _RESEARCH_CHAT_ENDPOINTS
+        )
+        native = client.provider_name == "mimo" and bool(client.supports_web_search)
+    except (TypeError, ValueError):
+        chat = native = False
+    return dict(
+        native_final_json=native,
+        external_final_json=chat,
+        tools=chat,
+        final_json_max_output_tokens=_SEARCH_MAX_OUTPUT_TOKENS,
+        tools_max_output_tokens=_RESEARCH_TOOLS_MAX_OUTPUT_TOKENS,
+    )
+
+
 class ResearchChatSession:
     """One company/strategy's opaque, non-persistable provider conversation.
 
@@ -237,25 +279,11 @@ class ResearchChatSession:
     ):
         if type(native_search) is not bool or native_search and response_channel != "final_json":
             raise ValueError("research_native_search_requires_final_json")
-        endpoint = urlsplit(client.base_url)
-        allowed = {
-            ("deepseek", "api.deepseek.com", "/chat/completions", "deepseek-flash"),
-            ("deepseek", "api.deepseek.com", "/v1/chat/completions", "deepseek-flash"),
-            ("mimo", "api.xiaomimimo.com", "/v1/chat/completions", "mimo-v2.6-pro"),
-            ("mimo", "api.xiaomimimo.com", "/v1/chat/completions", "mimo-v2.6-flash"),
-        }
+        capabilities = research_channel_capabilities(client)
         if native_search:
-            # Native final batches reuse the existing search endpoint parser,
-            # including supported base URLs and plan routes; no second list.
-            if client.provider_name != "mimo" or not client.supports_web_search:
+            if not capabilities["native_final_json"]:
                 raise ValueError("research_native_search_endpoint_not_qualified")
-        elif (
-            endpoint.scheme != "https"
-            or endpoint.netloc != endpoint.hostname
-            or endpoint.query
-            or endpoint.fragment
-            or (client.provider_name, endpoint.hostname, endpoint.path, client.model) not in allowed
-        ):
+        elif not capabilities["external_final_json"]:
             raise ValueError("research_endpoint_not_qualified")
         if not isinstance(system_prefix, str) or not system_prefix.strip():
             raise ValueError("research_system_prefix_required")
@@ -267,7 +295,10 @@ class ResearchChatSession:
                 session_output_tokens,
                 wall_seconds,
             )
-        ) or (response_channel != "final_json" and max_output_tokens > 16384):
+        ) or (
+            response_channel != "final_json"
+            and max_output_tokens > capabilities["tools_max_output_tokens"]
+        ):
             raise ValueError("research_limits_invalid")
         if response_channel == "final_json":
             # The production batch channel uses the same application bound

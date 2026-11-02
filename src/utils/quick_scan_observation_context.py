@@ -456,6 +456,23 @@ def parse_standard_answer(text: Any) -> dict[str, Any] | None:
     return None
 
 
+def split_standard_answer_transport(description: str) -> tuple[str, dict[str, Any] | None]:
+    """Return the original compact summary and complete standard answer body.
+
+    This pure transport split preserves the original description and body;
+    schema/content validation and saving still belong to their original owner.
+    """
+    body = parse_standard_answer(description)
+    if body is None:
+        return description, None
+    summary = body.get("summary")
+    if not isinstance(summary, str) or not summary.strip():
+        raise ValueError("standard answer does not carry a usable summary")
+    if len(summary) > 5000:
+        raise ValueError("standard answer summary exceeds the compact checkpoint bound")
+    return summary, body
+
+
 def _evidence_url_identity(url: str) -> str:
     """Use the receipt's URL identity without laundering stripped credentials."""
     from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit

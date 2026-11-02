@@ -425,6 +425,10 @@ class OwnerResearchServices:
             raise OwnerResearchRejected("native_task_owner_binding_mismatch")
         self._task_binding = copy.deepcopy(binding)
 
+    def validate_registered_inputs(self):
+        """Validate registered runtime inputs using the original live owner guard."""
+        self._assert_registered_inputs()
+
     def _assert_registered_inputs(self, *, check_current=True):
         if (
             self.native_search != self._native_search_snapshot

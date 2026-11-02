@@ -1250,19 +1250,13 @@ class QuickScanWorkLifecycle:
         standard body keeps historical compact handling only for generic QA.
         Complete C06 authority 2/3 rejects it during preflight before saving.
         """
-        from src.utils.quick_scan_observation_context import parse_standard_answer
+        from src.utils.quick_scan_observation_context import (
+            split_standard_answer_transport,
+        )
 
         if self._observation_context is None:
             return description, None
-        body = parse_standard_answer(description)
-        if body is None:
-            return description, None
-        summary = body.get("summary")
-        if not isinstance(summary, str) or not summary.strip():
-            raise ValueError("standard answer does not carry a usable summary")
-        if len(summary) > 5000:
-            raise ValueError("standard answer summary exceeds the compact checkpoint bound")
-        return summary, body
+        return split_standard_answer_transport(description)
 
     def _preflight_standard_answer(
         self,
