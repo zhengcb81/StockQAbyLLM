@@ -56,12 +56,8 @@ def _final_answer_diagnostic_policy(config_file: Any, *, recovery_only=False) ->
         directory = runtime / "final-answer-diagnostics"
         if not directory.exists():
             return None
-        if (
-            directory.is_symlink()
-            or directory.resolve() != directory.absolute()
-            or not directory.is_dir()
-        ):
-            raise ValueError("received_checkpoint_saved_answer_directory_invalid")
+        # This is only a fallback location, not a prerequisite for the native
+        # journal. Its safety is checked if a particular old body needs it.
         return {"directory": directory, "max_final_answer_bytes": 1024 * 1024}
     control = runtime / "quick_scan_final_answer_diagnostics.json"
     try:

@@ -573,7 +573,10 @@ class ApprovedRefreshSession:
 
         from src.providers.llm_response_parser import LLMResponseParser
 
-        from .quick_scan_delivery_seal import seal_result_delivery
+        from .quick_scan_delivery_seal import (
+            get_matching_sealed_delivery,
+            seal_result_delivery,
+        )
         from .quick_scan_observation_context import (
             bind_question_context,
             parse_standard_answer,
@@ -582,12 +585,6 @@ class ApprovedRefreshSession:
         from .quick_scan_work_store import Lease, LeaseFencedError, WorkConflictError
 
         directory = None if capture_policy is None else capture_policy.get("directory")
-        if directory is not None and (
-            not isinstance(directory, Path)
-            or directory.is_symlink()
-            or directory.resolve() != directory.absolute()
-        ):
-            raise AdmissionRejected("received_checkpoint_capture_path_invalid")
         self.check()
         store = self.service.store
         wanted = {e["work_item_id"]: qid for qid, e in self.entries.items() if e["kind"] == "work"}
@@ -661,6 +658,17 @@ class ApprovedRefreshSession:
             )
             matches: dict[str, tuple[Path, bytes, str]] = {}
             visible = store.get_research_visible_output(pack["budget_attempt_id"])
+            if (
+                visible is None
+                and directory is not None
+                and (
+                    not isinstance(directory, Path)
+                    or directory.is_symlink()
+                    or directory.resolve() != directory.absolute()
+                    or not directory.is_dir()
+                )
+            ):
+                raise AdmissionRejected("received_checkpoint_capture_path_invalid")
             for path in (
                 () if visible is not None or directory is None else directory.glob("*.final.json")
             ):
@@ -825,6 +833,7 @@ class ApprovedRefreshSession:
         remaining = [wid for wid in wanted if wid not in saved_ids]
         deliveries = []
         delivery_pending = []
+        ambiguous_delivery = set()
         for wid in dict.fromkeys(recovered + attached):
             self.check()
             try:
@@ -834,8 +843,10 @@ class ApprovedRefreshSession:
                 recovery_errors.append(
                     dict(stage="delivery", work_item_ids=[wid], reason=str(error))
                 )
-                current = store.get_result_delivery(wid)
-                if current is not None and current["state"] in {"ready", "delivered"}:
+                current = get_matching_sealed_delivery(
+                    store, wid, authority=self.bundle["authority"]
+                )
+                if current is not None:
                     deliveries.append(
                         dict(
                             action="already_sealed",
@@ -846,9 +857,18 @@ class ApprovedRefreshSession:
                     )
                 continue
             deliveries.append(delivery)
+            if delivery.get("action") in {"blocked", "left_in_flight"}:
+                ambiguous_delivery.add(wid)
+        delivered_ids = {row["work_item_id"] for row in deliveries}
         for wid in dict.fromkeys(recovered + attached):
             current = store.get_result_delivery(wid)
             if current is None or current["state"] not in {"ready", "delivered"}:
+                delivery_pending.append(wid)
+            elif (
+                wid in ambiguous_delivery or wid not in delivered_ids
+            ) and get_matching_sealed_delivery(
+                store, wid, authority=self.bundle["authority"]
+            ) is None:
                 delivery_pending.append(wid)
         return dict(
             recovery_errors=recovery_errors,

@@ -32,7 +32,9 @@ from src.utils.quick_scan_observation_context import (
     validate_resumed_context_compatibility,
 )
 from src.utils.quick_scan_work_store import (
+    LeaseFencedError,
     QuickScanWorkStore,
+    WorkConflictError,
     _unmapped_run_scan_pairs,
 )
 
@@ -59,6 +61,7 @@ __all__ = [
     "BLOCK_RECEIPT",
     "BLOCK_STANDARD_ANSWER",
     "HISTORICAL_READONLY",
+    "get_matching_sealed_delivery",
     "seal_pending_deliveries",
     "seal_result_delivery",
 ]
@@ -319,6 +322,36 @@ def seal_result_delivery(
     return _sealed_outcome(work_item_id, record, "sealed")
 
 
+def get_matching_sealed_delivery(
+    store: QuickScanWorkStore, work_item_id: str, *, authority: dict[str, Any] | None
+) -> dict[str, Any] | None:
+    """Read an existing ready/terminal package only if it meets this seal target.
+
+    This reuses the native complete-package interpretation on ambiguous outcomes;
+    it is not a new grant, dispatch, or attempt to upgrade an old sealed head.
+    """
+    from src.utils.quick_scan_result_outbox import canonical_bytes
+
+    current = store.get_result_delivery(work_item_id)
+    if current is None or current["state"] not in {"ready", "delivered"}:
+        return None
+    if isinstance(authority, dict) and authority.get("schema_version") in {
+        AUTHORITY_SCHEMA_VERSION_V2,
+        "3.0.0",
+    }:
+        try:
+            expected, missing = _complete_package(store, work_item_id, authority)
+        except (ValueError, WorkConflictError, LeaseFencedError):
+            return None
+        if (
+            expected is None
+            or missing is not None
+            or current["package_bytes"] != canonical_bytes(expected)
+        ):
+            return None
+    return current
+
+
 def seal_pending_deliveries(
     store: QuickScanWorkStore,
     *,
@@ -348,9 +381,16 @@ def seal_pending_deliveries(
         seen.add(work_item_id)
         try:
             outcome = seal_result_delivery(store, work_item_id, authority=authority)
-        except ValueError as error:
-            logger.error("封存跳过 %s：%s", work_item_id, error)
-            untouched.append({"work_item_id": work_item_id, "reason": str(error)})
+        except (ValueError, WorkConflictError, LeaseFencedError) as error:
+            # A work-local failure does not discard later independent paid
+            # checkpoints. A successful commit may precede its diagnostic;
+            # use the actual immutable delivery rather than the exception alone.
+            current = get_matching_sealed_delivery(store, work_item_id, authority=authority)
+            if current is not None:
+                already.append(_sealed_outcome(work_item_id, current, "already_sealed"))
+            else:
+                logger.error("封存跳过 %s：%s", work_item_id, error)
+                untouched.append({"work_item_id": work_item_id, "reason": str(error)})
             continue
         if outcome["action"] in {"sealed", "superseded"}:
             sealed.append(outcome)

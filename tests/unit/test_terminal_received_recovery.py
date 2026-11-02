@@ -240,6 +240,8 @@ def test_captured_leased_paid_pack_recovers_original_final_json_after_expiry(
     mixed_state=None,
     delivery_fault=None,
     preexisting_rejected=False,
+    capture_path_fault=False,
+    historical_target=False,
 ):
     """Real parser/capture/SQLite/physical-save chain; current actor is a seam."""
     import hashlib
@@ -520,7 +522,7 @@ def test_captured_leased_paid_pack_recovers_original_final_json_after_expiry(
                 raise LeaseFencedError("original synthetic lease was superseded")
 
     owner.assert_received_checkpoint_recovery = assert_original
-    if delivery_fault or preexisting_rejected:
+    if delivery_fault or preexisting_rejected or historical_target:
         from tests.unit.test_q10_delivery import _c06_authority
 
         owner.bundle["authority"] = _c06_authority()
@@ -589,6 +591,43 @@ def test_captured_leased_paid_pack_recovers_original_final_json_after_expiry(
     original_responses = [store.get_attempt_response(m["attempt_id"]) for m in pack["members"]]
     budget = store.get_quick_scan_budget_status("pack-policy")
     policy = None if journal else {"directory": directory}
+    if capture_path_fault:
+        bad_capture = tmp_path / "obsolete-capture-file"
+        bad_capture.write_text("synthetic obsolete optional diagnostic", encoding="utf8")
+        policy = {"directory": bad_capture}
+    if historical_target:
+        first = owner.recover_received_checkpoints(capture_policy=policy)
+        assert first["status"] == "completed"
+        before_cp = [store.get_answer_checkpoint(m["work_item_id"]) for m in pack["members"]]
+        assert all(
+            store.get_result_delivery(m["work_item_id"])["state"] == "ready"
+            for m in pack["members"]
+        )
+        # A complete target cannot be assembled from this intentionally absent
+        # current context. Native sealing preserves the old compact head.
+        owner.bundle["authority"] = {"schema_version": "2.0.0"}
+        second = owner.recover_received_checkpoints(capture_policy=policy)
+        assert second["status"] == "partial"
+        assert second["remaining_work_item_ids"] == []
+        assert set(second["delivery_pending_work_item_ids"]) == {
+            m["work_item_id"] for m in pack["members"]
+        }
+        assert all(row["action"] == "left_in_flight" for row in second["deliveries"])
+        assert [
+            store.get_answer_checkpoint(m["work_item_id"]) for m in pack["members"]
+        ] == before_cp
+        assert store.get_quick_scan_budget_status("pack-policy") == budget
+        return
+    if capture_path_fault and not journal:
+        rejected = owner.recover_received_checkpoints(capture_policy=policy)
+        assert rejected["recovered_work_item_ids"] == []
+        assert rejected["status"] == "partial"
+        assert all(store.get_answer_checkpoint(m["work_item_id"]) is None for m in pack["members"])
+        assert (
+            rejected["recovery_errors"][0]["reason"] == "received_checkpoint_capture_path_invalid"
+        )
+        assert store.get_quick_scan_budget_status("pack-policy") == budget
+        policy = {"directory": directory}
     if delivery_fault in {"permission", "database"}:
         error = PermissionError if delivery_fault == "permission" else sqlite3.DatabaseError
         with pytest.raises(error):
@@ -716,4 +755,20 @@ def test_existing_checkpoint_rejected_during_collection_is_not_reattached_by_its
 ):
     test_captured_leased_paid_pack_recovers_original_final_json_after_expiry(
         tmp_path, monkeypatch, False, None, journal, preexisting_rejected=True
+    )
+
+
+@pytest.mark.parametrize("journal", [False, True])
+def test_valid_paid_journal_does_not_depend_on_unusable_old_capture_path(
+    tmp_path, monkeypatch, journal
+):
+    test_captured_leased_paid_pack_recovers_original_final_json_after_expiry(
+        tmp_path, monkeypatch, False, None, journal, capture_path_fault=True
+    )
+
+
+@pytest.mark.parametrize("journal", [False, True])
+def test_old_ready_package_is_not_current_target_completion(tmp_path, monkeypatch, journal):
+    test_captured_leased_paid_pack_recovers_original_final_json_after_expiry(
+        tmp_path, monkeypatch, False, None, journal, historical_target=True
     )
