@@ -1167,6 +1167,7 @@ def project_question_pack_transport(execution_metadata: dict) -> dict:
 def parse_standard_pack_member(answer, *, context, source_urls):
     """Interpret one original member identically on first save and paid replay."""
     from src.utils.quick_scan_observation_context import (
+        frozen_question_contract,
         parse_standard_answer,
         validate_standard_answer,
     )
@@ -1186,6 +1187,7 @@ def parse_standard_pack_member(answer, *, context, source_urls):
     validate_standard_answer(
         body,
         metadata=context["metadata"],
+        question_contract=frozen_question_contract(context),
         normalized_answer=normalized,
         source_urls=source_urls,
     )

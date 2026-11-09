@@ -102,11 +102,20 @@ def load_question_manifest(path: str | Path) -> dict[str, Any]:
     ):
         raise QuestionManifestRejected("manifest_missing_fields", "modules")
     module_set = set(modules)
+    fact_question_ids = document.get("fact_question_ids")
+    if "fact_question_ids" in document and (
+        not isinstance(fact_question_ids, list)
+        or any(not isinstance(qid, str) or not _SAFE_ID.fullmatch(qid) for qid in fact_question_ids)
+        or len(set(fact_question_ids)) != len(fact_question_ids)
+    ):
+        raise QuestionManifestRejected("manifest_malformed_fact_selection")
+    selected_facts = set(fact_question_ids or ())
     replacements = document["replacements"]
     if not isinstance(replacements, dict):
         raise QuestionManifestRejected("manifest_missing_fields", "replacements")
 
     seen: set[str] = set()
+    fact_rows: list[str] = []
     replacement_targets: list[str] = []
     for index, question in enumerate(questions):
         if not isinstance(question, dict):
@@ -122,7 +131,19 @@ def load_question_manifest(path: str | Path) -> dict[str, Any]:
         if question_id in seen:
             raise QuestionManifestRejected("manifest_duplicate_question_id", question_id)
         seen.add(question_id)
-        if question["module_id"] not in module_set:
+        kind = question.get("response_kind", "score")
+        if kind not in {"score", "fact"}:
+            raise QuestionManifestRejected(
+                "manifest_malformed_question", f"{question_id}:response_kind"
+            )
+        if kind == "fact":
+            fact_rows.append(question_id)
+        module_id = question["module_id"]
+        if not isinstance(module_id, str) or not module_id:
+            raise QuestionManifestRejected(
+                "manifest_malformed_question", f"{question_id}:module_id"
+            )
+        if module_id not in module_set and not (kind == "fact" and question_id in selected_facts):
             raise QuestionManifestRejected(
                 "manifest_unknown_module", f"{question_id}:{question['module_id']}"
             )
@@ -151,6 +172,8 @@ def load_question_manifest(path: str | Path) -> dict[str, Any]:
                     )
                 replacement_targets.append(target)
 
+    if fact_question_ids is not None and fact_rows != fact_question_ids:
+        raise QuestionManifestRejected("manifest_fact_selection_mismatch")
     if len(set(replacement_targets)) != len(replacement_targets):
         raise QuestionManifestRejected(
             "manifest_conflicting_replacement",
@@ -194,6 +217,12 @@ def bind_manifest_to_questions(manifest: dict, questions: Sequence[Question]) ->
     for question, frozen in zip(questions, expected):
         if _sha256_text(question.text) != frozen["prompt_sha256"]:
             raise QuestionManifestRejected("manifest_prompt_hash_mismatch", frozen["id"])
+        response_kind = frozen.get("response_kind", "score")
+        if question.metadata.get("response_kind", response_kind) != response_kind:
+            raise QuestionManifestRejected("manifest_response_kind_mismatch", frozen["id"])
+    for question, frozen in zip(questions, expected):
+        if frozen.get("response_kind") == "fact":
+            question.metadata["response_kind"] = "fact"
 
 
 def manifest_scope_bindings(

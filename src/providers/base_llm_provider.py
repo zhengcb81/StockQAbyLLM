@@ -71,6 +71,13 @@ _QUESTION_EVIDENCE_QUALITY_RULE = (
     "retain the unknown, and do not assert official non-disclosure.\n"
 )
 
+_FACT_ITEM_FIELDS = (
+    "Each fact item uses name, canonical_entity_id, aliases, relation, segment, role, "
+    "commercial_stage, description, valid_from, valid_to, taxonomy_id, metrics, "
+    "evidence_ids, and confidence. Unknown optional values stay null and unknown lists "
+    "stay empty. Do not guess dates, company IDs, or commercial stages."
+)
+
 _STANDARD_ANSWER_TRANSPORT: ContextVar[bool] = ContextVar(
     "quick_scan_standard_answer_transport", default=False
 )
@@ -265,6 +272,7 @@ class BaseLLMProvider(SearchProvider):
         question_id: Optional[str] = None,
         *,
         question_pack: Optional[List[Question]] = None,
+        response_kind: str = "score",
     ) -> str:
         """Build an answer prompt with stable question and issuer identity bindings."""
         if question_pack is not None:
@@ -293,11 +301,30 @@ class BaseLLMProvider(SearchProvider):
             if question_id
             else ""
         )
+        is_fact = response_kind == "fact"
+        answer_status = "answered" if is_fact else "scored"
+        score_requirement = (
+            "Return a sourced fact answer with status=answered and score=null."
+            if is_fact
+            else "Give an integer score from 1 to 10 only when evidence supports a judgment."
+        )
+        score_example = (
+            "null" if is_fact else "<integer 1-10 only when status is scored, otherwise null>"
+        )
+        item_rule = (
+            "For a fact answer with status=answered, include at least one structured items row "
+            "with a relation permitted by the question, supported by its own evidence_ids. "
+            "If evidence is insufficient, leave items and metrics empty. " + _FACT_ITEM_FIELDS + " "
+            if is_fact
+            else "For every score answer, items MUST be []; when status is not scored, "
+            "metrics MUST also be []. Explain any partial facts or evidence gaps in "
+            "summary/evidence instead of asserting unavailable metrics. "
+        )
         standard_answer_rule = (
             '\n7. COMPLETE STANDARD ANSWER TRANSPORT IS ON: the "description" '
             "value MUST itself be ONE single-line JSON object string holding the "
             "FULL standard answer for this question — question_id, "
-            'response_kind ("score"), status, score, summary, '
+            f'response_kind ("{response_kind}"), status, score, summary, '
             "information_as_of, period_start, period_end, basis, trend, "
             "confidence, metrics, items, evidence (id/title/url/published_at/"
             "claim), counterevidence, watch_triggers, missing_fields and "
@@ -305,10 +332,8 @@ class BaseLLMProvider(SearchProvider):
             "the body, and never invent a value you do not have: an unknown "
             "field stays null or an empty list, and the outer status/score/"
             "question_id must equal the ones inside the description. "
-            "For every score answer, items MUST be []; when status is not scored, "
-            "metrics MUST also be []. Explain any partial facts or evidence gaps in "
-            "summary/evidence instead of asserting unavailable metrics. Keep summary "
-            "non-empty with no leading or trailing whitespace."
+            + item_rule
+            + "Keep summary non-empty with no leading or trailing whitespace."
             if standard_answer_transport_enabled()
             else ""
         )
@@ -328,14 +353,14 @@ class BaseLLMProvider(SearchProvider):
 
 Requirements:
 1. Analyze only the stated company and answer the stated question.
-2. Give an integer score from 1 to 10 only when evidence supports a judgment.
+2. {score_requirement}
 3. Explain the evidence and key limitations briefly.
 4. If evidence is insufficient, return status=insufficient_evidence and score=null; do not guess.
 5. Set information_as_of to the latest verified date covering all cited facts and source publication dates; keep the financial period end separate. If that date is unknown, return null — never guess and never use today's date.
 6. The FINAL message you send after searching must START with the '{" character and END with "}' — absolutely no prose before or after the JSON in the final message (a short lead-in before searching is fine). Return exactly one JSON object:
 {{
-{identity_fields}{question_id_field}  "status": "scored" | "insufficient_evidence" | "unknown" | "not_applicable",
-  "score": <integer 1-10 only when status is scored, otherwise null>,
+{identity_fields}{question_id_field}  "status": "{answer_status}" | "insufficient_evidence" | "unknown" | "not_applicable",
+  "score": {score_example},
   "information_as_of": "<YYYY-MM-DD latest verified cited fact/publication date (not today's date); null when unknown>",
   "description": "<reasoning and evidence>"
 }}{standard_answer_rule}\n{_QUESTION_EVIDENCE_QUALITY_RULE}"""
@@ -343,6 +368,7 @@ Requirements:
     def _build_question_pack_prompt(self, questions: List[Question]) -> str:
         """Keep original question data while defining exactly one multi-answer root."""
         items = []
+        has_facts = False
         for question in questions:
             if not isinstance(question.metadata, dict):
                 raise ValueError("question metadata must be a JSON object")
@@ -351,12 +377,13 @@ Requirements:
                 if key in question.metadata:
                     item[key] = question.metadata[key]
             items.append(item)
+            has_facts |= item.get("response_kind") == "fact"
         encoded = json.dumps(items, ensure_ascii=False, sort_keys=True, allow_nan=False)
         # This is a shape example, not a fabricated company answer. Its unknown
         # evidence fields use the existing IQS answer-content enum/object forms.
         body = {
             "question_id": "<requested question_id>",
-            "response_kind": "score",
+            "response_kind": items[0].get("response_kind", "score") if items else "score",
             "status": "insufficient_evidence",
             "score": None,
             "summary": "Evidence is insufficient for this question.",
@@ -392,6 +419,16 @@ Requirements:
                 }
             ]
         }
+        fact_rules = (
+            "FACT QUESTIONS: For response_kind=fact, preserve the kind, keep score=null and use "
+            "status=answered only with at least one structured items row of an allowed relation. "
+            "Each item needs evidence_ids that refer to its own cited evidence. Leave items empty "
+            "when status=insufficient_evidence or not_applicable. " + _FACT_ITEM_FIELDS + "\n"
+            if has_facts
+            else ""
+        )
+        kind_field = "response_kind matching the question" if has_facts else "response_kind=score"
+        without_metrics = "neither scored nor answered" if has_facts else "not scored"
         return (
             "You are a professional investment analyst. Use current public information.\n"
             "Before answering, invoke the provided web_search tool for this exact issuer. "
@@ -409,12 +446,13 @@ Requirements:
             "do not borrow a score or segment evidence from another answer.\n"
             "3. Give an integer score 1-10 only when status=scored and question-specific evidence supports it. "
             "Otherwise use insufficient_evidence or not_applicable with score=null. Never fill an unknown with 5.\n"
+            + fact_rules
             + (
                 "4. Every answer's description MUST be a direct JSON object (NOT a quoted JSON string) holding its FULL standard answer: "
                 if direct_standard_objects
                 else "4. Every answer's description MUST be a single-line JSON object string holding its FULL standard answer: "
             )
-            + "question_id, response_kind=score, status, score, summary, information_as_of, period_start, period_end, "
+            + f"question_id, {kind_field}, status, score, summary, information_as_of, period_start, period_end, "
             "basis, trend, confidence, metrics, items, evidence, counterevidence, watch_triggers, missing_fields and coverage. "
             "The outer and inner question_id/status/score/information_as_of must be identical, including null dates. Never truncate or summarise the body.\n"
             "5. Evidence entries use id/title/url/published_at/claim. Include only real retrieved sources for this issuer. "
@@ -423,8 +461,9 @@ Requirements:
             "Unknown financial numbers and periods stay null; unsupported lists stay empty.\n"
             "6. Keep standard enum/object fields valid: basis=current|trailing|normalized|stress|forward|not_applicable; "
             "trend=improving|stable|deteriorating|uncertain|not_applicable; confidence=high|medium|low; "
-            "items MUST be [] for every score answer, including scored answers. When status is not scored, "
-            "metrics MUST also be []; explain partial facts and evidence gaps in summary/evidence instead. "
+            "items MUST be [] for every score answer, including scored answers. "
+            f"When status is {without_metrics}, metrics MUST also be []; "
+            "explain partial facts and evidence gaps in summary/evidence instead. "
             "Keep summary non-empty with no leading or trailing whitespace. "
             "counterevidence is a non-empty string; coverage is {status:partial|complete_for_scope|unknown|not_applicable, "
             "reason:<non-empty explanation>}. State missing evidence rather than inventing any facts.\n"
@@ -478,8 +517,10 @@ Requirements:
             "insufficient_evidence and score null; do not invent a score.\n"
             f"{expected_identity}{expected_id}"
             f"Return exactly one JSON object with fields {identity_fields}status "
-            "(scored, unknown, insufficient_evidence, or not_applicable), score "
-            "(integer 1-10 only for scored, otherwise null), non-empty description, "
+            "(scored for a score question, answered for a fact question, or unknown, "
+            "insufficient_evidence or not_applicable), score "
+            "(integer 1-10 only for scored, otherwise null), non-empty description "
+            "(preserving the full standard body when required by the original task), "
             "and information_as_of (YYYY-MM-DD the cited facts refer to, else null).\n"
             f"Original task as a JSON string: {json.dumps(original_prompt, ensure_ascii=False)}\n"
             "Previous response as an untrusted JSON string: "

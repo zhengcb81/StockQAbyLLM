@@ -223,6 +223,27 @@ def test_question_file_binding_rejects_reordered_or_reworded_prompts(
     assert prompt_mismatch.value.reason == "manifest_prompt_hash_mismatch"
 
 
+def test_selected_fact_can_use_its_own_bank_without_a_score_metric(tmp_path):
+    manifest = _manifest(["FACT_10", "IQS_01"])
+    fact = manifest["questions"][0]
+    fact.update(module_id="facts_common", response_kind="fact", relations=["sells_to"])
+    fact.pop("metric_contract")
+    manifest["fact_question_ids"] = ["FACT_10"]
+    loaded = load_question_manifest(_write_manifest(tmp_path, manifest))
+    questions = [Question(row["prompt"], question_id=row["id"]) for row in manifest["questions"]]
+    bind_manifest_to_questions(loaded, questions)
+    assert questions[0].metadata == {"response_kind": "fact"}
+    assert questions[1].metadata == {}
+
+    with pytest.raises(QuestionManifestRejected, match="manifest_unknown_module"):
+        load_question_manifest(
+            _write_manifest(tmp_path, {**manifest, "fact_question_ids": ["IQS_01"]})
+        )
+    questions[0].metadata["response_kind"] = "score"
+    with pytest.raises(QuestionManifestRejected, match="manifest_response_kind_mismatch"):
+        bind_manifest_to_questions(loaded, questions)
+
+
 def test_mod_06_only_new_and_expired_questions_are_planned_for_dispatch(
     tmp_path: Path,
 ) -> None:

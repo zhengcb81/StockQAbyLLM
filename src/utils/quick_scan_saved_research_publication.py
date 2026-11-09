@@ -73,7 +73,7 @@ def _derive(store, connection, bundle, sdk_id, key):
     parse_answers_payload = answers.parse_answers_payload
     validate_single_answer = answers.validate_single_answer
     Runner = runner_module.Runner
-    from .quick_scan_observation_context import validate_standard_answer
+    from .quick_scan_observation_context import frozen_question_contract, validate_standard_answer
     from .quick_scan_subject_journal import receipt_record
 
     task = _task(bundle)
@@ -163,10 +163,11 @@ def _derive(store, connection, bundle, sdk_id, key):
             score=None,
             description=body["summary"],
         )
-        metadata = context["context"]["questions"][qid]["metadata"]
+        question_context = context["context"]["questions"][qid]
         validate_standard_answer(
             body,
-            metadata=metadata,
+            metadata=question_context["metadata"],
+            question_contract=frozen_question_contract(question_context),
             normalized_answer=normal,
             source_urls=urls,
             research_only=True,

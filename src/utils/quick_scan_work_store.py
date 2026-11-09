@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterator, Optional, Sequence, cast
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from src.core.models import QUICK_SCAN_ANSWER_DESCRIPTION_MAX_CHARS
+from src.core.models import QUICK_SCAN_ANSWER_DESCRIPTION_MAX_CHARS, REUSABLE_ANSWER_STATUSES
 from src.utils.quick_scan_external_journal import DDL_V9_ADDITIONS as _DDL_V9_ADDITIONS
 from src.utils.quick_scan_external_journal import (
     DDL_V10_ADDITIONS as _DDL_V10_ADDITIONS,
@@ -4347,7 +4347,7 @@ class QuickScanWorkStore:
             or not answer["description"].strip()
             or len(answer["description"]) > QUICK_SCAN_ANSWER_DESCRIPTION_MAX_CHARS
             or not isinstance(answer_status, str)
-            or answer_status not in {"scored", "unknown", "insufficient_evidence", "not_applicable"}
+            or answer_status not in REUSABLE_ANSWER_STATUSES
             or (
                 answer_status == "scored"
                 and (type(answer.get("score")) is not int or not 1 <= answer["score"] <= 10)
@@ -4538,12 +4538,7 @@ class QuickScanWorkStore:
             "answer description",
             maximum=QUICK_SCAN_ANSWER_DESCRIPTION_MAX_CHARS,
         )
-        if not isinstance(status, str) or status not in {
-            "scored",
-            "unknown",
-            "insufficient_evidence",
-            "not_applicable",
-        }:
+        if not isinstance(status, str) or status not in REUSABLE_ANSWER_STATUSES:
             raise ValueError("answer status is not reusable")
         if status == "scored":
             if type(score) is not int or not 1 <= score <= 10:
@@ -4633,6 +4628,10 @@ class QuickScanWorkStore:
                 observation_context=observation_context,
                 standard_answer=standard_answer,
             )
+        if status == "answered" and (
+            side_tables is None or side_tables["standard_encoded"] is None
+        ):
+            raise ValueError("fact checkpoint requires its frozen context and complete body")
         with self._transaction() as connection:
             now = self._now()
             item = self._item(connection, work_item_id)
@@ -4974,6 +4973,7 @@ class QuickScanWorkStore:
         if observation_context is None:
             raise ValueError("a complete standard answer requires the frozen observation context")
         from .quick_scan_observation_context import (
+            frozen_question_contract,
             validate_context_document,
             validate_standard_answer,
         )
@@ -4992,6 +4992,9 @@ class QuickScanWorkStore:
                 metadata=context_document["questions"][question_id]["metadata"],
                 normalized_answer=normalized_answer,
                 source_urls=source_urls,
+                question_contract=frozen_question_contract(
+                    context_document["questions"][question_id]
+                ),
                 research_only=research_only,
             )
             standard_encoded = canonical_bytes(standard_answer).decode("utf-8")

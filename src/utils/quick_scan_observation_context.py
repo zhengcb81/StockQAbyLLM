@@ -17,7 +17,7 @@ from typing import Any
 from jsonschema import Draft202012Validator, FormatChecker, ValidationError
 from referencing import Registry, Resource
 
-from src.core.models import QUICK_SCAN_ANSWER_DESCRIPTION_MAX_CHARS
+from src.core.models import QUICK_SCAN_ANSWER_DESCRIPTION_MAX_CHARS, SUCCESSFUL_ANSWER_STATUSES
 
 from .quick_scan_metric_coordinates import validate_metric_coordinates
 from .quick_scan_result_outbox import canonical_sha256, strict_json_loads
@@ -333,6 +333,8 @@ def check_context_matches_manifest(context: dict[str, Any], manifest: dict[str, 
     for question_id, selected in context["questions"].items():
         question = known[question_id]
         metadata = selected["metadata"]
+        if question.get("response_kind") == "fact" and not _subject_version(context):
+            raise ValueError("fact question requires its frozen subject question contract")
         if (
             _subject_version(context)
             and selected["subject_binding"]["question_contract"] != question
@@ -588,12 +590,18 @@ def _matching_evidence_source_url(url: str, source_urls: list[str]) -> str:
     raise ValueError("evidence URL/date is not bound to search/cutoff")
 
 
+def frozen_question_contract(context: dict[str, Any]) -> dict[str, Any]:
+    """Return the independently bound question definition when the context has one."""
+    return (context.get("subject_binding") or {}).get("question_contract") or {}
+
+
 def validate_standard_answer(
     content: dict[str, Any],
     *,
     metadata: dict[str, Any],
     normalized_answer: dict[str, Any],
     source_urls: list[str],
+    question_contract: dict[str, Any] | None = None,
     research_only: bool = False,
 ) -> dict[str, Any]:
     """Validate the model's actual body and provenance; add no answer defaults."""
@@ -607,10 +615,12 @@ def validate_standard_answer(
     for field in ("entity_id", "security_id", "segment_id"):
         if field in content and content[field] != metadata.get(field):
             raise ValueError("standard answer subject mismatch: " + field)
+    question = question_contract or {}
+    kind = question.get("response_kind", "score")
     if (
-        content["response_kind"] != "score"
-        or content["items"]
+        content["response_kind"] != kind
         or content["question_id"] != metadata["question_id"]
+        or (question and question.get("id") != metadata["question_id"])
         or normalized_answer.get("entity_id") != metadata["entity_id"]
         or any(
             content[key] != normalized_answer.get(key) for key in ("question_id", "status", "score")
@@ -618,11 +628,21 @@ def validate_standard_answer(
         or content["summary"] != normalized_answer.get("description")
     ):
         raise ValueError("standard answer does not match normalized checkpoint")
-    successful = content["status"] == "scored"
-    if successful != (content["score"] is not None):
-        raise ValueError("standard answer score/status conflict")
-    if research_only and (successful or content["score"] is not None):
-        raise ValueError("research-only publication cannot assert a score")
+    status = content["status"]
+    items = content["items"]
+    successful = status in SUCCESSFUL_ANSWER_STATUSES
+    if kind == "score":
+        if items or status == "answered" or (status == "scored") != (content["score"] is not None):
+            raise ValueError("standard score answer contract conflict")
+    elif (
+        content["score"] is not None
+        or status == "scored"
+        or successful != bool(items)
+        or any(item["relation"] not in question.get("relations", ()) for item in items)
+    ):
+        raise ValueError("standard fact answer contract conflict")
+    if research_only and successful:
+        raise ValueError("research-only publication cannot assert a score or fact")
     if not successful and content["metrics"] and not research_only:
         raise ValueError("unavailable answer cannot assert metrics")
     cutoff = metadata["information_cutoff"]
@@ -651,8 +671,15 @@ def validate_standard_answer(
         _matching_evidence_source_url(evidence["url"], source_urls)
         if evidence["published_at"] is not None and evidence["published_at"] > cutoff:
             raise ValueError("evidence URL/date is not bound to search/cutoff")
-    validate_metric_coordinates(content["metrics"])
-    for metric in content["metrics"]:
+    for item in items:
+        if not item["evidence_ids"] or not set(item["evidence_ids"]) <= evidence_by_id.keys():
+            raise ValueError("fact row lacks evidence binding")
+        if item["valid_from"] and item["valid_to"] and item["valid_from"] > item["valid_to"]:
+            raise ValueError("reversed relationship validity")
+    metric_groups = [content["metrics"], *(item["metrics"] for item in items)]
+    for group in metric_groups:
+        validate_metric_coordinates(group)
+    for metric in (entry for group in metric_groups for entry in group):
         known = metrics["metrics"].get(metric["metric_id"])
         # Registration governs canonical comparison, not whether received
         # content may be retained. Never guess aliases or rewrite model IDs.
@@ -806,6 +833,7 @@ def build_observation(
         metadata=metadata,
         normalized_answer=checkpoint_payload["answer"],
         source_urls=validation_sources,
+        question_contract=frozen_question_contract(context),
         research_only=checkpoint_payload["checkpoint_schema_version"] == 3,
     )
     # The detached observation uses the authenticated receipt's exact spelling.
@@ -849,10 +877,10 @@ def build_observation(
             raise ValueError("execution time/cutoff conflict")
     except (TypeError, AttributeError) as error:
         raise ValueError("missing actual execution timestamps") from error
-    if body["status"] == "scored" and (
+    if body["status"] in SUCCESSFUL_ANSWER_STATUSES and (
         execution["search_status"] != "executed" or not execution["search_receipt_id"]
     ):
-        raise ValueError("scored answer requires actual search proof")
+        raise ValueError(f"{body['status']} answer requires actual search proof")
     observation["observation_id"] = "obs_" + canonical_sha256(observation)
     schema, _, _, registry = _resources(metadata["schema_version"])
     _validate(observation, schema, registry)

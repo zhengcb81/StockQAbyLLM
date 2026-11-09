@@ -30,7 +30,7 @@ from src.config.config_provider import ConfigProvider
 from src.config.json_config_manager import JSONConfigManager
 from src.config.llm_config import LLMConfig
 from src.core.exceptions import ProcessingError
-from src.core.models import Question
+from src.core.models import REUSABLE_ANSWER_STATUSES, Question
 from src.core.qa_engine import QAEngine
 from src.interfaces.search_provider import SearchProvider
 from src.providers.llm_provider import LLMProvider
@@ -1406,6 +1406,7 @@ class QuickScanWorkLifecycle:
                 raise ValueError("complete C06 execution requires its frozen observation context")
             return
         from src.utils.quick_scan_observation_context import (
+            frozen_question_contract,
             validate_context_document,
             validate_standard_answer,
         )
@@ -1426,6 +1427,7 @@ class QuickScanWorkLifecycle:
         validate_standard_answer(
             standard_body,
             metadata=context["questions"][question_id]["metadata"],
+            question_contract=frozen_question_contract(context["questions"][question_id]),
             normalized_answer=payload,
             source_urls=list(
                 (receipt if search_projection is None else search_projection).get("source_urls")
@@ -1536,13 +1538,7 @@ class QuickScanWorkLifecycle:
                     receipt_protocol = receipt.get("search_protocol")
                     receipt_requested = receipt.get("requested_model")
                     shape_ok = (
-                        status
-                        in {
-                            "scored",
-                            "unknown",
-                            "insufficient_evidence",
-                            "not_applicable",
-                        }
+                        status in REUSABLE_ANSWER_STATUSES
                         and (
                             type(score) is int and 1 <= score <= 10
                             if status == "scored"
@@ -1723,12 +1719,7 @@ def _preflight_checkpoint(
     if not _ENTITY_ID.fullmatch(_safe(answer_payload["entity_id"], "entity_id")):
         raise ValueError("invalid answer entity_id")
     _safe(answer_payload["question_id"], "question_id")
-    if answer_payload["status"] not in {
-        "scored",
-        "unknown",
-        "insufficient_evidence",
-        "not_applicable",
-    }:
+    if answer_payload["status"] not in REUSABLE_ANSWER_STATUSES:
         raise ValueError("answer status is not reusable")
     score = answer_payload["score"]
     if answer_payload["status"] == "scored":

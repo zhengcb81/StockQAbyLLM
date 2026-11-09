@@ -88,6 +88,11 @@ class AsyncLLMProvider(BaseLLMProvider):
 
     async def search_question_async(self, question: Question) -> List[SearchResult]:
         """Async execution for an identified quick-scan question."""
+        kind = question.metadata.get("response_kind")
+        if kind == "fact":
+            return await self._search_async(
+                question.text, question_id=question.question_id, response_kind=kind
+            )
         return await self._search_async(question.text, question_id=question.question_id)
 
     def search_question(self, question: Question) -> List[SearchResult]:
@@ -99,10 +104,16 @@ class AsyncLLMProvider(BaseLLMProvider):
             asyncio.set_event_loop(loop)
         return loop.run_until_complete(self.search_question_async(question))
 
-    async def _search_async(self, query: str, question_id: Optional[str]) -> List[SearchResult]:
+    async def _search_async(
+        self, query: str, question_id: Optional[str], *, response_kind: str = "score"
+    ) -> List[SearchResult]:
         logger.info("异步 LLM 处理问题: %s...", query[:DISPLAY_QUERY_TRUNCATE])
 
-        prompt = self._build_prompt(query, question_id=question_id)
+        prompt = (
+            self._build_prompt(query, question_id=question_id, response_kind=response_kind)
+            if response_kind == "fact"
+            else self._build_prompt(query, question_id=question_id)
+        )
         parsed, execution_metadata = await self._call_llm_api_async(
             prompt,
             expected_question_id=question_id,

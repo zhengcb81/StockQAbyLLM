@@ -6,7 +6,7 @@
 from typing import List
 
 from src.core.exceptions import ProcessingError
-from src.core.models import Answer, Question, SearchResult
+from src.core.models import SUCCESSFUL_ANSWER_STATUSES, Answer, Question, SearchResult
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -68,10 +68,19 @@ class AnswerGenerator:
             answer_source = first_result.source
             response_question_id = first_result.metadata.get("question_id")
             should_check_question_id = question.question_id is not None and (
-                response_question_id is not None or answer_status == "scored"
+                response_question_id is not None or answer_status in SUCCESSFUL_ANSWER_STATUSES
             )
             if should_check_question_id and response_question_id != question.question_id:
                 answer_text = "拒绝接收：响应的问题ID与当前待办不一致。"
+                answer_score = None
+                answer_status = "error"
+                answer_source = "error"
+
+            response_kind = question.metadata.get("response_kind", "score")
+            if (answer_status == "answered" and response_kind != "fact") or (
+                answer_status == "scored" and response_kind == "fact"
+            ):
+                answer_text = "拒绝接收：响应类型与当前问题不一致。"
                 answer_score = None
                 answer_status = "error"
                 answer_source = "error"

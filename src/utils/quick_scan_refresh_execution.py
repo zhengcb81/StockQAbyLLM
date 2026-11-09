@@ -926,6 +926,7 @@ class ApprovedRefreshSession:
             raise AdmissionRejected("refresh_checkpoint_original_inputs_changed")
         from .quick_scan_observation_context import (
             bind_question_context,
+            frozen_question_contract,
             validate_standard_answer,
         )
 
@@ -970,6 +971,7 @@ class ApprovedRefreshSession:
         validate_standard_answer(
             standard["answer"],
             metadata=bound["metadata"],
+            question_contract=frozen_question_contract(bound),
             normalized_answer=checkpoint["payload"]["answer"],
             # get_answer_checkpoint has re-read the original sent intent and
             # response binding. Preserve its native search projection, while
@@ -1388,6 +1390,8 @@ class ApprovedRefreshSession:
 
     def dispatch_scope_report(self, batch):
         """Explicit subset denominator; never claim financial correctness."""
+        from src.core.models import REUSABLE_ANSWER_STATUSES
+
         requested = self.requested_question_ids
         statuses = {}
         for result in batch.results:
@@ -1395,11 +1399,7 @@ class ApprovedRefreshSession:
             if qid not in self.entries or qid in statuses:
                 raise AdmissionRejected("refresh_execution_output_scope_mismatch")
             statuses[qid] = result.answer.status
-        answered = [
-            qid
-            for qid in requested
-            if statuses.get(qid) in {"scored", "not_applicable", "unknown", "insufficient_evidence"}
-        ]
+        answered = [qid for qid in requested if statuses.get(qid) in REUSABLE_ANSWER_STATUSES]
         complete = len(answered) == len(requested)
         return dict(
             protocol="stockqa.refresh_execution/1.0.0",

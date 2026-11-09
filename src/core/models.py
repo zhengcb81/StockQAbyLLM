@@ -12,6 +12,14 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from typing import Any, Dict, Mapping, Optional
 
+SUCCESSFUL_ANSWER_STATUSES = frozenset({"scored", "answered"})
+REUSABLE_ANSWER_STATUSES = SUCCESSFUL_ANSWER_STATUSES | {
+    "unknown",
+    "insufficient_evidence",
+    "not_applicable",
+}
+ANSWER_STATUSES = REUSABLE_ANSWER_STATUSES | {"error"}
+
 
 def _as_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
@@ -59,13 +67,7 @@ class SearchResult:
             type(self.score) is not int or self.score < 1 or self.score > 10
         ):
             raise ValueError("评分必须是1-10之间的整数")
-        if self.status is not None and self.status not in {
-            "scored",
-            "unknown",
-            "insufficient_evidence",
-            "not_applicable",
-            "error",
-        }:
+        if self.status is not None and self.status not in ANSWER_STATUSES:
             raise ValueError("答案状态无效")
         if self.status is not None and ((self.status == "scored") != (self.score is not None)):
             raise ValueError("只有scored状态可以包含1-10分，其他状态必须为空分")
@@ -180,13 +182,7 @@ class Answer:
                 if self.score is not None
                 else ("error" if self.source == "error" else "unknown")
             )
-        if self.status not in {
-            "scored",
-            "unknown",
-            "insufficient_evidence",
-            "not_applicable",
-            "error",
-        }:
+        if self.status not in ANSWER_STATUSES:
             raise ValueError("答案状态无效")
         if (self.status == "scored") != (self.score is not None):
             raise ValueError("只有scored状态可以包含1-10分，其他状态必须为空分")

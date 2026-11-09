@@ -277,7 +277,7 @@ def validate_checkpoint_binding(
         provenance.get("execution_kind") != "research_no_verified_search"
         or provenance.get("search_status") != "unverified"
         or provenance.get("search_receipt_id") is not None
-        or saved_answer.get("status") == "scored"
+        or saved_answer.get("status") in {"scored", "answered"}
         or saved_answer.get("score") is not None
     ):
         raise ValueError("research checkpoint cannot acquire search or score qualification")
@@ -351,7 +351,9 @@ def validate_checkpoint_binding(
     answer = observation.get("answer")
     if not isinstance(answer, dict) or (
         answer.get("question_id") != saved_answer.get("question_id")
-        or answer.get("response_kind") != "score"
+        or answer.get("response_kind") not in {"score", "fact"}
+        or (answer.get("response_kind") == "fact" and answer.get("score") is not None)
+        or (answer.get("response_kind") == "score" and answer.get("status") == "answered")
         or answer.get("score") != saved_answer.get("score")
         or answer.get("summary") != saved_answer.get("description")
     ):
@@ -362,6 +364,7 @@ def validate_checkpoint_binding(
         raise ValueError("exchange package score does not match checkpoint contract")
     status_map = {
         "scored": "scored",
+        "answered": "answered",
         "insufficient_evidence": "insufficient_evidence",
         "not_applicable": "not_applicable",
     }
@@ -373,8 +376,8 @@ def validate_checkpoint_binding(
     evidence = answer.get("evidence")
     if not isinstance(source_urls, list) or not isinstance(evidence, list):
         raise ValueError("checkpoint evidence provenance is missing")
-    if saved_answer.get("status") == "scored" and not evidence:
-        raise ValueError("scored exchange answer requires evidence")
+    if saved_answer.get("status") in {"scored", "answered"} and not evidence:
+        raise ValueError(f"{saved_status} exchange answer requires evidence")
     if any(not isinstance(source_url, str) or not source_url.strip() for source_url in source_urls):
         raise ValueError("checkpoint evidence provenance is invalid")
     allowed_source_urls = list(source_urls)

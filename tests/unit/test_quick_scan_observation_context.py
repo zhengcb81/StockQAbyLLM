@@ -918,3 +918,115 @@ def test_new_answer_format_does_not_change_existing_observation_profiles(monkeyp
         assert api._resources("1.3.0")[1:3] == (new_answer, new_metrics)
     finally:
         api._resources.cache_clear()
+
+
+def fact_content():
+    body = content()
+    body.update(
+        response_kind="fact",
+        status="answered",
+        score=None,
+        items=[
+            dict(
+                name="Synthetic customer",
+                canonical_entity_id=None,
+                aliases=[],
+                relation="sells_to",
+                segment=None,
+                role="customer",
+                commercial_stage="commercial",
+                description="Synthetic verified sale.",
+                valid_from="2026-01-01",
+                valid_to=None,
+                taxonomy_id=None,
+                metrics=[],
+                evidence_ids=["e1"],
+                confidence="medium",
+            )
+        ],
+    )
+    return body
+
+
+def test_fact_member_survives_parser_and_answer_generator():
+    from src.core.models import Question, SearchResult
+    from src.providers.llm_response_parser import LLMResponseParser
+    from src.services.answer_generator import AnswerGenerator
+
+    body = fact_content()
+    member = dict(
+        question_id=QID,
+        entity_id="ENT_CONTEXT_FIXTURE",
+        company_name="Synthetic",
+        status="answered",
+        score=None,
+        description=json.dumps(body),
+    )
+    parser = LLMResponseParser()
+    parsed = parser.parse_structured_response(
+        json.dumps(member),
+        expected_question_id=QID,
+        expected_entity_id="ENT_CONTEXT_FIXTURE",
+        expected_company_name="Synthetic",
+        strict_json_only=True,
+    )
+    assert parsed is not None and parsed.status == "answered" and parsed.score is None
+    result = SearchResult(
+        "Synthetic", parsed.description, status=parsed.status, metadata={"question_id": QID}
+    )
+    question = Question(
+        "List verified customers", question_id=QID, metadata={"response_kind": "fact"}
+    )
+    answer = AnswerGenerator().generate_answer(question, [result])
+    assert answer.status == "answered" and answer.score is None
+    assert json.loads(answer.text) == body
+    assert (
+        AnswerGenerator().generate_answer(Question("Score", question_id=QID), [result]).status
+        == "error"
+    )
+    assert parser.parse_structured_response(json.dumps({**member, "description": "Prose"})) is None
+    assert (
+        parser.parse_structured_response(
+            json.dumps(
+                {
+                    **member,
+                    "question_id": None,
+                    "description": json.dumps({**body, "question_id": None}),
+                }
+            )
+        )
+        is None
+    )
+
+    packed = parser.parse_question_pack_response(
+        json.dumps({"answers": [{**member, "description": body}]}),
+        [QID],
+        expected_entity_id="ENT_CONTEXT_FIXTURE",
+        expected_company_name="Synthetic",
+        standard_answer_objects=True,
+    )
+    assert len(packed.answers) == 1 and packed.answers[0].status == "answered"
+
+
+def test_frozen_fact_contract_preserves_items_and_enforces_relation_and_evidence():
+    body = fact_content()
+    kwargs = dict(
+        metadata=CONTEXT["questions"][QID]["metadata"],
+        normalized_answer=normalized(body),
+        source_urls=["https://example.invalid/company"],
+    )
+    contract = {"id": QID, "response_kind": "fact", "relations": ["sells_to"]}
+    assert api.validate_standard_answer(body, question_contract=contract, **kwargs) == body
+    with pytest.raises(ValueError):
+        api.validate_standard_answer(body, **kwargs)
+    with pytest.raises(ValueError):
+        api.validate_standard_answer(
+            body, question_contract={**contract, "relations": ["supplies"]}, **kwargs
+        )
+    with pytest.raises(ValueError):
+        api.validate_standard_answer(body, question_contract=contract, research_only=True, **kwargs)
+    for items in ([], [{**body["items"][0], "evidence_ids": ["missing"]}]):
+        with pytest.raises(ValueError):
+            api.validate_standard_answer(
+                {**body, "items": items}, question_contract=contract, **kwargs
+            )

@@ -25,11 +25,53 @@ from src.utils.quick_scan_work_store import (
 )
 from tests.unit.test_quick_scan_c06_complete_seal import _forged_complete_package
 from tests.unit.test_quick_scan_vendor_receipt_seal import exported, pair
+from tests.unit.test_quick_scan_observation_context import fact_content
 
 
-def stored(tmp_path, exported):
+def stored(tmp_path, exported, *, fact=False):
     raw_authority, manifest = exported
     checkpoint, bound, body, response = pair(exported)
+    if fact:
+        from src.utils.quick_scan_observation_context import bind_context_to_work_item
+
+        raw_authority = copy.deepcopy(raw_authority)
+        raw_authority["schema_version"] = "3.0.0"
+        raw_authority["capabilities"].append("fact_v1")
+        context = raw_authority["observation_context"]
+        context["schema"] = "stockqa.quick_scan_observation_context/2.0.0"
+        qid = bound["metadata"]["question_id"]
+        row = context["questions"][qid]
+        context["questions"] = {qid: row}
+        entity = row["metadata"]["entity_id"]
+        row["subject_binding"] = {
+            "protocol": "stockqa.subject_context/1.0.0",
+            "identity_revision": 1,
+            "subject_ref": dict(
+                entity_id=entity,
+                primary_issuer_id=entity,
+                analysis_subject_id="ASJ_11111111-1111-4111-8111-111111111111",
+                analysis_subject_revision=1,
+                perimeter_sha256="d" * 64,
+                scope="entity",
+                scope_id=entity,
+                security_id=None,
+                segment_id=None,
+                listing_id=None,
+            ),
+            "question_contract": {
+                **next(q for q in manifest["questions"] if q["id"] == qid),
+                "response_kind": "fact",
+                "relations": ["sells_to"],
+            },
+        }
+        raw_authority["observation_context_sha256"] = canonical_sha256(context)
+        body = dict(fact_content(), question_id=qid)
+        checkpoint["answer"].update(status="answered", score=None, description=body["summary"])
+        bound = bind_context_to_work_item(
+            context,
+            work_item={**checkpoint["work"], "identity_revision": 1},
+            question_id=qid,
+        )
     authority_file = tmp_path / "authority.json"
     authority_file.write_text(json.dumps(raw_authority), encoding="utf-8")
     authority = load_c06_authority(authority_file)
@@ -224,3 +266,25 @@ def test_legacy11_does_not_gain_nullable_header_by_new_profile_support(tmp_path)
     changed["payload"]["provenance"]["request_id"] = None
     with pytest.raises(ValueError):
         validate_checkpoint_binding(bad, changed)
+
+
+def test_native_fact_is_immutable_and_seals_after_sqlite_restart(tmp_path, exported):
+    store, item, saved, authority, body, _bound = stored(tmp_path, exported, fact=True)
+    work = item["work_item_id"]
+    assert saved["payload"]["answer"]["status"] == "answered"
+    assert saved["payload"]["answer"]["score"] is None
+    assert store.get_standard_answer(work)["answer"] == body
+
+    reopened = QuickScanWorkStore(
+        store.path,
+        clock=lambda: datetime(2026, 10, 12, 10, 0, tzinfo=timezone.utc).timestamp(),
+    )
+    assert seal_result_delivery(reopened, work, authority=authority)["action"] == "sealed"
+    delivery = reopened.get_result_delivery(work)
+    observation = delivery["package"]["items"][0]["observation"]
+    assert observation["answer"] == body
+    assert observation["execution"]["search_receipt_id"] == "SYNTHETIC_native-search-A"
+    assert observation["execution"]["request_id"] is None
+    assert seal_result_delivery(reopened, work, authority=authority)["action"] == "already_sealed"
+    assert reopened.get_result_delivery(work)["package_bytes"] == delivery["package_bytes"]
+    assert seal_pending_deliveries(reopened, authority=authority)["model_calls"] == 0

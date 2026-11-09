@@ -865,7 +865,7 @@ class OwnerRefreshSession:
             "execution": copy.deepcopy(execution),
             "owner_observation_reference": copy.deepcopy(original),
         }
-        if answer["status"] not in {"scored", "not_applicable"}:
+        if answer["status"] not in {"scored", "answered", "not_applicable"}:
             raise OwnerRefreshRejected("owner_refresh_reference_status_unsupported")
         from datetime import timedelta, timezone
 

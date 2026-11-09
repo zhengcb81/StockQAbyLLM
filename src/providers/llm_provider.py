@@ -396,12 +396,21 @@ class LLMProvider(BaseLLMProvider):
 
     def search_question(self, question: Question) -> List[SearchResult]:
         """Execute one identified quick-scan question without inferring its ID."""
+        kind = question.metadata.get("response_kind")
+        if kind == "fact":
+            return self._search(question.text, question_id=question.question_id, response_kind=kind)
         return self._search(question.text, question_id=question.question_id)
 
-    def _search(self, query: str, question_id: Optional[str]) -> List[SearchResult]:
+    def _search(
+        self, query: str, question_id: Optional[str], *, response_kind: str = "score"
+    ) -> List[SearchResult]:
         logger.info("LLM处理问题: %s...", query[:DISPLAY_QUERY_TRUNCATE])
 
-        prompt = self._build_prompt(query, question_id=question_id)
+        prompt = (
+            self._build_prompt(query, question_id=question_id, response_kind=response_kind)
+            if response_kind == "fact"
+            else self._build_prompt(query, question_id=question_id)
+        )
         parsed, execution_metadata = self._call_llm_api(
             prompt,
             expected_question_id=question_id,
@@ -471,6 +480,11 @@ class LLMProvider(BaseLLMProvider):
     def _build_question_pack_prompt(self, questions: List[Question]) -> str:
         prompt = super()._build_question_pack_prompt(questions)
         if standard_answer_transport_enabled():
+            metric_statuses = (
+                "scored or answered"
+                if any(q.metadata.get("response_kind") == "fact" for q in questions)
+                else "scored"
+            )
             prompt += (
                 "\nSTANDARD PERIOD RULE: Top-level period_start/period_end describe the evidence or financial coverage period "
                 "confirmable on or before the information cutoff, not the future forecast window, even when top-level basis=forward. "
@@ -488,7 +502,7 @@ class LLMProvider(BaseLLMProvider):
                 "Obey every schema maxLength before emission: standard-1 summary is at most 800 characters and coverage.reason at most 350 characters. "
                 "Draft summary within 400 characters and coverage.reason within 200 characters to leave counting headroom under those hard limits. "
                 "Keep the complete standard object even when evidence is insufficient: missing_fields must remain an array and coverage must remain an object with status and a non-empty reason. "
-                "Never omit required fields to shorten an answer; keep supported details traceable in evidence (and metrics only for status=scored) rather than overflowing summary. "
+                f"Never omit required fields to shorten an answer; keep supported details traceable in evidence (and metrics only for status={metric_statuses}) rather than overflowing summary. "
                 "If the question schema sets a stricter limit, obey the stricter limit."
             )
         return prompt

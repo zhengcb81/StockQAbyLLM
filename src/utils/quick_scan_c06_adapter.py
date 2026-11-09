@@ -272,7 +272,7 @@ def build_complete_c06_package(
         raise MissingC06Fields("subject-bound context2 requires authority3")
     if not isinstance(standard_answer, dict):
         raise MissingC06Fields("complete sealing needs the full standard answer")
-    if standard_answer.get("status") not in _STATUS_MAP:
+    if standard_answer.get("status") not in {*_STATUS_MAP, "answered"}:
         raise MissingC06Fields(
             f"answer status is not packageable: {standard_answer.get('status')!r}"
         )

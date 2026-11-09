@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any, Dict, Optional, Tuple
 
+from src.core.models import REUSABLE_ANSWER_STATUSES
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -665,12 +666,7 @@ class LLMResponseParser:
 
         status = data.get("status", "scored")
         score = data.get("score")
-        if not isinstance(status, str) or status not in {
-            "scored",
-            "unknown",
-            "insufficient_evidence",
-            "not_applicable",
-        }:
+        if not isinstance(status, str) or status not in REUSABLE_ANSWER_STATUSES:
             logger.warning("LLM返回了无效的答案状态")
             _record_parse_diagnostic("invalid_status", "/status")
             return None
@@ -685,6 +681,23 @@ class LLMResponseParser:
             return None
 
         question_id = data.get("question_id")
+        if status == "answered":
+            try:
+                body = load_visible_answer_json(description)
+            except (ValueError, RecursionError):
+                body = None
+            if (
+                not isinstance(question_id, str)
+                or not question_id.strip()
+                or not isinstance(body, dict)
+                or body.get("response_kind") != "fact"
+                or body.get("question_id") != question_id
+                or body.get("status") != "answered"
+                or "score" not in body
+                or body["score"] is not None
+            ):
+                _record_parse_diagnostic("invalid_fact_answer_transport", "/description")
+                return None
         if expected_question_id is not None:
             if not isinstance(question_id, str) or question_id != expected_question_id:
                 logger.warning("LLM返回的问题ID与当前待办ID不一致")

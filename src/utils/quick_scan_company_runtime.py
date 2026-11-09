@@ -118,6 +118,9 @@ class CompanyResearchRuntime:
         projection = project_quick_scan_answer_sources(
             execution, work_store=services.store, work_item_id=work_id
         )
+        from src.utils.quick_scan_observation_context import frozen_question_contract
+
+        question_context = context["questions"][question_id]
         verified_search = projection.get("search_status") == "executed" and bool(
             projection.get("search_source_urls")
         )
@@ -126,7 +129,8 @@ class CompanyResearchRuntime:
             verified_search=verified_search,
             source_urls=tuple(projection["source_urls"]) if verified_search else (),
             entity_id=services.store.get_item(work_id)["entity_id"],
-            metadata=copy.deepcopy(context["questions"][question_id]["metadata"]),
+            metadata=copy.deepcopy(question_context["metadata"]),
+            question_contract=copy.deepcopy(frozen_question_contract(question_context)),
         )
 
     @staticmethod
@@ -154,6 +158,7 @@ class CompanyResearchRuntime:
         validate_standard_answer(
             standard,
             metadata=sources["metadata"],
+            question_contract=sources.get("question_contract"),
             normalized_answer=normalized,
             source_urls=sources["source_urls"],
         )
