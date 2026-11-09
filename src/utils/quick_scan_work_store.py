@@ -5658,8 +5658,8 @@ class QuickScanWorkStore:
         context side table, the durable standard answer, the original
         successful attempt's send intent AND the frozen run/scan mapping —
         and the package is re-derived from them byte-for-byte. Missing durable
-        data is a refusal (QR4B), never a skip: only the historical COMPACT
-        observation keeps the legacy checkpoint binding. Any single forged
+        data is a refusal (QR4B), never a skip: only historical compact score
+        observations keep the legacy checkpoint binding. Any single forged
         claim, typed metric, metadata field or started_at, and any unmapped
         run/scan (QR2B), is refused inside the same transaction — a failed
         check writes no revision and leaves the head untouched.
@@ -5668,12 +5668,16 @@ class QuickScanWorkStore:
         from .quick_scan_observation_context import (
             bind_context_to_work_item,
             build_observation,
+            frozen_question_contract,
         )
         from .quick_scan_result_outbox import canonical_sha256
 
         observation = package["items"][0]["observation"]
-        if not isinstance(observation, dict) or set(observation) == _COMPACT_OBSERVATION_FIELDS:
-            return
+        compact = set(observation) == _COMPACT_OBSERVATION_FIELDS
+        if compact and (
+            observation["answer"]["response_kind"] != "score" or observation["answer"].get("items")
+        ):
+            raise WorkConflictError("fact delivery requires the complete original")
         context_row = connection.execute(
             "SELECT c.context_json FROM quick_scan_work_context w "
             "JOIN quick_scan_observation_context c USING (context_sha256) "
@@ -5684,13 +5688,26 @@ class QuickScanWorkStore:
             "SELECT answer_json FROM quick_scan_standard_answer WHERE work_item_id=?",
             (work_item_id,),
         ).fetchone()
-        if context_row is None or answer_row is None:
+        context_document = json.loads(context_row["context_json"]) if context_row else None
+        standard_answer = json.loads(answer_row["answer_json"]) if answer_row else None
+        if compact:
+            question_context = (
+                context_document["questions"].get(item["question_id"], {})
+                if context_document
+                else {}
+            )
+            if (
+                frozen_question_contract(question_context).get("response_kind") == "fact"
+                or (standard_answer or {}).get("response_kind") == "fact"
+            ):
+                raise WorkConflictError("fact delivery requires the complete original")
+            return
+        if context_document is None or standard_answer is None:
             # QR4B: a new complete write without durable complete inputs is
             # refused outright — it can never be re-derived or verified.
             raise WorkConflictError(
                 "complete observation write requires the durable context and standard answer"
             )
-        context_document = json.loads(context_row["context_json"])
         refs = {
             (row["run_id"], row["scan_id"])
             for row in connection.execute(
@@ -5740,7 +5757,7 @@ class QuickScanWorkStore:
         expected = build_observation(
             checkpoint["payload"],
             context=bound,
-            standard_answer=json.loads(answer_row["answer_json"]),
+            standard_answer=standard_answer,
             started_at=started_at,
             durable_response=response,
             answer_source_urls=list(

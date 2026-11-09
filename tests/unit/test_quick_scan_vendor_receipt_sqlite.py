@@ -28,7 +28,7 @@ from tests.unit.test_quick_scan_vendor_receipt_seal import exported, pair
 from tests.unit.test_quick_scan_observation_context import fact_content
 
 
-def stored(tmp_path, exported, *, fact=False):
+def stored(tmp_path, exported, *, fact=False, fact_status="answered", request_id=None):
     raw_authority, manifest = exported
     checkpoint, bound, body, response = pair(exported)
     if fact:
@@ -66,7 +66,9 @@ def stored(tmp_path, exported, *, fact=False):
         }
         raw_authority["observation_context_sha256"] = canonical_sha256(context)
         body = dict(fact_content(), question_id=qid)
-        checkpoint["answer"].update(status="answered", score=None, description=body["summary"])
+        if fact_status == "insufficient_evidence":
+            body.update(status=fact_status, items=[], evidence=[])
+        checkpoint["answer"].update(status=fact_status, score=None, description=body["summary"])
         bound = bind_context_to_work_item(
             context,
             work_item={**checkpoint["work"], "identity_revision": 1},
@@ -110,6 +112,7 @@ def stored(tmp_path, exported, *, fact=False):
     receipt = copy.deepcopy(response["receipt"])
     receipt["model_resolution_sha256"] = model_resolution_sha256(None)
     receipt["search_protocol"] = "mimo_chat_completions"
+    receipt["request_id"] = request_id
     store.record_attempt_outcome(
         work,
         lease,
@@ -117,7 +120,7 @@ def stored(tmp_path, exported, *, fact=False):
         outcome="response_available",
         http_status_code=200,
         receipt_sha256=quick_scan_receipt_sha256(receipt),
-        request_id=None,
+        request_id=request_id,
         execution_receipt=receipt,
     )
     answer = {
@@ -288,3 +291,53 @@ def test_native_fact_is_immutable_and_seals_after_sqlite_restart(tmp_path, expor
     assert seal_result_delivery(reopened, work, authority=authority)["action"] == "already_sealed"
     assert reopened.get_result_delivery(work)["package_bytes"] == delivery["package_bytes"]
     assert seal_pending_deliveries(reopened, authority=authority)["model_calls"] == 0
+
+
+@pytest.mark.parametrize(
+    ("fact_status", "incoming_kind"), [("answered", "fact"), ("insufficient_evidence", "score")]
+)
+def test_compact_cannot_replace_original_fact(tmp_path, exported, fact_status, incoming_kind):
+    store, item, saved, authority, body, bound = stored(
+        tmp_path,
+        exported,
+        fact=True,
+        fact_status=fact_status,
+        request_id="SYNTHETIC_REQUEST_HEADER",
+    )
+    work = item["work_item_id"]
+    package = build_complete_c06_package(
+        saved["payload"],
+        authority=authority_adapter_input(authority),
+        context=bound,
+        standard_answer=body,
+        started_at="2026-10-12T10:00:00Z",
+        durable_response=store.get_attempt_response(saved["attempt_id"]),
+    )
+
+    def compact_and_alter(observation):
+        for key in set(observation) - {
+            "observation_id",
+            "entity_id",
+            "security_id",
+            "segment_id",
+            "question_id",
+            "scope",
+            "execution",
+            "answer",
+        }:
+            del observation[key]
+        observation["answer"]["response_kind"] = incoming_kind
+        if incoming_kind == "fact":
+            observation["answer"]["items"][0].update(name="Replaced relation", relation="supplies")
+
+    compact = _forged_complete_package(package, compact_and_alter)
+    with pytest.raises(WorkConflictError, match="fact delivery requires the complete original"):
+        store.prepare_result_delivery(work, compact)
+    assert not store.list_delivery_revisions(work)
+    assert seal_result_delivery(store, work, authority=authority)["action"] == "sealed"
+    genuine = store.get_result_delivery(work)
+    assert genuine["package"]["items"][0]["observation"]["answer"] == body
+    with pytest.raises(WorkConflictError, match="fact delivery requires the complete original"):
+        store.supersede_result_delivery(work, compact)
+    assert len(store.list_delivery_revisions(work)) == 1
+    assert store.get_result_delivery(work)["package_bytes"] == genuine["package_bytes"]
