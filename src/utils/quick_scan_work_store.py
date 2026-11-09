@@ -1207,18 +1207,30 @@ def _unmapped_run_scan_pairs(context: dict, refs) -> set:
 
 
 class QuickScanWorkStore:
+    # Existing-ledger adapters can bypass the initializer to avoid schema writes.
+    _create = False
+
     """SQLite ledger for per-question work, answer checkpoints, and attempts."""
 
-    def __init__(self, path: Path, *, clock: Callable[[], float] = time.time) -> None:
+    def __init__(
+        self, path: Path, *, clock: Callable[[], float] = time.time, create: bool = True
+    ) -> None:
         self.path = Path(path)
         self.clock = clock
+        self._create = create
         self._transaction_state = threading.local()
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        if create:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
         with closing(self._connect()) as connection:
+            if not create and connection.execute("PRAGMA user_version").fetchone()[0] == 0:
+                raise WorkConflictError("original_work_ledger_not_initialized")
             self._initialize(connection)
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(str(self.path), timeout=120, isolation_level=None)
+        target = str(self.path) if self._create else self.path.absolute().as_uri() + "?mode=rw"
+        connection = sqlite3.connect(
+            target, uri=not self._create, timeout=120, isolation_level=None
+        )
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA busy_timeout=120000")
         connection.execute("PRAGMA foreign_keys=ON")
