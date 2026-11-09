@@ -50,44 +50,16 @@ def next_route_questions(rows, targets, index):
 
 def routed_lifecycle(lifecycle, route, client):
     from src.runners.llm_runner import QuickScanWorkLifecycle
-    from src.utils.quick_scan_refresh_execution import ApprovedRefreshSession
 
-    if not isinstance(lifecycle, QuickScanWorkLifecycle) or not isinstance(
-        lifecycle._owner_refresh, ApprovedRefreshSession
-    ):
+    if not isinstance(lifecycle, QuickScanWorkLifecycle):
         raise ValueError("shared_company_original_owner_required")
-    owner = lifecycle._owner_refresh
-    if owner.ordered_route_targets is None:
-        raise ValueError("shared_company_ordered_approval_required")
-    approved = owner.execution_routes(lifecycle._budget_policy)
-    if route not in approved:
-        raise ValueError("shared_company_unapproved_route")
-    owner.assert_provider_model(client.provider_name, client.model)
-    target = next(t for t in owner.ordered_route_targets if t["route_id"] == route["id"])
-    if (client.provider_name, client.model) != (target["provider"], target["model"]):
-        raise ValueError("shared_company_original_client_mismatch")
-    clone = copy.copy(lifecycle)
-    clone._route_id = route["id"]
-    clone._provider_name = route["provider_config_ref"]
-    clone._model_requested = route["model"]
-    from src.providers.model_resolution import normalize_model_resolution
-
-    clone._model_resolution = normalize_model_resolution(route.get("model_resolution"))
-    clone._budget_route = dict(
-        route_id=route["id"],
-        provider=route["provider_config_ref"],
-        model_requested=route["model"],
-        quota_group=route["quota_group"],
-    )
-    return clone
+    return lifecycle.for_approved_company_route(route, client)
 
 
 def _saved_scope_summary(lifecycle):
-    owner = lifecycle._owner_refresh
+    owner = lifecycle.registered_research_work().owner
     scope = [qid for qid in owner.requested_question_ids if owner.entries[qid]["kind"] == "work"]
-    progress = lifecycle._store.company_scan_progress(
-        [owner.entries[q]["work_item_id"] for q in scope]
-    )
+    progress = lifecycle.company_scan_progress(scope)
     saved = [row["question_id"] for row in progress["rows"] if row["checkpoint_id"] is not None]
     remaining = [row["question_id"] for row in progress["rows"] if row["checkpoint_id"] is None]
     if not saved:
@@ -110,15 +82,16 @@ def run_ordered_company_scan(lifecycle, route_clients, *, config, questions, **o
         run_shared_company_scan,
     )
 
-    owner = lifecycle._owner_refresh
+    work = lifecycle.registered_research_work()
+    owner = work.owner
     targets = owner.ordered_route_targets
     if targets is None:
         matching = [
             client
             for route, client in route_clients
-            if route["id"] == lifecycle._route_id
+            if route["id"] == work.route_id
             and client is not None
-            and route["model"] == lifecycle._model_requested
+            and route["model"] == work.model_requested
         ]
         if len(matching) != 1:
             raise ValueError("shared_company_original_route_client_required")
@@ -154,7 +127,7 @@ def run_ordered_company_scan(lifecycle, route_clients, *, config, questions, **o
             break
     # A received answer must first return to its ORIGINAL immutable task and
     # zero-send recovery path, including when its route is a fallback target.
-    progress = lifecycle._store.company_scan_progress(work_ids)
+    progress = lifecycle.company_scan_progress(scope)
     received_routes = {
         row["latest_attempt"]["route_id"]
         for row in progress["rows"]
@@ -199,7 +172,7 @@ def run_ordered_company_scan(lifecycle, route_clients, *, config, questions, **o
     if options.get("recovery_only"):
         return _saved_scope_summary(lifecycle)
     for index, target in enumerate(targets):
-        progress = lifecycle._store.company_scan_progress(work_ids)
+        progress = lifecycle.company_scan_progress(scope)
         if all(row["checkpoint_id"] is not None for row in progress["rows"]):
             return None
         selected = next_route_questions(progress["rows"], targets, index)
@@ -215,7 +188,7 @@ def run_ordered_company_scan(lifecycle, route_clients, *, config, questions, **o
         route, client = matched[0]
         from src.providers.llm_research_client import research_channel_capabilities
 
-        native_search = lifecycle._external_retrieval is None
+        native_search = lifecycle.company_scan_uses_native_search()
         capabilities = research_channel_capabilities(client)
         # Every shared scan, including one question, needs the final_json
         # channel. Generic vendor search alone is insufficient.
@@ -246,7 +219,7 @@ def run_ordered_company_scan(lifecycle, route_clients, *, config, questions, **o
         checkpoint = original_task_checkpoint(root)
         if cap is None and checkpoint is not None:
             cap = load_original_company_task(checkpoint).limits["max_model_requests_per_session"]
-    progress = lifecycle._store.company_scan_progress(work_ids)
+    progress = lifecycle.company_scan_progress(scope)
     if any(row["checkpoint_id"] is None for row in progress["rows"]):
         # Also surface an uncertain/received failure at the final route.
         next_route_questions(progress["rows"], targets, len(targets))

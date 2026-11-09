@@ -179,6 +179,8 @@ CAPABILITIES = {
             {"operations": ["nominate", "report_conflict"], "schema_version": "2.3.0"},
             {"operations": ["research_context"], "schema_version": "2.4.0"},
             {"operations": ["search", "candidate_set"], "schema_version": "2.5.0"},
+            {"operations": ["get_profiles"], "schema_version": "2.6.0"},
+            {"operations": ["query_facts", "export_facts"], "schema_version": "2.7.0"},
         ],
         "unmapped_identity_market_labels": [],
         "watermark": {
@@ -409,6 +411,7 @@ def test_constructor_calls_readiness_before_any_dispatch(monkeypatch):
     owner = ApprovedRefreshSession.__new__(ApprovedRefreshSession)
     owner.native, owner.service = native, SimpleNamespace(store=store, budget=budget)
     owner.plan = {"provider": "deepseek"}
+    owner.proof = {"request": {"protocol": "iqs.refresh_request/1.5.0"}}
     owner.assert_provider_model = lambda *_: None
     owner.execution_routes = lambda *_: [route]
     owner.check = lambda: None

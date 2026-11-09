@@ -199,29 +199,15 @@ def run_shared_company_scan(
     The caller hydrates the resulting original checkpoints into its normal
     output. An interrupted or rejected engine never falls back to asking again.
     """
-    from src.utils.quick_scan_company_context import company_scan_capabilities
+    from src.utils.quick_scan_company_context import (
+        COMPANY_SCAN_TASK_PORT_PROTOCOL,
+        company_scan_capabilities,
+    )
 
-    native_search = lifecycle._external_retrieval is None
-    if recovery_only:
-        # This is receipt provenance, not a guess from today's search config.
-        native_search = False
-        store = getattr(lifecycle, "_store", None)
-        if store is not None:
-            for qid, entry in lifecycle._owner_refresh.entries.items():
-                if entry["kind"] != "work":
-                    continue
-                attempts = store.list_attempts(entry["work_item_id"])
-                if (
-                    attempts
-                    and attempts[-1]["phase"] == "response_available"
-                    and attempts[-1]["route_id"] == lifecycle._route_id
-                ):
-                    native_search = (
-                        store.get_external_context_use(attempts[-1]["attempt_id"]) is None
-                    )
-                    break
+    work = lifecycle.registered_research_work()
+    native_search = lifecycle.company_scan_uses_native_search(recovery_only=recovery_only)
     engine, factory = _modules(config)
-    owner = lifecycle._owner_refresh
+    owner = work.owner
     ids = [q.question_id for q in questions]
     if not ids or len(set(ids)) != len(ids) or any(qid not in owner.entries for qid in ids):
         raise ValueError("shared_company_original_question_selection_required")
@@ -243,7 +229,7 @@ def run_shared_company_scan(
     if ordered_scope is not None:
         if owner.ordered_route_targets is None or not set(selected) <= set(ordered_scope):
             raise ValueError("shared_company_ordered_scope_not_approved")
-        root = ordered_task_root(config, owner, ordered_scope, lifecycle._route_id)
+        root = ordered_task_root(config, owner, ordered_scope, work.route_id)
         run_id = root.name
     checkpoints = (
         [root / "export" / "checkpoint.json"]
@@ -285,7 +271,7 @@ def run_shared_company_scan(
         identity_payload = strict_json_loads(owner.input_raw["identity.json"].decode("utf8"))[
             "payload"
         ]
-        subject = lifecycle._observation_context["questions"][selected[0]]["subject_binding"][
+        subject = work.observation_context["questions"][selected[0]]["subject_binding"][
             "subject_ref"
         ]
         company = profiles.native_company_projection(identity_payload, subject)
@@ -301,7 +287,17 @@ def run_shared_company_scan(
             company_ref=reference,
             excerpt_cap=profiles.scan_limits(limits)["excerpt_chars_per_source"],
         )
-        task = factory.create_company_scan_task(lifecycle, evidence_board=board, **kwargs)
+        # Old deployments expose the same task callable with a lifecycle input.
+        # A consumer opts into the opaque source via its versioned capability.
+        try:
+            protocol = factory.COMPANY_SCAN_TASK_PORT_PROTOCOL
+        except AttributeError:
+            source = lifecycle
+        else:
+            if protocol != COMPANY_SCAN_TASK_PORT_PROTOCOL:
+                raise ValueError("shared_company_task_port_version_unsupported")
+            source = lifecycle.company_scan_task_port()
+        task = factory.create_company_scan_task(source, evidence_board=board, **kwargs)
     if not recovery_only:
         capabilities = company_scan_capabilities(client, native_search=native_search)
         if (

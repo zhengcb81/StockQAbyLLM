@@ -178,7 +178,8 @@ def test_old_exposure_control_is_not_reauthorized_when_preserving_original_task(
     service = object.__new__(OwnerResearchServices)
     service.owner = owner
     service.lifecycle = SimpleNamespace(
-        _observation_context=context, question_pack_group_key=lambda q: ("original",)
+        registered_research_work=lambda: SimpleNamespace(observation_context=context),
+        question_pack_group_key=lambda q: ("original",),
     )
     service.search_service = None
     service.task = SimpleNamespace(

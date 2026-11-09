@@ -6,6 +6,7 @@
 """
 
 import argparse
+import copy
 import hashlib
 import json
 import math
@@ -13,6 +14,7 @@ import re
 import sys
 import time
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, TypedDict, cast
 
@@ -41,6 +43,7 @@ from src.utils.quick_scan_work_store import QuickScanWorkStore
 from src.utils.quick_scan_work_transport import bind_quick_scan_budget
 
 if TYPE_CHECKING:
+    from src.utils.quick_scan_company_context import CompanyScanTaskPort
     from src.utils.quick_scan_owner_refresh import OwnerRefreshSession
     from src.utils.quick_scan_refresh_execution import ApprovedRefreshSession
 
@@ -158,6 +161,35 @@ def load_identity_snapshot(
     }
 
 
+@dataclass(frozen=True)
+class RegisteredResearchWork:
+    """StockQA composition contract for the live approval and detached runtime inputs."""
+
+    owner: "ApprovedRefreshSession"
+    transport_managed: bool
+    route_id: str
+    provider_config_ref: str
+    model_requested: str
+    model_resolution: Optional[Dict[str, Any]]
+    budget_policy: Optional[Dict[str, Any]]
+    budget_route: Optional[Dict[str, Any]]
+    observation_context: Optional[Dict[str, Any]]
+
+    def provider_actual(self) -> str:
+        if self.owner.proof["request"].get("protocol") != "iqs.refresh_request/1.6.0":
+            return cast(str, self.owner.plan["provider"])
+        targets = self.owner.ordered_route_targets or []
+        matches = [
+            target["provider"]
+            for target in targets
+            if (target["route_id"], target["provider_config_ref"], target["model"])
+            == (self.route_id, self.provider_config_ref, self.model_requested)
+        ]
+        if len(matches) != 1:
+            raise ValueError("approved_client_route_mismatch")
+        return cast(str, matches[0])
+
+
 class QuickScanWorkLifecycle:
     """Q06：把公共题路径绑定到 QuickScanWorkStore 的逐题生命周期。
 
@@ -273,6 +305,93 @@ class QuickScanWorkLifecycle:
             }
         else:
             self._external_retrieval = None
+
+    def _registered_research_owner(self) -> "ApprovedRefreshSession":
+        from src.utils.quick_scan_owner_refresh import OwnerRefreshSession
+        from src.utils.quick_scan_refresh_execution import ApprovedRefreshSession
+
+        owner = self._owner_refresh
+        if (
+            not isinstance(owner, ApprovedRefreshSession)
+            or not isinstance(owner.native, OwnerRefreshSession)
+            or owner.service.store is not self._store
+            or owner.native.store is not self._store
+        ):
+            raise ValueError("original_registered_owner_required")
+        return owner
+
+    def registered_research_work(self) -> RegisteredResearchWork:
+        """Return the original native approval and a detached route/context snapshot."""
+        return RegisteredResearchWork(
+            owner=self._registered_research_owner(),
+            transport_managed=self._transport_managed,
+            route_id=self._route_id,
+            provider_config_ref=self._provider_name,
+            model_requested=self._model_requested,
+            model_resolution=copy.deepcopy(self._model_resolution),
+            budget_policy=copy.deepcopy(self._budget_policy),
+            budget_route=copy.deepcopy(self._budget_route),
+            observation_context=copy.deepcopy(self._observation_context),
+        )
+
+    def company_scan_task_port(self) -> "CompanyScanTaskPort":
+        """Pass the original task-input operations without passing a native work object."""
+        from src.utils.quick_scan_company_context import CompanyScanTaskPort
+
+        return CompanyScanTaskPort(self)
+
+    def company_scan_uses_native_search(self, *, recovery_only: bool = False) -> bool:
+        """Read current search wiring or the original paid attempt's search provenance."""
+        if not recovery_only:
+            return self._external_retrieval is None
+        owner = self._registered_research_owner()
+        for entry in owner.entries.values():
+            if entry["kind"] != "work":
+                continue
+            attempts = self._store.list_attempts(entry["work_item_id"])
+            if (
+                attempts
+                and attempts[-1]["phase"] == "response_available"
+                and attempts[-1]["route_id"] == self._route_id
+            ):
+                return self._store.get_external_context_use(attempts[-1]["attempt_id"]) is None
+        return False
+
+    def company_scan_progress(self, question_ids: List[str]) -> dict:
+        """Read original registered work for the selected questions in caller order."""
+        owner = self._registered_research_owner()
+        work_ids = [owner.entries[qid]["work_item_id"] for qid in question_ids]
+        return cast(dict, self._store.company_scan_progress(work_ids))
+
+    def for_approved_company_route(self, route, client):
+        """Bind a new facade to an approved ordered route without changing the original."""
+        from src.providers.model_resolution import normalize_model_resolution
+
+        try:
+            owner = self._registered_research_owner()
+        except ValueError as error:
+            raise ValueError("shared_company_original_owner_required") from error
+        targets = owner.ordered_route_targets
+        if targets is None:
+            raise ValueError("shared_company_ordered_approval_required")
+        if route not in owner.execution_routes(self._budget_policy):
+            raise ValueError("shared_company_unapproved_route")
+        owner.assert_provider_model(client.provider_name, client.model)
+        target = next(row for row in targets if row["route_id"] == route["id"])
+        if (client.provider_name, client.model) != (target["provider"], target["model"]):
+            raise ValueError("shared_company_original_client_mismatch")
+        clone = copy.copy(self)
+        clone._route_id = route["id"]
+        clone._provider_name = route["provider_config_ref"]
+        clone._model_requested = route["model"]
+        clone._model_resolution = normalize_model_resolution(route.get("model_resolution"))
+        clone._budget_route = dict(
+            route_id=route["id"],
+            provider=route["provider_config_ref"],
+            model_requested=route["model"],
+            quota_group=route["quota_group"],
+        )
+        return clone
 
     def _dispatch_binding(self, question_id: str) -> tuple[str, str, int]:
         """Resolve one question's frozen scope and generation (Q13).
@@ -639,6 +758,16 @@ class QuickScanWorkLifecycle:
         except Exception as exc:  # noqa: BLE001 - a seal gap must not lose the answer
             logger.error("检查点封存未完成（%s）——交由 --seal-deliveries 补封", exc)
 
+    def seal_saved_delivery(self, work_item_id: str) -> None:
+        """Resume sealing a saved original answer without dispatch or a new lease."""
+        owner = self._registered_research_owner()
+        if not any(
+            entry["kind"] == "work" and entry["work_item_id"] == work_item_id
+            for entry in owner.entries.values()
+        ):
+            raise ValueError("original_registered_work_required")
+        self._seal_delivery(work_item_id)
+
     def dispatch_context(self, handle: Dict[str, Any], *, research_budget_managed: bool = False):
         """Bind the claimed logical item; each actual POST owns its own attempt."""
         from contextlib import ExitStack, nullcontext
@@ -652,15 +781,12 @@ class QuickScanWorkLifecycle:
         if type(research_budget_managed) is not bool:
             raise ValueError("research_budget_managed must be a boolean")
         if research_budget_managed:
-            from src.utils.quick_scan_owner_refresh import OwnerRefreshSession
-            from src.utils.quick_scan_refresh_execution import ApprovedRefreshSession
-
+            try:
+                self._registered_research_owner()
+            except ValueError as error:
+                raise ValueError("research_dispatch_original_owner_budget_required") from error
             if (
                 not self._transport_managed
-                or not isinstance(self._owner_refresh, ApprovedRefreshSession)
-                or self._owner_refresh.service.store is not self._store
-                or not isinstance(self._owner_refresh.native, OwnerRefreshSession)
-                or self._owner_refresh.native.store is not self._store
                 or self._budget_policy is None
                 or self._budget_route is None
             ):
@@ -705,6 +831,11 @@ class QuickScanWorkLifecycle:
                     provider=self._provider_name,
                     model_requested=self._model_requested,
                     model_resolution=self._model_resolution,
+                    quota_group=(
+                        (self._budget_route or {}).get("quota_group")
+                        if research_budget_managed
+                        else None
+                    ),
                 )
             )
             if self._external_retrieval is not None:

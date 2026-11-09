@@ -173,10 +173,13 @@ def test_public_transport_preserves_nonstandard_legacy_text(text):
     assert split_standard_answer_transport(text) == (text, None)
 
 
-@pytest.mark.parametrize("summary", [None, "", "   ", 7, "x" * 5001])
+@pytest.mark.parametrize("summary", [None, "", "   ", 7, pytest.param("overlong", id="overlong")])
 def test_public_transport_refuses_unusable_or_overlong_standard_summary(summary):
+    from src.core.models import QUICK_SCAN_ANSWER_DESCRIPTION_MAX_CHARS
     from src.utils.quick_scan_observation_context import split_standard_answer_transport
 
+    if summary == "overlong":
+        summary = "x" * (QUICK_SCAN_ANSWER_DESCRIPTION_MAX_CHARS + 1)
     text = json.dumps(dict(question_id="Q1", response_kind="score", summary=summary))
     with pytest.raises(ValueError, match="summary"):
         split_standard_answer_transport(text)
@@ -219,12 +222,31 @@ def test_public_registered_validation_keeps_immutable_inputs_without_renewing_pe
     "protocol",
     ["iqs.refresh_request/1.5.0", "iqs.refresh_request/1.4.0", "iqs.refresh_request/1.3.0"],
 )
-def test_public_company_task_validation_retains_original_v15_check_only(monkeypatch, protocol):
+@pytest.mark.parametrize("use_port", [False, True], ids=["existing-lifecycle", "task-port"])
+def test_public_company_task_validation_retains_original_v15_check_only(
+    monkeypatch, protocol, use_port
+):
     from src.utils import quick_scan_owner_budget_continuation as original
     from src.utils.quick_scan_company_context import validate_company_scan_task
+    from src.utils.quick_scan_owner_refresh import OwnerRefreshSession
+    from src.utils.quick_scan_refresh_execution import ApprovedRefreshSession
 
-    owner = SimpleNamespace(proof={"request": {"protocol": protocol}})
-    lifecycle = SimpleNamespace(_owner_refresh=owner)
+    store = object()
+    owner = ApprovedRefreshSession.__new__(ApprovedRefreshSession)
+    owner.native = OwnerRefreshSession.__new__(OwnerRefreshSession)
+    owner.native.store = store
+    owner.service = SimpleNamespace(store=store)
+    owner.proof = {"request": {"protocol": protocol}}
+    lifecycle = QuickScanWorkLifecycle(
+        store,
+        entity_id="ENT_A",
+        run_id="original-run",
+        scan_id="original-scan",
+        identity={},
+        transport_managed=True,
+        owner_refresh_session=owner,
+    )
+    source = lifecycle.company_scan_task_port() if use_port else lifecycle
     task = object()
     calls = []
 
@@ -235,10 +257,10 @@ def test_public_company_task_validation_retains_original_v15_check_only(monkeypa
     monkeypatch.setattr(original, "assert_research_task", validate)
     if protocol == "iqs.refresh_request/1.5.0":
         with pytest.raises(ValueError, match="original_v15_check_failure"):
-            validate_company_scan_task(lifecycle, task)
+            validate_company_scan_task(source, task)
         assert calls == [(owner, task, None)]
     else:
-        assert validate_company_scan_task(lifecycle, task) is None
+        assert validate_company_scan_task(source, task) is None
         assert calls == []
 
 

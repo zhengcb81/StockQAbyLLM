@@ -8,26 +8,63 @@ from __future__ import annotations
 
 import copy
 from types import SimpleNamespace
+from typing import TYPE_CHECKING
 
-
-def company_scan_inputs(lifecycle):
+if TYPE_CHECKING:
     from src.runners.llm_runner import QuickScanWorkLifecycle
-    from src.utils.quick_scan_owner_refresh import OwnerRefreshSession
-    from src.utils.quick_scan_refresh_execution import ApprovedRefreshSession
-    from src.utils.quick_scan_result_outbox import canonical_sha256
+
+COMPANY_SCAN_TASK_PORT_PROTOCOL = "stockqa.company_scan_task_port/1.0.0"
+
+
+class CompanyScanTaskPort:
+    """Company task inputs and original validation without the native lifecycle handle."""
+
+    __slots__ = ("__lifecycle",)
+
+    def __init__(self, lifecycle: QuickScanWorkLifecycle) -> None:
+        self.__lifecycle = lifecycle
+
+    def inputs(self):
+        return company_scan_inputs(self.__lifecycle)
+
+    def check_admission(self):
+        assert_company_scan_admission(self.__lifecycle)
+
+    def pack_group_key(self, question_id, prompt):
+        return company_scan_pack_group_key(self.__lifecycle, question_id, prompt)
+
+    def validate_task(self, task):
+        validate_company_scan_task(self.__lifecycle, task)
+
+
+def _admitted_work(lifecycle):
+    from src.runners.llm_runner import QuickScanWorkLifecycle
 
     if not isinstance(lifecycle, QuickScanWorkLifecycle):
         raise ValueError("original_native_lifecycle_required")
-    owner = lifecycle._owner_refresh
-    if (
-        not isinstance(owner, ApprovedRefreshSession)
-        or not isinstance(owner.native, OwnerRefreshSession)
-        or owner.service.store is not lifecycle._store
-        or owner.native.store is not lifecycle._store
-        or not lifecycle._transport_managed
-    ):
+    try:
+        work = lifecycle.registered_research_work()
+    except ValueError as error:
+        raise ValueError("original_admitted_native_owner_required") from error
+    if not work.transport_managed:
         raise ValueError("original_admitted_native_owner_required")
-    context = lifecycle._observation_context
+    return work
+
+
+def assert_company_scan_admission(lifecycle):
+    """Recheck the original live owner without giving the task factory its handle."""
+    if isinstance(lifecycle, CompanyScanTaskPort):
+        return lifecycle.check_admission()
+    _admitted_work(lifecycle).owner.check()
+
+
+def company_scan_inputs(lifecycle):
+    from src.utils.quick_scan_result_outbox import canonical_sha256
+
+    if isinstance(lifecycle, CompanyScanTaskPort):
+        return lifecycle.inputs()
+    work = _admitted_work(lifecycle)
+    owner, context = work.owner, work.observation_context
     if (
         not isinstance(context, dict)
         or context.get("schema") != "stockqa.quick_scan_observation_context/2.0.0"
@@ -44,20 +81,21 @@ def company_scan_inputs(lifecycle):
                 plan=owner.plan,
                 proof=owner.proof,
                 observation_context=context,
-                route_id=lifecycle._route_id,
-                route_provider=(
-                    next(
-                        t["provider"]
-                        for t in owner.ordered_route_targets
-                        if t["route_id"] == lifecycle._route_id
-                    )
-                    if owner.proof["request"].get("protocol") == "iqs.refresh_request/1.6.0"
-                    else owner.plan["provider"]
-                ),
-                route_model=lifecycle._model_requested,
+                route_id=work.route_id,
+                route_provider=work.provider_actual(),
+                route_model=work.model_requested,
             )
         )
     )
+
+
+def company_scan_pack_group_key(lifecycle, question_id, prompt):
+    """Use the original provider grouping without exposing the StockQA Question type."""
+    from src.core.models import Question
+
+    if isinstance(lifecycle, CompanyScanTaskPort):
+        return lifecycle.pack_group_key(question_id, prompt)
+    return lifecycle.question_pack_group_key(Question(prompt, question_id=question_id))
 
 
 def company_scan_capabilities(client, *, native_search=True):
@@ -76,7 +114,9 @@ def company_scan_capabilities(client, *, native_search=True):
 
 def validate_company_scan_task(lifecycle, task):
     """Keep the existing v1.5 owner/task check behind the owner projection."""
-    owner = lifecycle._owner_refresh
+    if isinstance(lifecycle, CompanyScanTaskPort):
+        return lifecycle.validate_task(task)
+    owner = _admitted_work(lifecycle).owner
     if owner.proof["request"].get("protocol") == "iqs.refresh_request/1.5.0":
         from src.utils.quick_scan_owner_budget_continuation import assert_research_task
 

@@ -456,8 +456,11 @@ def coordinator_ports(tmp_path, monkeypatch):
         proof={"confirmation": {"confirmation_id": "original-owner-scope"}},
         check=lambda: None,
     )
-    store = SimpleNamespace(company_scan_progress=lambda ids: copy.deepcopy(state))
-    lifecycle = SimpleNamespace(_owner_refresh=owner, _store=store, _external_retrieval=None)
+    lifecycle = SimpleNamespace(
+        registered_research_work=lambda: SimpleNamespace(owner=owner),
+        company_scan_progress=lambda question_ids: copy.deepcopy(state),
+        company_scan_uses_native_search=lambda: True,
+    )
     clients = [
         (r, SimpleNamespace(model=r["model"], provider_name="mimo"))
         for r in route_policy()["routes"]
@@ -618,8 +621,9 @@ def test_mixed_paid_recovery_uses_route_task_roots_and_never_live_dispatch(
 def test_old_confirmation_does_not_automatically_try_backup(coordinator_ports, monkeypatch):
     p = coordinator_ports
     p.owner.ordered_route_targets = None
-    p.life._route_id = "a"
-    p.life._model_requested = "model-a"
+    p.life.registered_research_work = lambda: SimpleNamespace(
+        owner=p.owner, route_id="a", model_requested="model-a"
+    )
     calls = []
 
     def scan(life, client, **kw):

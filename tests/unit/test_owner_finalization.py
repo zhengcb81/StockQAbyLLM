@@ -30,7 +30,7 @@ def native(tmp_path):
     item = _created(store)
     lease, attempt, receipt = _successful_search_attempt(store, item["work_item_id"])
     mapper = OwnerResearchServices.__new__(OwnerResearchServices)
-    mapper._assert_registered_inputs = lambda: None  # Mapper-only unit, not production authority.
+    mapper._assert_registered_inputs = lambda *, check_current=True: None  # Mapper-only unit.
     mapper.store, mapper._handles = store, {}
     mapper.owner = SimpleNamespace(
         entries={"IQS_05": {"kind": "work", "work_item_id": item["work_item_id"]}}
@@ -140,7 +140,7 @@ def test_existing_checkpoint_reseals_without_new_lease_or_attempt(native, monkey
         if len(seals) == 1:
             raise RuntimeError("synthetic failure after original checkpoint")
 
-    mapper.lifecycle = SimpleNamespace(_seal_delivery=seal)
+    mapper.lifecycle = SimpleNamespace(seal_saved_delivery=seal)
     before_events = mapper.store.list_events(item["work_item_id"])
     with pytest.raises(RuntimeError, match="after original checkpoint"):
         mapper.commit_standard_answers([body], native_reference="stockqa:" + receipt["attempt_id"])

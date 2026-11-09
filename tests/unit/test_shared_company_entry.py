@@ -108,8 +108,9 @@ def test_original_cli_forwards_optional_shared_config_without_starting_clients(
 
 @pytest.mark.parametrize("resume_complete", [True, False])
 @pytest.mark.parametrize("completed_on_refusal", [False, True])
+@pytest.mark.parametrize("factory_kind", ["legacy", "supported", "unsupported"])
 def test_partial_export_is_not_published_and_resumes_original_checkpoint(
-    tmp_path, monkeypatch, resume_complete, completed_on_refusal
+    tmp_path, monkeypatch, resume_complete, completed_on_refusal, factory_kind
 ):
     # This is the entry coordinator boundary. Native checkpoint authenticity,
     # SQL and SDK are covered by the separate original-owner software E2E.
@@ -125,12 +126,17 @@ def test_partial_export_is_not_published_and_resumes_original_checkpoint(
         proof={"confirmation": {"confirmation_id": "original-confirmation"}},
         input_raw={"identity.json": b'{"payload":{"entity_id":"ENT_A"}}'},
     )
-    lifecycle = SimpleNamespace(
-        _owner_refresh=owner,
-        _external_retrieval=None,
-        _observation_context={
+    work = SimpleNamespace(
+        owner=owner,
+        observation_context={
             "questions": {q: {"subject_binding": {"subject_ref": subject}} for q in ("Q1", "Q2")}
         },
+    )
+    factory_port = object()
+    lifecycle = SimpleNamespace(
+        registered_research_work=lambda: work,
+        company_scan_uses_native_search=lambda *, recovery_only: not recovery_only,
+        company_scan_task_port=lambda: factory_port,
     )
     client = SimpleNamespace(
         provider_name="mimo",
@@ -167,7 +173,17 @@ def test_partial_export_is_not_published_and_resumes_original_checkpoint(
         question_ids=["Q1", "Q2"],
         raw={"execution_profile": {"packs": [["Q1"], ["Q2"]]}},
     )
-    factory = SimpleNamespace(create_company_scan_task=lambda *a, **k: original_task)
+
+    def create(source, **kwargs):
+        assert factory_kind != "unsupported", "Unsupported factory must never receive native input"
+        assert source is (factory_port if factory_kind == "supported" else lifecycle)
+        return original_task
+
+    factory = SimpleNamespace(create_company_scan_task=create)
+    if factory_kind == "supported":
+        factory.COMPANY_SCAN_TASK_PORT_PROTOCOL = "stockqa.company_scan_task_port/1.0.0"
+    elif factory_kind == "unsupported":
+        factory.COMPANY_SCAN_TASK_PORT_PROTOCOL = "stockqa.company_scan_task_port/2.0.0"
 
     def read_original(path):
         assert path.read_text() == "original-checkpoint"
@@ -233,6 +249,11 @@ def test_partial_export_is_not_published_and_resumes_original_checkpoint(
         config=config,
         questions=[Question("original question", question_id=q) for q in ("Q1", "Q2")],
     )
+    if factory_kind == "unsupported":
+        with pytest.raises(ValueError, match="shared_company_task_port_version_unsupported"):
+            module.run_shared_company_scan(lifecycle, client, **args)
+        assert not calls and not list(tmp_path.iterdir())
+        return
     with pytest.raises(OSError, match="scripted_partial_export"):
         module.run_shared_company_scan(lifecycle, client, **args)
     scope = next(tmp_path.glob("scan-*"))
@@ -452,13 +473,17 @@ def test_company_scan_input_projection_is_detached_and_has_no_io(monkeypatch):
         {"model": "original", "provider": "mimo"},
         {"request": {"protocol": "iqs.refresh_request/1.1.0"}},
     )
-    lifecycle = QuickScanWorkLifecycle.__new__(QuickScanWorkLifecycle)
-    lifecycle._owner_refresh, lifecycle._store = owner, store
-    lifecycle._model_requested = "original"
-    lifecycle._transport_managed, lifecycle._observation_context, lifecycle._route_id = (
-        True,
-        context,
-        "r",
+    lifecycle = QuickScanWorkLifecycle(
+        store,
+        entity_id="ENT_A",
+        run_id="original-run",
+        scan_id="original-scan",
+        identity={},
+        owner_refresh_session=owner,
+        model_requested="original",
+        transport_managed=True,
+        observation_context=context,
+        route_id="r",
     )
 
     def forbidden(*a, **k):
@@ -468,9 +493,16 @@ def test_company_scan_input_projection_is_detached_and_has_no_io(monkeypatch):
     monkeypatch.setattr(Path, "read_bytes", forbidden)
     projected = company_scan_inputs(lifecycle)
     assert not hasattr(projected, "check")
+    port = lifecycle.company_scan_task_port()
+    assert company_scan_inputs(port) == projected
+    for name in ("_store", "_owner_refresh", "_observation_context", "registered_research_work"):
+        with pytest.raises(AttributeError):
+            getattr(port, name)
     projected.entries["Q1"]["kind"] = "changed"
     projected.plan["model"] = "changed"
+    projected.observation_context["questions"]["Q1"]["provider"] = "changed"
     assert owner.entries["Q1"]["kind"] == "work" and owner.plan["model"] == "original"
+    assert lifecycle.registered_research_work().observation_context["questions"]["Q1"] == {}
     with pytest.raises(ValueError, match="original_native_lifecycle_required"):
         company_scan_inputs(SimpleNamespace(**vars(lifecycle)))
     lifecycle._owner_refresh = SimpleNamespace(**vars(owner))

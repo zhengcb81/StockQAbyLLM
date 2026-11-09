@@ -14,8 +14,6 @@ from contextlib import ExitStack, contextmanager
 from src.core.models import Answer, QAResult, Question
 from src.providers.llm_client import LLMClient
 from src.runners.llm_runner import QuickScanWorkLifecycle
-from src.utils.quick_scan_owner_refresh import OwnerRefreshSession
-from src.utils.quick_scan_refresh_execution import ApprovedRefreshSession
 from src.utils.quick_scan_result_outbox import canonical_sha256
 from src.utils.quick_scan_work_store import (
     _budget_policy_projection,
@@ -108,39 +106,38 @@ class OwnerResearchServices:
     ):
         if not isinstance(lifecycle, QuickScanWorkLifecycle) or not isinstance(client, LLMClient):
             raise OwnerResearchRejected("original_lifecycle_and_client_required")
-        owner = lifecycle._owner_refresh
-        if (
-            not isinstance(owner, ApprovedRefreshSession)
-            or not isinstance(owner.native, OwnerRefreshSession)
-            or owner.service.store is not lifecycle._store
-            or owner.native.store is not lifecycle._store
-        ):
-            raise OwnerResearchRejected("original_registered_owner_required")
+        try:
+            work = lifecycle.registered_research_work()
+        except ValueError as error:
+            raise OwnerResearchRejected("original_registered_owner_required") from error
+        owner = work.owner
+        store = owner.service.store
         recovery_only = getattr(owner, "recovery_only", False)
-        if not lifecycle._transport_managed or (not recovery_only and not lifecycle._budget_policy):
+        if not work.transport_managed or (not recovery_only and not work.budget_policy):
             raise OwnerResearchRejected("original_metered_transport_required")
         if not recovery_only and _budget_policy_projection(
-            lifecycle._budget_policy
+            work.budget_policy
         ) != _budget_policy_projection(owner.service.budget):
             raise OwnerResearchRejected("approved_budget_policy_required")
-        if not callable(getattr(lifecycle._store, "get_research_visible_output", None)):
+        if not callable(getattr(store, "get_research_visible_output", None)):
             raise OwnerResearchRejected("native_visible_output_durability_required")
-        if (
-            client.model != lifecycle._model_requested
-            or client.provider_name != self._approved_provider(lifecycle)
-        ):
+        try:
+            provider = work.provider_actual()
+        except ValueError as error:
+            raise OwnerResearchRejected("approved_client_route_mismatch") from error
+        if client.model != work.model_requested or client.provider_name != provider:
             raise OwnerResearchRejected("approved_client_route_mismatch")
         owner.assert_provider_model(client.provider_name, client.model)
         routes = [
             r
-            for r in owner.execution_routes(lifecycle._budget_policy)
-            if r["id"] == lifecycle._route_id and r["model"] == client.model
+            for r in owner.execution_routes(work.budget_policy)
+            if r["id"] == work.route_id and r["model"] == client.model
         ]
         if (
             len(routes) != 1
             or not recovery_only
-            and not _same_budget_route(routes[0], lifecycle._budget_route)
-            or lifecycle._provider_name != routes[0]["provider_config_ref"]
+            and not _same_budget_route(routes[0], work.budget_route)
+            or work.provider_config_ref != routes[0]["provider_config_ref"]
             or not recovery_only
             and not isinstance(routes[0].get("quota_group"), str)
         ):
@@ -148,7 +145,7 @@ class OwnerResearchServices:
         self.lifecycle, self.client, self.owner = lifecycle, client, owner
         self.request_scope = copy.deepcopy(request_scope)
         self._request_scope_snapshot = copy.deepcopy(request_scope)
-        self.store, self.task = lifecycle._store, task
+        self.store, self.task = store, task
         self.cost_resolver, self.search_service = cost_resolver, search_service
         if (
             type(native_session) is not bool
@@ -181,33 +178,17 @@ class OwnerResearchServices:
         self._limits_snapshot = copy.deepcopy(getattr(task, "limits", {}))
         self._client_endpoint_snapshot = client.base_url
         self._route_snapshot = (
-            lifecycle._route_id,
-            lifecycle._provider_name,
-            copy.deepcopy(lifecycle._budget_route),
-            copy.deepcopy(lifecycle._model_resolution),
+            work.route_id,
+            work.provider_config_ref,
+            work.budget_route,
+            work.model_resolution,
         )
-        self._context_sha256 = canonical_sha256(lifecycle._observation_context)
+        self._context_sha256 = canonical_sha256(work.observation_context)
         self.subject_dispatch_readiness = (
             {"status": "not_required_for_paid_response_recovery", "dispatch_started": False}
             if getattr(self.owner, "recovery_only", False)
             else self.preflight_subject_dispatch()
         )
-
-    @staticmethod
-    def _approved_provider(lifecycle):
-        owner = lifecycle._owner_refresh
-        if owner.proof["request"].get("protocol") == "iqs.refresh_request/1.6.0":
-            matches = [
-                t
-                for t in owner.ordered_route_targets
-                if t["route_id"] == lifecycle._route_id
-                and t["provider_config_ref"] == lifecycle._provider_name
-                and t["model"] == lifecycle._model_requested
-            ]
-            if len(matches) != 1:
-                raise OwnerResearchRejected("approved_client_route_mismatch")
-            return matches[0]["provider"]
-        return owner.plan["provider"]
 
     def preflight_subject_dispatch(self):
         """Read the original owner's capability CLI before any paid retrieval.
@@ -396,7 +377,7 @@ class OwnerResearchServices:
         if not rows or len({q["question_id"] for q in rows}) != len(rows):
             raise OwnerResearchRejected("unique_original_questions_required")
         self.questions = {}
-        context = self.lifecycle._observation_context
+        context = self.lifecycle.registered_research_work().observation_context
         if (
             not isinstance(context, dict)
             or context.get("schema") != "stockqa.quick_scan_observation_context/2.0.0"
@@ -453,8 +434,15 @@ class OwnerResearchServices:
         self._assert_registered_inputs(check_current=False)
 
     def _assert_registered_inputs(self, *, check_current=True):
+        try:
+            work = self.lifecycle.registered_research_work()
+            provider = work.provider_actual()
+        except ValueError as error:
+            raise OwnerResearchRejected("registered_runtime_inputs_changed") from error
         if (
-            self.request_scope != self._request_scope_snapshot
+            work.owner is not self.owner
+            or not work.transport_managed
+            or self.request_scope != self._request_scope_snapshot
             or self.native_search != self._native_search_snapshot
             or type(self.native_search) is not bool
             or type(self.owner_batch_claim) is not bool
@@ -465,19 +453,19 @@ class OwnerResearchServices:
             or self.task.company_ref != self._company_ref_snapshot
             or getattr(self.task, "limits", {}) != self._limits_snapshot
             or self.client.base_url != self._client_endpoint_snapshot
-            or self.client.model != self.lifecycle._model_requested
-            or self.client.provider_name != self._approved_provider(self.lifecycle)
+            or self.client.model != work.model_requested
+            or self.client.provider_name != provider
             or self._route_snapshot
             != (
-                self.lifecycle._route_id,
-                self.lifecycle._provider_name,
-                self.lifecycle._budget_route,
-                self.lifecycle._model_resolution,
+                work.route_id,
+                work.provider_config_ref,
+                work.budget_route,
+                work.model_resolution,
             )
-            or canonical_sha256(self.lifecycle._observation_context) != self._context_sha256
+            or canonical_sha256(work.observation_context) != self._context_sha256
             or (
                 not getattr(self.owner, "recovery_only", False)
-                and _budget_policy_projection(self.lifecycle._budget_policy)
+                and _budget_policy_projection(work.budget_policy)
                 != _budget_policy_projection(self.owner.service.budget)
             )
         ):
@@ -543,7 +531,6 @@ class OwnerResearchServices:
             raise OwnerResearchRejected("paid_recovery_cannot_dispatch")
         from src.utils.quick_scan_work_transport import (
             bind_quick_scan_budget,
-            bind_quick_scan_route,
         )
 
         self._validate_envelope(envelope)
@@ -598,10 +585,8 @@ class OwnerResearchServices:
         self._active = True
         try:
             with ExitStack() as stack:
-                policy, budget_route = (
-                    self.lifecycle._budget_policy,
-                    self.lifecycle._budget_route,
-                )
+                work = self.lifecycle.registered_research_work()
+                policy, budget_route = work.budget_policy, work.budget_route
                 if not isinstance(policy, dict) or not isinstance(budget_route, dict):
                     raise OwnerResearchRejected("approved_native_budget_route_required")
                 handles = [self._handles[qid] for qid in selected]
@@ -611,18 +596,6 @@ class OwnerResearchServices:
                     else self.lifecycle.dispatch_question_pack_context(handles)
                 )
                 stack.enter_context(binding)
-                # Single-question lifecycle supplies the work/owner/subject
-                # context; preserve the approved policy's original quota group
-                # when binding its native metered research transport.
-                stack.enter_context(
-                    bind_quick_scan_route(
-                        route_id=self.lifecycle._route_id,
-                        provider=self.lifecycle._provider_name,
-                        model_requested=self.client.model,
-                        model_resolution=self.lifecycle._model_resolution,
-                        quota_group=budget_route["quota_group"],
-                    )
-                )
                 if self.native_session:
                     if len(handles) != 1:
                         raise OwnerResearchRejected("native_multiturn_question_pack_not_supported")
@@ -635,12 +608,12 @@ class OwnerResearchServices:
                         handle["work_item_id"],
                         handle["lease"],
                         task_sha256=canonical_sha256(self.task.raw),
-                        route_id=self.lifecycle._route_id,
-                        provider=self.lifecycle._provider_name,
+                        route_id=work.route_id,
+                        provider=work.provider_config_ref,
                         provider_actual=self.client.provider_name,
                         model_requested=self.client.model,
                         max_turns=self.native_max_turns,
-                        model_resolution=self.lifecycle._model_resolution,
+                        model_resolution=work.model_resolution,
                     )
                     if self._native_session_ids.get(handle["work_item_id"]) not in (
                         None,
@@ -1095,7 +1068,7 @@ class OwnerResearchServices:
                 # A process may die after the atomic answer save but before
                 # delivery sealing. Reuse the exact saved answer, never a new
                 # lease or model send, and let the original lifecycle reseal.
-                self.lifecycle._seal_delivery(work_id)
+                self.lifecycle.seal_saved_delivery(work_id)
                 saved.append(qid)
                 continue
             handle = self._handles.get(qid)
