@@ -239,6 +239,11 @@ def test_selected_fact_can_use_its_own_bank_without_a_score_metric(tmp_path):
         load_question_manifest(
             _write_manifest(tmp_path, {**manifest, "fact_question_ids": ["IQS_01"]})
         )
+    manifest.pop("fact_question_ids")
+    fact["module_id"] = "common"
+    with pytest.raises(QuestionManifestRejected, match="manifest_fact_selection_mismatch"):
+        load_question_manifest(_write_manifest(tmp_path, manifest))
+
     questions[0].metadata["response_kind"] = "score"
     with pytest.raises(QuestionManifestRejected, match="manifest_response_kind_mismatch"):
         bind_manifest_to_questions(loaded, questions)

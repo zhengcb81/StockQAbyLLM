@@ -172,7 +172,7 @@ def load_question_manifest(path: str | Path) -> dict[str, Any]:
                     )
                 replacement_targets.append(target)
 
-    if fact_question_ids is not None and fact_rows != fact_question_ids:
+    if fact_rows != (fact_question_ids or []):
         raise QuestionManifestRejected("manifest_fact_selection_mismatch")
     if len(set(replacement_targets)) != len(replacement_targets):
         raise QuestionManifestRejected(
