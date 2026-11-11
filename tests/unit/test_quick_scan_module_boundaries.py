@@ -202,7 +202,8 @@ def test_runner_does_not_query_work_store_sql_schema_directly():
             continue
         query = node.args[0]
         if isinstance(query, ast.Constant) and isinstance(query.value, str):
-            normalized = query.value.lower()
+            # Pad so a table at the start or end of the statement still matches.
+            normalized = f" {query.value.lower()} "
             if any(
                 table in normalized
                 for table in (
@@ -295,17 +296,7 @@ def test_production_store_consumers_use_only_owner_public_members():
                 and node.attr not in own_private
             ):
                 violations.append((relative, node.lineno, node.attr))
-            if (
-                isinstance(node, ast.Call)
-                and isinstance(node.func, ast.Attribute)
-                and node.func.attr in store.WORK_STORE_API_METHODS
-                and ast.unparse(node.func.value).split(".")[-1]
-                in {"store", "work_store", "ledger", "view", "QuickScanWorkStore"}
-            ):
-                if node.func.attr not in store.WORK_STORE_API_METHODS:
-                    undeclared_calls.append((relative, node.lineno, node.func.attr))
     assert not violations, violations
-    assert not undeclared_calls, undeclared_calls
     assert set(store.WORK_STORE_API_METHODS) <= {
         name for name in dir(store.QuickScanWorkStore) if not name.startswith("_")
     }
@@ -314,28 +305,103 @@ def test_production_store_consumers_use_only_owner_public_members():
     }
 
 
+def test_stockqa_imports_companions_only_through_their_public_facades():
+    """The companion packages are reached only at ``<package>.api``.
+
+    Direct imports and constant ``import_module``/``__import__`` arguments
+    are the common access forms; anything beyond the public facade module is
+    a direction violation.
+    """
+    companions = {"iqs_company_agent_lab", "iqs_agent_runtime_lab"}
+    violations = []
+    for source_path in _source_paths():
+        relative = _relative(source_path)
+        for node in ast.walk(_tree(source_path)):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    root = alias.name.split(".")[0]
+                    if root in companions and alias.name != root + ".api":
+                        violations.append((relative, node.lineno, alias.name))
+            elif isinstance(node, ast.ImportFrom):
+                root = (node.module or "").split(".")[0]
+                if root in companions and node.module != root + ".api":
+                    violations.append((relative, node.lineno, node.module))
+            elif (
+                isinstance(node, ast.Call)
+                and (
+                    (
+                        isinstance(node.func, ast.Name)
+                        and node.func.id in {"import_module", "__import__"}
+                    )
+                    or (
+                        isinstance(node.func, ast.Attribute)
+                        and node.func.attr in {"import_module", "__import__"}
+                    )
+                )
+                and node.args
+                and isinstance(node.args[0], ast.Constant)
+                and isinstance(node.args[0].value, str)
+            ):
+                target = node.args[0].value
+                root = target.split(".")[0]
+                if root in companions and target != root + ".api":
+                    violations.append((relative, node.lineno, target))
+    assert not violations, violations
+
+
 def test_research_and_context_adapter_consumers_import_only_owner_exports():
-    """A consumer imports declared owner exports, never an undeclared name."""
+    """A consumer imports declared owner exports, never an undeclared name.
+
+    Both common access forms count: the imported names themselves, and any
+    attribute chain read through a module alias of a bound owner
+    (``from src.utils import quick_scan_work_store as store`` then
+    ``store.undeclared``).
+    """
     import importlib
 
     owner_exports = {
         name: set(importlib.import_module(name).MODULE_API_EXPORTS) for name in EXPORT_BOUND_OWNERS
     }
+    owner_aliases = {name.rsplit(".", 1)[-1]: name for name in EXPORT_BOUND_OWNERS}
     violations = []
     for source_path in _source_paths():
-        for node in ast.walk(_tree(source_path)):
-            if not isinstance(node, ast.ImportFrom):
+        tree = _tree(source_path)
+        module_aliases = {}
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom):
+                module_name = _imported_module(source_path, node)
+                if module_name in owner_exports:
+                    for alias in node.names:
+                        if alias.name == "*":
+                            violations.append(
+                                (_relative(source_path), node.lineno, module_name, "*")
+                            )
+                        elif alias.name not in owner_exports[module_name]:
+                            violations.append(
+                                (_relative(source_path), node.lineno, module_name, alias.name)
+                            )
+                elif node.module == "src.utils":
+                    # ``from src.utils import quick_scan_work_store as store``
+                    # binds an owner module alias worth watching below.
+                    for alias in node.names:
+                        if alias.name in owner_aliases:
+                            module_aliases[alias.asname or alias.name] = owner_aliases[alias.name]
                 continue
-            module_name = _imported_module(source_path, node)
-            if module_name not in owner_exports:
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name in owner_exports:
+                        module_aliases[alias.asname or alias.name.rsplit(".", 1)[-1]] = alias.name
                 continue
-            for alias in node.names:
-                if alias.name == "*":
-                    violations.append((_relative(source_path), node.lineno, module_name, "*"))
-                elif alias.name not in owner_exports[module_name]:
-                    violations.append(
-                        (_relative(source_path), node.lineno, module_name, alias.name)
-                    )
+            if isinstance(node, ast.Attribute):
+                chain = []
+                current = node
+                while isinstance(current, ast.Attribute):
+                    chain.append(current.attr)
+                    current = current.value
+                if isinstance(current, ast.Name) and current.id in module_aliases and chain:
+                    owner = module_aliases[current.id]
+                    if chain[-1] not in owner_exports[owner]:
+                        violations.append((_relative(source_path), node.lineno, owner, chain[-1]))
     assert not violations, violations
 
 
