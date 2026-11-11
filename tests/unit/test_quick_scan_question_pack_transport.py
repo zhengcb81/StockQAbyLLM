@@ -19,6 +19,7 @@ from src.providers.model_resolution import model_resolution_sha256
 from src.utils import quick_scan_work_transport as transport
 from src.utils.quick_scan_result_outbox import canonical_sha256
 from src.utils.quick_scan_work_store import QuickScanWorkStore, _sanitized_receipt
+from tests.unit.owner_refresh_port_test_support import approved_owner_refresh_port
 
 FIX = Path(__file__).resolve().parents[1] / "fixtures"
 BASE = json.loads((FIX / "quick_scan_c06_authority_v2_fixture.json").read_bytes())[
@@ -377,9 +378,17 @@ def test_middle_owner_registration_failure_creates_no_paid_intent(pack):
 
 
 def test_rechecks_owner_guard_and_all_member_leases_before_post(pack):
-    store, _, clock = pack
+    store, members, clock = pack
     guards = []
-    with _bindings(pack), transport.bind_owner_refresh_guard(lambda: guards.append("checked")):
+    owner_port = approved_owner_refresh_port(
+        store=store,
+        check=lambda: guards.append("checked"),
+        work_item_ids=tuple(work_item_id for work_item_id, _ in members),
+        question_ids=tuple(
+            store.get_item(work_item_id)["question_id"] for work_item_id, _ in members
+        ),
+    )
+    with _bindings(pack), transport.bind_owner_refresh_guard(owner_port):
         handle = _begin()
         before = len(guards)
         clock[0] += 301

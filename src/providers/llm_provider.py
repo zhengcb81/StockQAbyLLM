@@ -32,7 +32,9 @@ from .llm_client import (
     LLMClient,
     LLMTransportAttemptError,
     SearchCapabilityUnavailable,
-    _validate_search_generation_controls,
+)
+from .llm_client import (
+    api_llm_client_validate_search_generation_controls as _validate_search_generation_controls,
 )
 from .llm_response_parser import (
     FINAL_PRIVATE_FIELDS,
@@ -1045,3 +1047,9 @@ class LLMProvider(BaseLLMProvider):
                     return ParsedLLMAnswer(None, f"处理失败（{type(e).__name__}）", "error"), {}
 
         raise Exception("API调用失败：未知错误")
+
+
+# Versioned cross-module contract. Consumers use these exports, never owner internals.
+MODULE_API_PROTOCOL = "stockqa.llm-provider-module/1.0.0"
+MODULE_API_EXPORTS = frozenset(["final_answer_diagnostic_policy"])
+final_answer_diagnostic_policy = _final_answer_diagnostic_policy

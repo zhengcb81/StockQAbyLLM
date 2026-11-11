@@ -26,8 +26,8 @@ from typing import Any
 
 from src.utils.quick_scan_c06_adapter import MissingC06Fields
 from src.utils.quick_scan_result_outbox import (
-    _CAPABILITIES,
-    _CONTRACT_VERSION_KEYS,
+    CAPABILITIES,
+    CONTRACT_VERSION_KEYS,
     strict_json_loads,
 )
 
@@ -77,10 +77,10 @@ def _envelope(document: dict[str, Any], allowed: set[str]) -> None:
         raise AuthorityUnavailable("c06 authority field set mismatch")
     contract_versions = document["contract_versions"]
     if not isinstance(contract_versions, dict) or set(contract_versions) != set(
-        _CONTRACT_VERSION_KEYS
+        CONTRACT_VERSION_KEYS
     ):
         raise AuthorityUnavailable("c06 authority contract_versions key set mismatch")
-    for key in _CONTRACT_VERSION_KEYS:
+    for key in CONTRACT_VERSION_KEYS:
         _text(contract_versions[key], f"contract_versions.{key}")
 
     capabilities = document["capabilities"]
@@ -90,7 +90,7 @@ def _envelope(document: dict[str, Any], allowed: set[str]) -> None:
         raise AuthorityUnavailable("c06 authority capabilities must be unique")
     if any(not isinstance(capability, str) for capability in capabilities):
         raise AuthorityUnavailable("c06 authority capabilities must be strings")
-    if any(cap not in _CAPABILITIES for cap in capabilities):
+    if any(cap not in CAPABILITIES for cap in capabilities):
         raise AuthorityUnavailable("c06 authority declares an unknown capability")
     if "standard_observation_v1" not in capabilities:
         raise AuthorityUnavailable("c06 authority must declare standard_observation_v1")

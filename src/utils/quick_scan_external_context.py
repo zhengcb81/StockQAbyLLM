@@ -17,15 +17,15 @@ from urllib.parse import urlsplit
 from src.config.quick_scan_search_policy import SearchPolicy, execution_query_plans
 from src.utils.quick_scan_external_journal import (
     MODEL_BUDGET_LABEL,
-    _identity_basis,
-    _reusable,
+    assert_external_operation_reusable,
+    external_identity_basis,
 )
 from src.utils.quick_scan_prepaid_quota import accounted
 from src.utils.quick_scan_work_store import (
     Lease,
     QuickScanWorkStore,
-    _budget_policy_projection,
-    _cost_to_micros,
+    budget_policy_projection,
+    cost_to_micros,
 )
 
 
@@ -33,7 +33,7 @@ def build_shared_external_budget_policy(
     model_policy: dict[str, Any], search_policy: SearchPolicy
 ) -> dict[str, Any]:
     """Add admitted retrieval route identities to one unchanged spending owner."""
-    original = _budget_policy_projection(model_policy)
+    original = budget_policy_projection(model_policy)
     execution_query_plans(search_policy)  # Requires the loader's unchanged 1.1 plan.
     if not search_policy.admitted or not search_policy.requires_external:
         raise ValueError("no executable admitted external route")
@@ -91,7 +91,7 @@ def build_shared_external_budget_policy(
     shared["policy_version"] = (
         "external_budget/1.0.0:" + hashlib.sha256(_canonical(basis).encode("utf-8")).hexdigest()
     )
-    _budget_policy_projection(shared)  # Validate through the original Q09 owner.
+    budget_policy_projection(shared)  # Validate through the original Q09 owner.
     return shared
 
 
@@ -193,8 +193,8 @@ def build_external_question_context(
     if not isinstance(store, QuickScanWorkStore) or not isinstance(lease, Lease):
         raise ValueError("external context requires a durable work store and lease")
     item = store.get_item(work_item_id)
-    now = store._now()
-    store._assert_lease(item, lease, now)
+    now = store.now()
+    store.assert_lease(item, lease, now)
     expected = policy.execution_plan
     if (
         expected is None
@@ -217,7 +217,7 @@ def build_external_question_context(
         raise ValueError("duplicate external operation identifiers")
     if len(operation_ids) != len(required):
         raise ValueError("external query plan incomplete or ambiguous")
-    current_basis = _identity_basis(
+    current_basis = external_identity_basis(
         {
             "work_fingerprint": {
                 key: item[key]
@@ -251,13 +251,13 @@ def build_external_question_context(
             original["search_policy_sha256"] != policy.policy_sha256
             or original["route"]["route_id"] not in policy.admitted
             or plan != required.get(query_id)
-            or _identity_basis(original) != current_basis
+            or external_identity_basis(original) != current_basis
             or original["work_fingerprint"]["generation"] != item["generation"]
         ):
             raise ValueError("external policy, query or work scope binding mismatch")
         if query_id in records:
             raise ValueError("duplicate external query result")
-        _reusable(record, now)
+        assert_external_operation_reusable(record, now)
         result = record["result"]
         if result["recorded_at"] > now:
             raise ValueError("external retrieval time is in the future")
@@ -269,7 +269,7 @@ def build_external_question_context(
         elif (
             price is None
             or result["charge"]["actual_cost_micros"]
-            != _cost_to_micros(price["actual_cost"], "actual_cost", allow_zero=True)
+            != cost_to_micros(price["actual_cost"], "actual_cost", allow_zero=True)
             or result["charge"]["cost_source_ref"] != price["source_ref"]
         ):
             raise ValueError("external pricing proof does not match the frozen policy")
@@ -438,7 +438,7 @@ def _eligible_priced_record(record: dict[str, Any], policy: SearchPolicy, now: f
     elif (
         price is None
         or result["charge"]["actual_cost_micros"]
-        != _cost_to_micros(price["actual_cost"], "actual_cost", allow_zero=True)
+        != cost_to_micros(price["actual_cost"], "actual_cost", allow_zero=True)
         or result["charge"]["cost_source_ref"] != price["source_ref"]
     ):
         raise ValueError("external pricing proof does not match the frozen policy")
@@ -447,7 +447,7 @@ def _eligible_priced_record(record: dict[str, Any], policy: SearchPolicy, now: f
     if receipt["outcome"] == "unknown":
         raise ExternalRetrievalBlocked("external_search_unresolved")
     try:
-        _reusable(record, now)
+        assert_external_operation_reusable(record, now)
     except BudgetAdmissionError as error:
         if error.reason in {"external_search_failed", "external_evidence_insufficient"}:
             return False  # A paid, terminal failure is never replayed as a new request.
@@ -471,7 +471,7 @@ def _settle_mcp_controls(
 ) -> bool:
     """Journal every control HTTP using Q09; return False only for paid known failure."""
     from src.providers.external_search_provider import ExternalSearchTransportError
-    from src.utils.quick_scan_mcp_journal import STAGES, _ready
+    from src.utils.quick_scan_mcp_journal import STAGES, is_mcp_stage_ready
     from src.utils.quick_scan_work_store import SendPermit
     from src.utils.quick_scan_work_transport import (
         QuickScanBudgetBinding,
@@ -520,20 +520,20 @@ def _settle_mcp_controls(
         ):
             raise ExternalRetrievalBlocked("mcp_control_unresolved")
         price = resolver(stage["result"]["receipt"])
-        from src.utils.quick_scan_work_store import _cost_to_micros
+        from src.utils.quick_scan_work_store import cost_to_micros
 
         if stage.get("quota_accounting") is None and (
             price is None
             or stage["result"]["charge"]
             != {
-                "actual_cost_micros": _cost_to_micros(
+                "actual_cost_micros": cost_to_micros(
                     price["actual_cost"], "actual_cost", allow_zero=True
                 ),
                 "cost_source_ref": price["source_ref"],
             }
         ):
             raise ValueError("MCP control pricing proof differs from frozen policy")
-        if not _ready(stage, store._now()):
+        if not is_mcp_stage_ready(stage, store.now()):
             return False
     return True
 
@@ -600,7 +600,9 @@ def retrieve_external_question_context(
         ExternalSearchTransportError,
     )
     from src.utils.quick_scan_cost_resolver import ExternalSearchCostResolver
-    from src.utils.quick_scan_external_journal import _resumable_unsent
+    from src.utils.quick_scan_external_journal import (
+        can_resume_unsent_external_operation,
+    )
     from src.utils.quick_scan_provider_health import QuickScanProviderHealth
     from src.utils.quick_scan_work_store import BudgetAdmissionError, SendPermit
     from src.utils.quick_scan_work_transport import (
@@ -620,7 +622,7 @@ def retrieve_external_question_context(
     ):
         QuickScanProviderHealth._positive_seconds(value, name)
     item = store.get_item(work_item_id)
-    store._assert_lease(item, lease, store._now())
+    store.assert_lease(item, lease, store.now())
     expected = policy.execution_plan
     if (
         expected is None
@@ -657,8 +659,10 @@ def retrieve_external_question_context(
                 previous = store.lookup_external_search(work_item_id, lease, **request)
             except BudgetAdmissionError as error:
                 raise ExternalRetrievalBlocked(error.reason) from None
-            if previous is not None and not _resumable_unsent(previous, work_item_id, lease):
-                if _eligible_priced_record(previous, policy, store._now()):
+            if previous is not None and not can_resume_unsent_external_operation(
+                previous, work_item_id, lease
+            ):
+                if _eligible_priced_record(previous, policy, store.now()):
                     operation_ids.append(previous["operation_id"])
                     break
                 continue
@@ -730,7 +734,7 @@ def retrieve_external_question_context(
                         unknown_reset_cooldown_seconds=unknown_reset_cooldown_seconds,
                         rate_limit_cooldown_seconds=rate_limit_cooldown_seconds,
                     )
-                if _eligible_priced_record(operation, policy, store._now()):
+                if _eligible_priced_record(operation, policy, store.now()):
                     operation_ids.append(operation["operation_id"])
                     break
             except BudgetAdmissionError as error:
@@ -753,3 +757,9 @@ def retrieve_external_question_context(
         operation_ids,
         question_manifest_sha256=question_manifest_sha256,
     )
+
+
+# Versioned cross-module contract. Consumers use these exports, never owner internals.
+MODULE_API_PROTOCOL = "stockqa.external-context-module/1.0.0"
+MODULE_API_EXPORTS = frozenset(["bind_external_candidate"])
+bind_external_candidate = _bound_candidate

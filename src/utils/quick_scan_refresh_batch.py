@@ -75,10 +75,10 @@ def attach_owner_refresh_batch(store, specifications, *, run_id, scan_id, rechec
         ):
             raise ValueError("refresh_batch_subject_context_required")
     items = []
-    with store._transaction() as connection:
+    with store.transaction() as connection:
         if connection.execute("PRAGMA user_version").fetchone()[0] != SCHEMA_VERSION:
             raise ValueError("refresh_batch_executor_schema_unavailable")
-        store._validate_schema(connection, schema_version=SCHEMA_VERSION)
+        store.validate_schema(connection, schema_version=SCHEMA_VERSION)
         recheck()
         view = _TransactionView(store, connection)
         for spec in specs:
@@ -123,10 +123,10 @@ def register_refresh_action(
     if not callable(recheck):
         raise ValueError("refresh_admission_recheck_required")
     value = journal.inputs(action, specifications, run_id, scan_id, references)
-    with store._transaction() as connection:
+    with store.transaction() as connection:
         if connection.execute("PRAGMA user_version").fetchone()[0] != SCHEMA_VERSION:
             raise ValueError("refresh_admission_executor_schema_unavailable")
-        store._validate_schema(connection, schema_version=SCHEMA_VERSION)
+        store.validate_schema(connection, schema_version=SCHEMA_VERSION)
         existing = journal.read_record(connection, action["confirmation_id"])
         if existing is not None:
             if existing["inputs"] != value:
@@ -143,7 +143,7 @@ def register_refresh_action(
                     specifications,
                     continuation["bundles"],
                     ledger_path=store.path,
-                    now=store._now(),
+                    now=store.now(),
                 )
             return existing["receipt"]
         recheck("fresh_registration")
@@ -160,7 +160,7 @@ def register_refresh_action(
             items = result["items"]
         else:
             recheck("current_permissions")
-        receipt = journal.publish(connection, value, items, registered_at=store._now())
+        receipt = journal.publish(connection, value, items, registered_at=store.now())
         if continuation is not None:
             from .quick_scan_owner_budget_continuation import register_cells
 
@@ -171,7 +171,7 @@ def register_refresh_action(
                 specifications,
                 continuation["bundles"],
                 ledger_path=store.path,
-                now=store._now(),
+                now=store.now(),
             )
         recheck("current_permissions")
     return receipt

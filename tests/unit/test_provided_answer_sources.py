@@ -382,6 +382,7 @@ def test_v25_migration_keeps_old_intent_and_receipt_bytes(provided):
         connection.execute(
             "ALTER TABLE quick_scan_research_intent DROP COLUMN provided_context_json"
         )
+        connection.execute("DROP TABLE quick_scan_research_visible_output_recovery")
         connection.execute("PRAGMA user_version=25")
     from src.utils.quick_scan_refresh_inspect import ReadOnlyWorkView
 
@@ -389,7 +390,7 @@ def test_v25_migration_keeps_old_intent_and_receipt_bytes(provided):
     assert view.get_item(f.work_id)["question_id"] == "IQS_01"
     upgraded = QuickScanWorkStore(f.store.path)
     with closing(upgraded._connect()) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 26
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 27
         assert [
             tuple(r)
             for r in connection.execute(
@@ -440,7 +441,7 @@ def test_original_research_sdk_messages_carrier_binds_provided_context(provided,
     from tests.unit.test_llm_research_client import TOOLS
 
     f = provided
-    monkeypatch.setattr(llm_research_client, "_utc_now", lambda: "2027-01-15T08:00:00Z")
+    monkeypatch.setattr(llm_research_client, "utc_now", lambda: "2027-01-15T08:00:00Z")
     f.client.base_url = "https://api.xiaomimimo.com/v1/chat/completions"
     posts = []
 

@@ -22,6 +22,7 @@ from src.utils.quick_scan_work_transport import (
     bind_quick_scan_budget,
     bind_quick_scan_route,
 )
+from tests.unit.owner_refresh_port_test_support import approved_owner_refresh_port
 
 
 def sha(value):
@@ -217,7 +218,7 @@ class IsolationTests(unittest.TestCase):
         with self.assertRaisesRegex(BudgetAdmissionError, "reconciliation_required"):
             self.reserve("next", task("S2"))
 
-    def test_native_transport_continuation_and_owner_guard(self):
+    def test_native_transport_continuation_and_unscoped_owner_guard_rejected(self):
         self.unknown()
         self.seal()
         calls = []
@@ -228,14 +229,12 @@ class IsolationTests(unittest.TestCase):
             provider="fixture",
             model_requested="fixture-model",
             quota_group="group",
-        ), bind_owner_refresh_guard(
-            lambda: calls.append("checked")
         ):
             permit = begin_quick_scan_send("public prompt", "public system")
             permit.consume_for_post()
             with self.assertRaises(QuickScanWorkPersistenceError):
                 permit.consume_for_post()
-        self.assertGreaterEqual(len(calls), 2)
+        self.assertEqual(calls, [])
         with closing(sqlite3.connect(self.path)) as c:
             row = c.execute(
                 "SELECT task_id FROM quick_scan_research_attempt WHERE budget_attempt_id=?",
@@ -256,7 +255,9 @@ class IsolationTests(unittest.TestCase):
         before = self.rows()
         with bind_quick_scan_budget(
             self.store, self.policy, independent_task=task("S3")
-        ), bind_owner_refresh_guard(deny):
+        ), bind_owner_refresh_guard(
+            approved_owner_refresh_port(store=self.store, check=deny, work_item_ids=())
+        ):
             with self.assertRaisesRegex(
                 QuickScanWorkPersistenceError, "owner_refresh_guard_rejected"
             ):

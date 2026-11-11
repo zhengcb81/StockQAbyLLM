@@ -10,7 +10,7 @@ from contextlib import closing
 from datetime import datetime, timezone
 
 from .quick_scan_known_outcome_journal import (
-    _existing,
+    existing_owner_resolution,
     resolution_request,
     retry_request,
     terminal_received_failure,
@@ -18,7 +18,7 @@ from .quick_scan_known_outcome_journal import (
 from .quick_scan_refresh_inspect import ReadOnlyWorkView
 from .quick_scan_result_outbox import canonical_sha256
 from .quick_scan_subject_journal import receipt_record
-from .quick_scan_work_store import Lease, _budget_policy_projection
+from .quick_scan_work_store import Lease, budget_policy_projection
 
 RESOLUTION_INTENT = {
     "kind",
@@ -48,7 +48,7 @@ RETRY_REQUEST = RETRY_INTENT | {
 
 
 def _policy_matches(con, policy, physical):
-    projected = _budget_policy_projection(policy)
+    projected = budget_policy_projection(policy)
     stored = con.execute(
         "SELECT * FROM quick_scan_budget_policy WHERE policy_id=?",
         (projected["policy_id"],),
@@ -86,114 +86,105 @@ def _inspect(path, value, *, policy, clock, derive, comparison_target=None):
         fields = fields | {"unusable_checkpoint"}
     if set(value) != fields:
         raise ValueError("owner_work_read_request_invalid")
-    view = ReadOnlyWorkView(path)
-    view._clock = clock or time.time
-    now = view._clock()
-    with closing(view._connect()) as con:
-        con.execute("BEGIN")
-        view._inspection_connection = con
-        try:
-            item = view._item(con, value["work_item_id"])
-            if resolution:
-                attempt = con.execute(
-                    "SELECT * FROM attempt WHERE attempt_id=? AND work_item_id=?",
-                    (value["attempt_id"], value["work_item_id"]),
-                ).fetchone()
-                if attempt is None:
-                    raise ValueError("owner_work_attempt_missing")
-                from .quick_scan_known_outcome_journal import _physical
-
-                original = _physical(view, con, item, attempt)
-                request, item = resolution_request(
-                    view,
-                    con,
-                    value["work_item_id"],
-                    attempt_id=value["attempt_id"],
-                    expected_lease=Lease(attempt["lease_token"], attempt["lease_epoch"]),
-                    receipt_sha256=original["receipt_sha256"],
-                    request_payload_sha256=original["request_payload_sha256"],
-                    reason=value["reason"],
-                    idempotency_key=value["idempotency_key"],
-                    diagnostic=value["diagnostic"],
-                    now=now,
-                )
-                if item["status"] not in {"leased", "uncertain"} and not (
-                    item["status"] == "failed"
-                    and (
-                        _existing(
-                            view,
-                            con,
-                            value["work_item_id"],
-                            value["idempotency_key"],
-                            request,
-                        )
-                        or terminal_received_failure(con, item, attempt, value["reason"])
-                    )
-                ):
-                    raise ValueError("owner_work_read_resolution_state_invalid")
-            else:
-                request, item = retry_request(
-                    view,
-                    con,
-                    value["work_item_id"],
-                    purpose=value["purpose"],
-                    retry_after_seconds=value["retry_after_seconds"],
-                    idempotency_key=value["idempotency_key"],
-                    comparison_controls=value["comparison_controls"],
-                    now=now,
-                )
-            if not derive and request != value:
-                raise ValueError("owner_work_read_original_request_mismatch")
-            _policy_matches(con, policy, request["physical"])
-            if comparison_target is not None:
-                if (
-                    derive
-                    or request["kind"] != "retry_decision"
-                    or request["purpose"] != "comparison"
-                    or not isinstance(comparison_target, dict)
-                    or set(comparison_target)
-                    != {"policy_id", "route_id", "provider_config_ref", "model"}
-                ):
-                    raise ValueError("owner_work_target_read_invalid")
-                projected = _budget_policy_projection(policy)
-                target = projected["route_identity"].get(comparison_target["route_id"])
-                if (
-                    target is None
-                    or comparison_target["policy_id"] != projected["policy_id"]
-                    or any(
-                        target[k] != comparison_target[k] for k in ("provider_config_ref", "model")
-                    )
-                ):
-                    raise ValueError("owner_work_target_route_changed")
-            pre = con.execute(
-                "SELECT * FROM quick_scan_subject_send_receipt WHERE attempt_id=?",
-                (request["attempt_id"],),
+    view = ReadOnlyWorkView(path, clock=clock or time.time)
+    now = view.current_time()
+    with view.inspection_transaction() as con:
+        item = view.item_in_transaction(con, value["work_item_id"])
+        if resolution:
+            attempt = con.execute(
+                "SELECT * FROM attempt WHERE attempt_id=? AND work_item_id=?",
+                (value["attempt_id"], value["work_item_id"]),
             ).fetchone()
-            if pre is None:
-                raise ValueError("owner_work_dispatch_proof_missing")
-            owner_receipt = receipt_record(con, pre)
-            result = dict(
-                protocol="stockqa.work_decision_inspection/"
-                + (
-                    "1.2.0"
-                    if request.get("purpose") == "retry_unusable_checkpoint"
-                    else "1.1.0" if comparison_target is not None else "1.0.0"
-                ),
-                request=copy.deepcopy(request),
-                request_sha256=canonical_sha256(request),
-                subject_dispatch_receipt=owner_receipt,
-                observed_at=datetime.fromtimestamp(now, timezone.utc)
-                .isoformat()
-                .replace("+00:00", "Z"),
-                API_requests=0,
-                database_writes=0,
+            if attempt is None:
+                raise ValueError("owner_work_attempt_missing")
+            from .quick_scan_known_outcome_journal import physical_attempt_projection
+
+            original = physical_attempt_projection(view, con, item, attempt)
+            request, item = resolution_request(
+                view,
+                con,
+                value["work_item_id"],
+                attempt_id=value["attempt_id"],
+                expected_lease=Lease(attempt["lease_token"], attempt["lease_epoch"]),
+                receipt_sha256=original["receipt_sha256"],
+                request_payload_sha256=original["request_payload_sha256"],
+                reason=value["reason"],
+                idempotency_key=value["idempotency_key"],
+                diagnostic=value["diagnostic"],
+                now=now,
             )
-            if comparison_target is not None:
-                result["target_route"] = copy.deepcopy(comparison_target)
-            return result
-        finally:
-            view._inspection_connection = None
-            con.rollback()
+            if item["status"] not in {"leased", "uncertain"} and not (
+                item["status"] == "failed"
+                and (
+                    existing_owner_resolution(
+                        view,
+                        con,
+                        value["work_item_id"],
+                        value["idempotency_key"],
+                        request,
+                    )
+                    or terminal_received_failure(con, item, attempt, value["reason"])
+                )
+            ):
+                raise ValueError("owner_work_read_resolution_state_invalid")
+        else:
+            request, item = retry_request(
+                view,
+                con,
+                value["work_item_id"],
+                purpose=value["purpose"],
+                retry_after_seconds=value["retry_after_seconds"],
+                idempotency_key=value["idempotency_key"],
+                comparison_controls=value["comparison_controls"],
+                now=now,
+            )
+        if not derive and request != value:
+            raise ValueError("owner_work_read_original_request_mismatch")
+        _policy_matches(con, policy, request["physical"])
+        if comparison_target is not None:
+            if (
+                derive
+                or request["kind"] != "retry_decision"
+                or request["purpose"] != "comparison"
+                or not isinstance(comparison_target, dict)
+                or set(comparison_target)
+                != {"policy_id", "route_id", "provider_config_ref", "model"}
+            ):
+                raise ValueError("owner_work_target_read_invalid")
+            projected = budget_policy_projection(policy)
+            target = projected["route_identity"].get(comparison_target["route_id"])
+            if (
+                target is None
+                or comparison_target["policy_id"] != projected["policy_id"]
+                or any(target[k] != comparison_target[k] for k in ("provider_config_ref", "model"))
+            ):
+                raise ValueError("owner_work_target_route_changed")
+        pre = con.execute(
+            "SELECT * FROM quick_scan_subject_send_receipt WHERE attempt_id=?",
+            (request["attempt_id"],),
+        ).fetchone()
+        if pre is None:
+            raise ValueError("owner_work_dispatch_proof_missing")
+        owner_receipt = receipt_record(con, pre)
+        result = dict(
+            protocol="stockqa.work_decision_inspection/"
+            + (
+                "1.2.0"
+                if request.get("purpose") == "retry_unusable_checkpoint"
+                else "1.1.0" if comparison_target is not None else "1.0.0"
+            ),
+            request=copy.deepcopy(request),
+            request_sha256=canonical_sha256(request),
+            subject_dispatch_receipt=owner_receipt,
+            observed_at=datetime.fromtimestamp(now, timezone.utc)
+            .isoformat()
+            .replace("+00:00", "Z"),
+            API_requests=0,
+            database_writes=0,
+        )
+        if comparison_target is not None:
+            result["target_route"] = copy.deepcopy(comparison_target)
+        return result
 
 
 def inspect_work_decision(
@@ -259,3 +250,11 @@ def derive_work_decision(
     if saved_research_task is not None:
         raise ValueError("saved_research_task_not_applicable_to_legacy_action")
     return _inspect(path, intent, policy=policy, clock=clock, derive=True)
+
+
+# Additive, versioned owner exports for cross-module consumers.
+MODULE_API_PROTOCOL = "stockqa.utils-quick_scan_work_decision_inspect-module/1.0.0"
+api_work_decision_inspect_policy_matches = _policy_matches
+MODULE_API_EXPORTS = frozenset(
+    set(globals().get("MODULE_API_EXPORTS", ())) | {"api_work_decision_inspect_policy_matches"}
+)

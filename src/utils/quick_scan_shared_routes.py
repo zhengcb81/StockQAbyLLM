@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import copy
 
+from src.interfaces.quick_scan_lifecycle import QuickScanWorkLifecyclePort
+
 KNOWN_FAILURES = frozenset(
     {"authentication_rejected", "model_or_endpoint_unavailable", "quota_exhausted", "rate_limited"}
 )
@@ -49,16 +51,17 @@ def next_route_questions(rows, targets, index):
 
 
 def routed_lifecycle(lifecycle, route, client):
-    from src.runners.llm_runner import QuickScanWorkLifecycle
-
-    if not isinstance(lifecycle, QuickScanWorkLifecycle):
+    if not isinstance(lifecycle, QuickScanWorkLifecyclePort):
         raise ValueError("shared_company_original_owner_required")
     return lifecycle.for_approved_company_route(route, client)
 
 
 def _saved_scope_summary(lifecycle):
     owner = lifecycle.registered_research_work().owner
-    scope = [qid for qid in owner.requested_question_ids if owner.entries[qid]["kind"] == "work"]
+    snapshot = owner.snapshot()
+    scope = [
+        qid for qid in snapshot.requested_question_ids if snapshot.entries[qid]["kind"] == "work"
+    ]
     progress = lifecycle.company_scan_progress(scope)
     saved = [row["question_id"] for row in progress["rows"] if row["checkpoint_id"] is not None]
     remaining = [row["question_id"] for row in progress["rows"] if row["checkpoint_id"] is None]
@@ -84,7 +87,8 @@ def run_ordered_company_scan(lifecycle, route_clients, *, config, questions, **o
 
     work = lifecycle.registered_research_work()
     owner = work.owner
-    targets = owner.ordered_route_targets
+    owner_snapshot = owner.snapshot()
+    targets = owner_snapshot.ordered_route_targets
     if targets is None:
         matching = [
             client
@@ -107,13 +111,17 @@ def run_ordered_company_scan(lifecycle, route_clients, *, config, questions, **o
                 return outcome
         return _saved_scope_summary(lifecycle)
     owner.check()
-    scope = [qid for qid in owner.requested_question_ids if owner.entries[qid]["kind"] == "work"]
+    scope = [
+        qid
+        for qid in owner_snapshot.requested_question_ids
+        if owner_snapshot.entries[qid]["kind"] == "work"
+    ]
     requested = {q.question_id for q in questions}
     if not options.get("recovery_only") and not set(scope) <= requested:
         raise ValueError("shared_company_complete_original_scope_required")
     if not scope:
         return None
-    work_ids = [owner.entries[q]["work_item_id"] for q in scope]
+    work_ids = [owner_snapshot.entries[q]["work_item_id"] for q in scope]
     # Recover the original resource ceiling even if current UI config changed.
     cap = None
     for target in targets:

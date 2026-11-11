@@ -378,6 +378,12 @@ def test_public_external_result_is_explicitly_versioned_and_owner_bound(
     proof = args["store"].get_external_context_use(original["work_transport"]["work_attempt_id"])[
         "proof"
     ]
+    expected_attempts = [
+        saved["receipt"]
+        for attempt in args["store"].list_attempts(proof["work_item_id"])
+        if (saved := args["store"].get_attempt_response(attempt["attempt_id"])) is not None
+    ]
+    assert receipt["attempts"] == expected_attempts
     assert (
         receipt["search_status"] == "executed" and receipt["search_receipt_id"] == proof["use_id"]
     )

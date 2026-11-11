@@ -38,7 +38,10 @@ _SOURCE_FIELDS = (
 
 
 def _sources(records, cutoff):
-    from .quick_scan_work_store import _canonical_source_urls, _sha256
+    from .quick_scan_work_store import (
+        api_work_store_canonical_source_urls as _canonical_source_urls,
+    )
+    from .quick_scan_work_store import api_work_store_sha256 as _sha256
 
     boundary = date.fromisoformat(cutoff)
     result = []
@@ -189,7 +192,8 @@ def assert_sent_context(context, prompt):
 
 def read_sources(connection, *, work_item_id, attempt_id, receipt):
     """Rebuild only from the original immutable join anchored in its receipt."""
-    from .quick_scan_research_intent import _encode, _hash
+    from .quick_scan_research_intent import api_research_intent_encode as _encode
+    from .quick_scan_research_intent import api_research_intent_hash as _hash
 
     anchor = receipt.get("research_intent_binding_sha256")
     if anchor is None:
@@ -248,9 +252,9 @@ def read_sources(connection, *, work_item_id, attempt_id, receipt):
     item = connection.execute(
         "SELECT * FROM work_item WHERE work_item_id=?", (work_item_id,)
     ).fetchone()
-    from .quick_scan_owner_refresh_journal import read
+    from .quick_scan_owner_refresh_journal import api_owner_refresh_journal_read
 
-    owner = read(connection, work_item_id)
+    owner = api_owner_refresh_journal_read(connection, work_item_id)
     expected = context["members"][work_item_id]
     if (
         item is None
@@ -268,3 +272,27 @@ def read_sources(connection, *, work_item_id, attempt_id, receipt):
     ):
         raise ValueError("provided_context_original_cutoff_or_subject_changed")
     return _sources(context["records"], context["information_cutoff"])
+
+
+MODULE_API_PROTOCOL = "stockqa.quick-scan-provided-context-adapter/1.0.0"
+STORE_TRANSACTION_PROTOCOL = "stockqa.quick_scan_work_store/1.4.0"
+STORE_TABLE_DEPENDENCIES = frozenset(
+    {
+        "quick_scan_research_intent",
+        "attempt",
+        "quick_scan_question_pack_member",
+        "quick_scan_question_pack_send",
+        "work_item",
+        "quick_scan_owner_refresh_binding",
+    }
+)
+api_provided_context_assert_sent = assert_sent_context
+api_provided_context_prepare = prepare_provided_context
+api_provided_context_read_sources = read_sources
+MODULE_API_EXPORTS = frozenset(
+    {
+        "api_provided_context_assert_sent",
+        "api_provided_context_prepare",
+        "api_provided_context_read_sources",
+    }
+)

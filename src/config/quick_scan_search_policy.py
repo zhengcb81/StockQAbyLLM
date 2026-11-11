@@ -796,3 +796,11 @@ def policy_receipt(
             )
         ),
     }
+
+
+# Versioned cross-module contract. Consumers use these exports, never owner internals.
+MODULE_API_PROTOCOL = "stockqa.quick-scan-search-policy-module/1.0.0"
+MODULE_API_EXPORTS = frozenset(["admit_search_route"])
+admit_search_route = _admit
+
+__all__.append("admit_search_route")

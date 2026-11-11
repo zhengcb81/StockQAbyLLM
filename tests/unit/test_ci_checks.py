@@ -175,6 +175,10 @@ def test_default_plan_is_offline_and_excludes_live(checks):
     assert "tests/benchmarks" not in joined
 
 
+def test_default_daily_targets_include_quick_scan_module_boundary_suite(checks):
+    assert "tests/unit/test_quick_scan_module_boundaries.py" in checks.DAILY_TEST_TARGETS
+
+
 def test_build_env_forces_offline_even_when_inherited(checks, monkeypatch):
     monkeypatch.setenv("STOCKQA_RUN_LIVE_E2E", "1")
     env = checks.build_env()

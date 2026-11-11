@@ -889,15 +889,17 @@ def test_received_recovery_runner_uses_original_inputs_before_model_spend_and_ge
     def prepare(config, confirmation, *, input_paths, recovery_only=False):
         assert recovery_only is True
         seen.append((config, confirmation, input_paths))
-        return SimpleNamespace(
-            recover_received_checkpoints=lambda **kw: dict(
-                API_requests=0,
-                model_calls=0,
-                recovered_work_item_ids=["WORK_SYNTHETIC"],
-                attached_work_item_ids=[],
-                deliveries=[],
-            )
+        from src.utils.quick_scan_refresh_execution import ApprovedRefreshSession
+
+        session = object.__new__(ApprovedRefreshSession)
+        session.recover_received_checkpoints = lambda **kw: dict(
+            API_requests=0,
+            model_calls=0,
+            recovered_work_item_ids=["WORK_SYNTHETIC"],
+            attached_work_item_ids=[],
+            deliveries=[],
         )
+        return session
 
     monkeypatch.setattr(execution, "prepare_execution", prepare)
     result = LLMRunner().run(

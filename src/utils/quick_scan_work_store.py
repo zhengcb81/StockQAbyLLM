@@ -24,7 +24,10 @@ from pathlib import Path
 from typing import Any, Callable, Iterator, Optional, Sequence, cast
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from src.core.models import QUICK_SCAN_ANSWER_DESCRIPTION_MAX_CHARS, REUSABLE_ANSWER_STATUSES
+from src.core.models import (
+    QUICK_SCAN_ANSWER_DESCRIPTION_MAX_CHARS,
+    REUSABLE_ANSWER_STATUSES,
+)
 from src.utils.quick_scan_external_journal import DDL_V9_ADDITIONS as _DDL_V9_ADDITIONS
 from src.utils.quick_scan_external_journal import (
     DDL_V10_ADDITIONS as _DDL_V10_ADDITIONS,
@@ -34,11 +37,11 @@ from src.utils.quick_scan_known_outcome_journal import (
 )
 from src.utils.quick_scan_mcp_journal import DDL_V13_ADDITIONS as _DDL_V13_ADDITIONS
 from src.utils.quick_scan_owner_refresh_journal import (
-    DDL_V14_ADDITIONS as _DDL_V14_ADDITIONS,
+    api_owner_refresh_journal_ddl_v14 as _DDL_V14_ADDITIONS,
 )
 from src.utils.quick_scan_prepaid_quota import DDL_V21_ADDITIONS as _DDL_V21_ADDITIONS
 from src.utils.quick_scan_question_pack_journal import (
-    DDL_V17_ADDITIONS as _DDL_V17_ADDITIONS,
+    api_question_pack_journal_ddl_v17 as _DDL_V17_ADDITIONS,
 )
 from src.utils.quick_scan_refresh_admission_journal import (
     DDL_V16_ADDITIONS as _DDL_V16_ADDITIONS,
@@ -62,9 +65,14 @@ from src.utils.quick_scan_external_continuation import (
 from src.utils.quick_scan_owner_budget_continuation import (
     DDL_V24_ADDITIONS as _DDL_V24_ADDITIONS,
 )
-from src.utils.quick_scan_research_output import DDL_V23_ADDITIONS as _DDL_V23_ADDITIONS
+from src.utils.quick_scan_research_output import (
+    api_research_output_ddl_v23 as _DDL_V23_ADDITIONS,
+)
+from src.utils.quick_scan_research_output import (
+    api_research_output_ddl_v27 as _DDL_V27_ADDITIONS,
+)
 
-SCHEMA_VERSION = 26
+SCHEMA_VERSION = 27
 # v25 is a table-copy migration, not an additive DDL release; the historical
 # fixture helper still asks every later version for its additions tuple.
 _DDL_V25_ADDITIONS: tuple[str, ...] = ()
@@ -720,6 +728,7 @@ _DDL = (
     + _DDL_V23_ADDITIONS
     + _DDL_V24_ADDITIONS
     + _DDL_V26_ADDITIONS
+    + _DDL_V27_ADDITIONS
 )
 
 _RESEARCH_VALIDATION_CODES = frozenset(
@@ -931,6 +940,29 @@ def _cost_to_micros(value: object, label: str, *, allow_zero: bool = False) -> i
     if micros > 9_223_372_036_854_775_807:
         raise ValueError(f"{label} exceeds the durable ledger range")
     return micros
+
+
+WORK_STORE_API_PROTOCOL = "stockqa.quick_scan_work_store/1.4.0"
+
+
+def sanitize_transport_receipt(receipt: object) -> dict:
+    """Public sanitized receipt projection for sibling transport components."""
+    return _sanitized_receipt(receipt)
+
+
+def canonical_native_events(value: object) -> list[dict]:
+    """Public bounded native-event projection for transport and result adapters."""
+    return _canonical_native_events(value)
+
+
+def validate_transport_text(value: object, label: str, *, maximum: int) -> str:
+    """Public bounded-text codec used by transport metadata validation."""
+    return _safe_text(value, label, maximum=maximum)
+
+
+def cost_to_micros(value: object, label: str, *, allow_zero: bool = False) -> int:
+    """Public decimal-to-ledger codec shared with the send-boundary module."""
+    return _cost_to_micros(value, label, allow_zero=allow_zero)
 
 
 def _budget_policy_projection(policy: object) -> dict:
@@ -1361,6 +1393,8 @@ class QuickScanWorkStore:
                 cls._validate_schema(connection, schema_version=24)
             elif version == 25:
                 cls._validate_schema(connection, schema_version=25)
+            elif version == 26:
+                cls._validate_schema(connection, schema_version=26)
             elif version != SCHEMA_VERSION:
                 raise ValueError("unsupported quick-scan work database schema version")
             if 1 <= version < 8:
@@ -1436,6 +1470,10 @@ class QuickScanWorkStore:
                 connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             if 1 <= version < 26:
                 for statement in _DDL_V26_ADDITIONS:
+                    connection.execute(statement)
+                connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+            if 1 <= version < 27:
+                for statement in _DDL_V27_ADDITIONS:
                     connection.execute(statement)
                 connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             cls._validate_schema(connection, schema_version=SCHEMA_VERSION)
@@ -1778,6 +1816,12 @@ class QuickScanWorkStore:
                 "binding_sha256 TEXT NOT NULL,",
                 "binding_sha256 TEXT NOT NULL, provided_context_json TEXT,",
             )
+        if schema_version >= 27:
+            for statement in _DDL_V27_ADDITIONS:
+                match = re.match(r"CREATE (TABLE|TRIGGER) ([A-Za-z_]+)", statement)
+                if match is None:
+                    raise ValueError("research output recovery schema mismatch")
+                expected[(match[1].lower(), match[2])] = statement
         if actual.keys() != expected.keys() or any(
             _normalized_sql(actual[key]) != _normalized_sql(statement)
             for key, statement in expected.items()
@@ -1850,7 +1894,7 @@ class QuickScanWorkStore:
             validate_mcp_tables(connection)
         if schema_version >= 14:
             from src.utils.quick_scan_owner_refresh_journal import (
-                validate_tables as validate_refresh_tables,
+                api_owner_refresh_journal_validate_tables as validate_refresh_tables,
             )
 
             validate_refresh_tables(connection)
@@ -1868,7 +1912,7 @@ class QuickScanWorkStore:
             validate_admission_tables(connection)
         if schema_version >= 17:
             from src.utils.quick_scan_question_pack_journal import (
-                validate_tables as validate_pack_tables,
+                api_question_pack_journal_validate_tables as validate_pack_tables,
             )
 
             validate_pack_tables(connection)
@@ -2292,7 +2336,9 @@ class QuickScanWorkStore:
         Absence is unavailable, never permission to resend. A corrupt or
         ambiguous record raises instead of returning replay-safe content.
         """
-        from src.utils.quick_scan_research_output import read
+        from src.utils.quick_scan_research_output import (
+            api_research_output_read as read,
+        )
 
         with closing(self._connect()) as connection:
             return read(self, connection, reference)
@@ -3088,6 +3134,27 @@ class QuickScanWorkStore:
                 )
             return result
 
+    def count_route_in_flight_budget_attempts(self, policy_id: str, route_id: str) -> int:
+        """Count active reservations for one route without exposing ledger SQL."""
+        _safe(policy_id, "policy_id")
+        _safe(route_id, "route_id")
+        with closing(self._connect()) as connection:
+            if not connection.in_transaction:
+                connection.execute("BEGIN")
+            if (
+                connection.execute(
+                    "SELECT 1 FROM quick_scan_budget_policy WHERE policy_id=?", (policy_id,)
+                ).fetchone()
+                is None
+            ):
+                raise KeyError("unknown budget policy")
+            row = connection.execute(
+                "SELECT COUNT(*) FROM quick_scan_budget_attempt "
+                "WHERE policy_id=? AND route_id=? AND in_flight=1",
+                (policy_id, route_id),
+            ).fetchone()
+            return int(row[0] or 0)
+
     def create_or_attach(
         self,
         *,
@@ -3203,7 +3270,7 @@ class QuickScanWorkStore:
                     raise WorkConflictError("logical work key conflicts with frozen inputs")
             if owner_refresh_binding is not None:
                 from src.utils.quick_scan_owner_refresh_journal import (
-                    bind as bind_owner_refresh,
+                    api_owner_refresh_journal_bind as bind_owner_refresh,
                 )
 
                 bind_owner_refresh(
@@ -3311,7 +3378,9 @@ class QuickScanWorkStore:
             for work_id in work_item_ids:
                 row = self._item(connection, work_id)
                 if row["status"] != "pending":
-                    from .quick_scan_owner_refresh_journal import read
+                    from .quick_scan_owner_refresh_journal import (
+                        api_owner_refresh_journal_read as read,
+                    )
 
                     bound = read(connection, work_id)
                     latest = connection.execute(
@@ -3419,7 +3488,9 @@ class QuickScanWorkStore:
                 "SELECT * FROM attempt WHERE work_item_id=? ORDER BY ordinal DESC LIMIT 1",
                 (work_item_id,),
             ).fetchone()
-            from .quick_scan_owner_refresh_journal import read
+            from .quick_scan_owner_refresh_journal import (
+                api_owner_refresh_journal_read as read,
+            )
 
             bound = read(connection, work_item_id)
             if (
@@ -3457,7 +3528,9 @@ class QuickScanWorkStore:
             if research_session_id is not None:
                 if allow_format_repair:
                     raise WorkConflictError("research session cannot masquerade as format repair")
-                from .quick_scan_research_session import guard_turn
+                from .quick_scan_research_session import (
+                    api_research_session_guard_turn as guard_turn,
+                )
 
                 research_turn_index = guard_turn(
                     self,
@@ -3579,7 +3652,9 @@ class QuickScanWorkStore:
                 now=now,
             )
             if research_turn_index is not None:
-                from .quick_scan_research_session import attach_turn
+                from .quick_scan_research_session import (
+                    api_research_session_attach_turn as attach_turn,
+                )
 
                 attach_turn(
                     connection,
@@ -3622,12 +3697,16 @@ class QuickScanWorkStore:
         )
         with self._transaction() as connection:
             now = self._now()
-            from src.utils.quick_scan_question_pack_journal import guard_individual
+            from src.utils.quick_scan_question_pack_journal import (
+                api_question_pack_journal_guard_individual as guard_individual,
+            )
 
             guard_individual(connection, self, attempt_id)
             item = self._item(connection, work_item_id)
             self._assert_lease(item, lease, now)
-            from src.utils.quick_scan_owner_refresh_journal import guard_send
+            from src.utils.quick_scan_owner_refresh_journal import (
+                api_owner_refresh_journal_guard_send as guard_send,
+            )
 
             guard_send(connection, dict(item), now=self._now())
             from src.utils.quick_scan_subject_journal import (
@@ -3762,7 +3841,9 @@ class QuickScanWorkStore:
             raise ValueError("response requires successful HTTP status and receipt hash")
         with self._transaction() as connection:
             now = self._now()
-            from src.utils.quick_scan_question_pack_journal import guard_individual
+            from src.utils.quick_scan_question_pack_journal import (
+                api_question_pack_journal_guard_individual as guard_individual,
+            )
 
             guard_individual(connection, self, attempt_id)
             item = self._item(connection, work_item_id)
@@ -3885,7 +3966,9 @@ class QuickScanWorkStore:
                 (attempt_id,),
             ).fetchone()
             if pack_member is not None:
-                from .quick_scan_question_pack_journal import _read
+                from .quick_scan_question_pack_journal import (
+                    api_question_pack_journal_read as _read,
+                )
 
                 pack = _read(connection, pack_member["pack_id"])
                 if (
@@ -4446,7 +4529,9 @@ class QuickScanWorkStore:
                 or provenance.get("actual_model") != attempt["model_requested"]
             ):
                 raise ValueError("historical checkpoint exact model binding mismatch")
-        from .quick_scan_provided_context import read_sources
+        from .quick_scan_provided_context import (
+            api_provided_context_read_sources as read_sources,
+        )
 
         provided = (
             read_sources(
@@ -4509,16 +4594,24 @@ class QuickScanWorkStore:
         """
         _safe(work_item_id, "work_item_id")
         _safe(attempt_id, "attempt_id")
+        owner_port = None
         if _recovery_session is not None:
             if observation_context is None or standard_answer is None:
                 raise ValueError("received_checkpoint_full_standard_inputs_required")
-            from .quick_scan_refresh_execution import ApprovedRefreshSession
+            from .quick_scan_owner_refresh_api import adapt_owner_refresh
 
-            if not isinstance(_recovery_session, ApprovedRefreshSession):
-                raise TypeError("received_checkpoint_native_session_required")
-            _recovery_session.assert_received_checkpoint_recovery(
-                work_item_id, attempt_id, store=self
-            )
+            try:
+                owner_port = adapt_owner_refresh(_recovery_session)
+            except ValueError as error:
+                raise TypeError("received_checkpoint_approved_owner_required") from error
+            snapshot = owner_port.snapshot()
+            if (
+                snapshot.kind != "approved"
+                or not snapshot.recovery_only
+                or not owner_port.is_bound_to(self)
+            ):
+                raise TypeError("received_checkpoint_recovery_owner_required")
+            owner_port.assert_received_checkpoint_recovery(work_item_id, attempt_id, store=self)
         if not isinstance(answer, dict) or set(answer) != {
             "entity_id",
             "question_id",
@@ -4601,7 +4694,9 @@ class QuickScanWorkStore:
             if external_projection is None
             else external_projection["source_urls"]
         )
-        from .quick_scan_provided_context import read_sources
+        from .quick_scan_provided_context import (
+            api_provided_context_read_sources as read_sources,
+        )
 
         with closing(self._connect()) as connection:
             provided_sources = read_sources(
@@ -4667,10 +4762,12 @@ class QuickScanWorkStore:
                 ):
                     return saved
                 raise WorkConflictError("answer checkpoint is immutable")
-            recovered_received = _recovery_session is not None
-            if _recovery_session is not None:
+            recovered_received = owner_port is not None
+            if owner_port is not None:
                 from .quick_scan_known_outcome_journal import (
-                    _physical,
+                    api_known_outcome_journal_physical as _physical,
+                )
+                from .quick_scan_known_outcome_journal import (
                     terminal_received_failure,
                 )
 
@@ -4679,7 +4776,7 @@ class QuickScanWorkStore:
                     (attempt_id, work_item_id),
                 ).fetchone()
                 recovering_leased_response = bool(
-                    getattr(_recovery_session, "recovery_only", False)
+                    owner_port.snapshot().recovery_only
                     and item["status"] == "leased"
                     and attempt_for_recovery is not None
                     and attempt_for_recovery["phase"] == "response_available"
@@ -4711,9 +4808,7 @@ class QuickScanWorkStore:
                     or physical["lease_epoch"] != lease.lease_epoch
                 ):
                     raise WorkConflictError("received_checkpoint_original_response_mismatch")
-                _recovery_session.assert_received_checkpoint_recovery(
-                    work_item_id, attempt_id, store=self
-                )
+                owner_port.assert_received_checkpoint_recovery(work_item_id, attempt_id, store=self)
             else:
                 self._assert_lease(item, lease, now)
             if item["identity_state"] != "verified":
@@ -4814,10 +4909,8 @@ class QuickScanWorkStore:
                     now,
                 ),
             )
-            if _recovery_session is not None and not recovering_leased_response:
-                _recovery_session.assert_received_checkpoint_recovery(
-                    work_item_id, attempt_id, store=self
-                )
+            if owner_port is not None and not recovering_leased_response:
+                owner_port.assert_received_checkpoint_recovery(work_item_id, attempt_id, store=self)
                 changed = connection.execute(
                     "UPDATE work_item SET status='result_ready',updated_at=? "
                     "WHERE work_item_id=? AND status='failed' AND lease_epoch=? "
@@ -4825,8 +4918,8 @@ class QuickScanWorkStore:
                     (now, work_item_id, lease.lease_epoch),
                 ).rowcount
             else:
-                if _recovery_session is not None:
-                    _recovery_session.assert_received_checkpoint_recovery(
+                if owner_port is not None:
+                    owner_port.assert_received_checkpoint_recovery(
                         work_item_id, attempt_id, store=self
                     )
                 changed = connection.execute(
@@ -5425,7 +5518,9 @@ class QuickScanWorkStore:
             result["package"] = None
             result["package_bytes"] = None
         if result["state"] == "blocked":
-            from .quick_scan_result_outbox import _SAFE_TOKEN
+            from .quick_scan_result_outbox import (
+                api_result_outbox_safe_token as _SAFE_TOKEN,
+            )
 
             if not isinstance(result["block_code"], str) or not _SAFE_TOKEN.fullmatch(
                 result["block_code"]
@@ -5525,7 +5620,9 @@ class QuickScanWorkStore:
 
     def mark_result_delivery_blocked(self, work_item_id: str, reason_code: str) -> dict:
         """Durably record why a completed answer cannot yet form a C06 package."""
-        from .quick_scan_result_outbox import _SAFE_TOKEN
+        from .quick_scan_result_outbox import (
+            api_result_outbox_safe_token as _SAFE_TOKEN,
+        )
 
         _safe(work_item_id, "work_item_id")
         reason_code = _safe_text(reason_code, "delivery block reason", maximum=160)
@@ -5664,7 +5761,9 @@ class QuickScanWorkStore:
         run/scan (QR2B), is refused inside the same transaction — a failed
         check writes no revision and leaves the head untouched.
         """
-        from .quick_scan_delivery_seal import _send_intent_iso
+        from .quick_scan_delivery_seal import (
+            api_delivery_seal_send_intent_iso as _send_intent_iso,
+        )
         from .quick_scan_observation_context import (
             bind_context_to_work_item,
             build_observation,
@@ -6496,7 +6595,9 @@ class QuickScanWorkStore:
             or cap < 1
         ):
             raise ValueError("original_company_request_scope_required")
-        from .quick_scan_owner_refresh_journal import read
+        from .quick_scan_owner_refresh_journal import (
+            api_owner_refresh_journal_read as read,
+        )
 
         for wid in work_ids:
             binding = read(connection, wid)
@@ -6576,7 +6677,9 @@ class QuickScanWorkStore:
             ]
 
     def get_owner_refresh_binding(self, work_item_id: str) -> Optional[dict]:
-        from src.utils.quick_scan_owner_refresh_journal import read
+        from src.utils.quick_scan_owner_refresh_journal import (
+            api_owner_refresh_journal_read as read,
+        )
 
         with closing(self._connect()) as connection:
             return read(connection, work_item_id)
@@ -6609,7 +6712,9 @@ class QuickScanWorkStore:
                     (entity_id, qid, binding["scope"], binding["scope_id"]),
                 ).fetchall()
 
-                from .quick_scan_owner_refresh_journal import checkpoint_successor
+                from .quick_scan_owner_refresh_journal import (
+                    api_owner_refresh_journal_checkpoint_successor as checkpoint_successor,
+                )
 
                 unresolved = [
                     row
@@ -6698,7 +6803,9 @@ class QuickScanWorkStore:
         search_mode: str = "native_search",
     ) -> dict:
         """Freeze native physical request membership; never dispatch or charge here."""
-        from src.utils.quick_scan_question_pack_journal import prepare
+        from src.utils.quick_scan_question_pack_journal import (
+            api_question_pack_journal_prepare as prepare,
+        )
 
         return cast(
             dict,
@@ -6721,7 +6828,9 @@ class QuickScanWorkStore:
         self, pack_id: str, *, budget_policy: dict, budget_route: dict, company_request_scope=None
     ) -> dict:
         """Atomically mark every member and reserve exactly one physical budget."""
-        from src.utils.quick_scan_question_pack_journal import mark
+        from src.utils.quick_scan_question_pack_journal import (
+            api_question_pack_journal_mark as mark,
+        )
 
         return cast(
             dict,
@@ -6736,7 +6845,9 @@ class QuickScanWorkStore:
 
     def validate_question_pack_for_post(self, pack_id: str) -> dict:
         """Re-read all current leases, owner refreshes and subject receipts at POST."""
-        from src.utils.quick_scan_question_pack_journal import validate_for_post
+        from src.utils.quick_scan_question_pack_journal import (
+            api_question_pack_journal_validate_for_post as validate_for_post,
+        )
 
         return cast(dict, validate_for_post(self, pack_id))
 
@@ -6754,7 +6865,9 @@ class QuickScanWorkStore:
         cost_source_ref: Optional[str] = None,
     ) -> dict:
         """Preserve the physical original once and update independent logical attempts."""
-        from src.utils.quick_scan_question_pack_journal import record
+        from src.utils.quick_scan_question_pack_journal import (
+            api_question_pack_journal_record as record,
+        )
 
         return cast(
             dict,
@@ -6774,7 +6887,9 @@ class QuickScanWorkStore:
 
     def get_question_pack(self, pack_id: str) -> Optional[dict]:
         """Read immutable membership plus the physical send/outcome projection."""
-        from src.utils.quick_scan_question_pack_journal import get
+        from src.utils.quick_scan_question_pack_journal import (
+            api_question_pack_journal_get as get,
+        )
 
         return cast(Optional[dict], get(self, pack_id))
 
@@ -6840,3 +6955,562 @@ class QuickScanWorkStore:
         from src.utils.quick_scan_known_outcome_journal import get
 
         return cast(Optional[dict], get(self, work_item_id))
+
+    @classmethod
+    def for_existing_ledger(
+        cls, path: Path, *, clock: Callable[[], float] = time.time
+    ) -> "QuickScanWorkStore":
+        """Attach to an existing ledger without initializing or migrating it."""
+        store = cls.__new__(cls)
+        store.path = Path(path)
+        store.clock = clock
+        store._create = False
+        store._transaction_state = threading.local()
+        return store
+
+    @contextmanager
+    def question_pack_operation(
+        self, pack_id: str, *, capability: object = None
+    ) -> Iterator[sqlite3.Connection]:
+        """Run the journal-owned atomic pack operation within one owner transaction.
+
+        The question-pack journal supplies its opaque module capability. This prevents
+        callers from selecting an arbitrary pack scope and receiving a raw connection.
+        """
+        from src.utils.quick_scan_question_pack_journal import (
+            api_question_pack_journal_validates_operation_capability,
+        )
+
+        if not api_question_pack_journal_validates_operation_capability(capability):
+            raise WorkConflictError("question_pack_operation_capability_required")
+        previous_id = getattr(self._transaction_state, "question_pack_id", None)
+        previous_capability = getattr(self._transaction_state, "question_pack_capability", None)
+        self._transaction_state.question_pack_capability = capability
+        self._transaction_state.question_pack_id = pack_id
+        try:
+            with self.transaction() as connection:
+                yield connection
+        finally:
+            self._transaction_state.question_pack_id = previous_id
+            self._transaction_state.question_pack_capability = previous_capability
+
+    @property
+    def current_question_pack_id(self) -> Optional[str]:
+        """Return the active pack only while its journal capability is present."""
+        from src.utils.quick_scan_question_pack_journal import (
+            api_question_pack_journal_validates_operation_capability,
+        )
+
+        capability = getattr(self._transaction_state, "question_pack_capability", None)
+        if not api_question_pack_journal_validates_operation_capability(capability):
+            return None
+        return getattr(self._transaction_state, "question_pack_id", None)
+
+    def assert_question_pack_terminal_persistence(
+        self,
+        handles: list[dict],
+        failures: dict[str, str],
+        *,
+        entity_id: str,
+        expected_bindings: dict[str, tuple[str, str, int]],
+    ) -> list[str]:
+        """Verify persisted terminal evidence without exposing SQL schema to callers.
+
+        The return value contains only detached question IDs in original pack
+        order. Current owner authority remains the lifecycle adapter's job.
+        """
+        from contextlib import closing
+
+        from src.utils.quick_scan_question_pack_journal import (
+            api_question_pack_journal_read_question_pack as read_question_pack,
+        )
+
+        if (
+            not isinstance(handles, list)
+            or not handles
+            or not isinstance(failures, dict)
+            or not isinstance(expected_bindings, dict)
+            or not isinstance(entity_id, str)
+            or not entity_id
+        ):
+            raise WorkConflictError("question_pack_terminal_proof_not_supported")
+
+        with closing(self.connect()) as connection:
+            connection.execute("BEGIN")
+            attempts = []
+            for handle in handles:
+                if not isinstance(handle, dict) or handle.get("claimed") is not True:
+                    raise WorkConflictError("question_pack_terminal_handle_invalid")
+                lease = handle.get("lease")
+                work_item_id = handle.get("work_item_id")
+                if not isinstance(work_item_id, str) or not work_item_id:
+                    raise WorkConflictError("question_pack_terminal_handle_invalid")
+                attempt = connection.execute(
+                    "SELECT * FROM attempt WHERE work_item_id=? ORDER BY ordinal DESC LIMIT 1",
+                    (work_item_id,),
+                ).fetchone()
+                if (
+                    attempt is None
+                    or attempt["lease_epoch"] != getattr(lease, "lease_epoch", None)
+                    or attempt["lease_token"] != getattr(lease, "lease_token", None)
+                ):
+                    raise WorkConflictError("question_pack_terminal_attempt_changed")
+                attempts.append(attempt)
+
+            if len({attempt["work_item_id"] for attempt in attempts}) != len(handles):
+                raise WorkConflictError("question_pack_terminal_duplicate_member")
+            attempt_ids = [attempt["attempt_id"] for attempt in attempts]
+            membership = connection.execute(
+                "SELECT pack_id,attempt_id FROM quick_scan_question_pack_member "
+                "WHERE attempt_id IN (SELECT value FROM json_each(?))",
+                (json.dumps(attempt_ids),),
+            ).fetchall()
+            if (
+                len(membership) != len(attempt_ids)
+                or len({member["pack_id"] for member in membership}) != 1
+            ):
+                raise WorkConflictError("question_pack_terminal_membership_changed")
+            pack = read_question_pack(connection, membership[0]["pack_id"])
+            if (
+                pack is None
+                or {member["attempt_id"] for member in pack["members"]} != set(attempt_ids)
+                or pack["physical_outcome"] != "response_available"
+                or pack["members_uncertain"]
+            ):
+                raise WorkConflictError("question_pack_terminal_physical_unresolved")
+            receipt = pack["execution_receipt"]
+            if (
+                not isinstance(receipt, dict)
+                or receipt.get("search_status") != "executed"
+                or not receipt.get("search_receipt_id")
+                or not receipt.get("source_urls")
+                or receipt.get("response_status") != "completed"
+                or type(receipt.get("http_status_code")) is not int
+                or not 200 <= receipt["http_status_code"] < 300
+            ):
+                raise WorkConflictError("question_pack_terminal_response_unknown")
+            budget = connection.execute(
+                "SELECT b.status,b.in_flight,b.http_status_code,t.terminal_outcome "
+                "FROM quick_scan_budget_attempt b "
+                "JOIN quick_scan_budget_terminal t USING(budget_attempt_id) "
+                "WHERE b.budget_attempt_id=?",
+                (pack["budget_attempt_id"],),
+            ).fetchone()
+            if budget is None or tuple(budget) != (
+                "settled",
+                0,
+                receipt["http_status_code"],
+                "completed",
+            ):
+                raise WorkConflictError("question_pack_terminal_fee_unresolved")
+
+            question_ids = []
+            found_failures = set()
+            for attempt in attempts:
+                work_item_id = attempt["work_item_id"]
+                item = self.item_in_transaction(connection, work_item_id)
+                question_id = item["question_id"]
+                binding = expected_bindings.get(question_id)
+                if (
+                    not isinstance(binding, tuple)
+                    or len(binding) != 3
+                    or binding[0] not in {"entity", "security", "segment"}
+                    or not isinstance(binding[1], str)
+                    or not binding[1]
+                    or type(binding[2]) is not int
+                ):
+                    raise WorkConflictError("question_pack_terminal_scope_unresolved")
+                scope, scope_id, generation = binding
+                if (
+                    item["entity_id"] != entity_id
+                    or item["scope"] != scope
+                    or item["scope_id"] != scope_id
+                    or item["generation"] != generation
+                    or item["lease_epoch"] != attempt["lease_epoch"]
+                    or item["uncertain_attempt_id"] is not None
+                    or attempt["phase"] != "response_available"
+                    or attempt["receipt_sha256"] != pack["receipt_sha256"]
+                ):
+                    raise WorkConflictError("question_pack_terminal_work_changed")
+                original = self.response_for_checkpoint(connection, attempt, pack["receipt_sha256"])
+                if (
+                    original["receipt_sha256"] != pack["receipt_sha256"]
+                    or original["receipt"].get("http_status_code") != receipt["http_status_code"]
+                ):
+                    raise WorkConflictError("question_pack_terminal_receipt_conflict")
+                checkpoint = connection.execute(
+                    "SELECT c.*,w.*,a.attempt_id AS bound_attempt_id "
+                    "FROM answer_checkpoint c "
+                    "JOIN work_item w ON w.work_item_id=c.work_item_id "
+                    "JOIN attempt a ON a.attempt_id=c.attempt_id "
+                    "WHERE c.work_item_id=?",
+                    (work_item_id,),
+                ).fetchone()
+                if question_id in failures:
+                    found_failures.add(question_id)
+                    event = connection.execute(
+                        "SELECT event_type,attempt_id,lease_epoch FROM work_event "
+                        "WHERE work_item_id=? AND to_status='failed' "
+                        "ORDER BY event_id DESC LIMIT 1",
+                        (work_item_id,),
+                    ).fetchone()
+                    if (
+                        item["status"] != "failed"
+                        or checkpoint is not None
+                        or event is None
+                        or tuple(event)
+                        != (
+                            "received_without_answer:" + failures[question_id],
+                            attempt["attempt_id"],
+                            attempt["lease_epoch"],
+                        )
+                    ):
+                        raise WorkConflictError("question_pack_terminal_failure_not_durable")
+                else:
+                    if (
+                        item["status"] not in {"result_ready", "delivered"}
+                        or checkpoint is None
+                        or checkpoint["attempt_id"] != attempt["attempt_id"]
+                    ):
+                        raise WorkConflictError("question_pack_terminal_checkpoint_missing")
+                    self.checkpoint_record(connection, checkpoint)
+                unresolved = connection.execute(
+                    "SELECT 1 FROM work_item w WHERE w.entity_id=? AND w.scope=? "
+                    "AND w.scope_id=? AND (w.status='uncertain' OR "
+                    "(w.status='leased' AND EXISTS (SELECT 1 FROM attempt a "
+                    "WHERE a.work_item_id=w.work_item_id AND a.phase IN "
+                    "('send_intent','response_available','uncertain')))) LIMIT 1",
+                    (entity_id, scope, scope_id),
+                ).fetchone()
+                if unresolved is not None:
+                    raise WorkConflictError("question_pack_terminal_owner_scope_unresolved")
+                question_ids.append(question_id)
+            if found_failures != set(failures):
+                raise WorkConflictError("question_pack_terminal_foreign_failure")
+            return question_ids
+
+    def inspect_question_skip_terminal(
+        self,
+        work_item_id: str,
+        *,
+        question_id: str,
+        entity_id: str,
+        scope: str,
+        scope_id: str,
+        generation: int,
+        identity: dict,
+        question_fingerprint: str,
+        subject_binding: dict,
+    ) -> dict:
+        """Return detached persistence evidence for a skipped failed question.
+
+        This is the storage owner's read-only snapshot operation. Owner-plan
+        policy remains with the lifecycle adapter that consumes the returned
+        binding; table names and SQL never escape this module.
+        """
+        from contextlib import closing
+
+        from src.utils.quick_scan_known_outcome_journal import derive_physical_receipt
+        from src.utils.quick_scan_owner_refresh_journal import (
+            api_owner_refresh_journal_read as read_owner_binding,
+        )
+        from src.utils.quick_scan_question_pack_journal import (
+            api_question_pack_journal_read_question_pack as read_question_pack,
+        )
+
+        if (
+            not isinstance(work_item_id, str)
+            or not work_item_id
+            or not isinstance(question_id, str)
+            or not question_id
+            or not isinstance(entity_id, str)
+            or not entity_id
+            or scope not in {"entity", "security", "segment"}
+            or not isinstance(scope_id, str)
+            or not scope_id
+            or type(generation) is not int
+            or not isinstance(identity, dict)
+            or not isinstance(subject_binding, dict)
+        ):
+            raise WorkConflictError("question_skip_terminal_request_invalid")
+
+        with closing(self.connect()) as connection:
+            connection.execute("BEGIN")
+            item = self.item_in_transaction(connection, work_item_id)
+            if (
+                item["status"] != "failed"
+                or item["question_id"] != question_id
+                or item["entity_id"] != entity_id
+                or item["scope"] != scope
+                or item["scope_id"] != scope_id
+                or item["generation"] != generation
+                or item["identity_revision"] != identity.get("identity_revision")
+                or item["source_binding_version"] != identity.get("source_binding_version")
+                or item["identity_state"] != identity.get("identity_state")
+                or item["source_binding_ref"] != identity.get("source_binding_ref")
+                or sorted(json.loads(item["source_binding_refs_json"]))
+                != sorted(identity.get("source_binding_refs") or [])
+                or item["identity_snapshot_sha256"] != identity.get("identity_snapshot_sha256")
+                or item["question_fingerprint"] != question_fingerprint
+                or item["lease_token"] is not None
+                or item["uncertain_attempt_id"] is not None
+            ):
+                raise WorkConflictError("question_skip_terminal_work_mismatch")
+            bound = read_owner_binding(connection, work_item_id)
+            if bound is None:
+                raise WorkConflictError("question_skip_terminal_registered_binding_mismatch")
+            if (
+                connection.execute(
+                    "SELECT 1 FROM answer_checkpoint WHERE work_item_id=?", (work_item_id,)
+                ).fetchone()
+                is not None
+            ):
+                raise WorkConflictError("question_skip_terminal_checkpoint_conflict")
+            attempt = connection.execute(
+                "SELECT * FROM attempt WHERE work_item_id=? ORDER BY ordinal DESC LIMIT 1",
+                (work_item_id,),
+            ).fetchone()
+            if attempt is None or attempt["phase"] != "response_available":
+                raise WorkConflictError("question_skip_terminal_known_response_required")
+            physical = derive_physical_receipt(self, connection, item, attempt)
+            if physical.get("pack_id") is None or physical["subject_binding"] != subject_binding:
+                raise WorkConflictError("question_skip_terminal_original_pack_required")
+            pack = read_question_pack(connection, physical["pack_id"])
+            if (
+                pack is None
+                or pack["members_uncertain"]
+                or pack["physical_outcome"] != "response_available"
+            ):
+                raise WorkConflictError("question_skip_terminal_pack_unresolved")
+
+            for member in pack["members"]:
+                sibling = self.item_in_transaction(connection, member["work_item_id"])
+                latest = connection.execute(
+                    "SELECT attempt_id,phase,receipt_sha256 FROM attempt "
+                    "WHERE work_item_id=? ORDER BY ordinal DESC LIMIT 1",
+                    (member["work_item_id"],),
+                ).fetchone()
+                if latest is None or tuple(latest) != (
+                    member["attempt_id"],
+                    "response_available",
+                    pack["receipt_sha256"],
+                ):
+                    raise WorkConflictError("question_skip_terminal_sibling_attempt_changed")
+                checkpoint = connection.execute(
+                    "SELECT c.*,w.*,a.attempt_id AS bound_attempt_id "
+                    "FROM answer_checkpoint c "
+                    "JOIN work_item w ON w.work_item_id=c.work_item_id "
+                    "JOIN attempt a ON a.attempt_id=c.attempt_id "
+                    "WHERE c.work_item_id=?",
+                    (member["work_item_id"],),
+                ).fetchone()
+                if sibling["status"] == "failed":
+                    if checkpoint is not None:
+                        raise WorkConflictError(
+                            "question_skip_terminal_sibling_checkpoint_conflict"
+                        )
+                elif sibling["status"] in {"result_ready", "delivered"} and checkpoint is not None:
+                    self.checkpoint_record(connection, checkpoint)
+                else:
+                    raise WorkConflictError("question_skip_terminal_sibling_unresolved")
+
+            unresolved = connection.execute(
+                "SELECT 1 FROM work_item w WHERE w.entity_id=? AND w.scope=? "
+                "AND w.scope_id=? AND (w.status='uncertain' OR "
+                "(w.status='leased' AND EXISTS (SELECT 1 FROM attempt a "
+                "WHERE a.work_item_id=w.work_item_id AND a.phase IN "
+                "('send_intent','response_available','uncertain')))) LIMIT 1",
+                (entity_id, scope, scope_id),
+            ).fetchone()
+            if unresolved is not None:
+                raise WorkConflictError("question_skip_terminal_owner_scope_unresolved")
+            return {"item": dict(item), "owner_binding": dict(bound)}
+
+    # Stable v1.1 operations shared with journal and transport components.
+    def connect(self):
+        """Open through the active owner implementation, including read-only views."""
+        return self._connect()
+
+    @contextmanager
+    def transaction(self) -> Iterator[sqlite3.Connection]:
+        """Delegate to the active owner transaction implementation."""
+        with self._transaction() as connection:
+            yield connection
+
+    validate_schema = _validate_schema
+    now = _now
+    record_event = _event
+    item_in_transaction = _item
+    assert_lease = _assert_lease
+    response_record = _response_record
+    response_for_checkpoint = _response_for_checkpoint
+    ensure_budget_policy_tx = _ensure_budget_policy_tx
+    reserve_budget_attempt_tx = _reserve_budget_attempt_tx
+    record_budget_outcome_tx = _record_budget_outcome_tx
+    external_checkpoint_projection = _external_checkpoint_projection
+    checkpoint_record = _checkpoint_record
+    store_side_tables = _store_side_tables
+    record_frozen_run_refs = _record_frozen_run_refs
+    prepare_standard_inputs = _prepare_standard_inputs
+    delivery_row = _delivery_row
+    result_delivery_record = _result_delivery_record
+
+
+# Versioned cross-module contract. Consumers use these exports, never owner internals.
+MODULE_API_PROTOCOL = "stockqa.quick-scan-work-store-module/1.9.0"
+WORK_STORE_API_METHODS = frozenset(
+    {
+        "amend_isolated_research_budget",
+        "apply_result_delivery_ack",
+        "assert_lease",
+        "attach_standard_inputs",
+        "begin_external_search",
+        "begin_mcp_stage",
+        "begin_result_delivery",
+        "bind_result_delivery_consumer",
+        "cancel_pending",
+        "claim_refresh_action_batch",
+        "confirm_result_delivery_not_sent",
+        "checkpoint_record",
+        "claim",
+        "company_scan_progress",
+        "count_route_in_flight_budget_attempts",
+        "configure_prepaid_search_quota",
+        "configure_quick_scan_budget",
+        "connect",
+        "consume_external_search",
+        "consume_mcp_stage",
+        "create_or_attach",
+        "current_question_pack_id",
+        "delivery_row",
+        "ensure_budget_policy_tx",
+        "external_checkpoint_projection",
+        "fail_received_without_answer",
+        "find_work_items",
+        "for_existing_ledger",
+        "freeze_observation_context_before_send",
+        "get_answer_checkpoint",
+        "get_attempt_response",
+        "get_attempt_transmission",
+        "get_external_context_use",
+        "get_external_search",
+        "get_item",
+        "get_mcp_binding",
+        "get_mcp_stage",
+        "get_observation_context",
+        "get_owner_refresh_binding",
+        "get_question_pack",
+        "get_research_visible_output",
+        "get_result_delivery",
+        "get_standard_answer",
+        "get_subject_dispatch_receipt",
+        "get_owner_retry_decision",
+        "get_quick_scan_budget_status",
+        "item_in_transaction",
+        "is_released_unsent",
+        "list_attempts",
+        "list_delivery_revisions",
+        "list_events",
+        "list_result_deliveries",
+        "list_result_delivery_events",
+        "list_result_ready_without_delivery",
+        "list_result_seal_candidates",
+        "list_run_items",
+        "list_run_refs",
+        "lookup_external_search",
+        "mark_question_pack_send_intent",
+        "mark_result_delivery_blocked",
+        "mark_send_intent",
+        "now",
+        "note_late_receipt",
+        "owner_refresh_projection",
+        "persist_subject_dispatch_receipt",
+        "prepare_attempt",
+        "prepare_question_pack",
+        "prepare_result_delivery",
+        "prepare_standard_inputs",
+        "reconcile_budget_attempt",
+        "register_external_research_continuation",
+        "release_unsent",
+        "assert_question_pack_terminal_persistence",
+        "inspect_question_skip_terminal",
+        "question_pack_operation",
+        "record_attempt_outcome",
+        "record_budget_outcome",
+        "record_budget_outcome_tx",
+        "record_event",
+        "record_external_context_use_intent",
+        "record_external_search",
+        "record_frozen_run_refs",
+        "record_mcp_stage",
+        "record_owner_retry_decision",
+        "record_question_pack_outcome",
+        "recover_expired",
+        "reserve_budget_attempt",
+        "reserve_budget_attempt_tx",
+        "resolve_known_response",
+        "seal_uncertain_budget_attempt",
+        "response_for_checkpoint",
+        "response_record",
+        "result_delivery_record",
+        "save_answer_checkpoint",
+        "store_side_tables",
+        "supersede_result_delivery",
+        "transaction",
+        "validate_question_pack_for_post",
+        "validate_schema",
+    }
+)
+MODULE_API_EXPORTS = frozenset(
+    {
+        "BudgetAdmissionError",
+        "BudgetPolicyConflict",
+        "ENTITY_ID",
+        "Lease",
+        "LeaseFencedError",
+        "QuickScanWorkStore",
+        "SendPermit",
+        "WORK_STORE_API_METHODS",
+        "WorkConflictError",
+        "SCHEMA_VERSION",
+        "budget_policy_projection",
+        "canonical_native_events",
+        "canonical_source_urls",
+        "cost_to_micros",
+        "quick_scan_receipt_sha256",
+        "sanitize_transport_receipt",
+        "unmapped_run_scan_pairs",
+        "validate_safe_identifier",
+        "validate_timestamp",
+        "validate_transport_text",
+    }
+)
+ENTITY_ID = _ENTITY_ID
+budget_policy_projection = _budget_policy_projection
+canonical_source_urls = _canonical_source_urls
+validate_safe_identifier = _safe
+validate_timestamp = _timestamp
+unmapped_run_scan_pairs = _unmapped_run_scan_pairs
+
+
+# Additive, versioned owner exports for cross-module consumers.
+MODULE_API_PROTOCOL = "stockqa.quick-scan-work-store-module/1.9.0"
+api_work_store_budget_policy_projection = _budget_policy_projection
+api_work_store_canonical_bindings = _canonical_bindings
+api_work_store_canonical_source_urls = _canonical_source_urls
+api_work_store_safe = _safe
+api_work_store_sanitized_receipt = _sanitized_receipt
+api_work_store_sensitive_query_parameter = _sensitive_query_parameter
+api_work_store_sha256 = _sha256
+MODULE_API_EXPORTS = frozenset(
+    set(globals().get("MODULE_API_EXPORTS", ()))
+    | {
+        "api_work_store_budget_policy_projection",
+        "api_work_store_canonical_bindings",
+        "api_work_store_canonical_source_urls",
+        "api_work_store_safe",
+        "api_work_store_sanitized_receipt",
+        "api_work_store_sensitive_query_parameter",
+        "api_work_store_sha256",
+    }
+)

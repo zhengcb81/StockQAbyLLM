@@ -7,9 +7,40 @@ caller schedules work and renders results using detached projections.
 from __future__ import annotations
 
 import copy
+import inspect
 import json
+import weakref
+from typing import Any
 
 from src.utils import quick_scan_company_context
+
+COMPANY_SCAN_RUNTIME_PORT_PROTOCOL = "stockqa.company_scan_runtime_port/2.2.0"
+_RUNTIME_SERVICES: weakref.WeakKeyDictionary[object, Any] = weakref.WeakKeyDictionary()
+_RUNTIME_TASK_CONTRACTS: weakref.WeakKeyDictionary[object, dict[str, Any]] = (
+    weakref.WeakKeyDictionary()
+)
+_RUNTIME_SESSIONS: weakref.WeakKeyDictionary[object, Any] = weakref.WeakKeyDictionary()
+RUNTIME_SERVICES_PROTOCOL = "iqs.agent-runtime-services/1.0.0"
+
+
+class _RuntimeSessionHandle:
+    """Opaque handle for a StockQA-owned research SDK session."""
+
+    __slots__ = ("__weakref__",)
+
+
+def _session_for(handle):
+    try:
+        return _RUNTIME_SESSIONS[handle]
+    except KeyError as error:
+        raise RuntimeError("company runtime session is unavailable") from error
+
+
+def _services_for(runtime):
+    try:
+        return _RUNTIME_SERVICES[runtime]
+    except KeyError as error:
+        raise RuntimeError("company runtime is not initialized") from error
 
 
 def is_admitted_research_service(services):
@@ -18,33 +49,214 @@ def is_admitted_research_service(services):
     return isinstance(services, OwnerResearchServices)
 
 
+def _service_task_contract(services):
+    """Read only the detached contract exported by the owner service."""
+    contract = getattr(services, "task_contract", None)
+    from src.utils.quick_scan_company_api import company_agent_public_api
+
+    task_snapshot = company_agent_public_api("task_snapshot").task_snapshot
+
+    task = getattr(services, "task_handle", None)
+    if task is not None:
+        current = task_snapshot(task)
+        if contract is not None and current != contract:
+            raise ValueError("original_service_bound_task_required")
+        return current
+    if isinstance(contract, dict):
+        return copy.deepcopy(contract)
+    return task_snapshot(services.task)
+
+
+def create_company_research_runtime(services, *, task_contract=None):
+    """Create the owner-validated opaque Runtime service port for one task DTO."""
+    if isinstance(services, CompanyResearchRuntime):
+        if task_contract is not None and not services.is_bound_to_task_contract(task_contract):
+            raise ValueError("original_service_bound_task_required")
+        return services
+    return CompanyResearchRuntime(services, task_contract=task_contract)
+
+
 class CompanyResearchRuntime:
-    def __init__(self, services):
-        self._services = services
+    __slots__ = ("__weakref__",)
+
+    def __init__(self, services, *, task_contract=None):
+        if not is_admitted_research_service(services):
+            raise ValueError("original_owner_research_services_required")
+        if task_contract is None:
+            task_contract = _service_task_contract(services)
+        if not isinstance(task_contract, dict):
+            raise ValueError("company_task_contract_required")
+        if _service_task_contract(services) != task_contract:
+            raise ValueError("original_service_bound_task_required")
+        services.bind_task_owner_binding(copy.deepcopy(task_contract.get("owner_binding")))
+        _RUNTIME_SERVICES[self] = services
+        _RUNTIME_TASK_CONTRACTS[self] = copy.deepcopy(task_contract)
+
+    @property
+    def protocol(self):
+        return RUNTIME_SERVICES_PROTOCOL
+
+    def describe(self):
+        services = _services_for(self)
+        from src.providers.llm_research_client import ResearchChatSession
+
+        step_parameters = inspect.signature(ResearchChatSession.step).parameters
+        contract = _RUNTIME_TASK_CONTRACTS.get(self)
+        return {
+            "protocol": RUNTIME_SERVICES_PROTOCOL,
+            "task_contract_sha256": None if contract is None else contract.get("contract_sha256"),
+            "capabilities": {
+                "native_search": bool(services.native_search),
+                "continuation_context": "continuation_context" in step_parameters,
+                "final_json_channel": True,
+                "original_semantic_resources": True,
+            },
+            "synthetic": False,
+        }
+
+    def route(self, envelope):
+        client = _services_for(self).client_for(copy.deepcopy(envelope))
+        return {"provider": client.provider_name, "model": client.model}
+
+    def create_session(self, envelope, session_spec):
+        if not isinstance(session_spec, dict):
+            raise ValueError("runtime_session_spec_object_required")
+        allowed = {
+            "system_prefix",
+            "tools",
+            "max_output_tokens",
+            "session_input_tokens",
+            "session_output_tokens",
+            "wall_seconds",
+            "response_channel",
+        }
+        if set(session_spec) - allowed or not {
+            "system_prefix",
+            "tools",
+            "max_output_tokens",
+            "session_input_tokens",
+            "session_output_tokens",
+            "wall_seconds",
+        }.issubset(session_spec):
+            raise ValueError("runtime_session_spec_invalid")
+        services = _services_for(self)
+        from src.providers.llm_research_client import ResearchChatSession
+
+        client = services.client_for(copy.deepcopy(envelope))
+        options = copy.deepcopy(session_spec)
+        session = ResearchChatSession(
+            client, **options, **({"native_search": True} if services.native_search else {})
+        )
+        handle = _RuntimeSessionHandle()
+        _RUNTIME_SESSIONS[handle] = (self, session)
+        return handle
+
+    def step_session(self, handle, step_request):
+        owner, session = _session_for(handle)
+        if owner is not self:
+            raise ValueError("runtime_session_handle_owner_mismatch")
+        if not isinstance(step_request, dict) or set(step_request) - {
+            "user_context",
+            "tool_results",
+            "continuation_context",
+        }:
+            raise ValueError("runtime_session_step_request_invalid")
+        result = session.step(**copy.deepcopy(step_request))
+        if not isinstance(result, dict):
+            raise ValueError("runtime_session_step_projection_invalid")
+        json.dumps(result, ensure_ascii=False, allow_nan=False)
+        return copy.deepcopy(result)
+
+    def close_session(self, handle):
+        if isinstance(handle, _RuntimeSessionHandle):
+            try:
+                owner, _ = _RUNTIME_SESSIONS[handle]
+            except KeyError:
+                return
+            if owner is self:
+                del _RUNTIME_SESSIONS[handle]
+
+    def generation_scope(self, envelope):
+        return _services_for(self).generation_scope(copy.deepcopy(envelope))
+
+    def search(self, envelope):
+        return copy.deepcopy(_services_for(self).search(copy.deepcopy(envelope)))
+
+    def observe_native_step(self, step):
+        return _services_for(self).observe_native_step(copy.deepcopy(step))
+
+    def observe_native_failure(self, error):
+        return _services_for(self).observe_native_failure(error)
 
     @property
     def model(self):
-        return self._services.client.model
+        return _services_for(self).client.model
 
     @property
     def provider(self):
-        return self._services.client.provider_name
+        return _services_for(self).client.provider_name
+
+    def is_bound_to_task_contract(self, task_contract):
+        """Compare the attached task only through its owner-published DTO."""
+        if not isinstance(task_contract, dict):
+            return False
+        try:
+            return _service_task_contract(_services_for(self)) == task_contract
+        except (AttributeError, TypeError, ValueError):
+            return False
+
+    def has_native_session(self):
+        """Whether the owner admitted this work through its native session."""
+        return bool(_services_for(self).native_session)
+
+    def attempt_observations(self, *, transport_origin):
+        """Return the owner's detached, run-scoped attempt observations."""
+        return _services_for(self).attempt_observations(transport_origin=transport_origin)
+
+    def supports_intent_recovery(self):
+        return callable(getattr(_services_for(self), "recover_intent", None))
+
+    def recover_intent(self, intent):
+        if not self.supports_intent_recovery():
+            raise ValueError("native_intent_lookup_not_available")
+        return _services_for(self).recover_intent(copy.deepcopy(intent))
+
+    def request_resume(self, attempt_ref):
+        return _services_for(self).request_resume(attempt_ref)
+
+    def inspect_attempt(self, attempt_ref):
+        return _services_for(self).inspect_attempt(attempt_ref)
+
+    def validate_registered_inputs(self):
+        return _services_for(self).validate_registered_inputs()
 
     def original_inputs(self):
-        return quick_scan_company_context.company_scan_inputs(self._services.lifecycle)
+        return quick_scan_company_context.company_scan_inputs(_services_for(self).lifecycle)
+
+    def original_scan_context(self):
+        """Return the owner-issued safe contract for the registered company scan."""
+        return quick_scan_company_context.company_scan_contract(_services_for(self).lifecycle)
+
+    def original_semantic_resources(self):
+        """Resolve the semantic package using this task's registered owner."""
+        services = _services_for(self)
+        context = self.original_scan_context().observation_context
+        from src.utils.quick_scan_owner_refresh_api import original_semantic_resources
+
+        return copy.deepcopy(original_semantic_resources(services.owner, context))
 
     def pack_group_key(self, question_id):
-        services = self._services
+        services = _services_for(self)
         return services.lifecycle.question_pack_group_key(services.questions[question_id])
 
     def check_admission(self):
-        self._services.owner.check()
+        _services_for(self).owner.check()
 
     def assert_execution_controls(self, **controls):
-        self._services.owner.assert_execution_controls(**controls)
+        _services_for(self).owner.assert_execution_controls(**controls)
 
     def work_item_id(self, question_id):
-        entry = self._services.owner.entries.get(question_id)
+        entry = _services_for(self).owner.snapshot().entries.get(question_id)
         return (
             entry["work_item_id"]
             if isinstance(entry, dict) and entry.get("kind") == "work"
@@ -52,7 +264,7 @@ class CompanyResearchRuntime:
         )
 
     def _matching_attempt(self, work_id, receipt, *, successful=False):
-        store = self._services.store
+        store = _services_for(self).store
         matches = [
             row["attempt_id"]
             for row in store.list_attempts(work_id)
@@ -62,7 +274,7 @@ class CompanyResearchRuntime:
         return matches[0] if len(matches) == 1 else None
 
     def inspect_answer_reference(self, work_id, reference):
-        inspected = self._services.inspect_attempt(reference)
+        inspected = _services_for(self).inspect_attempt(reference)
         saved = inspected.get("response_saved")
         if not inspected.get("known") or not isinstance(saved, dict):
             return None
@@ -82,7 +294,7 @@ class CompanyResearchRuntime:
             project_quick_scan_answer_sources,
         )
 
-        services = self._services
+        services = _services_for(self)
         inspected = services.inspect_attempt(reference)
         if (
             not inspected.get("known")
@@ -164,7 +376,7 @@ class CompanyResearchRuntime:
         )
 
     def checkpoint(self, work_id, answer, attempt_id, provider_attempt_id):
-        store = self._services.store
+        store = _services_for(self).store
         saved = store.get_answer_checkpoint(work_id)
         if saved is None:
             return {"status": "missing"}
@@ -185,7 +397,7 @@ class CompanyResearchRuntime:
     def publish_answer(self, question_id, answer, reference, *, checkpoint_exists):
         from src.utils.quick_scan_work_store import LeaseFencedError, WorkConflictError
 
-        services = self._services
+        services = _services_for(self)
         stage = "restore"
         try:
             if not checkpoint_exists:
@@ -199,10 +411,10 @@ class CompanyResearchRuntime:
     def delivery(self, work_id):
         from src.utils.quick_scan_delivery_seal import get_matching_sealed_delivery
 
-        services = self._services
+        services = _services_for(self)
         saved = services.store.get_result_delivery(work_id)
         matching = get_matching_sealed_delivery(
-            services.store, work_id, authority=services.owner.bundle["authority"]
+            services.store, work_id, authority=services.owner.snapshot().bundle["authority"]
         )
         return {
             "state": None if saved is None else saved["state"],

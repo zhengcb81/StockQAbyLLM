@@ -105,6 +105,39 @@ def _policy(max_requests=20, max_cost=2):
     }
 
 
+@pytest.mark.parametrize("capability", [None, object(), "question-pack-journal"])
+def test_pack_transaction_rejects_a_caller_supplied_pack_id_without_capability(
+    pack_store, capability
+):
+    store, _clock = pack_store
+
+    with pytest.raises(WorkConflictError, match="question_pack_operation_capability_required"):
+        with store.question_pack_operation("PACK_ALREADY_KNOWN", capability=capability):
+            pytest.fail("an unprivileged caller must never receive the raw SQLite connection")
+
+    assert store.current_question_pack_id is None
+
+
+def test_setting_private_pack_id_cannot_authorize_an_individual_member_send(pack_store):
+    store, _clock = pack_store
+    members = _members(store, count=1)
+    pack = _prepare(store, members)
+    member = pack["members"][0]
+
+    # Simulate an ordinary peer writing the store's private thread-local field.
+    # A pack ID alone must never stand in for the journal-owned capability.
+    store._transaction_state.question_pack_id = pack["pack_id"]
+    with pytest.raises(
+        WorkConflictError,
+        match="question pack member requires the atomic question pack operation",
+    ):
+        store.mark_send_intent(
+            member["work_item_id"],
+            members[0]["lease"],
+            member["attempt_id"],
+        )
+
+
 def _mark(store, pack, policy=None):
     return store.mark_question_pack_send_intent(
         pack["pack_id"],

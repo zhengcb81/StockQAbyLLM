@@ -11,7 +11,9 @@ from src.config.settings import DISPLAY_QUESTION_TRUNCATE, DISPLAY_TITLE_TRUNCAT
 from src.core.exceptions import ProcessingError, ValidationError
 from src.core.models import Answer, QABatchResult, QAResult, Question
 from src.interfaces.progress_reporter import ProgressReporter
+from src.interfaces.quick_scan_lifecycle import QuickScanWorkLifecyclePort
 from src.interfaces.search_provider import SearchProvider
+from src.interfaces.transport_outcome import UncertainTransportOutcome
 from src.services.answer_generator import AnswerGenerator
 from src.utils.console_reporter import ConsoleReporter
 from src.utils.logger import get_logger
@@ -69,20 +71,17 @@ def _provenance_metadata(provenance: Dict[str, Any]) -> Dict[str, Any]:
 
 def _uncertain_transport_metadata(error: BaseException) -> Dict[str, Any]:
     """Retain an original uncertain receipt, without making a checkpoint answer."""
-    from src.utils.quick_scan_work_store import _sanitized_receipt
-    from src.utils.quick_scan_work_transport import QuickScanWorkUncertainError
-
     seen: set[int] = set()
     current: Optional[BaseException] = error
     for _ in range(16):
         if current is None or id(current) in seen:
             break
         seen.add(id(current))
-        if isinstance(current, QuickScanWorkUncertainError):
+        if isinstance(current, UncertainTransportOutcome):
             attempt_id = current.attempt_id
             if not isinstance(attempt_id, str) or not attempt_id or len(attempt_id) > 160:
                 return {}
-            receipt = _sanitized_receipt(current.attempt_receipt)
+            receipt = dict(current.attempt_receipt)
             outcome = {
                 "scope": "provider_dispatch",
                 "state": "uncertain",
@@ -123,7 +122,7 @@ class QAEngine:
         search_provider: SearchProvider,
         answer_generator: Optional[AnswerGenerator] = None,
         progress_reporter: Optional[ProgressReporter] = None,
-        work_item_lifecycle: Optional[Any] = None,
+        work_item_lifecycle: Optional[QuickScanWorkLifecyclePort] = None,
     ):
         """初始化 Q&A 引擎。
 
@@ -220,11 +219,11 @@ class QAEngine:
         Raises:
             ValidationError: 问题列表验证失败
         """
-        from src.providers.llm_client import _validate_search_generation_controls
+        from src.providers.llm_client import validate_search_generation_controls
 
         if type(question_pack_size) is not int or not 1 <= question_pack_size <= 30:
             raise ValueError("question_pack_size must be an integer from 1 to 30")
-        _validate_search_generation_controls(thinking_enabled, max_output_tokens)
+        validate_search_generation_controls(thinking_enabled, max_output_tokens)
         if not question_texts:
             raise ValidationError(message="问题列表不能为空")
         if question_pack_size > 1:
@@ -603,26 +602,16 @@ class QAEngine:
                     ):
                         execution = response.execution_metadata
                         if "question_pack_transport" in execution:
-                            from src.utils.quick_scan_work_transport import (
-                                project_question_pack_transport,
-                                project_quick_scan_search,
-                            )
-
                             # A rejected member is not an answer, but the actual
                             # physical request still happened. Re-read its owner
                             # while the original pack binding is active; an
                             # arbitrary nested model field cannot certify it.
-                            project_question_pack_transport(execution)
-                            original = execution["work_transport"]["final_receipt"]
-                            search = project_quick_scan_search(original)
-                            failure_transport_metadata = {
-                                "model_requested": original.get("requested_model"),
-                                "actual_model": original.get("actual_model"),
-                                "request_id": original.get("request_id"),
-                                "response_id": original.get("response_id"),
-                                "search_status": search.get("search_status"),
-                                "search_receipt_id": search.get("search_receipt_id"),
-                            }
+                            projector = getattr(lifecycle, "project_question_pack_failure", None)
+                            if not callable(projector):
+                                raise ValueError("question-pack transport projector is unsupported")
+                            failure_transport_metadata = projector(execution)
+                            if not isinstance(failure_transport_metadata, dict):
+                                raise ValueError("question-pack transport projection is invalid")
                         elif execution.get("search_status") in {
                             "unverified",
                             "unavailable",
@@ -741,6 +730,12 @@ class QAEngine:
                     if prove_terminal(handles, member_failures) is not True:
                         raise ValueError("question_pack_terminal_proof_not_positive")
                 except Exception as proof_error:
+                    # A failed durable proof cannot authorize a later paid pack.
+                    # Keep all future questions undispatched until the owner can
+                    # reconcile this original physical response.
+                    stopped_reason = stopped_reason or (
+                        "question_pack_terminal_proof_failed:" + type(proof_error).__name__
+                    )
                     for index, question, _ in members:
                         if question.question_id in member_failures:
                             output[index].metadata["question_pack_continuation_blocked"] = type(
@@ -861,7 +856,7 @@ class QAEngine:
         if owner_refresh_session is not None:
             if quick_scan_context is None:
                 raise ValueError("owner refresh output requires its quick-scan run context")
-            from src.utils.quick_scan_owner_refresh import build_refresh_result
+            from src.utils.quick_scan_owner_refresh_api import build_refresh_result
 
             result_dict = build_refresh_result(
                 batch_result, owner_refresh_session, quick_scan_context

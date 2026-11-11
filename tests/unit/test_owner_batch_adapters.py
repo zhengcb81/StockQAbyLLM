@@ -11,6 +11,7 @@ import pytest
 from src.core.models import Question
 from src.runners.llm_runner import QuickScanWorkLifecycle
 from src.utils import quick_scan_refresh_admission_journal as journal
+from src.utils.quick_scan_owner_refresh import OwnerRefreshSession
 from src.utils.quick_scan_owner_research import OwnerResearchServices
 from src.utils.quick_scan_refresh_admission import AdmissionRejected
 from src.utils.quick_scan_refresh_execution import ApprovedRefreshSession
@@ -25,6 +26,9 @@ def synthetic_adapter(prepared):
     with closing(store._connect()) as db:
         record = journal.read_record(db, confirmation)
     owner = object.__new__(ApprovedRefreshSession)
+    owner.native = object.__new__(OwnerRefreshSession)
+    owner.native.store = store
+    owner.native.observation_context = None
     owner.service = SimpleNamespace(store=store)
     owner.proof = {"confirmation": {"confirmation_id": confirmation}}
     owner.record = record
@@ -179,7 +183,32 @@ def test_explicit_service_opt_in_defaults_off():
 @pytest.mark.parametrize("enabled", [False, True])
 def test_service_uses_selected_branch_without_extra_or_partial_handle_claims(enabled):
     services = object.__new__(OwnerResearchServices)
+    from src.interfaces.quick_scan_owner_refresh import OwnerRefreshSnapshot
+
+    services.owner = SimpleNamespace(
+        snapshot=lambda: OwnerRefreshSnapshot(
+            kind="approved",
+            plan={},
+            proof={},
+            record={},
+            bundle={},
+            entries={},
+            fields={},
+            work={},
+            deferred={},
+            scope_bindings={},
+            observation_context={},
+            ordered_route_targets=None,
+            requested_question_ids=(),
+            needs_new_dispatch=False,
+            recovery_only=False,
+            recovery_work_item_ids=(),
+            remaining_work_item_ids=(),
+        ),
+        check=lambda: None,
+    )
     services._validate_envelope = lambda e: None
+    services.request_scope = None
     services._active = False
     services.native_session = False
     services.owner_batch_claim = enabled
@@ -200,6 +229,10 @@ def test_service_uses_selected_branch_without_extra_or_partial_handle_claims(ena
         raise RuntimeError("synthetic stop before original transport boundary")
 
     services.lifecycle = SimpleNamespace(
+        registered_research_work=lambda: SimpleNamespace(
+            budget_policy={"synthetic": "budget"},
+            budget_route={"quota_group": "synthetic"},
+        ),
         before_question=singleton,
         before_registered_questions=batch,
         _budget_policy={"synthetic": "budget"},

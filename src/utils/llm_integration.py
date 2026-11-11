@@ -1010,7 +1010,7 @@ class OrderedSearchProviderCascade(SearchProvider):
 
     def _preferred_route_busy(self, route_id: str) -> bool:
         from src.utils.quick_scan_work_transport import (
-            _BUDGET_BINDING,
+            current_quick_scan_budget_binding,
             own_reservation_held,
         )
 
@@ -1019,7 +1019,7 @@ class OrderedSearchProviderCascade(SearchProvider):
         # already enforced capacity atomically at reserve time).
         if own_reservation_held():
             return False
-        budget = _BUDGET_BINDING.get()
+        budget = current_quick_scan_budget_binding()
         if budget is None:
             return False
         store = budget.store
@@ -1033,24 +1033,9 @@ class OrderedSearchProviderCascade(SearchProvider):
         if route_limit is None:
             return False
         try:
-            store.get_quick_scan_budget_status(policy["policy_id"])
+            in_flight = store.count_route_in_flight_budget_attempts(policy["policy_id"], route_id)
         except Exception:
             return False
-        try:
-            import sqlite3
-
-            connection = sqlite3.connect(store.path)
-            try:
-                row = connection.execute(
-                    "SELECT COUNT(*) FROM quick_scan_budget_attempt "
-                    "WHERE policy_id=? AND route_id=? AND in_flight=1",
-                    (policy["policy_id"], route_id),
-                ).fetchone()
-                in_flight = row[0] if row else 0
-            finally:
-                connection.close()
-        except Exception:
-            in_flight = 0
         return bool(in_flight >= route_limit)
 
     def search(self, query: str) -> List[SearchResult]:
@@ -1071,13 +1056,13 @@ class OrderedSearchProviderCascade(SearchProvider):
         """Use the same ordered policy for one native physical question pack."""
         import re
 
-        from src.providers.llm_client import _validate_search_generation_controls
+        from src.providers.llm_client import validate_search_generation_controls
 
         if not self.require_search or external_answer_search_mode() is not None:
             raise ValueError("question packs require the native verified-search dispatcher")
         if type(thinking_enabled) is not bool or type(max_output_tokens) is not int:
             raise ValueError("question pack generation controls must be explicit bool/int")
-        _validate_search_generation_controls(thinking_enabled, max_output_tokens)
+        validate_search_generation_controls(thinking_enabled, max_output_tokens)
         if not isinstance(questions, list) or not 1 <= len(questions) <= 30:
             raise ValueError("question pack must contain 1..30 identified questions")
         if any(

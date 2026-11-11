@@ -741,3 +741,9 @@ class LLMResponseParser:
             company_name=company_name,
             information_as_of=information_date(data.get("information_as_of")),
         )
+
+
+# Versioned cross-module contract. Consumers use these exports, never owner internals.
+MODULE_API_PROTOCOL = "stockqa.llm-response-parser-module/1.0.0"
+MODULE_API_EXPORTS = frozenset(["reject_duplicate_json_keys"])
+reject_duplicate_json_keys = _reject_duplicate_json_keys

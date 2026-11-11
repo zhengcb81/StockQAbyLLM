@@ -119,6 +119,31 @@ graph TB
 
 ## 数据流
 
+## 快扫模块边界与持久化接口
+
+快扫模块之间以版本化 API、接口协议和 detached DTO 通讯。消费者只能调用 owner
+模块在 `MODULE_API_EXPORTS` / facade `__all__` 中声明的操作；只存在但未公开的可调用对象
+不构成接口。架构测试会解析直接属性、字面量 `getattr` 和 `from ... import`，阻止业务模块
+绕过公开 facade 进入其他模块的私有实现。
+
+SQLite 是一个明确的**持久化适配子系统**：`QuickScanWorkStore` 拥有数据库连接和事务，
+21 个已声明的存储/持久化适配模块可以在同一事务协议内维护各自的日志表。低层
+`connect()` / `transaction()` 是该子系统公开的 `stockqa.quick_scan_work_store/1.4.0`
+协议，不是面向 UI、路由或普通业务模块的通用 API；架构测试会阻止新增的非适配模块
+直接取得数据库连接。研究输出和已发送上下文适配器另有自己的版本化契约，并声明
+依赖的表；WorkStore、WorkTransport 只通过这些公开契约调用它们。每个适配模块仍共享
+该子系统的 SQLite schema，因此 schema 演进按持久化子系统整体协调；跨出该边界的模块
+只使用语义化 Store 操作和公共 ports。
+
+题包 journal 与 WorkStore 通过版本化的 `stockqa.question-pack-journal-module/1.3.0`
+导出操作交互；WorkStore 的 schema 装配、校验、读写都调用 journal 声明的 `api_*` 操作。
+题包原子事务比普通持久化协议更窄：仅 `quick_scan_question_pack_journal` 持有私有的
+运行时 capability token。`QuickScanWorkStore.question_pack_operation()` 在交出原始连接前
+验证 token，并只在 token 有效时报告活动题包 ID。仅修改 WorkStore 的私有线程状态不能
+授权单题发送；边界测试会拒绝其他源码读取该状态或绕过公开导出。测试入口：
+`tests/unit/test_quick_scan_module_boundaries.py` 和
+`tests/unit/test_quick_scan_question_pack_store.py`。
+
 ### 基础模式流程
 
 ```mermaid

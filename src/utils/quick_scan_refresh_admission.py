@@ -182,9 +182,7 @@ class RefreshAdmissionService:
             consumer_id=c["consumer_id"],
         )
         # Use original methods without invoking the creating/migrating initializer.
-        self.store = QuickScanWorkStore.__new__(QuickScanWorkStore)
-        self.store.path, self.store.clock = Path(c["work_store"]), time.time
-        self.store._transaction_state = threading.local()
+        self.store = QuickScanWorkStore.for_existing_ledger(Path(c["work_store"]))
         self._ledger_ready()
 
     def _ledger_ready(self):
@@ -205,14 +203,14 @@ class RefreshAdmissionService:
                 connection.execute("BEGIN")
                 if connection.execute("PRAGMA user_version").fetchone()[0] != SCHEMA_VERSION:
                     raise AdmissionRejected("refresh_admission_explicit_setup_required")
-                self.store._validate_schema(connection, schema_version=SCHEMA_VERSION)
+                self.store.validate_schema(connection, schema_version=SCHEMA_VERSION)
         except (sqlite3.Error, ValueError) as error:
             if isinstance(error, AdmissionRejected):
                 raise
             raise AdmissionRejected("refresh_admission_ledger_invalid") from error
 
     def _record(self, confirmation_id):
-        with closing(self.store._connect()) as connection:
+        with closing(self.store.connect()) as connection:
             return journal.read_record(connection, confirmation_id)
 
     def _bundle(self, ref, policy):
@@ -448,7 +446,9 @@ class RefreshAdmissionService:
                         "iqs.refresh_request/1.2.0",
                         "iqs.refresh_request/1.3.0",
                     }:
-                        from .quick_scan_owner_refresh_journal import native_control
+                        from .quick_scan_owner_refresh_journal import (
+                            api_owner_refresh_journal_native_control as native_control,
+                        )
 
                         control = item["owner_control"]
                         if control["cohort_id"] != proof["request"]["cohort_id"]:
@@ -462,12 +462,12 @@ class RefreshAdmissionService:
                             identity_revision=bundle["identity"]["identity_revision"],
                             generation=control["target_generation"],
                         )
-                        with closing(self.store._connect()) as connection:
+                        with closing(self.store.connect()) as connection:
                             source = native_control(
                                 connection,
                                 synthetic_target,
                                 controlled_binding,
-                                now=self.store._now(),
+                                now=self.store.now(),
                                 require_ready=True,
                             )
                         planned = dict(
@@ -594,3 +594,13 @@ class RefreshAdmissionService:
             if isinstance(error, AdmissionRejected):
                 raise
             raise AdmissionRejected("refresh_admission_native_or_producer_rejected") from error
+
+
+# Additive, versioned owner exports for cross-module consumers.
+MODULE_API_PROTOCOL = "stockqa.utils-quick_scan_refresh_admission-module/1.0.0"
+api_refresh_admission_plain_path = _plain_path
+api_refresh_admission_snapshot = _snapshot
+MODULE_API_EXPORTS = frozenset(
+    set(globals().get("MODULE_API_EXPORTS", ()))
+    | {"api_refresh_admission_plain_path", "api_refresh_admission_snapshot"}
+)

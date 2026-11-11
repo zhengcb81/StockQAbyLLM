@@ -73,7 +73,10 @@ DDL_V21_ADDITIONS += (
 
 
 def validate_config(config):
-    from src.utils.quick_scan_work_store import _safe, _safe_text
+    from src.utils.quick_scan_work_store import (
+        validate_safe_identifier,
+        validate_transport_text,
+    )
 
     if not isinstance(config, dict) or set(config) != {
         "schema",
@@ -100,9 +103,9 @@ def validate_config(config):
         or config["unknown_usage_action"] != "retain_reservation_and_pause"
     ):
         raise ValueError("invalid prepaid quota semantics")
-    _safe(config["account_group"], "account_group")
+    validate_safe_identifier(config["account_group"], "account_group")
     for key in ("source_ref", "entitlement_ref"):
-        _safe_text(config[key], key, maximum=300)
+        validate_transport_text(config[key], key, maximum=300)
     return json.dumps(config, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
 
 
@@ -122,7 +125,7 @@ def configure(store, budget_policy, search_policy):
     if search_policy.schema_id != "stockqa.quick_scan_search_policy/1.3.0":
         raise ValueError("prepaid quota requires explicit policy 1.3")
     normalized = store.configure_quick_scan_budget(budget_policy)
-    with store._transaction() as connection:
+    with store.transaction() as connection:
         for route in routes:
             config = route["prepaid_quota"]
             encoded = validate_config(config)
@@ -295,8 +298,8 @@ def projection(connection, budget_id):
 def _validate_proof(connection, budget_id, proof):
     """Check original route/work/context/receipt, including after database reopen."""
     from src.utils.quick_scan_external_journal import (
-        _canonical,
-        _digest,
+        canonical_external_json,
+        digest_external_json,
         strict_search_json,
     )
 
@@ -340,8 +343,8 @@ def _validate_proof(connection, budget_id, proof):
         or budget["provider"] != "zai_mcp_streamable"
         or budget["model_requested"] != "external_retrieval_v1"
         or budget["work_attempt_id"] is not None
-        or _canonical(receipt) != raw["receipt_json"]
-        or _digest(receipt) != proof["receipt_sha256"]
+        or canonical_external_json(receipt) != raw["receipt_json"]
+        or digest_external_json(receipt) != proof["receipt_sha256"]
         or raw["receipt_sha256"] != proof["receipt_sha256"]
         or receipt["attempt_id"] != budget_id
         or receipt["route_kind"] != "zai_mcp_streamable"

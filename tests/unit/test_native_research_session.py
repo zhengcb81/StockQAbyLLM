@@ -176,7 +176,7 @@ def test_registered_continuation_cannot_become_a_retry_bypass(tmp_path, transpor
 def test_registration_refuses_boolean_owner_authority(tmp_path):
     store = QuickScanWorkStore(tmp_path / "db.sqlite")
     member = _members(store, count=1)[0]
-    with pytest.raises(WorkConflictError, match="actual_owner_required"):
+    with pytest.raises(ValueError, match="native_research_session_actual_owner_required"):
         register(
             store,
             {"authorized": True},
@@ -212,23 +212,16 @@ def test_original_lease_expiry_fence_is_not_relaxed(tmp_path, transport):
 
 
 def test_readonly_owner_preview_borrows_original_budget_snapshot(tmp_path):
-    from contextlib import closing
-
     from src.utils.quick_scan_refresh_inspect import ReadOnlyWorkView
 
     with budget(tmp_path) as store:
         expected = store.get_quick_scan_budget_status("research-test")
         view = ReadOnlyWorkView(store.path)
-        with closing(view._connect()) as connection:
-            connection.execute("BEGIN")
-            view._inspection_connection = connection
-            try:
-                assert view.get_quick_scan_budget_status("research-test") == expected
-                assert connection.in_transaction
-                with pytest.raises(sqlite3.OperationalError):
-                    connection.execute("DELETE FROM quick_scan_budget_policy")
-            finally:
-                view._inspection_connection = None
+        with view.inspection_transaction() as connection:
+            assert view.get_quick_scan_budget_status("research-test") == expected
+            assert connection.in_transaction
+            with pytest.raises(sqlite3.OperationalError):
+                connection.execute("DELETE FROM quick_scan_budget_policy")
 
 
 def test_original_intent_join_survives_os_restart_without_network(tmp_path, transport):
@@ -287,25 +280,35 @@ print(json.dumps(record))
 def test_readonly_v22_remains_supported_without_migration(tmp_path):
     import hashlib
     import re
-    from contextlib import closing
 
     from src.utils.quick_scan_refresh_inspect import ReadOnlyWorkView
     from src.utils.quick_scan_research_output import DDL_V23_ADDITIONS
+    from src.utils.quick_scan_work_store import (
+        _DDL_CHECKPOINT_V11,
+        _DDL_V2_ADDITIONS,
+        _DDL_V24_ADDITIONS,
+    )
 
     with budget(tmp_path) as store:
         expected = store.get_quick_scan_budget_status("research-test")
     with sqlite3.connect(store.path) as connection:
-        for statement in reversed(DDL_V23_ADDITIONS):
+        for statement in reversed((*DDL_V23_ADDITIONS, *_DDL_V24_ADDITIONS)):
             kind, name = re.match(r"CREATE (TABLE|TRIGGER) ([A-Za-z_]+)", statement).groups()
             connection.execute("DROP " + kind + " " + name)
+        connection.execute("DROP TABLE quick_scan_research_visible_output_recovery")
+        connection.execute("DROP TRIGGER answer_checkpoint_no_update")
+        connection.execute("DROP TRIGGER answer_checkpoint_no_delete")
+        connection.execute("ALTER TABLE answer_checkpoint RENAME TO answer_checkpoint_v25_original")
+        connection.execute(_DDL_CHECKPOINT_V11)
+        connection.execute(
+            "INSERT INTO answer_checkpoint SELECT * FROM answer_checkpoint_v25_original"
+        )
+        connection.execute("DROP TABLE answer_checkpoint_v25_original")
+        for statement in _DDL_V2_ADDITIONS[1:]:
+            connection.execute(statement)
         connection.execute("PRAGMA user_version=22")
     before = hashlib.sha256(store.path.read_bytes()).hexdigest()
     view = ReadOnlyWorkView(store.path)
-    with closing(view._connect()) as connection:
-        connection.execute("BEGIN")
-        view._inspection_connection = connection
-        try:
-            assert view.get_quick_scan_budget_status("research-test") == expected
-        finally:
-            view._inspection_connection = None
+    with view.inspection_transaction():
+        assert view.get_quick_scan_budget_status("research-test") == expected
     assert hashlib.sha256(store.path.read_bytes()).hexdigest() == before

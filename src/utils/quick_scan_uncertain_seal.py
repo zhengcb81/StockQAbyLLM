@@ -153,7 +153,7 @@ def seal_uncertain(store, budget_attempt_id: str, *, source_task: dict, audit: d
     if type(audit["reserved_cost_micros"]) is not int or audit["reserved_cost_micros"] <= 0:
         raise ValueError("invalid expected reservation")
     encoded = json.dumps(audit, sort_keys=True, separators=(",", ":"), allow_nan=False)
-    with store._transaction() as connection:
+    with store.transaction() as connection:
         row = connection.execute(
             "SELECT a.*,p.policy_snapshot_sha256 FROM quick_scan_budget_attempt a "
             "JOIN quick_scan_budget_policy p USING(policy_id) WHERE budget_attempt_id=?",
@@ -191,7 +191,7 @@ def seal_uncertain(store, budget_attempt_id: str, *, source_task: dict, audit: d
         register_task(connection, row["policy_id"], task)
         connection.execute(
             "INSERT INTO quick_scan_uncertain_seal VALUES (?,?,?,?,?)",
-            (budget_attempt_id, row["policy_id"], task["task_id"], encoded, store._now()),
+            (budget_attempt_id, row["policy_id"], task["task_id"], encoded, store.now()),
         )
         return dict(
             connection.execute(
@@ -213,11 +213,11 @@ def amend_research_budget(
     """
     from src.utils.quick_scan_work_store import (
         BudgetPolicyConflict,
-        _budget_policy_projection,
+        budget_policy_projection,
     )
 
-    old = _budget_policy_projection(old_policy)
-    new = _budget_policy_projection(new_policy)
+    old = budget_policy_projection(old_policy)
+    new = budget_policy_projection(new_policy)
     if old["policy_snapshot_sha256"] != expected_policy_snapshot_sha256:
         raise BudgetPolicyConflict("research amendment expected snapshot mismatch")
     if not isinstance(audit, dict) or set(audit) != {
@@ -285,7 +285,7 @@ def amend_research_budget(
 
     old_json, new_json, audit_json = canonical(old), canonical(new), canonical(audit)
     amendment_id = "AMEND_" + hashlib.sha256(canonical([old, new, audit]).encode()).hexdigest()
-    with store._transaction() as connection:
+    with store.transaction() as connection:
         current = connection.execute(
             "SELECT * FROM quick_scan_budget_policy WHERE policy_id=?", (old["policy_id"],)
         ).fetchone()
@@ -330,7 +330,7 @@ def amend_research_budget(
                 old_json,
                 new_json,
                 audit_json,
-                store._now(),
+                store.now(),
             ),
         )
         assignments = ",".join(column + "=?" for column in columns.values())
@@ -338,7 +338,7 @@ def amend_research_budget(
             "UPDATE quick_scan_budget_policy SET "  # nosec B608
             + assignments
             + ",updated_at=? WHERE policy_id=?",
-            tuple(new[key] for key in columns) + (store._now(), old["policy_id"]),
+            tuple(new[key] for key in columns) + (store.now(), old["policy_id"]),
         )
         return dict(
             connection.execute(

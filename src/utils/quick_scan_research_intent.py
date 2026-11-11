@@ -44,7 +44,8 @@ def _hash(value):
 
 @contextmanager
 def bind_intent(store, task_sha256, intent_sha256, work_item_ids, *, provided_context=None):
-    from .quick_scan_work_store import QuickScanWorkStore, _sha256
+    from .quick_scan_work_store import QuickScanWorkStore
+    from .quick_scan_work_store import api_work_store_sha256 as _sha256
 
     if not isinstance(store, QuickScanWorkStore) or _INTENT.get() is not None:
         raise ValueError("native_research_intent_binding_invalid")
@@ -87,11 +88,11 @@ def binding_from_row(row) -> dict:
 
 def get_intent_response(store, task_sha256, intent_sha256):
     """Only original DB rows are returned, including a truthful missing output."""
-    from .quick_scan_work_store import _sha256
+    from .quick_scan_work_store import api_work_store_sha256 as _sha256
 
     _sha256(task_sha256, "research task hash")
     _sha256(intent_sha256, "research intent hash")
-    with closing(store._connect()) as connection:
+    with closing(store.connect()) as connection:
         row = connection.execute(
             "SELECT * FROM quick_scan_research_intent WHERE task_sha256=? AND intent_sha256=?",
             (task_sha256, intent_sha256),
@@ -156,9 +157,13 @@ def bind_native_send(function):
         if bound is None:
             return function(*args, **kwargs)
         store, task_sha, intent_sha, members, provided = bound
-        from .quick_scan_work_transport import _QUESTION_PACK_BINDING, _WORK_BINDING
+        from .quick_scan_work_transport import (
+            current_quick_scan_question_pack_binding,
+            current_quick_scan_work_binding,
+        )
 
-        work, pack = _WORK_BINDING.get(), _QUESTION_PACK_BINDING.get()
+        work = current_quick_scan_work_binding()
+        pack = current_quick_scan_question_pack_binding()
         if work is not None:
             if work.store is not store or (work.work_item_id,) != members:
                 raise ValueError("native_research_intent_active_work_mismatch")
@@ -169,10 +174,12 @@ def bind_native_send(function):
             raise ValueError("native_research_intent_original_owner_work_required")
         if get_intent_response(store, task_sha, intent_sha) is not None:
             raise ValueError("native_research_intent_already_sent_inspect_original")
-        from .quick_scan_work_store import _sha256
+        from .quick_scan_work_store import api_work_store_sha256 as _sha256
 
         if provided is not None:
-            from .quick_scan_provided_context import assert_sent_context
+            from .quick_scan_provided_context import (
+                api_provided_context_assert_sent as assert_sent_context,
+            )
 
             assert_sent_context(provided, args[0] if args else kwargs["prompt"])
         request_sha = kwargs.get("request_payload_sha256")
@@ -201,7 +208,7 @@ def bind_native_send(function):
         )
         if provided is not None:
             binding["provided_context_sha256"] = _hash(provided)
-        with store._transaction() as connection:
+        with store.transaction() as connection:
             connection.execute(
                 "INSERT INTO quick_scan_research_intent (task_sha256,intent_sha256,native_attempt_id,request_payload_sha256,work_item_ids_json,binding_sha256,provided_context_json) VALUES (?,?,?,?,?,?,?)",
                 (
@@ -225,7 +232,7 @@ def anchor_original_receipt(attempt, receipt):
     if bound is None:
         return
     store, task_sha, intent_sha, _members, _provided = bound
-    with closing(store._connect()) as connection:
+    with closing(store.connect()) as connection:
         row = connection.execute(
             "SELECT * FROM quick_scan_research_intent WHERE task_sha256=? AND intent_sha256=? AND native_attempt_id=?",
             (task_sha, intent_sha, attempt.attempt_id),
@@ -242,3 +249,30 @@ def anchor_original_receipt(attempt, receipt):
     ):
         raise ValueError("native_research_intent_receipt_anchor_conflict")
     receipt["research_intent_binding_sha256"] = row["binding_sha256"]
+
+
+# Additive, versioned owner exports for cross-module consumers.
+MODULE_API_PROTOCOL = "stockqa.utils-quick_scan_research_intent-module/1.1.0"
+api_research_intent_encode = _encode
+api_research_intent_hash = _hash
+api_research_intent_ddl_v23 = DDL_RESEARCH_INTENT
+api_research_intent_bind = bind_intent
+api_research_intent_binding_from_row = binding_from_row
+api_research_intent_get_response = get_intent_response
+api_research_intent_bind_native_send = bind_native_send
+api_research_intent_anchor_original_receipt = anchor_original_receipt
+STORE_TABLE_DEPENDENCIES = frozenset({"quick_scan_budget_attempt", "quick_scan_research_intent"})
+MODULE_API_EXPORTS = frozenset(
+    set(globals().get("MODULE_API_EXPORTS", ()))
+    | {
+        "api_research_intent_encode",
+        "api_research_intent_hash",
+        "api_research_intent_ddl_v23",
+        "api_research_intent_bind",
+        "api_research_intent_binding_from_row",
+        "api_research_intent_get_response",
+        "api_research_intent_bind_native_send",
+        "api_research_intent_anchor_original_receipt",
+        "STORE_TABLE_DEPENDENCIES",
+    }
+)

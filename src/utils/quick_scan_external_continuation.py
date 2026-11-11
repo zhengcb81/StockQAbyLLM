@@ -27,13 +27,13 @@ DDL_V22_ADDITIONS = (
 
 
 def _sha(value):
-    from src.utils.quick_scan_external_journal import _digest
+    from src.utils.quick_scan_external_journal import digest_external_json
 
-    return _digest(value)
+    return digest_external_json(value)
 
 
 def _canonical(value):
-    from src.utils.quick_scan_external_journal import _canonical as encode
+    from src.utils.quick_scan_external_journal import canonical_external_json as encode
 
     return encode(value)
 
@@ -127,9 +127,9 @@ def _sealed_source_ids(connection, policy_id, source_task):
 
 
 def register(store, *, policy, independent_task, registration):
-    from src.utils.quick_scan_external_journal import _request_context
+    from src.utils.quick_scan_external_journal import build_external_request_context
     from src.utils.quick_scan_uncertain_seal import register_task
-    from src.utils.quick_scan_work_store import Lease, _budget_policy_projection
+    from src.utils.quick_scan_work_store import Lease, budget_policy_projection
 
     task = _task(independent_task)
     if not isinstance(registration, dict) or set(registration) != {
@@ -179,8 +179,8 @@ def register(store, *, policy, independent_task, registration):
         or not 1 <= len(registration["planned_slots"]) <= 200
     ):
         raise ValueError("bounded original planned slots required")
-    normalized = _budget_policy_projection(policy)
-    with store._transaction() as connection:
+    normalized = budget_policy_projection(policy)
+    with store.transaction() as connection:
         prior = connection.execute(
             "SELECT registration_sha256 FROM quick_scan_external_research_admission WHERE policy_id=? AND task_id=?",
             (normalized["policy_id"], task["task_id"]),
@@ -229,8 +229,8 @@ def register(store, *, policy, independent_task, registration):
                 or type(slot["dispatch_enabled"]) is not bool
             ):
                 raise ValueError("planned slot fields invalid")
-            item = store._item(connection, slot["work_item_id"])
-            context = _request_context(
+            item = store.item_in_transaction(connection, slot["work_item_id"])
+            context = build_external_request_context(
                 store,
                 connection,
                 slot["work_item_id"],
@@ -275,7 +275,7 @@ def register(store, *, policy, independent_task, registration):
                 task["task_sha256"],
                 _canonical(registration),
                 _sha(registration),
-                store._now(),
+                store.now(),
             ),
         )
     return {

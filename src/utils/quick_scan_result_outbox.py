@@ -88,7 +88,7 @@ def strict_json_loads(text: str) -> Any:
     authority-loader and standard-answer-body entries must never silently take
     the last value of an ambiguous key or a non-finite number.
     """
-    from src.providers.llm_response_parser import _reject_duplicate_json_keys
+    from src.providers.llm_response_parser import reject_duplicate_json_keys
 
     def _reject_constant(value: str) -> None:
         raise ValueError(f"non-finite JSON number is not allowed: {value}")
@@ -101,7 +101,7 @@ def strict_json_loads(text: str) -> Any:
 
     return json.loads(
         text,
-        object_pairs_hook=_reject_duplicate_json_keys,
+        object_pairs_hook=reject_duplicate_json_keys,
         parse_constant=_reject_constant,
         parse_float=_finite_float,
     )
@@ -517,3 +517,18 @@ def validate_import_ack(ack: object, outbox: dict, *, expected_consumer: object 
 def delivery_key(package_id: str, item_id: str, payload_sha256: str) -> str:
     """Stable idempotency key for all deliveries of the same immutable item."""
     return hashlib.sha256(f"{package_id}\n{item_id}\n{payload_sha256}".encode("utf-8")).hexdigest()
+
+
+# Versioned cross-module contract. Consumers use these exports, never owner internals.
+MODULE_API_PROTOCOL = "stockqa.result-outbox-module/1.1.0"
+MODULE_API_EXPORTS = frozenset(["CAPABILITIES", "CONTRACT_VERSION_KEYS"])
+CAPABILITIES = _CAPABILITIES
+CONTRACT_VERSION_KEYS = _CONTRACT_VERSION_KEYS
+
+
+# Additive, versioned owner exports for cross-module consumers.
+MODULE_API_PROTOCOL = "stockqa.result-outbox-module/1.1.0"
+api_result_outbox_safe_token = _SAFE_TOKEN
+MODULE_API_EXPORTS = frozenset(
+    set(globals().get("MODULE_API_EXPORTS", ())) | {"api_result_outbox_safe_token"}
+)

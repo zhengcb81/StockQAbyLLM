@@ -1,5 +1,6 @@
 """Read-only answer hydration must not initialize search or model services."""
 
+import copy
 from types import SimpleNamespace
 
 import pytest
@@ -83,6 +84,19 @@ def test_paid_runner_uses_original_receipt_metadata_without_today_model_or_budge
         existing_work=lambda qid: dict(generation=1),
         dispatch_scope_report=lambda batch: dict(original_question_count=2),
     )
+    # The runner consumes the owner-refresh port's detached snapshot; the
+    # work store is wired in explicitly by the composition, never reached
+    # through the opaque port.
+    owner.snapshot = lambda: SimpleNamespace(
+        entries=dict(owner.entries),
+        record=copy.deepcopy(owner.record),
+        plan=dict(owner.plan),
+        proof=dict(owner.proof),
+        bundle=dict(owner.bundle),
+        observation_context={},
+        scope_bindings={},
+        requested_question_ids=list(owner.requested_question_ids),
+    )
     cp = dict(
         payload=dict(
             answer=dict(status="scored", score=7, description="original"),
@@ -121,6 +135,7 @@ def test_paid_runner_uses_original_receipt_metadata_without_today_model_or_budge
         owner,
         {},
         q,
+        store=store,
         identity={},
         company="Synthetic",
         entity_id="ENT_TEST",

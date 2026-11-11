@@ -17,7 +17,10 @@ from typing import Any
 from jsonschema import Draft202012Validator, FormatChecker, ValidationError
 from referencing import Registry, Resource
 
-from src.core.models import QUICK_SCAN_ANSWER_DESCRIPTION_MAX_CHARS, SUCCESSFUL_ANSWER_STATUSES
+from src.core.models import (
+    QUICK_SCAN_ANSWER_DESCRIPTION_MAX_CHARS,
+    SUCCESSFUL_ANSWER_STATUSES,
+)
 
 from .quick_scan_metric_coordinates import validate_metric_coordinates
 from .quick_scan_result_outbox import canonical_sha256, strict_json_loads
@@ -71,7 +74,11 @@ def _visible_answer_schema(schema):
 
     def relax(node, field=None):
         if isinstance(node, dict):
-            if field == "items":
+            schema_type = node.get("type")
+            is_array = schema_type == "array" or (
+                isinstance(schema_type, list) and "array" in schema_type
+            )
+            if is_array:
                 node.pop("maxItems", None)
             if field in prose:
                 node.pop("maxLength", None)
@@ -532,8 +539,10 @@ def _evidence_url_identity(url: str) -> str:
     from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
     from .quick_scan_work_store import (
-        _canonical_source_urls,
-        _sensitive_query_parameter,
+        api_work_store_canonical_source_urls as _canonical_source_urls,
+    )
+    from .quick_scan_work_store import (
+        api_work_store_sensitive_query_parameter as _sensitive_query_parameter,
     )
 
     try:

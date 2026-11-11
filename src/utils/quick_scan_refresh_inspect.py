@@ -11,16 +11,18 @@ import json
 import sqlite3
 import stat
 import time
-from contextlib import closing
+from contextlib import closing, contextmanager, nullcontext
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Iterator
 
+from src.interfaces.sqlite_reader import SQLiteReadConnection
 from src.utils.quick_scan_refresh_admission_journal import read_record
 from src.utils.quick_scan_result_outbox import canonical_sha256
 from src.utils.quick_scan_work_store import (
     SCHEMA_VERSION,
+    WORK_STORE_API_METHODS,
     QuickScanWorkStore,
-    _budget_policy_projection,
+    budget_policy_projection,
 )
 
 # Keep every previously supported read-only schema. Inspection must not migrate
@@ -28,19 +30,219 @@ from src.utils.quick_scan_work_store import (
 READ_ONLY_SCHEMA_VERSIONS = frozenset({18, 22, 23, 24, 25, SCHEMA_VERSION})
 
 
-class _Borrowed:
-    def __init__(self, connection):
-        self.connection = connection
+class _ReadOnlyCursor:
+    __slots__ = ("__cursor",)
 
-    def __getattr__(self, name):
-        return getattr(self.connection, name)
+    def __init__(self, cursor):
+        self.__cursor = cursor
+
+    def execute(self, sql, parameters=()):
+        _assert_read_only_sql(sql)
+        self.__cursor.execute(sql, parameters)
+        return self
+
+    def executemany(self, sql, parameters):
+        raise sqlite3.OperationalError("read-only view does not allow executemany")
+
+    def executescript(self, sql):
+        raise sqlite3.OperationalError("read-only view does not allow executescript")
+
+    def fetchone(self):
+        return self.__cursor.fetchone()
+
+    def fetchmany(self, size=None):
+        return self.__cursor.fetchmany() if size is None else self.__cursor.fetchmany(size)
+
+    def fetchall(self):
+        return self.__cursor.fetchall()
+
+    @property
+    def description(self):
+        return self.__cursor.description
+
+    @property
+    def rowcount(self):
+        return self.__cursor.rowcount
+
+    @property
+    def lastrowid(self):
+        return self.__cursor.lastrowid
 
     def close(self):
-        pass  # The one explicit inspection transaction owns the handle.
+        self.__cursor.close()
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        return next(self.__cursor)
+
+
+def _assert_read_only_sql(sql):
+    if not isinstance(sql, str):
+        raise sqlite3.OperationalError("read-only view requires a SQL query")
+    statement = sql.lstrip()
+    while statement.startswith("--"):
+        _, separator, statement = statement.partition("\n")
+        if not separator:
+            statement = ""
+            break
+        statement = statement.lstrip()
+    keyword = statement.split(None, 1)[0].upper() if statement else ""
+    if statement.strip().rstrip(";").upper() in {
+        "BEGIN",
+        "BEGIN TRANSACTION",
+        "COMMIT",
+        "COMMIT TRANSACTION",
+        "END",
+        "ROLLBACK",
+        "ROLLBACK TRANSACTION",
+    }:
+        return
+    if keyword in {"SELECT", "WITH", "EXPLAIN"}:
+        return
+    if keyword == "PRAGMA":
+        pragma = statement[6:].strip().split("=", 1)[0].strip().split("(", 1)[0].strip().lower()
+        readonly_pragmas = {
+            "application_id",
+            "compile_options",
+            "database_list",
+            "foreign_key_check",
+            "foreign_key_list",
+            "foreign_keys",
+            "freelist_count",
+            "index_info",
+            "index_list",
+            "index_xinfo",
+            "integrity_check",
+            "journal_mode",
+            "max_page_count",
+            "page_count",
+            "quick_check",
+            "query_only",
+            "schema_version",
+            "table_info",
+            "table_list",
+            "table_xinfo",
+            "user_version",
+        }
+        has_assignment = "=" in statement
+        has_arguments = "(" in statement
+        if (
+            pragma in readonly_pragmas
+            and not has_assignment
+            and (
+                not has_arguments
+                or pragma
+                in {
+                    "foreign_key_list",
+                    "index_info",
+                    "index_list",
+                    "index_xinfo",
+                    "table_info",
+                    "table_xinfo",
+                }
+            )
+        ):
+            return
+    raise sqlite3.OperationalError("read-only view does not allow this SQL operation")
+
+
+class _Borrowed:
+    __slots__ = ("__connection", "__query_only_before", "__closed", "__owns_connection")
+
+    def __init__(self, connection: sqlite3.Connection, *, owns_connection: bool = False) -> None:
+        self.__connection = connection
+        self.__query_only_before = int(connection.execute("PRAGMA query_only").fetchone()[0])
+        self.__closed = False
+        self.__owns_connection = owns_connection
+        connection.execute("PRAGMA query_only=ON")
+
+    def execute(self, sql, parameters=()):
+        if self.__closed:
+            raise sqlite3.ProgrammingError("read-only view connection is closed")
+        _assert_read_only_sql(sql)
+        return _ReadOnlyCursor(self.__connection.execute(sql, parameters))
+
+    def cursor(self):
+        if self.__closed:
+            raise sqlite3.ProgrammingError("read-only view connection is closed")
+        return _ReadOnlyCursor(self.__connection.cursor())
+
+    def executemany(self, sql, parameters):
+        raise sqlite3.OperationalError("read-only view does not allow executemany")
+
+    def executescript(self, sql):
+        raise sqlite3.OperationalError("read-only view does not allow executescript")
+
+    @property
+    def in_transaction(self):
+        return self.__connection.in_transaction
+
+    def close(self):
+        if self.__closed:
+            return
+        if self.__query_only_before == 0:
+            self.__connection.execute("PRAGMA query_only=OFF")
+        self.__closed = True
+        if self.__owns_connection:
+            self.__connection.close()
+
+    def _read_owner_connection(self) -> sqlite3.Connection:
+        if self.__closed:
+            raise sqlite3.ProgrammingError("read-only view connection is closed")
+        return self.__connection
+
+    def __enter__(self):
+        if self.__closed:
+            raise sqlite3.ProgrammingError("read-only view connection is closed")
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        self.close()
+
+
+READ_ONLY_VIEW_API_METHODS = frozenset(
+    {
+        "assert_complete_observation_binding",
+        "connect",
+        "continuation_binding_snapshot",
+        "current_time",
+        "from_transaction",
+        "get_answer_checkpoint",
+        "get_attempt_response",
+        "get_quick_scan_budget_status",
+        "get_owner_refresh_binding",
+        "get_item",
+        "get_observation_context",
+        "get_registered_refresh_action",
+        "get_question_pack",
+        "get_research_visible_output",
+        "get_result_delivery",
+        "get_subject_dispatch_receipt",
+        "inspection_transaction",
+        "item_in_transaction",
+        "owner_refresh_projection",
+        "response_for_checkpoint",
+        "response_record",
+        "validate_schema",
+    }
+)
 
 
 class ReadOnlyWorkView(QuickScanWorkStore):
-    def __init__(self, path):
+    # New owner-store operations stay unavailable here until deliberately added
+    # to the narrow read-only contract above.
+    _READ_ONLY_BLOCKED_OPERATIONS = frozenset(
+        (WORK_STORE_API_METHODS | {"current_question_pack_id"}) - READ_ONLY_VIEW_API_METHODS
+    )
+
+    def __getattribute__(self, name):
+        if name in object.__getattribute__(self, "_READ_ONLY_BLOCKED_OPERATIONS"):
+            raise AttributeError("refresh_inspection_is_read_only")
+        return object.__getattribute__(self, name)
+
+    def __init__(self, path, *, clock: Callable[[], float] = time.time):
         raw_path = Path(path)
         sidecars = tuple(
             raw_path.with_name(raw_path.name + suffix) for suffix in ("-wal", "-shm", "-journal")
@@ -55,7 +257,7 @@ class ReadOnlyWorkView(QuickScanWorkStore):
             ):
                 raise ValueError("refresh_executor_store_unavailable")
         self.path = raw_path.resolve()
-        self._clock: Callable[[], float] = time.time
+        self._clock: Callable[[], float] = clock
         self._inspection_connection = None
         if not self.path.is_file():
             raise ValueError("refresh_executor_store_unavailable")
@@ -65,9 +267,12 @@ class ReadOnlyWorkView(QuickScanWorkStore):
         if any(p.exists() and not p.is_file() for p in sidecars):
             raise ValueError("refresh_executor_store_unavailable")
 
-    def _connect(self):
+    def connect(self):
         if self._inspection_connection is not None:
             return _Borrowed(self._inspection_connection)
+        return _Borrowed(self._open_readonly_connection(), owns_connection=True)
+
+    def _open_readonly_connection(self):
         connection = sqlite3.connect(self.path.as_uri() + "?mode=ro", uri=True, timeout=5)
         connection.row_factory = sqlite3.Row
         try:
@@ -75,11 +280,77 @@ class ReadOnlyWorkView(QuickScanWorkStore):
             version = connection.execute("PRAGMA user_version").fetchone()[0]
             if version not in READ_ONLY_SCHEMA_VERSIONS:
                 raise ValueError("refresh_executor_schema_unavailable")
-            self._validate_schema(connection, schema_version=version, audit_records=False)
+            self.validate_schema(connection, schema_version=version, audit_records=False)
         except Exception:
             connection.close()
             raise
         return connection
+
+    def _connect(self):
+        return self.connect()
+
+    @contextmanager
+    def inspection_transaction(self) -> Iterator[SQLiteReadConnection]:
+        """Own one consistent read transaction and hide its borrowed-connection state."""
+        if self._inspection_connection is not None:
+            raise ValueError("refresh_inspection_transaction_already_active")
+        with closing(self._open_readonly_connection()) as connection:
+            connection.execute("BEGIN")
+            self._inspection_connection = connection
+            borrowed = _Borrowed(connection)
+            try:
+                yield borrowed
+            finally:
+                borrowed.close()
+                self._inspection_connection = None
+                connection.rollback()
+
+    @staticmethod
+    def _native_read_connection(
+        connection: sqlite3.Connection | SQLiteReadConnection,
+    ) -> sqlite3.Connection:
+        if isinstance(connection, _Borrowed):
+            return connection._read_owner_connection()
+        if isinstance(connection, sqlite3.Connection):
+            return connection
+        raise TypeError("read-only SQLite connection port required")
+
+    def validate_schema(
+        self,
+        connection: sqlite3.Connection | SQLiteReadConnection,
+        *,
+        schema_version: int = SCHEMA_VERSION,
+        audit_records: bool = True,
+    ) -> None:
+        """Validate through the original store algorithm, keeping its connection private."""
+        QuickScanWorkStore.validate_schema(
+            self._native_read_connection(connection),
+            schema_version=schema_version,
+            audit_records=audit_records,
+        )
+
+    def item_in_transaction(
+        self,
+        connection: sqlite3.Connection | SQLiteReadConnection,
+        work_item_id: str,
+    ) -> sqlite3.Row:
+        """Read one item through the store owner algorithm and a bounded connection port."""
+        return QuickScanWorkStore.item_in_transaction(
+            self._native_read_connection(connection), work_item_id
+        )
+
+    @classmethod
+    def from_transaction(cls, path, connection):
+        """Bind read methods to a caller-owned transaction without taking ownership."""
+        view = cls(path)
+        view._inspection_connection = connection
+        return view
+
+    def current_time(self) -> float:
+        return self._clock()
+
+    def assert_complete_observation_binding(self, *args, **kwargs):
+        return self._assert_complete_observation_binding(*args, **kwargs)
 
     def get_registered_refresh_action(self, confirmation_id: str) -> dict | None:
         """Read the original immutable action through its native journal reader."""
@@ -98,8 +369,8 @@ class ReadOnlyWorkView(QuickScanWorkStore):
         to report, rather than inventing or initializing owner records.
         """
         refs = set(comparison_refs)
-        snapshot = ReadOnlyWorkView(self.path)
-        with closing(snapshot._connect()) as connection:
+        snapshot = ReadOnlyWorkView(self.path, clock=self._clock)
+        with closing(snapshot._open_readonly_connection()) as connection:
             connection.execute("BEGIN")
             snapshot._inspection_connection = connection
             try:
@@ -359,7 +630,7 @@ def inspect_refresh(
         required |= {"cohort_id", "continuation_decision_ref", "refresh_request"}
     if not isinstance(request, dict) or set(request) != required:
         raise ValueError("refresh_inspection_request_invalid")
-    normalized = _budget_policy_projection(policy)
+    normalized = budget_policy_projection(policy)
     route = normalized["route_identity"].get(request["route_id"])
     if (
         request["policy_id"] != normalized["policy_id"]
@@ -414,7 +685,14 @@ def inspect_refresh(
         ):
             raise ValueError("refresh_exposure_native_target_mismatch")
     view = _snapshot_view if _snapshot_view is not None else ReadOnlyWorkView(path)
-    with closing(view._connect()) as connection:
+    connection_scope = (
+        closing(view._open_readonly_connection())
+        if _snapshot_view is None
+        else nullcontext(view._inspection_connection)
+    )
+    with connection_scope as connection:
+        if connection is None:
+            raise ValueError("refresh_inspection_transaction_unavailable")
         if _snapshot_view is None:
             connection.execute("BEGIN")
         # Bind schema and rows to the same native read transaction. A schema
@@ -422,7 +700,7 @@ def inspect_refresh(
         version = connection.execute("PRAGMA user_version").fetchone()[0]
         if version not in READ_ONLY_SCHEMA_VERSIONS:
             raise ValueError("refresh_executor_schema_unavailable")
-        view._validate_schema(connection, schema_version=version, audit_records=False)
+        view.validate_schema(connection, schema_version=version, audit_records=False)
         if _snapshot_view is None:
             view._inspection_connection = connection
         try:
@@ -460,7 +738,9 @@ def inspect_refresh(
                 scope_bindings=bindings,
             )
             if schema_version in {"1.2.0", "1.3.0"}:
-                from src.utils.quick_scan_known_outcome_journal import _read
+                from src.utils.quick_scan_known_outcome_journal import (
+                    read_owner_work_decision,
+                )
                 from src.utils.quick_scan_work_control import project_owner_control
 
                 refs = request["work_decision_refs"]
@@ -478,7 +758,7 @@ def inspect_refresh(
                     if key in all_refs:
                         raise ValueError("refresh_control_duplicate_ref")
                     all_refs.add(key)
-                    item = view._item(connection, ref["work_item_id"])
+                    item = view.item_in_transaction(connection, ref["work_item_id"])
                     qid = item["question_id"]
                     row = connection.execute(
                         "SELECT * FROM quick_scan_owner_work_decision WHERE decision_id=? AND work_item_id=?",
@@ -486,7 +766,7 @@ def inspect_refresh(
                     ).fetchone()
                     if row is None:
                         raise ValueError("refresh_control_decision_missing")
-                    document = _read(view, connection, row)
+                    document = read_owner_work_decision(view, connection, row)
                     targeted = schema_version == "1.3.0"
                     checkpoint_recovery = (
                         document["request"].get("purpose") == "retry_unusable_checkpoint"
@@ -692,7 +972,9 @@ def inspect_refresh(
 
 def _inspect_ordered_refresh(path, request, *, policy):
     """Compose native 1.1 reads inside one original ledger read snapshot."""
-    from .quick_scan_owner_refresh_journal import ordered_targets
+    from .quick_scan_owner_refresh_journal import (
+        api_owner_refresh_journal_ordered_targets as ordered_targets,
+    )
 
     if not isinstance(request, dict) or "ordered_route_targets" not in request:
         raise ValueError("refresh_inspection_request_invalid")
@@ -700,7 +982,7 @@ def _inspect_ordered_refresh(path, request, *, policy):
     if any(selected[0][key] != request.get(key) for key in ("route_id", "provider_config_ref")):
         raise ValueError("refresh_executor_policy_route_mismatch")
     frozen_policy = copy.deepcopy(policy)
-    normalized = _budget_policy_projection(frozen_policy)
+    normalized = budget_policy_projection(frozen_policy)
     for target in selected:
         if normalized["route_identity"].get(target["route_id"]) != {
             key: target[key] for key in ("provider_config_ref", "model", "quota_group")
@@ -708,7 +990,7 @@ def _inspect_ordered_refresh(path, request, *, policy):
             raise ValueError("refresh_executor_policy_route_mismatch")
     view = ReadOnlyWorkView(path)
     inspections = []
-    with closing(view._connect()) as connection:
+    with closing(view._open_readonly_connection()) as connection:
         connection.execute("BEGIN")
         view._inspection_connection = connection
         try:
@@ -755,3 +1037,16 @@ def _inspect_ordered_refresh(path, request, *, policy):
         ),
     )
     return result
+
+
+READ_ONLY_VIEW_API_PROTOCOL = "stockqa.read-only-work-view/1.2.0"
+MODULE_API_PROTOCOL = READ_ONLY_VIEW_API_PROTOCOL
+MODULE_API_EXPORTS = frozenset(
+    {
+        "ReadOnlyWorkView",
+        "READ_ONLY_SCHEMA_VERSIONS",
+        "READ_ONLY_VIEW_API_METHODS",
+        "READ_ONLY_VIEW_API_PROTOCOL",
+    }
+)
+READ_ONLY_VIEW_API_EXPORTS = MODULE_API_EXPORTS

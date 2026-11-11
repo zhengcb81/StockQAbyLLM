@@ -58,7 +58,7 @@ def _setup(actual, tmp_path, *, compact=False):
     context = session.native.observation_context
     contract = context["questions"][qid]["subject_binding"]["question_contract"]
     ref = context["questions"][qid]["subject_binding"]["subject_ref"]
-    task = SimpleNamespace(
+    task_view = SimpleNamespace(
         raw={
             "run_id": "NATIVE_OWNER_SCRIPTED",
             "information_cutoff": session.plan["information_cutoff"],
@@ -85,6 +85,31 @@ def _setup(actual, tmp_path, *, compact=False):
         company_ref={"path": "original-synthetic-identity.json", "sha256": "a" * 64, "bytes": 1},
         limits={"max_model_requests_per_session": 8},
     )
+    from iqs_company_agent_lab.api import create_owner_task, task_snapshot
+
+    task = create_owner_task(
+        {
+            "protocol": "iqs.synthetic-owner-research-task/1.0.0",
+            "run_id": task_view.raw["run_id"],
+            "company_ref": task_view.company_ref,
+            "information_cutoff": task_view.raw["information_cutoff"],
+            "limits": task_view.limits,
+            "strategy_id": "synthetic-test",
+            "question_refs": [],
+        },
+        task_view.questions,
+        task_view.company_doc,
+        {"records": []},
+        {"provider": "deepseek", "model": "deepseek-flash"},
+        {},
+        owner_binding={
+            "protocol": "iqs.native-company-owner-binding/1.0.0",
+            "synthetic": False,
+            "subject_ref": ref,
+            "authority_ref": {"id": "original-test-owner"},
+        },
+    )
+    task_contract = task_snapshot(task)
     route = policy["routes"][0]
     lifecycle = QuickScanWorkLifecycle(
         store,
@@ -125,7 +150,7 @@ def _setup(actual, tmp_path, *, compact=False):
     services = OwnerResearchServices(
         lifecycle,
         client,
-        task=task,
+        task=task_contract,
         cost_resolver=lambda _: dict(
             actual_cost=0.001, pricing_ref="fixture-price-v1", source_ref="scripted-rate"
         ),
@@ -136,12 +161,12 @@ def _setup(actual, tmp_path, *, compact=False):
         dict(synthetic=False, subject_ref=ref, authority_ref={"id": "original-test-owner"})
     )
     dynamic = dict(
-        company_ref=task.company_ref,
-        company=task.company_doc,
-        information_cutoff=task.raw["information_cutoff"],
+        company_ref=task_view.company_ref,
+        company=task_view.company_doc,
+        information_cutoff=task_view.raw["information_cutoff"],
         requested_question_ids=[qid],
     )
-    stable = {"questions": task.questions}
+    stable = {"questions": task_view.questions}
     envelope = dict(
         stable_prefix=stable,
         dynamic_context=dynamic,
@@ -263,7 +288,7 @@ def test_original_registered_owner_two_sdk_turns_and_scope_recovery(actual, tmp_
     restarted = OwnerResearchServices(
         services.lifecycle,
         services.client,
-        task=services.task,
+        task=services.task_contract,
         native_session=True,
         native_max_turns=32,
     )
@@ -327,7 +352,9 @@ def test_original_runner_compact_route_is_accepted_without_relaxing_any_route_id
             with pytest.raises(
                 OwnerResearchRejected, match="approved_native_budget_route_required"
             ):
-                OwnerResearchServices(services.lifecycle, services.client, task=services.task)
+                OwnerResearchServices(
+                    services.lifecycle, services.client, task=services.task_contract
+                )
             assert services.store.path.read_bytes() == before
     finally:
         services.lifecycle._budget_route = original

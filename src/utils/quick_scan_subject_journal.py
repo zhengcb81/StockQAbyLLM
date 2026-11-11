@@ -199,7 +199,9 @@ def guard_send(connection, item, attempt_id):
     from .quick_scan_work_store import WorkConflictError
 
     context = bound_context(connection, item)
-    from .quick_scan_owner_refresh_journal import read as owner_binding
+    from .quick_scan_owner_refresh_journal import (
+        api_owner_refresh_journal_read as owner_binding,
+    )
 
     owner_bound = owner_binding(connection, item["work_item_id"])
     if context is None:

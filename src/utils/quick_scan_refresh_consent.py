@@ -19,9 +19,15 @@ from jsonschema import Draft202012Validator, FormatChecker, ValidationError
 from referencing import Registry, Resource
 from referencing.exceptions import Unresolvable
 
-from .quick_scan_owner_refresh import OwnerRefreshClient, OwnerRefreshRejected, _read
+from .quick_scan_owner_refresh import (
+    OwnerRefreshClient,
+    OwnerRefreshRejected,
+)
+from .quick_scan_owner_refresh import api_owner_refresh_read as _read
 from .quick_scan_result_outbox import canonical_sha256
-from .quick_scan_work_store import _budget_policy_projection
+from .quick_scan_work_store import (
+    api_work_store_budget_policy_projection as _budget_policy_projection,
+)
 
 MAX_BYTES = 8 * 1024 * 1024
 WIRE_FIELDS = {
@@ -308,7 +314,9 @@ class RefreshConsentClient:
         ):
             raise ValueError("native consent executor policy mismatch")
         if dialect == "iqs.refresh_request/1.6.0":
-            from .quick_scan_owner_refresh_journal import ordered_targets
+            from .quick_scan_owner_refresh_journal import (
+                api_owner_refresh_journal_ordered_targets as ordered_targets,
+            )
 
             selected = ordered_targets(
                 preview["ordered_route_targets"],

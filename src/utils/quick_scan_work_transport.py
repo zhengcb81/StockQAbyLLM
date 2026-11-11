@@ -9,6 +9,7 @@ provider invocation. Only hashes and sanitized transport metadata reach SQLite.
 from __future__ import annotations
 
 import contextvars
+import copy
 import hashlib
 import json
 import threading
@@ -18,34 +19,37 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterator, Optional
 
+from src.interfaces.transport_outcome import UncertainTransportOutcome
 from src.utils.quick_scan_work_store import (
     BudgetAdmissionError,
     Lease,
     LeaseFencedError,
     QuickScanWorkStore,
     SendPermit,
-    _cost_to_micros,
-    _safe_text,
-    _sanitized_receipt,
+    canonical_native_events,
+    cost_to_micros,
 )
 from src.utils.quick_scan_work_store import quick_scan_receipt_sha256 as _receipt_sha256
+from src.utils.quick_scan_work_store import (
+    sanitize_transport_receipt,
+    validate_transport_text,
+)
 
 
 class QuickScanWorkPersistenceError(RuntimeError):
     """Durable work state could not be written; no fallback dispatch is allowed."""
 
     def __init__(self, message: str, attempt_receipt: Any = None):
-        self.attempt_receipt = _sanitized_receipt(attempt_receipt)
+        self.attempt_receipt = sanitize_transport_receipt(attempt_receipt)
         super().__init__(message)
 
 
-class QuickScanWorkUncertainError(RuntimeError):
+class QuickScanWorkUncertainError(UncertainTransportOutcome):
     """A request may have reached the provider; do not retry or fail over blindly."""
 
     def __init__(self, attempt_id: str, attempt_receipt: Optional[dict] = None):
         self.attempt_id = attempt_id
-        self.attempt_receipt = _sanitized_receipt(attempt_receipt)
-        super().__init__("quick-scan transport outcome is uncertain")
+        super().__init__(attempt_id, sanitize_transport_receipt(attempt_receipt))
 
 
 class QuickScanBudgetDeferredError(RuntimeError):
@@ -120,8 +124,10 @@ class QuickScanSendAttempt:
         with self._lock:
             if self._consumed:
                 raise QuickScanWorkPersistenceError("send permit already consumed")
+            # Every HTTP send, including external search and MCP controls, must
+            # revalidate an active company owner at the last dispatch boundary.
+            _check_owner_refresh_guard()
             if self.question_pack_binding is not None:
-                _check_owner_refresh_guard()
                 _check_question_pack_environment()
                 if (
                     self.binding is not None
@@ -142,7 +148,6 @@ class QuickScanSendAttempt:
                         "question pack authority changed before POST"
                     ) from error
             if self.binding is not None:
-                _check_owner_refresh_guard()
                 frozen = self.binding.store.get_observation_context(self.binding.work_item_id)
                 if (
                     frozen is not None
@@ -201,7 +206,9 @@ class QuickScanSendAttempt:
         receipt: Any,
         research_visible_output: Optional[dict] = None,
     ) -> None:
-        from .quick_scan_research_intent import anchor_original_receipt
+        from .quick_scan_research_intent import (
+            api_research_intent_anchor_original_receipt as anchor_original_receipt,
+        )
 
         anchor_original_receipt(self, receipt)
         if research_visible_output is None:
@@ -219,14 +226,18 @@ class QuickScanSendAttempt:
         )
         if store is None:
             raise QuickScanWorkPersistenceError("research visible output requires native store")
-        from src.utils.quick_scan_research_output import persist
+        from src.utils.quick_scan_research_output import (
+            api_research_output_persist as persist,
+        )
+        from src.utils.quick_scan_research_output import (
+            api_research_output_stage as stage,
+        )
 
+        receipt_before_projection = copy.deepcopy(receipt)
+        projection_error = None
         try:
-            # _transaction joins the SAME store thread-local SQLite connection;
-            # original work/pack/budget methods use nested savepoints, not a
-            # second connection. Output insertion failure rolls everything back.
             uncertain = None
-            with store._transaction() as connection:
+            with store.transaction() as connection:
                 try:
                     self._record_response(
                         http_status_code=http_status_code, request_id=request_id, receipt=receipt
@@ -237,15 +248,47 @@ class QuickScanSendAttempt:
                     # not make an uncertain logical outcome replay-safe.
                     uncertain = error
                 else:
-                    persist(store, connection, self.attempt_id, research_visible_output)
+                    try:
+                        persist(store, connection, self.attempt_id, research_visible_output)
+                    except Exception as error:
+                        projection_error = error
+                        raise
             if uncertain is not None:
                 raise uncertain
         except (QuickScanWorkPersistenceError, QuickScanWorkUncertainError):
-            raise
+            if projection_error is None:
+                raise
         except Exception as error:
+            if projection_error is None:
+                raise QuickScanWorkPersistenceError(
+                    "could not persist research visible output", receipt
+                ) from error
+
+        if projection_error is not None:
+            # The first transaction rolled back because only the final projection
+            # failed. Retain the original paid receipt/cost, then persist the safe
+            # answer in its recovery journal. Readers can serve that immutable
+            # answer without another provider request while projection is repaired.
+            receipt.clear()
+            receipt.update(receipt_before_projection)
+            try:
+                with store.transaction() as connection:
+                    self._record_response(
+                        http_status_code=http_status_code,
+                        request_id=request_id,
+                        receipt=receipt,
+                    )
+                    stage(store, connection, self.attempt_id, research_visible_output)
+            except QuickScanWorkUncertainError:
+                raise
+            except Exception as recovery_error:
+                raise QuickScanWorkPersistenceError(
+                    "could not stage paid research output for zero-request recovery", receipt
+                ) from recovery_error
             raise QuickScanWorkPersistenceError(
-                "could not persist research visible output", receipt
-            ) from error
+                "research output projection failed; paid answer retained for zero-request recovery",
+                receipt,
+            ) from projection_error
 
     def _record_response(
         self,
@@ -267,11 +310,9 @@ class QuickScanSendAttempt:
             raise QuickScanWorkUncertainError(self.attempt_id)
         receipt_sha256 = _receipt_sha256(receipt)
         actual_cost, cost_source_ref = _resolved_cost(self.budget_binding, receipt)
-        retained = _sanitized_receipt(receipt)
+        retained = sanitize_transport_receipt(receipt)
         if isinstance(receipt, dict) and "web_search_calls" in receipt:
-            from src.utils.quick_scan_work_store import _canonical_native_events
-
-            retained["web_search_calls"] = _canonical_native_events(receipt["web_search_calls"])
+            retained["web_search_calls"] = canonical_native_events(receipt["web_search_calls"])
         try:
             if self.question_pack_binding is not None:
                 if not isinstance(receipt, dict) or self.question_pack_id is None:
@@ -335,7 +376,7 @@ class QuickScanSendAttempt:
                     "could not retain late quick-scan response receipt"
                 ) from late_error
             raise QuickScanWorkUncertainError(
-                self.attempt_id, _sanitized_receipt(receipt)
+                self.attempt_id, sanitize_transport_receipt(receipt)
             ) from error
         except QuickScanWorkUncertainError:
             raise
@@ -347,10 +388,12 @@ class QuickScanSendAttempt:
     def record_failure(self, receipt: Any) -> None:
         if not self._consumed:
             raise QuickScanWorkPersistenceError("transport failed without a consumed permit")
-        from .quick_scan_research_intent import anchor_original_receipt
+        from .quick_scan_research_intent import (
+            api_research_intent_anchor_original_receipt as anchor_original_receipt,
+        )
 
         anchor_original_receipt(self, receipt)
-        safe = _sanitized_receipt(receipt)
+        safe = sanitize_transport_receipt(receipt)
         status = safe.get("http_status_code")
         provider_code = safe.get("provider_error_code")
         outcome, failure_category = _classify_transport_failure(safe)
@@ -648,12 +691,12 @@ def project_quick_scan_search(
         if not isinstance(proof, dict) or proof.get("work_item_id") != work_item_id:
             raise ValueError("external projection is bound to another work item")
         response = work_store.get_attempt_response(attempt_id)
-        if response is None or response["receipt"] != _sanitized_receipt(
+        if response is None or response["receipt"] != sanitize_transport_receipt(
             transport.get("final_receipt")
         ):
             raise ValueError("external projection differs from the actual final response")
-        with closing(work_store._connect()) as connection:
-            projection = work_store._external_checkpoint_projection(connection, attempt_id, proof)
+        with closing(work_store.connect()) as connection:
+            projection = work_store.external_checkpoint_projection(connection, attempt_id, proof)
         if projection is None:
             raise ValueError("external projection has no actual use proof")
         return {
@@ -675,16 +718,18 @@ def project_quick_scan_answer_sources(metadata: dict, *, work_store, work_item_i
     if metadata.get("research_intent_binding_sha256") is not None:
         from contextlib import closing
 
-        from .quick_scan_provided_context import read_sources
+        from .quick_scan_provided_context import (
+            api_provided_context_read_sources as read_sources,
+        )
 
         transport = metadata.get("work_transport") or {}
         attempt_id = transport.get("work_attempt_id")
         if not isinstance(work_store, QuickScanWorkStore) or not isinstance(attempt_id, str):
             raise ValueError("provided_context_original_owner_required")
         original = work_store.get_attempt_response(attempt_id)
-        if original is None or original["receipt"] != _sanitized_receipt(metadata):
+        if original is None or original["receipt"] != sanitize_transport_receipt(metadata):
             raise ValueError("provided_context_original_receipt_mismatch")
-        with closing(work_store._connect()) as connection:
+        with closing(work_store.connect()) as connection:
             sources = read_sources(
                 connection,
                 work_item_id=work_item_id,
@@ -788,7 +833,7 @@ def _resolved_cost(
         return None, None
     pricing_ref = cost_policy.get("pricing_ref")
     try:
-        measurement = binding.cost_resolver(_sanitized_receipt(receipt))
+        measurement = binding.cost_resolver(sanitize_transport_receipt(receipt))
     except Exception:
         return None, None
     if measurement is None:
@@ -802,8 +847,10 @@ def _resolved_cost(
     if measurement["pricing_ref"] != pricing_ref:
         return None, None
     try:
-        source_ref = _safe_text(measurement["source_ref"], "cost_source_ref", maximum=300)
-        _cost_to_micros(measurement["actual_cost"], "actual_cost", allow_zero=True)
+        source_ref = validate_transport_text(
+            measurement["source_ref"], "cost_source_ref", maximum=300
+        )
+        cost_to_micros(measurement["actual_cost"], "actual_cost", allow_zero=True)
     except (TypeError, ValueError):
         return None, None
     return measurement["actual_cost"], source_ref
@@ -841,6 +888,14 @@ def bind_subject_dispatch_registrar(registrar):
 
 @contextmanager
 def bind_owner_refresh_guard(guard):
+    """Bind the public owner capability used to revalidate each native send.
+
+    Only a live, owner-created versioned port can authorize a guarded send.
+    """
+    from .quick_scan_owner_refresh_api import is_owner_refresh_port
+
+    if not is_owner_refresh_port(guard):
+        raise ValueError("owner_refresh_port_required")
     token = _OWNER_REFRESH_GUARD.set(guard)
     try:
         yield
@@ -871,9 +926,46 @@ def _check_owner_refresh_guard() -> None:
     owner_guard = _OWNER_REFRESH_GUARD.get()
     if owner_guard is not None:
         try:
-            owner_guard()
+            from .quick_scan_owner_refresh_api import is_owner_refresh_port
+
+            if not is_owner_refresh_port(owner_guard):
+                raise ValueError("owner_refresh_port_required")
+            owner_guard.check()
+            _assert_owner_refresh_guard_scope(owner_guard)
         except ValueError as error:
             raise QuickScanWorkPersistenceError("owner_refresh_guard_rejected") from error
+
+
+def _assert_owner_refresh_guard_scope(owner_guard) -> None:
+    """Bind the live owner capability to the store and work being sent."""
+    stores = []
+    work_item_ids = set()
+    work = _WORK_BINDING.get()
+    if work is not None:
+        stores.append(work.store)
+        work_item_ids.add(work.work_item_id)
+    pack = _QUESTION_PACK_BINDING.get()
+    if pack is not None:
+        stores.append(pack.store)
+        work_item_ids.update(work_item_id for work_item_id, _ in pack.members)
+    budget = _BUDGET_BINDING.get()
+    if budget is not None:
+        stores.append(budget.store)
+    unique_stores: list[Any] = []
+    for store in stores:
+        if all(store is not existing for existing in unique_stores):
+            unique_stores.append(store)
+        if not owner_guard.is_bound_to(store):
+            raise ValueError("owner_refresh_store_mismatch")
+    if not unique_stores:
+        raise ValueError("owner_refresh_work_scope_required")
+    if not work_item_ids:
+        # An owner capability only authorizes a concrete persisted work scope.
+        # Unscoped search or model sends must use their own policy path.
+        raise ValueError("owner_refresh_work_scope_required")
+    if len(unique_stores) != 1:
+        raise ValueError("owner_refresh_store_mismatch")
+    owner_guard.assert_work_item_scope(unique_stores[0], tuple(sorted(work_item_ids)))
 
 
 def assert_controlled_generation_payload(payload, *, provider, protocol):
@@ -1045,7 +1137,7 @@ def _question_pack_bound_rows(
     subject = None
     for work_id, lease in binding.members:
         item = binding.store.get_item(work_id)
-        binding.store._assert_lease(item, lease, binding.store._now())
+        binding.store.assert_lease(item, lease, binding.store.now())
         frozen = binding.store.get_observation_context(work_id)
         if (
             item["identity_state"] != "verified"
@@ -1130,11 +1222,12 @@ def project_question_pack_transport(execution_metadata: dict) -> dict:
         transport = execution_metadata.get("work_transport")
         if (
             not isinstance(original, dict)
-            or _sanitized_receipt(execution_metadata) != _sanitized_receipt(original)
+            or sanitize_transport_receipt(execution_metadata)
+            != sanitize_transport_receipt(original)
             or _receipt_sha256(execution_metadata) != pack["receipt_sha256"]
             or not isinstance(transport, dict)
             or transport.get("work_attempt_id") != pack["budget_attempt_id"]
-            or transport.get("final_receipt") != _sanitized_receipt(original)
+            or transport.get("final_receipt") != sanitize_transport_receipt(original)
             or execution_metadata.get("attempt_id") != pack["execution_attempt_id"]
             or execution_metadata.get("prompt_sha256") != pack["provider_prompt_sha256"]
             or execution_metadata.get("request_payload_sha256") != pack["request_payload_sha256"]
@@ -1142,11 +1235,9 @@ def project_question_pack_transport(execution_metadata: dict) -> dict:
         ):
             raise ValueError("question pack metadata differs from its actual physical response")
         if "web_search_calls" in execution_metadata or "web_search_calls" in original:
-            from src.utils.quick_scan_work_store import _canonical_native_events
-
-            if _canonical_native_events(
+            if canonical_native_events(
                 execution_metadata.get("web_search_calls", [])
-            ) != _canonical_native_events(original.get("web_search_calls", [])):
+            ) != canonical_native_events(original.get("web_search_calls", [])):
                 raise ValueError("question pack native events differ from their actual response")
         rows = _question_pack_bound_rows(binding)
         for member, (item, _) in zip(pack["members"], rows):
@@ -1376,7 +1467,9 @@ def _prompt_contains_external_context(prompt: str, system_prompt: str, external:
         return False
 
 
-from .quick_scan_research_intent import bind_native_send
+from .quick_scan_research_intent import (
+    api_research_intent_bind_native_send as bind_native_send,
+)
 
 
 @bind_native_send
@@ -1485,7 +1578,12 @@ def begin_quick_scan_send(
             request_cache_key = (
                 "REQ_" + hashlib.sha256(request_identity.encode("utf-8")).hexdigest()
             )
-            from .quick_scan_research_session import active_id, active_intent_sha256
+            from .quick_scan_research_session import (
+                api_research_session_active_id as active_id,
+            )
+            from .quick_scan_research_session import (
+                api_research_session_active_intent_sha256 as active_intent_sha256,
+            )
 
             research_session_id = active_id(work.store, work.work_item_id, work.lease)
             prepared = work.store.prepare_attempt(
@@ -1630,3 +1728,38 @@ def begin_quick_scan_send(
         raise
     except Exception as error:
         raise QuickScanWorkPersistenceError("quick-scan durable send admission failed") from error
+
+
+def current_quick_scan_budget_binding():
+    """Read the active budget binding without exposing its ContextVar."""
+    return _BUDGET_BINDING.get()
+
+
+def current_quick_scan_work_binding():
+    """Read the immutable current work binding without exposing its ContextVar."""
+    return _WORK_BINDING.get()
+
+
+def current_quick_scan_question_pack_binding():
+    """Read the immutable current pack binding without exposing its ContextVar."""
+    return _QUESTION_PACK_BINDING.get()
+
+
+def current_quick_scan_owner_refresh_guard():
+    """Read the scoped owner guard without exposing its mutable ContextVar."""
+    return _OWNER_REFRESH_GUARD.get()
+
+
+# Versioned cross-module contract. Scoped context state is read through narrow
+# functions; no ContextVar object is part of the public API.
+MODULE_API_PROTOCOL = "stockqa.quick-scan-work-transport-module/1.2.0"
+MODULE_API_EXPORTS = frozenset(
+    {
+        "current_quick_scan_budget_binding",
+        "current_quick_scan_work_binding",
+        "current_quick_scan_question_pack_binding",
+        "current_quick_scan_owner_refresh_guard",
+        "project_quick_scan_search",
+        "project_question_pack_transport",
+    }
+)

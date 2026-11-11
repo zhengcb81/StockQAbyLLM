@@ -16,10 +16,19 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import NoReturn
 
-from .quick_scan_known_outcome_journal import _authorize, _physical
-from .quick_scan_owner_budget_continuation_v15 import _read_view
+from .quick_scan_known_outcome_journal import (
+    api_known_outcome_journal_authorize as _authorize,
+)
+from .quick_scan_known_outcome_journal import (
+    api_known_outcome_journal_physical as _physical,
+)
+from .quick_scan_owner_budget_continuation_v15 import (
+    api_owner_budget_continuation_v15_read_view as _read_view,
+)
 from .quick_scan_refresh_inspect import ReadOnlyWorkView
-from .quick_scan_research_intent import get_intent_response
+from .quick_scan_research_intent import (
+    api_research_intent_get_response as get_intent_response,
+)
 from .quick_scan_result_outbox import (
     canonical_bytes,
     canonical_sha256,
@@ -52,28 +61,25 @@ def _reject(reason: str) -> NoReturn:
 def _task(bundle):
     from importlib import import_module
 
-    task_module = import_module("iqs_company_agent_lab.task")
-    scan_profile = import_module("iqs_company_agent_lab.scan_profile")
+    company_api = import_module("iqs_company_agent_lab.api")
     if not isinstance(bundle, bytes):
         _reject("original_bundle_bytes_required")
     raw = strict_json_loads(bundle.decode("utf8"))
-    task = task_module.task_from_bundle(raw)
-    scan_profile.validate_scan_task(task)
-    return task
+    try:
+        return company_api.task_contract_from_bundle(raw)
+    except (AttributeError, KeyError, TypeError, ValueError) as error:
+        raise ValueError("saved_research_company_task_contract_invalid") from error
 
 
 def _derive(store, connection, bundle, sdk_id, key):
     from importlib import import_module
 
-    receiptmap = import_module("iqs_agent_runtime_lab.receiptmap")
-    answers = import_module("iqs_company_agent_lab.answers")
-    runner_module = import_module("iqs_company_agent_lab.runner")
-    project_batch_response = receiptmap.project_batch_response
-    batch_response_scope = receiptmap.batch_response_scope
-    parse_answers_payload = answers.parse_answers_payload
-    validate_single_answer = answers.validate_single_answer
-    Runner = runner_module.Runner
-    from .quick_scan_observation_context import frozen_question_contract, validate_standard_answer
+    company_api = import_module("iqs_company_agent_lab.api")
+    runtime_api = import_module("iqs_agent_runtime_lab.api")
+    from .quick_scan_observation_context import (
+        frozen_question_contract,
+        validate_standard_answer,
+    )
     from .quick_scan_subject_journal import receipt_record
 
     task = _task(bundle)
@@ -82,34 +88,35 @@ def _derive(store, connection, bundle, sdk_id, key):
     view = _read_view(connection, store.path)
     rows = connection.execute(
         "SELECT i.intent_sha256 FROM quick_scan_research_intent i JOIN quick_scan_attempt_response r ON r.attempt_id=i.native_attempt_id WHERE i.task_sha256=? AND json_extract(r.receipt_json,'$.attempt_id')=?",
-        (canonical_sha256(task.raw), sdk_id),
+        (canonical_sha256(task["raw"]), sdk_id),
     ).fetchall()
     if len(rows) != 1:
         _reject("original_task_native_intent_required")
-    original = get_intent_response(view, canonical_sha256(task.raw), rows[0][0])
+    original = get_intent_response(view, canonical_sha256(task["raw"]), rows[0][0])
     if original is None or not original.get("native_receipt") or not original.get("visible_output"):
         _reject("safe_native_response_required")
     receipt = original["native_receipt"]
     visible = original["visible_output"]
     workids = original["work_item_ids"]
     items = {w: dict(view.get_item(w)) for w in workids}
-    selected = [q for q in task.question_ids if q in {i["question_id"] for i in items.values()}]
+    selected = [q for q in task["question_ids"] if q in {i["question_id"] for i in items.values()}]
     if len(selected) != len(items):
         _reject("original_pack_members_required")
-    batch_response_scope(task, selected)
+    runtime_api.batch_response_scope(task, selected)
     output = visible["visible_output"]
-    projected = project_batch_response(
+    projected = runtime_api.project_batch_response(
         task,
         selected,
         content=output["content"],
         tool_calls=output["tool_calls"],
         finish_reason=output["finish_reason"],
     )
-    payload = parse_answers_payload(projected["content"])
-    # The original Runner's pure evidence intake/answer validators, no run loop.
-    checker = Runner(task, object(), execution_revision=2)
-    checker._start()
+    payload = company_api.parse_answers_payload(projected["content"])
     bodies = {a["question_id"]: a for a in payload["answers"]}
+    validation = company_api.validate_task_answers(
+        task, [bodies[qid] for qid in selected], claim_kind_gate=True
+    )
+    bodies = {a["question_id"]: a for a in validation["answers"]}
     members = []
     for qid in selected:
         body = bodies[qid]
@@ -118,15 +125,6 @@ def _derive(store, connection, bundle, sdk_id, key):
             or body.get("score") is not None
         ):
             _reject("nonscored_only")
-        validate_single_answer(
-            body,
-            qid,
-            checker.state.board,
-            checker.state.evidence_cutoff_date,
-            claim_kind_gate=True,
-        )
-        if checker.state._binding_findings(qid, body):
-            _reject("original_answer_binding_rejected")
         item = next(i for i in items.values() if i["question_id"] == qid)
         if item["identity_state"] != "verified":
             _reject("original_identity_unverified")
@@ -186,7 +184,7 @@ def _derive(store, connection, bundle, sdk_id, key):
                 _reject("unpublished_work_state_required")
             if item["status"] == "leased" and item["lease_expires_at"] is None:
                 _reject("lease_state_invalid")
-            if item["status"] == "leased" and item["lease_expires_at"] > store._now():
+            if item["status"] == "leased" and item["lease_expires_at"] > store.now():
                 _reject("active_generation_lease_not_publication")
             if connection.execute(
                 "SELECT 1 FROM quick_scan_result_delivery WHERE work_item_id=?",
@@ -216,18 +214,18 @@ def _derive(store, connection, bundle, sdk_id, key):
         )
     publication = dict(
         protocol="stockqa.saved_research_publication/1.0.0",
-        task_sha256=canonical_sha256(task.raw),
+        task_sha256=canonical_sha256(task["raw"]),
         task_bundle_sha256=hashlib.sha256(bundle).hexdigest(),
-        execution_profile_sha256=task.raw["execution_profile_sha256"],
+        execution_profile_sha256=task["raw"]["execution_profile_sha256"],
         native_sdk_id=sdk_id,
         native_intent_sha256=rows[0][0],
         safe_payload_sha256=connection.execute(
             "SELECT payload_sha256 FROM quick_scan_research_visible_output WHERE attempt_id=?",
             (visible["attempt_id"],),
         ).fetchone()[0],
-        evidence_epoch_sha256=checker.state.board.epoch_sha256(),
-        information_cutoff=task.raw["information_cutoff"],
-        c06_authority_sha256=task.raw["native_inputs"]["authority.json"]["sha256"],
+        evidence_epoch_sha256=validation["evidence_epoch_sha256"],
+        information_cutoff=task["raw"]["information_cutoff"],
+        c06_authority_sha256=task["raw"]["native_inputs"]["authority.json"]["sha256"],
         question_ids=selected,
         subject_ref=members[0]["physical"]["subject_binding"]["subject_ref"],
         members=[
@@ -262,12 +260,16 @@ def _derive(store, connection, bundle, sdk_id, key):
 
 
 def derive_publication(store, bundle, *, sdk_id, idempotency_key):
-    with closing(store._connect()) as con:
-        con.execute("BEGIN")
+    inspection_transaction = getattr(store, "inspection_transaction", None)
+    if callable(inspection_transaction):
+        with inspection_transaction() as connection:
+            return _derive(store, connection, bundle, sdk_id, idempotency_key)
+    with closing(store.connect()) as connection:
+        connection.execute("BEGIN")
         try:
-            return _derive(store, con, bundle, sdk_id, idempotency_key)
+            return _derive(store, connection, bundle, sdk_id, idempotency_key)
         finally:
-            con.rollback()
+            connection.rollback()
 
 
 def _provenance(member, native, response):
@@ -308,13 +310,13 @@ def publish_saved_research(
         != before["request"]["publication"]["c06_authority_sha256"]
     ):
         _reject("original_c06_authority_required")
-    now = store._now()
+    now = store.now()
     grant = _authorize(owner_authority, before["request"], now)
-    with store._transaction() as con:
+    with store.transaction() as con:
         current = _derive(store, con, bundle, sdk_id, idempotency_key)
         if current["request"] != before["request"]:
             _reject("source_changed_before_commit")
-        if _authorize(owner_authority, current["request"], store._now()) != grant:
+        if _authorize(owner_authority, current["request"], store.now()) != grant:
             _reject("publisher_changed_before_commit")
         saved = []
         for m in current["members"]:
@@ -329,7 +331,7 @@ def publish_saved_research(
                     _reject("immutable_publication_conflict")
                 saved.append(wid)
                 continue
-            response = store._response_for_checkpoint(
+            response = store.response_for_checkpoint(
                 con, m["attempt"], m["physical"]["receipt_sha256"]
             )
             payload = dict(
@@ -343,7 +345,7 @@ def publish_saved_research(
                 checkpointed_at=now,
                 publication=dict(request=current["request"], grant=grant),
             )
-            side = store._prepare_standard_inputs(
+            side = store.prepare_standard_inputs(
                 question_id=item["question_id"],
                 normalized_answer=m["normalized_answer"],
                 source_urls=m["source_urls"],
@@ -351,8 +353,8 @@ def publish_saved_research(
                 standard_answer=m["standard_answer"],
                 research_only=True,
             )
-            store._store_side_tables(con, work_item_id=wid, item=item, now=now, **side)
-            store._record_frozen_run_refs(
+            store.store_side_tables(con, work_item_id=wid, item=item, now=now, **side)
+            store.record_frozen_run_refs(
                 con, work_item_id=wid, context_encoded=side["context_encoded"], now=now
             )
             encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
@@ -376,7 +378,7 @@ def publish_saved_research(
                 != 1
             ):
                 _reject("work_changed_before_commit")
-            store._event(
+            store.record_event(
                 con,
                 wid,
                 "saved_research_published",
@@ -388,7 +390,9 @@ def publish_saved_research(
             )
             saved.append(wid)
         # Native checkpoints and sealed outbox items commit as one group.
-        from .quick_scan_delivery_seal import _complete_package
+        from .quick_scan_delivery_seal import (
+            api_delivery_seal_complete_package as _complete_package,
+        )
 
         view = _read_view(con, store.path)
         packages = []
@@ -540,7 +544,7 @@ def validate_checkpoint(connection, row, payload, *, validate_status=True):
         _reject("checkpoint_body_context_changed")
     if context["context_sha256"] != member["context_sha256"] or payload.get("answer") != expected:
         _reject("checkpoint_body_context_changed")
-    response = QuickScanWorkStore._response_for_checkpoint(
+    response = QuickScanWorkStore.response_for_checkpoint(
         connection, attempt, member["physical"]["receipt_sha256"]
     )
     original = response["receipt"]
@@ -592,7 +596,7 @@ def require_publisher(store, connection, work_item_id, authority, *, preauthoriz
         if confirmation is not None and stored.get("confirmation_id") != confirmation:
             _reject("current_publisher_authority_changed")
         return request
-    grant = _authorize(authority, request, store._now())
+    grant = _authorize(authority, request, store.now())
     if grant != payload["publication"]["grant"]:
         _reject("current_publisher_authority_changed")
     return request
@@ -601,7 +605,9 @@ def require_publisher(store, connection, work_item_id, authority, *, preauthoriz
 def inspect_publication(path, request, *, policy, task_bundle, deployment=None):
     if deployment is not None:
         native_dependencies(deployment)
-    from .quick_scan_work_decision_inspect import _policy_matches
+    from .quick_scan_work_decision_inspect import (
+        api_work_decision_inspect_policy_matches as _policy_matches,
+    )
 
     view = ReadOnlyWorkView(path)
     pub = request.get("publication", {})
@@ -613,7 +619,7 @@ def inspect_publication(path, request, *, policy, task_bundle, deployment=None):
     )
     if value["request"] != request:
         _reject("executor_original_request_mismatch")
-    with closing(view._connect()) as con:
+    with closing(view.connect()) as con:
         con.execute("BEGIN")
         for member in value["members"]:
             _policy_matches(con, policy, member["physical"])
@@ -626,6 +632,13 @@ def inspect_publication(path, request, *, policy, task_bundle, deployment=None):
         API_requests=0,
         database_writes=0,
     )
+
+
+def _supports_declared_public_facade(module, family, minimum_version, operations):
+    """Require every invoked operation to be both declared and callable."""
+    from src.utils.quick_scan_company_api import supports_public_api_operations
+
+    return supports_public_api_operations(module, family, minimum_version, operations)
 
 
 def native_dependencies(deployment):
@@ -673,11 +686,17 @@ def native_dependencies(deployment):
         module_file = getattr(module, "__file__", None)
         if not isinstance(module_file, str) or Path(module_file).resolve() != init.resolve():
             _reject("component_import_origin_changed")
-    scan = import_module("iqs_company_agent_lab.scan_profile")
-    mapping = import_module("iqs_agent_runtime_lab.receiptmap")
-    if (
-        getattr(scan, "TASK_PROTOCOL", None) != "iqs.company-scan-task/1.0.0"
-        or not callable(getattr(scan, "validate_scan_task", None))
-        or not callable(getattr(mapping, "project_batch_response", None))
+    scan = import_module("iqs_company_agent_lab.api")
+    mapping = import_module("iqs_agent_runtime_lab.api")
+    if not _supports_declared_public_facade(
+        scan,
+        "iqs.company-agent-public-api",
+        (2, 3, 0),
+        ("task_contract_from_bundle", "validate_task_answers"),
+    ) or not _supports_declared_public_facade(
+        mapping,
+        "iqs.agent-runtime-public-api",
+        (1, 4, 0),
+        ("batch_response_scope", "project_batch_response", "build_model_receipt"),
     ):
         _reject("original_component_capability_missing")

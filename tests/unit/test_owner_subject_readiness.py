@@ -397,6 +397,8 @@ def test_transport_failure_refused_and_owned_temp_removed(readiness, monkeypatch
 def test_constructor_calls_readiness_before_any_dispatch(monkeypatch):
     # Constructor wiring only: original classes with explicit boundary doubles.
     # This is not an owner-admission positive or actual sender evidence.
+    from iqs_company_agent_lab.api import create_owner_task
+
     from src.providers.llm_client import LLMClient
     from src.runners.llm_runner import QuickScanWorkLifecycle
     from src.utils.quick_scan_owner_refresh import OwnerRefreshSession
@@ -429,7 +431,22 @@ def test_constructor_calls_readiness_before_any_dispatch(monkeypatch):
         _observation_context={},
     ).items():
         setattr(lifecycle, key, value)
-    task = SimpleNamespace(raw={}, questions=[], company_doc={}, company_ref={}, limits={})
+    task = create_owner_task(
+        {
+            "protocol": "iqs.synthetic-owner-readiness-task/1.0.0",
+            "run_id": "synthetic-readiness",
+            "company_ref": {"path": "company.json", "bytes": 1, "sha256": "a" * 64},
+            "information_cutoff": "2026-10-15",
+            "limits": {},
+            "strategy_id": "synthetic-test",
+            "question_refs": [],
+        },
+        [],
+        {"origin": "owner_public", "subject": {"subject_ref": {"entity_id": "SYNTHETIC"}}},
+        {"records": []},
+        {"provider": "deepseek", "model": "deepseek-flash"},
+        {},
+    )
     client = LLMClient(
         "SYNTHETIC-NOT-A-KEY",
         "deepseek-flash",

@@ -271,7 +271,9 @@ class OwnerRefreshClient:
         if cache_clock not in {"information_as_of", "successful_scan"}:
             raise OwnerRefreshRejected("owner_refresh_cache_clock_invalid")
         if ordered_route_targets is not None:
-            from .quick_scan_owner_refresh_journal import ordered_targets
+            from .quick_scan_owner_refresh_journal import (
+                api_owner_refresh_journal_ordered_targets as ordered_targets,
+            )
 
             ordered_route_targets = ordered_targets(
                 ordered_route_targets, provider=provider, model=model
@@ -983,3 +985,11 @@ def build_refresh_result(batch, session: OwnerRefreshSession, quick_scan_context
     }
     _validate_schema(result, "quick_scan_owner_refresh_result.schema.json")
     return result
+
+
+# Additive, versioned owner exports for cross-module consumers.
+MODULE_API_PROTOCOL = "stockqa.utils-quick_scan_owner_refresh-module/1.0.0"
+api_owner_refresh_read = _read
+MODULE_API_EXPORTS = frozenset(
+    set(globals().get("MODULE_API_EXPORTS", ())) | {"api_owner_refresh_read"}
+)

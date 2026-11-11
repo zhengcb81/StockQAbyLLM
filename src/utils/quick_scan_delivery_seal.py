@@ -35,7 +35,7 @@ from src.utils.quick_scan_work_store import (
     LeaseFencedError,
     QuickScanWorkStore,
     WorkConflictError,
-    _unmapped_run_scan_pairs,
+    unmapped_run_scan_pairs,
 )
 
 logger = get_logger(__name__)
@@ -122,7 +122,7 @@ def _complete_package(
     # recorded under — verified here, never re-labelled to fit. The exact
     # same rule guards prepare/supersede in the work store.
     run_refs = {(row["run_id"], row["scan_id"]) for row in store.list_run_refs(work_item_id)}
-    if _unmapped_run_scan_pairs(stored["context"], run_refs):
+    if unmapped_run_scan_pairs(stored["context"], run_refs):
         logger.warning(
             "封存 run/scan 绑定拒绝（%s）：冻结 run/scan 未映射到该 work 的实际执行",
             work_item_id,
@@ -218,7 +218,7 @@ def seal_result_delivery(
 
         from .quick_scan_saved_research_publication import require_publisher
 
-        with closing(store._connect()) as connection:
+        with closing(store.connect()) as connection:
             require_publisher(store, connection, work_item_id, publisher_authority)
     existing = store.get_result_delivery(work_item_id)
     sealed = existing is not None and existing.get("package") is not None
@@ -429,3 +429,13 @@ def seal_pending_deliveries(
             counts[kind] > len(rows) for kind, rows in diagnostics.items()
         ),
     }
+
+
+# Additive, versioned owner exports for cross-module consumers.
+MODULE_API_PROTOCOL = "stockqa.utils-quick_scan_delivery_seal-module/1.0.0"
+api_delivery_seal_complete_package = _complete_package
+api_delivery_seal_send_intent_iso = _send_intent_iso
+MODULE_API_EXPORTS = frozenset(
+    set(globals().get("MODULE_API_EXPORTS", ()))
+    | {"api_delivery_seal_complete_package", "api_delivery_seal_send_intent_iso"}
+)

@@ -8,6 +8,7 @@ import pytest
 from src.utils import quick_scan_work_transport as transport
 from src.utils.quick_scan_work_control import project_owner_control
 from src.utils.quick_scan_work_store import QuickScanWorkStore
+from tests.unit.owner_refresh_port_test_support import approved_owner_refresh_port
 from tests.unit.test_comparison_target_inspection import prepared, target_route
 from tests.unit.test_controlled_refresh_binding import create
 from tests.unit.test_owner_comparison_target_grant import target
@@ -143,8 +144,10 @@ def test_actual_target_route_and_payload_checked_before_attempt(tmp_path, monkey
     with ExitStack() as contexts:
         contexts.enter_context(transport.bind_quick_scan_work(store, item["work_item_id"], lease))
         contexts.enter_context(
-            transport.bind_owner_refresh_guard(lambda: None)
-        )  # fixture-only port
+            transport.bind_owner_refresh_guard(
+                approved_owner_refresh_port(store=store, work_item_ids=(item["work_item_id"],))
+            )
+        )
         if fault != "missing_route":
             contexts.enter_context(transport.bind_quick_scan_route(**route))
         if fault != "missing_budget":

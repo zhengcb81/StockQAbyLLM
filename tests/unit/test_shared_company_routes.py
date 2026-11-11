@@ -387,6 +387,7 @@ def test_physical_pack_counts_once_against_original_company_cap(tmp_path):
 
 
 def test_registered_paid_recovery_keeps_each_original_model_in_approved_order():
+    from src.interfaces.quick_scan_owner_refresh import OwnerRefreshSnapshot
     from src.utils.quick_scan_shared_company import registered_recovery_routes
 
     rows = {
@@ -422,19 +423,38 @@ def test_registered_paid_recovery_keeps_each_original_model_in_approved_order():
         get_attempt_response=lambda aid: {"receipt": "original"},
     )
     session = SimpleNamespace(
-        requested_question_ids=["Q1", "Q2"],
-        entries={q: {"kind": "work"} for q in rows},
+        snapshot=lambda: OwnerRefreshSnapshot(
+            kind="approved",
+            plan={},
+            proof={},
+            record={},
+            bundle={},
+            entries={q: {"kind": "work"} for q in rows},
+            fields={},
+            work={},
+            deferred={},
+            scope_bindings={},
+            observation_context=None,
+            ordered_route_targets=tuple(targets()),
+            requested_question_ids=("Q1", "Q2"),
+            needs_new_dispatch=False,
+            recovery_only=True,
+            recovery_work_item_ids=(),
+            remaining_work_item_ids=(),
+        ),
         existing_work=lambda q: {"work_item_id": q},
-        service=SimpleNamespace(store=store),
-        ordered_route_targets=targets(),
+        is_bound_to=lambda candidate: candidate is store,
         execution_routes=lambda policy: list(reversed(routes)),
     )
-    result = registered_recovery_routes(session, {})
+    result = registered_recovery_routes(session, {}, store=store)
     assert [r["id"] for r in result] == ["a", "b"]
     # An old single-model action must never inherit that permission.
-    session.ordered_route_targets = None
+    snapshot = session.snapshot()
+    session.snapshot = lambda: OwnerRefreshSnapshot(
+        **{**snapshot.__dict__, "ordered_route_targets": None}
+    )
     with pytest.raises(ValueError, match="original_route_required"):
-        registered_recovery_routes(session, {})
+        registered_recovery_routes(session, {}, store=store)
 
 
 @pytest.fixture
@@ -444,6 +464,7 @@ def coordinator_ports(tmp_path, monkeypatch):
     import copy
 
     from src.core.models import Question
+    from src.interfaces.quick_scan_owner_refresh import OwnerRefreshSnapshot
     from src.providers import llm_research_client as sdk
     from src.utils import quick_scan_shared_company as entry
     from src.utils import quick_scan_shared_routes as routes
@@ -455,6 +476,27 @@ def coordinator_ports(tmp_path, monkeypatch):
         entries={q: {"kind": "work", "work_item_id": "W" + q} for q in ("Q1", "Q2")},
         proof={"confirmation": {"confirmation_id": "original-owner-scope"}},
         check=lambda: None,
+    )
+    owner.snapshot = lambda: OwnerRefreshSnapshot(
+        kind="approved",
+        plan={},
+        proof=owner.proof,
+        record=None,
+        bundle=None,
+        entries=owner.entries,
+        fields={},
+        work={},
+        deferred={},
+        scope_bindings={},
+        observation_context=None,
+        ordered_route_targets=(
+            None if owner.ordered_route_targets is None else tuple(owner.ordered_route_targets)
+        ),
+        requested_question_ids=("Q1", "Q2"),
+        needs_new_dispatch=False,
+        recovery_only=False,
+        recovery_work_item_ids=(),
+        remaining_work_item_ids=(),
     )
     lifecycle = SimpleNamespace(
         registered_research_work=lambda: SimpleNamespace(owner=owner),

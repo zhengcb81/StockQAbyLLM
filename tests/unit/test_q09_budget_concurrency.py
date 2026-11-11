@@ -136,6 +136,24 @@ def _attach(store, qid: str, run_id: str = "RUN_1"):
     )
 
 
+def test_route_in_flight_count_is_a_work_store_semantic_operation(tmp_path: Path) -> None:
+    """Provider routing reads the route count without knowing SQLite schema."""
+    import pytest
+
+    policy = _policy(max_cost=10, max_per_attempt=1)
+    store = _store(tmp_path, policy)
+    route_a = _lifecycle(store, policy=policy, route=_route(policy, 0))
+    route_b = _lifecycle(store, policy=policy, route=_route(policy, 1))
+    assert route_a.before_question(_q("IQS_ROUTE_A", "route A"))["claimed"]
+    assert route_b.before_question(_q("IQS_ROUTE_B", "route B"))["claimed"]
+
+    assert store.count_route_in_flight_budget_attempts("POL_q09", "route_a") == 1
+    assert store.count_route_in_flight_budget_attempts("POL_q09", "route_b") == 1
+    assert store.count_route_in_flight_budget_attempts("POL_q09", "route_missing") == 0
+    with pytest.raises(KeyError, match="unknown budget policy"):
+        store.count_route_in_flight_budget_attempts("POL_missing", "route_a")
+
+
 def test_bud_01_concurrent_reserves_admit_exactly_one(tmp_path: Path) -> None:
     """BUD-01: budget=10, two concurrent reserves of 6 — the atomic admission
     lets exactly ONE request through; spent+reserved<=10; the other question

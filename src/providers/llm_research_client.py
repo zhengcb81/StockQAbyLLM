@@ -20,14 +20,14 @@ from urllib.parse import urlsplit
 from jsonschema import Draft202012Validator, ValidationError
 
 from src.providers.llm_client import (
-    _SEARCH_MAX_OUTPUT_TOKENS,
+    SEARCH_MAX_OUTPUT_TOKENS,
     LLMTransportAttemptError,
-    _canonical_http_json,
-    _failed_attempt_receipt,
-    _response_request_id,
-    _response_status_code,
-    _utc_now,
-    _validate_search_generation_controls,
+    canonical_http_json,
+    failed_attempt_receipt,
+    response_request_id,
+    response_status_code,
+    utc_now,
+    validate_search_generation_controls,
 )
 from src.providers.model_resolution import model_resolution_sha256
 from src.utils.http_client import http_client_manager
@@ -250,7 +250,7 @@ def research_channel_capabilities(client):
         native_final_json=native,
         external_final_json=chat,
         tools=chat,
-        final_json_max_output_tokens=_SEARCH_MAX_OUTPUT_TOKENS,
+        final_json_max_output_tokens=SEARCH_MAX_OUTPUT_TOKENS,
         tools_max_output_tokens=_RESEARCH_TOOLS_MAX_OUTPUT_TOKENS,
     )
 
@@ -304,7 +304,7 @@ class ResearchChatSession:
             # The production batch channel uses the same application bound
             # as its original SDK send; frozen tool conversations stay 16k.
             try:
-                _validate_search_generation_controls(True, max_output_tokens)
+                validate_search_generation_controls(True, max_output_tokens)
             except ValueError as error:
                 raise ValueError("research_limits_invalid") from error
         if response_channel not in {"tools", "final_json"}:
@@ -570,7 +570,7 @@ class ResearchChatSession:
             self._api_key if self._provider == "mimo" else "Bearer " + self._api_key
         )
         response = None
-        started = _utc_now()
+        started = utc_now()
         http_start = time.monotonic()
         permit.consume_for_post()
         self._blocked = True  # Ambiguous/post-send exceptions must never permit a resend.
@@ -583,12 +583,12 @@ class ResearchChatSession:
                 allow_redirects=False,
             )
             response.raise_for_status()
-            status_code = _response_status_code(response)
+            status_code = response_status_code(response)
             if status_code is None or not 200 <= status_code < 300:
                 raise ValueError("research_http_not_successful")
-            payload, digest, basis = _canonical_http_json(response)
+            payload, digest, basis = canonical_http_json(response)
         except Exception as error:
-            receipt = _failed_attempt_receipt(
+            receipt = failed_attempt_receipt(
                 response,
                 attempt_id,
                 started,
@@ -604,7 +604,7 @@ class ResearchChatSession:
             receipt.pop("usage", None)
             if response is not None:
                 try:
-                    _, failed_usage = _usage(_canonical_http_json(response)[0])
+                    _, failed_usage = _usage(canonical_http_json(response)[0])
                     if failed_usage is not None:
                         receipt["usage"] = failed_usage
                 except (TypeError, ValueError, KeyError, IndexError) as usage_error:
@@ -634,12 +634,12 @@ class ResearchChatSession:
             "requested_model": self._model,
             "actual_model": reported_model,
             "response_id": reported_id,
-            "request_id": _response_request_id(response),
-            "http_status_code": _response_status_code(response),
+            "request_id": response_request_id(response),
+            "http_status_code": response_status_code(response),
             "search_protocol": protocol,
             "search_status": "not_requested",
             "started_at": started,
-            "completed_at": _utc_now(),
+            "completed_at": utc_now(),
             "request_payload_sha256": _sha(body),
             "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest(),
             "response_sha256": digest,
@@ -716,7 +716,7 @@ class ResearchChatSession:
                     raise ValueError("research_reasoning_protocol_invalid")
                 private["reasoning_content"] = message["reasoning_content"]
             from src.utils.quick_scan_research_output import (
-                normalize as normalize_visible_output,
+                api_research_output_normalize as normalize_visible_output,
             )
 
             normalize_visible_output(
@@ -752,7 +752,7 @@ class ResearchChatSession:
                     pass  # Durable unknown barrier retained; no resend/output.
             else:
                 permit.record_response(
-                    http_status_code=_response_status_code(response),
+                    http_status_code=response_status_code(response),
                     request_id=receipt["request_id"],
                     receipt=receipt,
                 )
@@ -761,14 +761,16 @@ class ResearchChatSession:
                 receipt,
                 diagnostic,
             ) from None
-        from src.utils.quick_scan_research_output import visible_output_sha256
+        from src.utils.quick_scan_research_output import (
+            api_research_output_visible_sha256 as visible_output_sha256,
+        )
 
         receipt["research_visible_output_sha256"] = visible_output_sha256(
             {"content": content, "tool_calls": tools, "finish_reason": finish}
         )
         receipt["response_status"] = "completed"
         permit.record_response(
-            http_status_code=_response_status_code(response),
+            http_status_code=response_status_code(response),
             request_id=receipt["request_id"],
             receipt=receipt,
             research_visible_output={
@@ -822,3 +824,8 @@ class ResearchChatSession:
         if self._tool_argument_validation == "controller":
             result["tool_argument_validation"] = "controller"
         return result
+
+
+# Versioned capability export consumed by the Quick Scan composition layer.
+MODULE_API_PROTOCOL = "stockqa.llm-research-client-module/1.0.0"
+MODULE_API_EXPORTS = frozenset({"research_channel_capabilities"})

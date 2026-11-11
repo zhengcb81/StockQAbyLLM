@@ -143,9 +143,15 @@ def _single_physical(store, con, item, attempt):
     remain unsupported. This is a versioned carrier within the existing work
     decision envelope; the released pack carrier stays byte-for-byte unchanged.
     """
-    from .quick_scan_owner_refresh_journal import read as owner_binding
-    from .quick_scan_question_pack_journal import _fingerprint
-    from .quick_scan_research_intent import binding_from_row
+    from .quick_scan_owner_refresh_journal import (
+        api_owner_refresh_journal_read as owner_binding,
+    )
+    from .quick_scan_question_pack_journal import (
+        api_question_pack_journal_fingerprint as _fingerprint,
+    )
+    from .quick_scan_research_intent import (
+        api_research_intent_binding_from_row as binding_from_row,
+    )
     from .quick_scan_subject_journal import (
         bound_context,
         dispatch_request,
@@ -191,7 +197,7 @@ def _single_physical(store, con, item, attempt):
     ):
         raise WorkConflictError("owner_work_physical_not_settled")
     receipt_sha = attempt["receipt_sha256"] or attempt["late_receipt_sha256"]
-    response = store._response_for_checkpoint(con, attempt, receipt_sha)
+    response = store.response_for_checkpoint(con, attempt, receipt_sha)
     receipt = response["receipt"]
     if (
         receipt.get("request_payload_sha256") != original["request_payload_sha256"]
@@ -266,7 +272,12 @@ def _single_physical(store, con, item, attempt):
 
 def _physical(store, con, item, attempt):
     """Re-derive settled physical evidence, not a caller receipt or status flag."""
-    from .quick_scan_question_pack_journal import _fingerprint, _read
+    from .quick_scan_question_pack_journal import (
+        api_question_pack_journal_fingerprint as _fingerprint,
+    )
+    from .quick_scan_question_pack_journal import (
+        api_question_pack_journal_read as _read,
+    )
     from .quick_scan_subject_journal import (
         bound_context,
         guard_response,
@@ -336,7 +347,7 @@ def _physical(store, con, item, attempt):
         or terminal["settled_at"] != budget["reconciled_at"]
     ):
         raise WorkConflictError("owner_work_physical_not_settled")
-    response = store._response_for_checkpoint(con, attempt, pack["receipt_sha256"])
+    response = store.response_for_checkpoint(con, attempt, pack["receipt_sha256"])
     receipt = response["receipt"]
     if (
         response["receipt_sha256"]
@@ -355,7 +366,7 @@ def _physical(store, con, item, attempt):
     ).fetchone()
     if physical_row is None:
         raise WorkConflictError("owner_work_physical_response_missing")
-    physical = store._response_record(con, physical_row)
+    physical = store.response_record(con, physical_row)
     if (
         physical["receipt_sha256"] != response["receipt_sha256"]
         or physical["receipt"] != receipt
@@ -375,7 +386,9 @@ def _physical(store, con, item, attempt):
     if context is None or pre is None:
         raise WorkConflictError("owner_work_context2_dispatch_required")
     original_owner = receipt_record(con, pre)
-    from .quick_scan_owner_refresh_journal import read as owner_binding
+    from .quick_scan_owner_refresh_journal import (
+        api_owner_refresh_journal_read as owner_binding,
+    )
 
     original_binding = owner_binding(con, item["work_item_id"])
     guard_response(con, attempt["attempt_id"], receipt)
@@ -472,7 +485,7 @@ def unusable_checkpoint_proof(store, con, item, attempt):
         "SELECT c.*,w.*,a.attempt_id AS bound_attempt_id FROM answer_checkpoint c JOIN work_item w USING(work_item_id) JOIN attempt a ON a.attempt_id=c.attempt_id WHERE c.work_item_id=?",
         (item["work_item_id"],),
     ).fetchone()
-    checkpoint = store._checkpoint_record(con, record)
+    checkpoint = store.checkpoint_record(con, record)
     context_row = con.execute(
         "SELECT c.context_json,c.context_sha256 FROM quick_scan_work_context w JOIN quick_scan_observation_context c USING(context_sha256) WHERE w.work_item_id=?",
         (item["work_item_id"],),
@@ -546,7 +559,7 @@ def _read(store, con, row):
         != "owd1_" + canonical_sha256({k: v for k, v in document.items() if k != "decision_id"})
     ):
         raise WorkConflictError("owner_work_durable_decision_mismatch")
-    item = store._item(con, row["work_item_id"])
+    item = store.item_in_transaction(con, row["work_item_id"])
     attempt = con.execute(
         "SELECT * FROM attempt WHERE attempt_id=?", (row["attempt_id"],)
     ).fetchone()
@@ -693,7 +706,7 @@ def resolution_request(
         "known_response_no_accepted_answer",
     }:
         raise ValueError("owner_work_resolution_reason_invalid")
-    item = store._item(con, work_item_id)
+    item = store.item_in_transaction(con, work_item_id)
     attempt = con.execute(
         "SELECT * FROM attempt WHERE attempt_id=? AND work_item_id=?",
         (attempt_id, work_item_id),
@@ -775,8 +788,8 @@ def resolve(
 ):
     from .quick_scan_work_store import LeaseFencedError, WorkConflictError
 
-    with store._transaction() as con:
-        now = store._now()
+    with store.transaction() as con:
+        now = store.now()
         request, item = resolution_request(
             store,
             con,
@@ -792,9 +805,9 @@ def resolve(
         )
         old = _existing(store, con, work_item_id, idempotency_key, request)
         grant = _authorize(owner_authority, request, now)
-        if _authorize(owner_authority, request, store._now()) != grant:
+        if _authorize(owner_authority, request, store.now()) != grant:
             raise PermissionError("owner_work_authority_changed")
-        commit_now = store._now()
+        commit_now = store.now()
         if not math.isfinite(commit_now) or commit_now < now:
             raise ValueError("owner_work_commit_clock_invalid")
         if old is not None:
@@ -822,7 +835,7 @@ def resolve(
         )
         if count != 1:
             raise LeaseFencedError("owner_work_commit_fence_changed")
-        store._event(
+        store.record_event(
             con,
             work_item_id,
             "known_response_resolved",
@@ -876,7 +889,7 @@ def retry_request(
             raise ValueError("owner_work_comparison_controls_invalid")
     elif comparison_controls is not None:
         raise ValueError("owner_work_unexpected_comparison_controls")
-    item = store._item(con, work_item_id)
+    item = store.item_in_transaction(con, work_item_id)
     attempt = con.execute(
         "SELECT * FROM attempt WHERE work_item_id=? ORDER BY ordinal DESC LIMIT 1",
         (work_item_id,),
@@ -969,8 +982,8 @@ def retry(
     idempotency_key,
     comparison_controls=None,
 ):
-    with store._transaction() as con:
-        now = store._now()
+    with store.transaction() as con:
+        now = store.now()
         request, item = retry_request(
             store,
             con,
@@ -983,9 +996,9 @@ def retry(
         )
         old = _existing(store, con, work_item_id, idempotency_key, request)
         grant = _authorize(owner_authority, request, now)
-        if _authorize(owner_authority, request, store._now()) != grant:
+        if _authorize(owner_authority, request, store.now()) != grant:
             raise PermissionError("owner_work_authority_changed")
-        commit_now = store._now()
+        commit_now = store.now()
         if not math.isfinite(commit_now) or commit_now < now:
             raise ValueError("owner_work_commit_clock_invalid")
         if old is not None:
@@ -1001,7 +1014,7 @@ def retry(
 
 def get(store, work_item_id):
     _safe(work_item_id, "work_id")
-    with closing(store._connect()) as con:
+    with closing(store.connect()) as con:
         return projection(store, con, work_item_id)
 
 
@@ -1019,3 +1032,37 @@ def validate_tables(connection):
 
     for row in connection.execute("SELECT * FROM quick_scan_owner_work_decision"):
         _read(QuickScanWorkStore, connection, row)
+
+
+# Versioned cross-module contract. Consumers use only names listed here.
+MODULE_API_PROTOCOL = "stockqa.known-outcome-journal-module/1.2.0"
+derive_physical_receipt = _physical
+read_owner_work_decision = _read
+existing_owner_resolution = _existing
+physical_attempt_projection = _physical
+api_known_outcome_journal_authorize = _authorize
+api_known_outcome_journal_physical = _physical
+api_known_outcome_journal_read = _read
+MODULE_API_EXPORTS = frozenset(
+    {
+        "DDL_V19_ADDITIONS",
+        "OwnerWorkDecisionAuthority",
+        "OwnerWorkDecisionGrant",
+        "api_known_outcome_journal_authorize",
+        "api_known_outcome_journal_physical",
+        "api_known_outcome_journal_read",
+        "derive_physical_receipt",
+        "existing_owner_resolution",
+        "get",
+        "physical_attempt_projection",
+        "projection",
+        "read_owner_work_decision",
+        "resolution_request",
+        "resolve",
+        "retry",
+        "retry_request",
+        "terminal_received_failure",
+        "validate_comparison_target",
+        "validate_tables",
+    }
+)

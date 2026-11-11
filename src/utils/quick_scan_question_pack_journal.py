@@ -55,6 +55,9 @@ for _table in (
 
 DDL_V17_ADDITIONS: tuple[str, ...] = tuple(_DDL_V17_ADDITIONS)
 
+# Opaque runtime capability: only this owning journal may mint the token.
+_QUESTION_PACK_OPERATION_CAPABILITY = object()
+
 _FINGERPRINT_FIELDS = (
     "entity_id",
     "question_id",
@@ -93,13 +96,10 @@ def _fingerprint(item):
 
 @contextmanager
 def _operation(store, pack_id):
-    previous = getattr(store._transaction_state, "question_pack_id", None)
-    store._transaction_state.question_pack_id = pack_id
-    try:
-        with store._transaction() as connection:
-            yield connection
-    finally:
-        store._transaction_state.question_pack_id = previous
+    with store.question_pack_operation(
+        pack_id, capability=_QUESTION_PACK_OPERATION_CAPABILITY
+    ) as connection:
+        yield connection
 
 
 def guard_individual(connection, store, attempt_id):
@@ -108,10 +108,7 @@ def guard_individual(connection, store, attempt_id):
     row = connection.execute(
         "SELECT pack_id FROM quick_scan_question_pack_member WHERE attempt_id=?", (attempt_id,)
     ).fetchone()
-    if (
-        row is not None
-        and getattr(store._transaction_state, "question_pack_id", None) != row["pack_id"]
-    ):
+    if row is not None and store.current_question_pack_id != row["pack_id"]:
         raise WorkConflictError("question pack member requires the atomic question pack operation")
 
 
@@ -202,7 +199,7 @@ def _read(connection, pack_id):
             (result["budget_attempt_id"],),
         ).fetchone()
         if physical is not None:
-            physical_record = QuickScanWorkStore._response_record(connection, physical)
+            physical_record = QuickScanWorkStore.response_record(connection, physical)
             if "native_search_events" in physical_record:
                 result["native_search_events"] = physical_record["native_search_events"]
                 result["execution_receipt"]["web_search_calls"] = physical_record[
@@ -214,7 +211,11 @@ def _read(connection, pack_id):
 def _validate_frozen(connection, pack):
     from src.providers.model_resolution import model_resolution_sha256
 
-    from .quick_scan_work_store import WorkConflictError, _safe, _sha256
+    from .quick_scan_work_store import (
+        WorkConflictError,
+    )
+    from .quick_scan_work_store import api_work_store_safe as _safe
+    from .quick_scan_work_store import api_work_store_sha256 as _sha256
 
     for key in ("pack_id", "execution_attempt_id", "route_id", "provider", "model_requested"):
         _safe(pack[key], key)
@@ -272,13 +273,15 @@ def _validate_frozen(connection, pack):
 
 
 def _validate_members(store, connection, pack, *, guard_subject, now):
-    from .quick_scan_owner_refresh_journal import guard_send as guard_owner_send
+    from .quick_scan_owner_refresh_journal import (
+        api_owner_refresh_journal_guard_send as guard_owner_send,
+    )
     from .quick_scan_subject_journal import guard_send as guard_subject_send
     from .quick_scan_work_store import Lease, WorkConflictError
 
     for member in pack["members"]:
-        item = store._item(connection, member["work_item_id"])
-        store._assert_lease(item, Lease(member["lease_token"], member["lease_epoch"]), now)
+        item = store.item_in_transaction(connection, member["work_item_id"])
+        store.assert_lease(item, Lease(member["lease_token"], member["lease_epoch"]), now)
         if _canonical(_fingerprint(item)) != member["fingerprint_json"]:
             raise WorkConflictError("question pack work fingerprint changed")
         attempt = connection.execute(
@@ -334,7 +337,12 @@ def prepare(
 ):
     from src.providers.model_resolution import normalize_model_resolution
 
-    from .quick_scan_work_store import Lease, WorkConflictError, _safe, _sha256
+    from .quick_scan_work_store import (
+        Lease,
+        WorkConflictError,
+    )
+    from .quick_scan_work_store import api_work_store_safe as _safe
+    from .quick_scan_work_store import api_work_store_sha256 as _sha256
 
     if search_mode != "native_search":
         raise ValueError(
@@ -369,10 +377,10 @@ def prepare(
     resolution = normalize_model_resolution(model_resolution)
     pack_id = "PACK_" + uuid.uuid4().hex
     with _operation(store, pack_id) as connection:
-        items = [store._item(connection, work_id) for work_id in ids]
-        now = store._now()
+        items = [store.item_in_transaction(connection, work_id) for work_id in ids]
+        now = store.now()
         for item, member in zip(items, members):
-            store._assert_lease(item, member["lease"], now)
+            store.assert_lease(item, member["lease"], now)
             if item["identity_state"] != "verified" or any(
                 item[k] != items[0][k] for k in _COMMON_FIELDS
             ):
@@ -466,7 +474,7 @@ def mark(store, pack_id, *, budget_policy, budget_route, company_request_scope=N
             raise WorkConflictError(
                 "question pack is not prepared; a durable send intent cannot be repeated"
             )
-        _validate_members(store, connection, pack, guard_subject=True, now=store._now())
+        _validate_members(store, connection, pack, guard_subject=True, now=store.now())
         if not isinstance(budget_route, dict) or any(
             budget_route.get(k) != pack[k] for k in ("route_id", "provider", "model_requested")
         ):
@@ -485,7 +493,7 @@ def mark(store, pack_id, *, budget_policy, budget_route, company_request_scope=N
                 Lease(row["lease_token"], row["lease_epoch"]),
                 row["attempt_id"],
             )
-        now = store._now()
+        now = store.now()
         connection.execute(
             "INSERT INTO quick_scan_question_pack_send VALUES (?,?,?)", (pack_id, budget_id, now)
         )
@@ -495,11 +503,11 @@ def mark(store, pack_id, *, budget_policy, budget_route, company_request_scope=N
 def validate_for_post(store, pack_id):
     from .quick_scan_work_store import WorkConflictError
 
-    with store._transaction() as connection:
+    with store.transaction() as connection:
         pack = _read(connection, pack_id)
         if pack is None or pack["phase"] != "send_intent":
             raise WorkConflictError("question pack has no unresolved send intent")
-        _validate_members(store, connection, pack, guard_subject=True, now=store._now())
+        _validate_members(store, connection, pack, guard_subject=True, now=store.now())
         return pack
 
 
@@ -526,7 +534,11 @@ def record(
         Lease,
         LeaseFencedError,
         WorkConflictError,
-        _sanitized_receipt,
+    )
+    from .quick_scan_work_store import (
+        api_work_store_sanitized_receipt as _sanitized_receipt,
+    )
+    from .quick_scan_work_store import (
         quick_scan_receipt_sha256,
     )
 
@@ -572,13 +584,13 @@ def record(
             raise WorkConflictError("question pack request id conflicts with original receipt")
         request_id = receipt.get("request_id")
         receipt_sha = quick_scan_receipt_sha256(receipt)
-        now = store._now()
+        now = store.now()
         late = False
         for row in pack["members"]:
             guard_response(connection, row["attempt_id"], receipt)
             try:
-                store._assert_lease(
-                    store._item(connection, row["work_item_id"]),
+                store.assert_lease(
+                    store.item_in_transaction(connection, row["work_item_id"]),
                     Lease(row["lease_token"], row["lease_epoch"]),
                     now,
                 )
@@ -587,7 +599,9 @@ def record(
         for row in pack["members"]:
             lease = Lease(row["lease_token"], row["lease_epoch"])
             try:
-                store._assert_lease(store._item(connection, row["work_item_id"]), lease, now)
+                store.assert_lease(
+                    store.item_in_transaction(connection, row["work_item_id"]), lease, now
+                )
             except LeaseFencedError:
                 store.recover_expired(row["work_item_id"])
                 store.note_late_receipt(
@@ -633,10 +647,10 @@ def record(
 
 
 def get(store, pack_id):
-    from .quick_scan_work_store import _safe
+    from .quick_scan_work_store import api_work_store_safe as _safe
 
     _safe(pack_id, "pack_id")
-    with store._transaction() as connection:
+    with store.transaction() as connection:
         return _read(connection, pack_id)
 
 
@@ -649,3 +663,48 @@ def validate_tables(connection):
             ).fetchone()
             if attempt is None or attempt["work_item_id"] != member["work_item_id"]:
                 raise ValueError("question pack logical attempt mismatch")
+
+
+# Versioned cross-module contract. Consumers use these exports, never owner internals.
+MODULE_API_PROTOCOL = "stockqa.question-pack-journal-module/1.3.0"
+MODULE_API_EXPORTS = frozenset(["read_question_pack"])
+read_question_pack = _read
+
+
+# Additive, versioned owner exports for cross-module consumers.
+MODULE_API_PROTOCOL = "stockqa.question-pack-journal-module/1.3.0"
+api_question_pack_journal_fingerprint = _fingerprint
+api_question_pack_journal_read = _read
+api_question_pack_journal_ddl_v17 = DDL_V17_ADDITIONS
+api_question_pack_journal_guard_individual = guard_individual
+api_question_pack_journal_get = get
+api_question_pack_journal_mark = mark
+api_question_pack_journal_prepare = prepare
+api_question_pack_journal_read_question_pack = read_question_pack
+api_question_pack_journal_record = record
+api_question_pack_journal_validate_for_post = validate_for_post
+api_question_pack_journal_validate_tables = validate_tables
+
+
+def api_question_pack_journal_validates_operation_capability(candidate):
+    """Return whether candidate is the journal-owned transaction capability."""
+    return candidate is _QUESTION_PACK_OPERATION_CAPABILITY
+
+
+MODULE_API_EXPORTS = frozenset(
+    set(globals().get("MODULE_API_EXPORTS", ()))
+    | {
+        "api_question_pack_journal_fingerprint",
+        "api_question_pack_journal_read",
+        "api_question_pack_journal_ddl_v17",
+        "api_question_pack_journal_guard_individual",
+        "api_question_pack_journal_get",
+        "api_question_pack_journal_mark",
+        "api_question_pack_journal_prepare",
+        "api_question_pack_journal_read_question_pack",
+        "api_question_pack_journal_record",
+        "api_question_pack_journal_validate_for_post",
+        "api_question_pack_journal_validate_tables",
+        "api_question_pack_journal_validates_operation_capability",
+    }
+)

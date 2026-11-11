@@ -83,28 +83,27 @@ def register(
     """
     from src.providers.model_resolution import model_resolution_sha256
 
-    from .quick_scan_owner_refresh import OwnerRefreshSession
-    from .quick_scan_refresh_execution import ApprovedRefreshSession
-    from .quick_scan_work_store import QuickScanWorkStore, _sha256
+    from .quick_scan_owner_refresh_api import adapt_owner_refresh
+    from .quick_scan_work_store import QuickScanWorkStore
+    from .quick_scan_work_store import api_work_store_sha256 as _sha256
 
-    native = owner.native if isinstance(owner, ApprovedRefreshSession) else owner
-    if (
-        not isinstance(store, QuickScanWorkStore)
-        or not isinstance(native, OwnerRefreshSession)
-        or native.store is not store
-    ):
+    try:
+        owner = adapt_owner_refresh(owner)
+    except ValueError as error:
+        raise ValueError("native_research_session_actual_owner_required") from error
+    snapshot = owner.snapshot()
+    if not isinstance(store, QuickScanWorkStore) or not owner.is_bound_to(store):
         _fail("actual_owner_required")
-    if isinstance(owner, ApprovedRefreshSession) and owner.service.store is not store:
-        _fail("actual_owner_store_mismatch")
     if type(max_turns) is not int or not 1 <= max_turns <= 32:
         _fail("turn_limit_invalid")
     _sha256(task_sha256, "task_sha256")
     owner.check()
-    with store._transaction() as connection:
-        item = store._item(connection, work_item_id)
-        store._assert_lease(item, lease, store._now())
+    with store.transaction() as connection:
+        item = store.item_in_transaction(connection, work_item_id)
+        store.assert_lease(item, lease, store.now())
         qid = item["question_id"]
-        if qid not in owner.fields:
+        snapshot = owner.snapshot()
+        if qid not in snapshot.fields:
             _fail("question_not_approved")
         row = connection.execute(
             "SELECT * FROM quick_scan_owner_refresh_binding WHERE work_item_id=?", (work_item_id,)
@@ -122,13 +121,13 @@ def register(
             "provider",
             "model",
         ):
-            if bound.get(key) != owner.plan.get(key):
+            if bound.get(key) != snapshot.plan.get(key):
                 _fail("owner_binding_mismatch")
         actual = provider if provider_actual is None else provider_actual
         if actual != bound.get("provider") or model_requested != bound.get("model"):
             _fail("owner_route_mismatch")
         context = store.get_observation_context(work_item_id)
-        if context is None or _sha(context["context"]) != _sha(native.observation_context):
+        if context is None or _sha(context["context"]) != _sha(snapshot.observation_context):
             _fail("observation_context_mismatch")
         registration = {
             "protocol": "stockqa.native-research-session/1.0.0",
@@ -170,7 +169,7 @@ def register(
                 lease.lease_token,
                 encoded,
                 _sha(registration),
-                store._now(),
+                store.now(),
             ),
         )
     owner.check()
@@ -182,7 +181,7 @@ def bind(store, work_item_id, lease, session_id, *, intent_sha256):
     """Bind only this native work; never applies to budget-only or pack sends."""
     if _ACTIVE.get() is not None:
         _fail("nested_binding")
-    from .quick_scan_work_store import _sha256
+    from .quick_scan_work_store import api_work_store_sha256 as _sha256
 
     _sha256(intent_sha256, "research intent hash")
     value = (store, work_item_id, lease, session_id, intent_sha256)
@@ -220,10 +219,10 @@ def guard_turn(
     """Run in prepare_attempt's SAME transaction before allocating the attempt."""
     from src.providers.model_resolution import model_resolution_sha256
 
-    from .quick_scan_work_store import _sha256
+    from .quick_scan_work_store import api_work_store_sha256 as _sha256
 
     _sha256(intent_sha256, "research intent hash")
-    from .quick_scan_research_output import read
+    from .quick_scan_research_output import api_research_output_read as read
 
     row = connection.execute(
         "SELECT * FROM quick_scan_research_session WHERE session_id=?", (session_id,)
@@ -295,11 +294,11 @@ def find_attempt_for_intent(store, session_id, intent_sha256):
     """
     from contextlib import closing
 
-    from .quick_scan_research_output import read
-    from .quick_scan_work_store import _sha256
+    from .quick_scan_research_output import api_research_output_read as read
+    from .quick_scan_work_store import api_work_store_sha256 as _sha256
 
     _sha256(intent_sha256, "research intent hash")
-    with closing(store._connect()) as connection:
+    with closing(store.connect()) as connection:
         row = connection.execute(
             "SELECT t.attempt_id FROM quick_scan_research_turn t JOIN quick_scan_research_session s USING(session_id) WHERE s.session_id=? AND t.intent_sha256=?",
             (session_id, intent_sha256),
@@ -333,11 +332,11 @@ def find_attempt_for_task_intent(store, work_item_id, task_sha256, intent_sha256
     """Recover the session join from native rows, never a process-local handle."""
     from contextlib import closing
 
-    from .quick_scan_work_store import _sha256
+    from .quick_scan_work_store import api_work_store_sha256 as _sha256
 
     _sha256(task_sha256, "research task hash")
     _sha256(intent_sha256, "research intent hash")
-    with closing(store._connect()) as connection:
+    with closing(store.connect()) as connection:
         rows = connection.execute(
             "SELECT DISTINCT s.* FROM quick_scan_research_session s "
             "JOIN quick_scan_research_turn t USING(session_id) "
@@ -359,3 +358,34 @@ def find_attempt_for_task_intent(store, work_item_id, task_sha256, intent_sha256
     if not matches:
         return None
     return find_attempt_for_intent(store, matches[0], intent_sha256)
+
+
+# Versioned schema-owner export. Peer modules compose this DDL through the
+# declared contract rather than reaching into an unversioned implementation name.
+MODULE_API_PROTOCOL = "stockqa.quick-scan-research-session-module/1.0.0"
+api_research_session_ddl_v23 = DDL_RESEARCH_SESSION
+api_research_session_register = register
+api_research_session_bind = bind
+api_research_session_active_id = active_id
+api_research_session_guard_turn = guard_turn
+api_research_session_attach_turn = attach_turn
+api_research_session_active_intent_sha256 = active_intent_sha256
+api_research_session_find_attempt_for_intent = find_attempt_for_intent
+api_research_session_find_attempt_for_task_intent = find_attempt_for_task_intent
+STORE_TABLE_DEPENDENCIES = frozenset(
+    {"work_item", "attempt", "quick_scan_research_session", "quick_scan_research_turn"}
+)
+MODULE_API_EXPORTS = frozenset(
+    {
+        "api_research_session_ddl_v23",
+        "api_research_session_register",
+        "api_research_session_bind",
+        "api_research_session_active_id",
+        "api_research_session_guard_turn",
+        "api_research_session_attach_turn",
+        "api_research_session_active_intent_sha256",
+        "api_research_session_find_attempt_for_intent",
+        "api_research_session_find_attempt_for_task_intent",
+        "STORE_TABLE_DEPENDENCIES",
+    }
+)

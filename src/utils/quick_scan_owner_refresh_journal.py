@@ -207,7 +207,9 @@ def native_control(connection, item, binding, *, now=None, require_ready=False):
     """
     from datetime import datetime
 
-    from .quick_scan_known_outcome_journal import _read
+    from .quick_scan_known_outcome_journal import (
+        api_known_outcome_journal_read as _read,
+    )
     from .quick_scan_work_control import project_owner_control
     from .quick_scan_work_store import QuickScanWorkStore, WorkConflictError
 
@@ -230,7 +232,7 @@ def native_control(connection, item, binding, *, now=None, require_ready=False):
             and checkpoint_recovery
         ):
             raise ValueError("native_control_dialect_mismatch")
-        source = dict(QuickScanWorkStore._item(connection, row["work_item_id"]))
+        source = dict(QuickScanWorkStore.item_in_transaction(connection, row["work_item_id"]))
         subject = document["request"]["physical"]["subject_binding"]["subject_ref"]
         if (
             any(item[k] != source[k] for k in ("entity_id", "question_id", "scope", "scope_id"))
@@ -350,10 +352,10 @@ def delivered_checkpoint_successor(connection: sqlite3.Connection, source) -> di
     target = checkpoint_successor(connection, source)
     if target is None or target["status"] != "delivered":
         return None
-    row = QuickScanWorkStore._delivery_row(connection, target["work_item_id"])
+    row = QuickScanWorkStore.delivery_row(connection, target["work_item_id"])
     if row is None:
         return None
-    delivery = QuickScanWorkStore._result_delivery_record(row, connection=connection)
+    delivery = QuickScanWorkStore.result_delivery_record(row, connection=connection)
     if (
         delivery["state"] != "delivered"
         or delivery["ack"] is None
@@ -491,3 +493,28 @@ def guard_send(connection: sqlite3.Connection, item: dict, *, now=None) -> None:
 def validate_tables(connection: sqlite3.Connection) -> None:
     for row in connection.execute("SELECT work_item_id FROM quick_scan_owner_refresh_binding"):
         read(connection, row["work_item_id"])
+
+
+# The journal is a persistence owner. Other transaction adapters use only this
+# versioned surface; the SQL helpers above remain implementation details.
+MODULE_API_PROTOCOL = "stockqa.owner-refresh-journal-module/1.0.0"
+api_owner_refresh_journal_bind = bind
+api_owner_refresh_journal_checkpoint_successor = checkpoint_successor
+api_owner_refresh_journal_ddl_v14 = DDL_V14_ADDITIONS
+api_owner_refresh_journal_guard_send = guard_send
+api_owner_refresh_journal_native_control = native_control
+api_owner_refresh_journal_ordered_targets = ordered_targets
+api_owner_refresh_journal_read = read
+api_owner_refresh_journal_validate_tables = validate_tables
+MODULE_API_EXPORTS = frozenset(
+    {
+        "api_owner_refresh_journal_bind",
+        "api_owner_refresh_journal_checkpoint_successor",
+        "api_owner_refresh_journal_ddl_v14",
+        "api_owner_refresh_journal_guard_send",
+        "api_owner_refresh_journal_native_control",
+        "api_owner_refresh_journal_ordered_targets",
+        "api_owner_refresh_journal_read",
+        "api_owner_refresh_journal_validate_tables",
+    }
+)

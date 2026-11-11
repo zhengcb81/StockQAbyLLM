@@ -192,6 +192,8 @@ def test_validation_failure_cannot_be_relabeled_missing_question(tmp_path):
 
 
 def test_expired_original_paid_lease_saves_without_new_claim_or_budget(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
     from src.utils.quick_scan_refresh_execution import ApprovedRefreshSession
 
     values = fixture(tmp_path, response_status="completed", currency="USD")
@@ -202,6 +204,8 @@ def test_expired_original_paid_lease_saves_without_new_claim_or_budget(tmp_path,
     budget_before = store.get_quick_scan_budget_status("pack-policy")
     clock[0] += 1000
     owner = ApprovedRefreshSession.__new__(ApprovedRefreshSession)
+    owner.native = SimpleNamespace(store=store)
+    owner.service = SimpleNamespace(store=store)
     owner.recovery_only = True
     seen = []
     # Explicit component permission seam. Actual actor/grant checks are exercised
@@ -226,6 +230,55 @@ def test_expired_original_paid_lease_saves_without_new_claim_or_budget(tmp_path,
     saved_event = next(e for e in reversed(events) if e["to_status"] == "result_ready")
     assert saved_event["from_status"] == "leased"
     assert not any(e["to_status"] == "failed" for e in events)
+
+
+def test_paid_checkpoint_recovery_uses_opaque_owner_port_through_commit(tmp_path, monkeypatch):
+    """After adaptation, the store must not read the concrete session again."""
+    from types import SimpleNamespace
+
+    values = fixture(tmp_path, response_status="completed", currency="USD")
+    store, _, members, pack, receipt, _, context = values
+    seen = []
+
+    class OwnerPort:
+        __slots__ = ()
+
+        def snapshot(self):
+            return SimpleNamespace(kind="approved", recovery_only=True)
+
+        def is_bound_to(self, candidate):
+            return candidate is store
+
+        def assert_received_checkpoint_recovery(self, work_item_id, attempt_id, *, store):
+            seen.append((work_item_id, attempt_id, store))
+
+    class RawOwner:
+        def __getattr__(self, name):
+            raise AssertionError(f"concrete owner leaked after adaptation: {name}")
+
+    raw_owner = RawOwner()
+    owner_port = OwnerPort()
+    from src.utils import quick_scan_owner_refresh_api
+
+    monkeypatch.setattr(
+        quick_scan_owner_refresh_api,
+        "adapt_owner_refresh",
+        lambda candidate: owner_port if candidate is raw_owner else None,
+    )
+    real_save = store.save_answer_checkpoint
+    monkeypatch.setattr(
+        store,
+        "save_answer_checkpoint",
+        lambda *args, **kwargs: real_save(*args, **kwargs, _recovery_session=raw_owner),
+    )
+
+    checkpoint = save_synthetic_standard(store, members, pack, receipt, context)
+
+    member = pack["members"][0]
+    assert checkpoint["attempt_id"] == member["attempt_id"]
+    assert seen and all(
+        row == (member["work_item_id"], member["attempt_id"], store) for row in seen
+    )
 
 
 @pytest.mark.parametrize("journal", [False, True])
@@ -362,6 +415,8 @@ def test_captured_leased_paid_pack_recovers_original_final_json_after_expiry(
     directory.mkdir()
     (directory / ("a" * 64 + ".final.json")).write_text(json.dumps(capture), encoding="utf8")
     owner = ApprovedRefreshSession.__new__(ApprovedRefreshSession)
+    owner.native = NS(store=store)
+    owner.service = NS(store=store)
     owner.recovery_only = True
     extra_ids = []
     extra_original = []

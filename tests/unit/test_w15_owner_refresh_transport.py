@@ -19,6 +19,7 @@ from src.utils.quick_scan_owner_refresh import (
 from src.utils.quick_scan_question_manifest import load_question_manifest
 from src.utils.quick_scan_result_outbox import canonical_sha256
 from src.utils.quick_scan_work_store import QuickScanWorkStore
+from tests.unit.owner_refresh_port_test_support import approved_owner_refresh_port
 from tests.unit.test_qa_net01_question_manifest import (
     IDENTITY,
     UUID_ENTITY,
@@ -29,11 +30,8 @@ from tests.unit.test_qa_net01_question_manifest import (
 NOW = "2026-10-09T12:00:00Z"
 
 
-@pytest.mark.parametrize("with_work", [True, False])
 @pytest.mark.parametrize("owner_changes", [True, False])
-def test_capacity_retry_rechecks_owner_before_reservation(
-    tmp_path, monkeypatch, with_work, owner_changes
-):
+def test_capacity_retry_rechecks_owner_before_reservation(tmp_path, monkeypatch, owner_changes):
     """Real budget capacity wait; owner RPC is the only substituted boundary."""
     import src.utils.quick_scan_work_transport as transport
     from tests.unit.test_quick_scan_budget import _policy, _reserve
@@ -66,8 +64,8 @@ def test_capacity_retry_rechecks_owner_before_reservation(
 
     monkeypatch.setattr(transport.time, "sleep", release_capacity)
     row = None
+    lease = None
     with ExitStack() as bindings:
-        bindings.enter_context(transport.bind_owner_refresh_guard(owner_guard))
         bindings.enter_context(transport.bind_quick_scan_budget(store, policy))
         bindings.enter_context(
             transport.bind_quick_scan_route(
@@ -77,17 +75,24 @@ def test_capacity_retry_rechecks_owner_before_reservation(
                 quota_group="A",
             )
         )
-        if with_work:
-            row = store.create_or_attach(
-                **_spec(generation=2),
-                run_id="RUN_CAPACITY",
-                scan_id="SCAN_CAPACITY",
-                owner_refresh_binding=_binding(provider="provider-a1", model="fixture-a"),
+        row = store.create_or_attach(
+            **_spec(generation=2),
+            run_id="RUN_CAPACITY",
+            scan_id="SCAN_CAPACITY",
+            owner_refresh_binding=_binding(provider="provider-a1", model="fixture-a"),
+        )
+        lease = store.claim(row["work_item_id"], lease_seconds=300)
+        bindings.enter_context(transport.bind_quick_scan_work(store, row["work_item_id"], lease))
+        bindings.enter_context(
+            transport.bind_owner_refresh_guard(
+                approved_owner_refresh_port(
+                    store=store,
+                    check=owner_guard,
+                    work_item_ids=(row["work_item_id"],),
+                    question_ids=(row["question_id"],),
+                )
             )
-            lease = store.claim(row["work_item_id"], lease_seconds=300)
-            bindings.enter_context(
-                transport.bind_quick_scan_work(store, row["work_item_id"], lease)
-            )
+        )
         if owner_changes:
             with pytest.raises(
                 transport.QuickScanWorkPersistenceError, match="owner_refresh_guard_rejected"
@@ -107,8 +112,7 @@ def test_capacity_retry_rechecks_owner_before_reservation(
     if owner_changes:
         with closing(sqlite3.connect(store.path)) as con:
             assert con.execute("SELECT COUNT(*) FROM quick_scan_budget_attempt").fetchone()[0] == 1
-        if row is not None:
-            assert [a["phase"] for a in store.list_attempts(row["work_item_id"])] == ["prepared"]
+        assert [a["phase"] for a in store.list_attempts(row["work_item_id"])] == ["prepared"]
     else:
         assert store.get_quick_scan_budget_status(policy["policy_id"])["requests"] == 2
 
@@ -306,18 +310,22 @@ def test_unresolved_work_keeps_original_context_and_expired_unsent_lease_resumes
         {"unexpected_command": "ignored?"},
     ],
 )
-def test_owner_public_wire_refuses_unregistered_versions_or_authority(change):
+def test_owner_public_wire_refuses_unregistered_versions_or_authority(change, monkeypatch):
     from src.utils.quick_scan_owner_refresh import _validate_owner_wire
 
+    configured = os.environ.get("IQS_ROUTE_TEST_CODE_ROOT")
+    if not configured:
+        pytest.skip("original IQS schema root not configured; set IQS_ROUTE_TEST_CODE_ROOT")
+    code_root = Path(configured)
     value = dict(
         protocol="stockwiki.route_store_cli/1.0.0",
         status="rejected",
         error_code="route_current_unavailable",
     )
-    _validate_owner_wire(value, Path(os.environ["IQS_ROUTE_TEST_CODE_ROOT"]))
+    _validate_owner_wire(value, code_root)
     value.update(change)
     with pytest.raises(OwnerRefreshRejected, match="owner_refresh_wire_schema_mismatch"):
-        _validate_owner_wire(value, Path(os.environ["IQS_ROUTE_TEST_CODE_ROOT"]))
+        _validate_owner_wire(value, code_root)
 
 
 def test_partial_delivery_resume_uses_original_outbox_and_missing_owner_ack_never_reasks(tmp_path):
@@ -526,7 +534,12 @@ def test_paid_native_anchor_survives_real_iqs_manual_override_expiry(tmp_path, m
     import importlib.util
     import sys
 
-    iqs = Path(__file__).resolve().parents[3] / "invest-quick-scan"
+    configured_iqs = os.environ.get("IQS_ROUTE_TEST_CODE_ROOT")
+    iqs = (
+        Path(configured_iqs).resolve()
+        if configured_iqs
+        else Path(__file__).resolve().parents[3] / "invest-quick-scan"
+    )
     if not (iqs / "tests/test_routing.py").is_file():
         pytest.skip("requires sibling IQS source for real offline route oracle")
     monkeypatch.syspath_prepend(str(iqs / "scripts"))

@@ -182,7 +182,9 @@ def read_record(connection, confirmation_id):
         or len(items) != len(specs)
     ):
         raise ValueError("refresh_admission_work_mismatch")
-    from .quick_scan_owner_refresh_journal import read as read_binding
+    from .quick_scan_owner_refresh_journal import (
+        api_owner_refresh_journal_read as read_binding,
+    )
     from .quick_scan_refresh_batch import SPEC_FIELDS
 
     expected = []

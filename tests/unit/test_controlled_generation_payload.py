@@ -9,6 +9,7 @@ from src.utils.quick_scan_work_transport import (
     bind_quick_scan_question_pack,
     bind_quick_scan_work,
 )
+from tests.unit.owner_refresh_port_test_support import approved_owner_refresh_port
 from tests.unit.test_controlled_refresh_binding import create, prepared
 
 
@@ -69,7 +70,9 @@ def test_frozen_controlled_work_checks_actual_payload_before_attempt_or_budget_w
             with pytest.raises(QuickScanWorkPersistenceError, match="controlled_generation"):
                 check()
         else:
-            with bind_owner_refresh_guard(lambda: None):  # explicitly fixture-only
+            with bind_owner_refresh_guard(
+                approved_owner_refresh_port(store=store, work_item_ids=(item["work_item_id"],))
+            ):
                 if fault == "none":
                     check()
                 else:

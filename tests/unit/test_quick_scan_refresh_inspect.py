@@ -90,6 +90,83 @@ def test_read_only_connection_refuses_actual_sql_update(tmp_path):
             con.execute("DELETE FROM work_item")
 
 
+def test_borrowed_transaction_connection_is_read_only_and_does_not_leak_raw_handle(tmp_path):
+    ledger, request, item, policy = setup(tmp_path)
+    before = ledger.path.read_bytes()
+    connection = sqlite3.connect(ledger.path)
+    connection.execute("BEGIN")
+    view = ReadOnlyWorkView.from_transaction(ledger.path, connection)
+    borrowed = view.connect()
+    try:
+        assert borrowed.execute("SELECT count(*) FROM work_item").fetchone()[0] == 1
+        assert not hasattr(borrowed, "connection")
+        assert not hasattr(borrowed, "commit")
+        assert connection.execute("PRAGMA query_only").fetchone()[0] == 1
+        with pytest.raises(sqlite3.OperationalError, match="read.?only"):
+            borrowed.execute("CREATE TABLE should_not_exist(id INTEGER)")
+    finally:
+        borrowed.close()
+        assert connection.execute("PRAGMA query_only").fetchone()[0] == 0
+        connection.rollback()
+        connection.close()
+    assert ledger.path.read_bytes() == before
+
+
+def test_borrowed_transaction_cannot_disable_read_only_mode_or_mutate_with_cte(tmp_path):
+    ledger, request, item, policy = setup(tmp_path)
+    before = ledger.path.read_bytes()
+    connection = sqlite3.connect(ledger.path)
+    connection.execute("BEGIN")
+    view = ReadOnlyWorkView.from_transaction(ledger.path, connection)
+    borrowed = view.connect()
+    try:
+        with pytest.raises(sqlite3.OperationalError, match="read-only view"):
+            borrowed.execute("PRAGMA query_only=OFF")
+        with pytest.raises(sqlite3.OperationalError, match="readonly|read.only"):
+            borrowed.execute(
+                "WITH target AS (SELECT work_item_id FROM work_item) "
+                "UPDATE work_item SET question_id='MUTATED' "
+                "WHERE work_item_id IN (SELECT work_item_id FROM target)"
+            )
+    finally:
+        borrowed.close()
+        connection.rollback()
+        connection.close()
+    assert ledger.path.read_bytes() == before
+
+
+def test_owned_read_only_connection_exposes_no_raw_connection_or_write_methods(tmp_path):
+    ledger, request, item, policy = setup(tmp_path)
+    before = ledger.path.read_bytes()
+    view = ReadOnlyWorkView(ledger.path)
+    connection = view.connect()
+    try:
+        assert connection.execute("SELECT count(*) FROM work_item").fetchone()[0] == 1
+        connection.execute("BEGIN")
+        assert connection.in_transaction
+        assert not hasattr(connection, "connection")
+        assert not hasattr(connection, "commit")
+        with pytest.raises(sqlite3.OperationalError, match="read-only view"):
+            connection.execute("BEGIN IMMEDIATE")
+        with pytest.raises(sqlite3.OperationalError, match="read-only view"):
+            connection.execute("PRAGMA query_only=OFF")
+        with pytest.raises(sqlite3.OperationalError):
+            connection.execute("DELETE FROM work_item")
+    finally:
+        connection.close()
+    assert ledger.path.read_bytes() == before
+
+
+def test_read_only_view_refuses_inherited_mutation_and_writer_factory_methods(tmp_path):
+    ledger, request, item, policy = setup(tmp_path)
+    view = ReadOnlyWorkView(ledger.path)
+    assert callable(view.response_for_checkpoint)
+    assert callable(view.response_record)
+    for name in ("claim", "create_or_attach", "record_event", "transaction", "for_existing_ledger"):
+        with pytest.raises(AttributeError, match="refresh_inspection_is_read_only"):
+            getattr(view, name)
+
+
 def test_readonly_inspection_does_not_rescan_unrelated_record_tables(tmp_path, monkeypatch):
     ledger, request, item, policy = setup(tmp_path)
     statements = []

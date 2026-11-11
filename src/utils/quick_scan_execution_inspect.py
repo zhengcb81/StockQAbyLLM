@@ -56,112 +56,102 @@ def inspect_executions(path, request):
     proofs = {}
     read_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     try:
-        with closing(view._connect()) as connection:
-            connection.execute("BEGIN")
+        with view.inspection_transaction() as connection:
             if connection.execute("PRAGMA user_version").fetchone()[0] != SCHEMA_VERSION:
                 raise ValueError("execution_inspection_schema_unavailable")
-            view._validate_schema(connection, schema_version=SCHEMA_VERSION)
-            view._inspection_connection = connection
-            try:
-                for target in request["observations"]:
-                    work = target["work_item_id"]
-                    item = view.get_item(work)
-                    checkpoint = view.get_answer_checkpoint(work)
-                    delivery = view.get_result_delivery(work)
-                    if (
-                        item["status"] not in {"result_ready", "delivered"}
-                        or checkpoint is None
-                        or delivery is None
-                        or delivery["package"] is None
-                        or delivery["state"] == "blocked"
-                    ):
-                        raise ValueError("execution_inspection_original_unavailable")
-                    original = delivery["package"]["items"][0]["observation"]
-                    context = view.get_observation_context(work)
-                    if (
-                        original.get("schema_version") not in {"1.1.0", "1.2.0"}
-                        or context is None
-                        or context["context"].get("schema")
-                        != "stockqa.quick_scan_observation_context/2.0.0"
-                        or checkpoint["payload"]["provenance"].get("model_resolution_binding")
-                        != "durable-response-v1"
-                        or original["observation_id"] != target["observation_id"]
-                        or canonical_sha256(original) != target["payload_sha256"]
-                        or delivery["payload_sha256"] != target["payload_sha256"]
-                    ):
-                        raise ValueError("execution_inspection_original_mismatch")
-                    # Original algorithm: durable standard body, context,
-                    # run/scan map and pre-POST instant must rebuild exactly.
-                    view._assert_complete_observation_binding(
-                        connection,
-                        work_item_id=work,
-                        item=item,
-                        checkpoint=checkpoint,
-                        package=delivery["package"],
-                    )
-                    pre = view.get_subject_dispatch_receipt(checkpoint["attempt_id"])
-                    response = view.get_attempt_response(checkpoint["attempt_id"])
-                    if pre is None or response is None:
-                        raise ValueError("execution_inspection_durable_receipt_missing")
-                    receipt = pre["receipt"]
-                    dispatch = receipt["dispatch_request"]
-                    execution = original["execution"]
-                    observed = datetime.fromisoformat(
-                        original["observed_at"].replace("Z", "+00:00")
-                    )
-                    if (
-                        receipt["store_id"] != request["owner_store_id"]
-                        or dispatch["subject_ref"] != target["subject_ref"]
-                        or dispatch["work_item_id"] != work
-                        or any(
-                            dispatch[k] != execution[v]
-                            for k, v in (
-                                ("execution_attempt_id", "attempt_id"),
-                                ("provider", "provider"),
-                                ("model_requested", "model_requested"),
-                                ("dispatch_prompt_sha256", "prompt_sha256"),
-                            )
+            view.validate_schema(connection, schema_version=SCHEMA_VERSION)
+            for target in request["observations"]:
+                work = target["work_item_id"]
+                item = view.get_item(work)
+                checkpoint = view.get_answer_checkpoint(work)
+                delivery = view.get_result_delivery(work)
+                if (
+                    item["status"] not in {"result_ready", "delivered"}
+                    or checkpoint is None
+                    or delivery is None
+                    or delivery["package"] is None
+                    or delivery["state"] == "blocked"
+                ):
+                    raise ValueError("execution_inspection_original_unavailable")
+                original = delivery["package"]["items"][0]["observation"]
+                context = view.get_observation_context(work)
+                if (
+                    original.get("schema_version") not in {"1.1.0", "1.2.0"}
+                    or context is None
+                    or context["context"].get("schema")
+                    != "stockqa.quick_scan_observation_context/2.0.0"
+                    or checkpoint["payload"]["provenance"].get("model_resolution_binding")
+                    != "durable-response-v1"
+                    or original["observation_id"] != target["observation_id"]
+                    or canonical_sha256(original) != target["payload_sha256"]
+                    or delivery["payload_sha256"] != target["payload_sha256"]
+                ):
+                    raise ValueError("execution_inspection_original_mismatch")
+                # Original algorithm: durable standard body, context,
+                # run/scan map and pre-POST instant must rebuild exactly.
+                view.assert_complete_observation_binding(
+                    connection,
+                    work_item_id=work,
+                    item=item,
+                    checkpoint=checkpoint,
+                    package=delivery["package"],
+                )
+                pre = view.get_subject_dispatch_receipt(checkpoint["attempt_id"])
+                response = view.get_attempt_response(checkpoint["attempt_id"])
+                if pre is None or response is None:
+                    raise ValueError("execution_inspection_durable_receipt_missing")
+                receipt = pre["receipt"]
+                dispatch = receipt["dispatch_request"]
+                execution = original["execution"]
+                observed = datetime.fromisoformat(original["observed_at"].replace("Z", "+00:00"))
+                if (
+                    receipt["store_id"] != request["owner_store_id"]
+                    or dispatch["subject_ref"] != target["subject_ref"]
+                    or dispatch["work_item_id"] != work
+                    or any(
+                        dispatch[k] != execution[v]
+                        for k, v in (
+                            ("execution_attempt_id", "attempt_id"),
+                            ("provider", "provider"),
+                            ("model_requested", "model_requested"),
+                            ("dispatch_prompt_sha256", "prompt_sha256"),
                         )
-                        or checkpoint["payload"]["provenance"]["response_sha256"]
-                        != response["response_sha256"]
-                        or checkpoint["payload"]["provenance"]["receipt_sha256"]
-                        != response["receipt_sha256"]
-                        or observed.utcoffset() is None
-                        or observed > datetime.fromisoformat(read_at.replace("Z", "+00:00"))
-                    ):
-                        raise ValueError("execution_inspection_scope_or_receipt_mismatch")
-                    proofs[original["observation_id"]] = dict(
-                        status="verified",
-                        maximum_check_level="execution_verified",
-                        work_item_id=work,
-                        observation_id=original["observation_id"],
-                        payload_sha256=target["payload_sha256"],
-                        subject_ref=copy.deepcopy(dispatch["subject_ref"]),
-                        field_id=original["field_id"],
-                        question_id=original["question_id"],
-                        checkpoint_id=checkpoint["checkpoint_id"],
-                        checkpoint_payload_sha256=checkpoint["payload_sha256"],
-                        work_attempt_id=checkpoint["attempt_id"],
-                        response_sha256=response["response_sha256"],
-                        execution_receipt_sha256=response["receipt_sha256"],
-                        package_sha256=delivery["package_sha256"],
-                        package_bytes_sha256=delivery["package_bytes_sha256"],
-                        dispatch_receipt_id=receipt["receipt_id"],
-                        dispatch_receipt_sha256=pre["receipt_sha256"],
-                        dispatch_manifest_sha256=dispatch["dispatch_manifest_sha256"],
-                        dispatch_identity_snapshot_sha256=dispatch[
-                            "dispatch_identity_snapshot_sha256"
-                        ],
-                        frozen_question_work_fingerprint=item["question_fingerprint"],
-                        actual_work_prompt_sha256=dispatch["dispatch_work_prompt_sha256"],
-                        observed_at=original["observed_at"],
-                        execution=copy.deepcopy(execution),
-                        delivery_state=delivery["state"],
-                        financial_accuracy_proven=False,
                     )
-            finally:
-                view._inspection_connection = None
-                connection.rollback()
+                    or checkpoint["payload"]["provenance"]["response_sha256"]
+                    != response["response_sha256"]
+                    or checkpoint["payload"]["provenance"]["receipt_sha256"]
+                    != response["receipt_sha256"]
+                    or observed.utcoffset() is None
+                    or observed > datetime.fromisoformat(read_at.replace("Z", "+00:00"))
+                ):
+                    raise ValueError("execution_inspection_scope_or_receipt_mismatch")
+                proofs[original["observation_id"]] = dict(
+                    status="verified",
+                    maximum_check_level="execution_verified",
+                    work_item_id=work,
+                    observation_id=original["observation_id"],
+                    payload_sha256=target["payload_sha256"],
+                    subject_ref=copy.deepcopy(dispatch["subject_ref"]),
+                    field_id=original["field_id"],
+                    question_id=original["question_id"],
+                    checkpoint_id=checkpoint["checkpoint_id"],
+                    checkpoint_payload_sha256=checkpoint["payload_sha256"],
+                    work_attempt_id=checkpoint["attempt_id"],
+                    response_sha256=response["response_sha256"],
+                    execution_receipt_sha256=response["receipt_sha256"],
+                    package_sha256=delivery["package_sha256"],
+                    package_bytes_sha256=delivery["package_bytes_sha256"],
+                    dispatch_receipt_id=receipt["receipt_id"],
+                    dispatch_receipt_sha256=pre["receipt_sha256"],
+                    dispatch_manifest_sha256=dispatch["dispatch_manifest_sha256"],
+                    dispatch_identity_snapshot_sha256=dispatch["dispatch_identity_snapshot_sha256"],
+                    frozen_question_work_fingerprint=item["question_fingerprint"],
+                    actual_work_prompt_sha256=dispatch["dispatch_work_prompt_sha256"],
+                    observed_at=original["observed_at"],
+                    execution=copy.deepcopy(execution),
+                    delivery_state=delivery["state"],
+                    financial_accuracy_proven=False,
+                )
     except WorkConflictError as error:
         raise ValueError("execution_inspection_durable_original_mismatch") from error
     body = dict(

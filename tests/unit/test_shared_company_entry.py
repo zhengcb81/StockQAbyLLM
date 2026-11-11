@@ -13,21 +13,25 @@ from src.utils.quick_scan_shared_company import _bound_board, read_shared_compan
 @pytest.fixture
 def configured(tmp_path):
     config = {"schema_version": "1.0.0", "state_root": str(tmp_path / "state")}
-    for key, member in (
-        ("iqs_root", "scripts/shared_company_engine.py"),
-        ("company_agent_root", "src/iqs_company_agent_lab/task.py"),
-        ("runtime_bridge_root", "src/iqs_agent_runtime_lab/port.py"),
-    ):
+    for key in ("iqs_root", "company_agent_root", "runtime_bridge_root"):
         base = tmp_path / key
-        target = base / member
-        target.parent.mkdir(parents=True)
-        target.write_text("# synthetic dependency location", encoding="utf8")
+        base.mkdir(parents=True)
         config[key] = str(base)
     return config, tmp_path / "config.json"
 
 
 @pytest.mark.parametrize(
-    "fault", [None, "version", "relative", "dependency", "inline_key", "boards"]
+    "fault",
+    [
+        None,
+        "version",
+        "relative",
+        "dependency",
+        "company_root",
+        "runtime_root",
+        "inline_key",
+        "boards",
+    ],
 )
 def test_explicit_shared_config_never_silently_falls_back(configured, fault):
     config, path = configured
@@ -37,6 +41,10 @@ def test_explicit_shared_config_never_silently_falls_back(configured, fault):
         config["state_root"] = "relative"
     elif fault == "dependency":
         config["iqs_root"] += "/missing"
+    elif fault == "company_root":
+        config["company_agent_root"] += "/missing"
+    elif fault == "runtime_root":
+        config["runtime_bridge_root"] += "/missing"
     elif fault == "inline_key":
         config["api_key"] = "synthetic-not-a-secret"
     elif fault == "boards":
@@ -49,12 +57,115 @@ def test_explicit_shared_config_never_silently_falls_back(configured, fault):
             read_shared_company_config(path)
 
 
+@pytest.mark.parametrize(
+    "api, expected",
+    [
+        (None, "company_agent_public_api_unavailable"),
+        (
+            SimpleNamespace(
+                PUBLIC_API_PROTOCOL="iqs.company-agent-public-api/2.2.0",
+                validate_evidence_record=lambda record, excerpt_cap: record,
+            ),
+            "company_agent_public_api_version_unsupported",
+        ),
+        (
+            SimpleNamespace(
+                PUBLIC_API_PROTOCOL="iqs.company-agent-public-api/2.3.0",
+                __all__=["validate_evidence_record"],
+            ),
+            "company_agent_public_api_operation_missing",
+        ),
+    ],
+)
+def test_evidence_binding_rejects_missing_or_incompatible_public_facade(monkeypatch, api, expected):
+    if api is None:
+        monkeypatch.setitem(sys.modules, "iqs_company_agent_lab.api", None)
+    else:
+        monkeypatch.setitem(sys.modules, "iqs_company_agent_lab.api", api)
+    subject = {"entity_id": "ENT_A", "scope": "entity"}
+    config = {"evidence_boards": [{"subject_ref": subject, "records": [{"excerpt": "x"}]}]}
+    with pytest.raises(ImportError, match=expected):
+        _bound_board(
+            config,
+            subject=subject,
+            company_ref={"path": "native/company.json", "sha256": "a" * 64, "bytes": 1},
+            excerpt_cap=2000,
+        )
+
+
+@pytest.mark.parametrize(
+    "protocol, supported",
+    [
+        ("stockqa.llm-research-client-module/1.0.1", True),
+        ("stockqa.llm-research-client-module/1.4.0", True),
+        ("stockqa.llm-research-client-module/2.0.0", False),
+        ("stockqa.llm-research-client-module/0.9.9", False),
+    ],
+)
+def test_research_capabilities_accept_same_major_compatible_protocols(
+    monkeypatch, protocol, supported
+):
+    from src.providers import llm_research_client
+    from src.utils.quick_scan_company_context import company_scan_capabilities
+
+    client = SimpleNamespace(
+        provider_name="mimo",
+        base_url="https://api.xiaomimimo.com/v1",
+        model="mimo-v2.6-pro",
+        supports_web_search=True,
+    )
+    monkeypatch.setattr(llm_research_client, "MODULE_API_PROTOCOL", protocol)
+    monkeypatch.setattr(
+        llm_research_client,
+        "MODULE_API_EXPORTS",
+        frozenset({"research_channel_capabilities"}),
+    )
+    if supported:
+        assert company_scan_capabilities(client)["native_web_search"]
+    else:
+        with pytest.raises(ValueError, match="research_capabilities_provider_protocol_unsupported"):
+            company_scan_capabilities(client)
+
+
+def test_company_agent_facade_rejects_callable_operation_not_declared_public(monkeypatch):
+    from src.utils.quick_scan_company_api import company_agent_public_api
+
+    api = SimpleNamespace(
+        PUBLIC_API_PROTOCOL="iqs.company-agent-public-api/2.3.0",
+        __all__=["task_snapshot"],
+        task_snapshot=lambda task: task,
+        load_checkpoint_task=lambda path: path,
+    )
+    monkeypatch.setitem(sys.modules, "iqs_company_agent_lab.api", api)
+    with pytest.raises(ImportError, match="company_agent_public_api_operation_not_exported"):
+        company_agent_public_api("load_checkpoint_task")
+
+
+def test_original_checkpoint_loader_uses_versioned_company_agent_facade(monkeypatch):
+    from src.utils.quick_scan_shared_company import load_original_company_task
+
+    task = object()
+    calls = []
+    api = SimpleNamespace(
+        PUBLIC_API_PROTOCOL="iqs.company-agent-public-api/2.3.0",
+        __all__=["load_checkpoint_task"],
+        load_checkpoint_task=lambda checkpoint: calls.append(checkpoint) or task,
+    )
+    monkeypatch.setitem(sys.modules, "iqs_company_agent_lab.api", api)
+    assert load_original_company_task("checkpoint.json") is task
+    assert calls == ["checkpoint.json"]
+
+
 def test_reference_records_bind_only_exact_original_subject_without_mutating_input(monkeypatch):
     calls = []
     monkeypatch.setitem(
         sys.modules,
-        "iqs_company_agent_lab.evidence",
-        SimpleNamespace(validate_evidence_record=lambda r, cap: calls.append(copy.deepcopy(r))),
+        "iqs_company_agent_lab.api",
+        SimpleNamespace(
+            PUBLIC_API_PROTOCOL="iqs.company-agent-public-api/2.3.0",
+            __all__=["validate_evidence_record"],
+            validate_evidence_record=lambda r, cap: calls.append(copy.deepcopy(r)),
+        ),
     )
     subject = {"entity_id": "ENT_A", "scope": "entity", "perimeter": "original"}
     ref = {"path": "native-derived/company.json", "sha256": "a" * 64, "bytes": 10}
@@ -72,6 +183,200 @@ def test_reference_records_bind_only_exact_original_subject_without_mutating_inp
     config["evidence_boards"][0]["records"][0]["issuer_ref"] = {**ref, "sha256": "b" * 64}
     with pytest.raises(ValueError, match="issuer_mismatch"):
         _bound_board(config, subject=subject, company_ref=ref, excerpt_cap=2000)
+
+
+def _companion_facade(protocol):
+    return SimpleNamespace(PUBLIC_API_PROTOCOL=protocol)
+
+
+def test_modules_consumes_companions_through_public_facades_and_checks_engine_root(
+    tmp_path, monkeypatch
+):
+    from pathlib import Path
+
+    from src.utils import quick_scan_shared_company as module
+
+    config = {}
+    for key in ("iqs_root", "company_agent_root", "runtime_bridge_root"):
+        root = tmp_path / key
+        root.mkdir()
+        config[key] = str(root)
+    loaded = {
+        "shared_company_engine": SimpleNamespace(
+            __file__=str(Path(config["iqs_root"]) / "scripts" / "shared_company_engine.py")
+        ),
+        "iqs_company_agent_lab.api": _companion_facade("iqs.company-agent-public-api/2.3.0"),
+        "iqs_agent_runtime_lab.api": _companion_facade("iqs.agent-runtime-public-api/1.4.0"),
+    }
+    monkeypatch.setattr(module.sys, "path", [])
+    monkeypatch.setattr(module.importlib, "import_module", lambda name: loaded[name])
+
+    # The composition root needs no knowledge of companion file layout; the
+    # engine stays anchored to the configured IQS root.
+    engine = module._modules(config)
+    assert engine == loaded["shared_company_engine"]
+
+    loaded["shared_company_engine"].__file__ = str(tmp_path / "shadow" / "engine.py")
+    with pytest.raises(
+        ValueError, match="shared_company_dependency_shadowed:shared_company_engine"
+    ):
+        module._modules(config)
+
+
+def test_modules_reports_a_missing_companion_facade(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    from src.utils import quick_scan_shared_company as module
+
+    config = {}
+    for key in ("iqs_root", "company_agent_root", "runtime_bridge_root"):
+        root = tmp_path / key
+        root.mkdir()
+        config[key] = str(root)
+    engine = SimpleNamespace(__file__=str(Path(config["iqs_root"]) / "scripts" / "engine.py"))
+    runtime_api = _companion_facade("iqs.agent-runtime-public-api/1.4.0")
+
+    def import_module(name):
+        if name == "iqs_company_agent_lab.api":
+            raise ModuleNotFoundError("companion facade not installed")
+        return {"shared_company_engine": engine, "iqs_agent_runtime_lab.api": runtime_api}[name]
+
+    monkeypatch.setattr(module.sys, "path", [])
+    monkeypatch.setattr(module.importlib, "import_module", import_module)
+    with pytest.raises(
+        ValueError, match="shared_company_dependency_unavailable:iqs_company_agent_lab"
+    ):
+        module._modules(config)
+
+
+def test_modules_rejects_incompatible_companion_public_protocols(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    from src.utils import quick_scan_shared_company as module
+
+    config = {}
+    for key in ("iqs_root", "company_agent_root", "runtime_bridge_root"):
+        root = tmp_path / key
+        root.mkdir()
+        config[key] = str(root)
+    engine = SimpleNamespace(__file__=str(Path(config["iqs_root"]) / "scripts" / "engine.py"))
+    loaded = {
+        "shared_company_engine": engine,
+        "iqs_company_agent_lab.api": _companion_facade("iqs.company-agent-public-api/2.2.0"),
+        "iqs_agent_runtime_lab.api": _companion_facade("iqs.agent-runtime-public-api/1.4.0"),
+    }
+    monkeypatch.setattr(module.sys, "path", [])
+    monkeypatch.setattr(module.importlib, "import_module", lambda name: loaded[name])
+
+    # A companion may move its files freely; only its declared public
+    # protocol decides whether this composition may consume it.
+    with pytest.raises(
+        ValueError, match="shared_company_dependency_protocol_unsupported:iqs_company_agent_lab"
+    ):
+        module._modules(config)
+
+
+def test_modules_uses_explicit_import_roots_for_companions(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    from src.utils import quick_scan_shared_company as module
+
+    config = {}
+    for key in ("iqs_root", "company_agent_root", "runtime_bridge_root"):
+        root = tmp_path / key
+        root.mkdir()
+        config[key] = str(root)
+    # The import root is explicit; the companion source layout is private.
+    config["company_agent_import_root"] = str(tmp_path / "companion-installed")
+    config["runtime_import_root"] = str(tmp_path / "runtime-installed")
+    loaded = {
+        "shared_company_engine": SimpleNamespace(
+            __file__=str(Path(config["iqs_root"]) / "scripts" / "engine.py")
+        ),
+        "iqs_company_agent_lab.api": _companion_facade("iqs.company-agent-public-api/2.3.0"),
+        "iqs_agent_runtime_lab.api": _companion_facade("iqs.agent-runtime-public-api/1.4.0"),
+    }
+    monkeypatch.setattr(module.sys, "path", [])
+    monkeypatch.setattr(module.importlib, "import_module", lambda name: loaded[name])
+
+    module._modules(config)
+    assert str(tmp_path / "companion-installed") in module.sys.path
+    assert str(tmp_path / "runtime-installed") in module.sys.path
+
+
+@pytest.mark.parametrize(
+    "protocol,exports,error",
+    [
+        ("stockqa.company-scan-public-api/1.7.0", None, None),
+        ("stockqa.company-scan-public-api/1.8.2", None, None),
+        (
+            "stockqa.company-scan-public-api/1.6.9",
+            None,
+            "shared_company_owner_api_version_unsupported",
+        ),
+        (
+            "stockqa.company-scan-public-api/1.5.9",
+            None,
+            "shared_company_owner_api_version_unsupported",
+        ),
+        (
+            "stockqa.company-scan-public-api/2.0.0",
+            None,
+            "shared_company_owner_api_version_unsupported",
+        ),
+        (
+            "stockqa.company-scan-public-api/1.7.0",
+            ["create_company_scan_task"],
+            "shared_company_owner_api_operations_incomplete",
+        ),
+    ],
+)
+def test_owner_task_factory_is_resolved_through_versioned_facade(
+    monkeypatch, protocol, exports, error
+):
+    from src.utils import quick_scan_shared_company as module
+
+    required = ["company_scan_contract", "company_scan_capabilities", "create_company_scan_task"]
+    api = SimpleNamespace(
+        PUBLIC_API_PROTOCOL=protocol,
+        __all__=required if exports is None else exports,
+        company_scan_contract=lambda *_: None,
+        company_scan_capabilities=lambda *_args, **_kwargs: {},
+        create_company_scan_task=lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(module.importlib, "import_module", lambda name: api)
+    if error is None:
+        assert module._company_scan_task_api() is api
+    else:
+        with pytest.raises(ValueError, match=error):
+            module._company_scan_task_api()
+
+
+def test_shared_engine_version_contract_accepts_only_same_major_public_protocol():
+    from src.utils.quick_scan_shared_company import require_shared_engine_capabilities
+
+    expected_operations = {
+        "execute_shared_engine",
+        "resume_shared_engine",
+        "finalize_shared_engine",
+    }
+    for version in ("iqs.shared-company-engine/1.0.0", "iqs.shared-company-engine/1.2.7"):
+        caps = {"protocol": version}
+        assert require_shared_engine_capabilities(caps, expected_operations) == caps
+    for version in (
+        "iqs.shared-company-engine/0.9.9",
+        "iqs.shared-company-engine/2.0.0",
+        "iqs.shared-company-engine/1.x.0",
+        None,
+    ):
+        with pytest.raises(ValueError, match="shared_company_engine_protocol_unsupported"):
+            require_shared_engine_capabilities({"protocol": version}, expected_operations)
+    with pytest.raises(ValueError, match="shared_company_engine_operations_incomplete"):
+        require_shared_engine_capabilities(
+            {"protocol": "iqs.shared-company-engine/1.0.0"},
+            expected_operations,
+            available_operations={"execute_shared_engine"},
+        )
 
 
 def test_original_cli_forwards_optional_shared_config_without_starting_clients(
@@ -108,9 +413,8 @@ def test_original_cli_forwards_optional_shared_config_without_starting_clients(
 
 @pytest.mark.parametrize("resume_complete", [True, False])
 @pytest.mark.parametrize("completed_on_refusal", [False, True])
-@pytest.mark.parametrize("factory_kind", ["legacy", "supported", "unsupported"])
 def test_partial_export_is_not_published_and_resumes_original_checkpoint(
-    tmp_path, monkeypatch, resume_complete, completed_on_refusal, factory_kind
+    tmp_path, monkeypatch, resume_complete, completed_on_refusal
 ):
     # This is the entry coordinator boundary. Native checkpoint authenticity,
     # SQL and SDK are covered by the separate original-owner software E2E.
@@ -118,13 +422,37 @@ def test_partial_export_is_not_published_and_resumes_original_checkpoint(
 
     import src.utils.quick_scan_owner_research as services_module
     from src.core.models import Question
+    from src.interfaces.quick_scan_owner_refresh import OwnerRefreshSnapshot
+    from src.utils import quick_scan_company_api as owner_api
     from src.utils import quick_scan_shared_company as module
 
     subject = {"entity_id": "ENT_A", "scope": "entity"}
+    entries = {"Q1": {"kind": "work"}, "Q2": {"kind": "work"}}
+    proof = {"confirmation": {"confirmation_id": "original-confirmation"}}
     owner = SimpleNamespace(
-        entries={"Q1": {"kind": "work"}, "Q2": {"kind": "work"}},
-        proof={"confirmation": {"confirmation_id": "original-confirmation"}},
+        entries=entries,
+        proof=proof,
         input_raw={"identity.json": b'{"payload":{"entity_id":"ENT_A"}}'},
+        snapshot=lambda: OwnerRefreshSnapshot(
+            kind="approved",
+            plan={},
+            proof=proof,
+            record=None,
+            bundle=None,
+            entries=entries,
+            fields={},
+            work={},
+            deferred={},
+            scope_bindings={},
+            observation_context=None,
+            ordered_route_targets=None,
+            requested_question_ids=("Q1", "Q2"),
+            needs_new_dispatch=False,
+            recovery_only=False,
+            recovery_work_item_ids=(),
+            remaining_work_item_ids=(),
+        ),
+        identity_payload=lambda: {"payload": {"entity_id": "ENT_A"}},
     )
     work = SimpleNamespace(
         owner=owner,
@@ -133,6 +461,34 @@ def test_partial_export_is_not_published_and_resumes_original_checkpoint(
         },
     )
     factory_port = object()
+    scan_contract = SimpleNamespace(
+        requested_question_ids=("Q1", "Q2"),
+        eligible_question_ids=("Q1", "Q2"),
+        identity_payload={
+            "entity_id": "ENT_A",
+            "canonical_name": "Synthetic issuer",
+            "listings": [{"market": "US", "ticker": "SYN"}],
+        },
+        observation_context={
+            "questions": {q: {"subject_binding": {"subject_ref": subject}} for q in ("Q1", "Q2")}
+        },
+    )
+    monkeypatch.setattr(owner_api, "PUBLIC_API_PROTOCOL", "stockqa.company-scan-public-api/1.7.0")
+    monkeypatch.setattr(owner_api, "company_scan_contract", lambda _lifecycle: scan_contract)
+    monkeypatch.setattr(
+        owner_api,
+        "create_company_scan_task",
+        lambda _lifecycle, **kwargs: original_task,
+    )
+    monkeypatch.setattr(
+        owner_api,
+        "company_scan_capabilities",
+        lambda _client, native_search=True: {
+            "native_web_search": True,
+            "question_packs": True,
+            "max_output_tokens": 32768,
+        },
+    )
     lifecycle = SimpleNamespace(
         registered_research_work=lambda: work,
         company_scan_uses_native_search=lambda *, recovery_only: not recovery_only,
@@ -173,17 +529,30 @@ def test_partial_export_is_not_published_and_resumes_original_checkpoint(
         question_ids=["Q1", "Q2"],
         raw={"execution_profile": {"packs": [["Q1"], ["Q2"]]}},
     )
-
-    def create(source, **kwargs):
-        assert factory_kind != "unsupported", "Unsupported factory must never receive native input"
-        assert source is (factory_port if factory_kind == "supported" else lifecycle)
-        return original_task
-
-    factory = SimpleNamespace(create_company_scan_task=create)
-    if factory_kind == "supported":
-        factory.COMPANY_SCAN_TASK_PORT_PROTOCOL = "stockqa.company_scan_task_port/1.0.0"
-    elif factory_kind == "unsupported":
-        factory.COMPANY_SCAN_TASK_PORT_PROTOCOL = "stockqa.company_scan_task_port/2.0.0"
+    company_api = SimpleNamespace(
+        PUBLIC_API_PROTOCOL="iqs.company-agent-public-api/2.3.0",
+        __all__=[
+            "task_snapshot",
+            "native_company_projection",
+            "canonical_json",
+            "sha256_hex",
+            "scan_limits",
+            "validate_evidence_record",
+            "load_checkpoint_task",
+        ],
+        task_snapshot=lambda task: {
+            "question_ids": list(task.question_ids),
+            "limits": dict(task.limits),
+            "raw": dict(task.raw),
+        },
+        native_company_projection=lambda identity, ref: identity,
+        canonical_json=canonical,
+        sha256_hex=digest,
+        scan_limits=lambda value: limits,
+        validate_evidence_record=lambda record, excerpt_cap: record,
+        load_checkpoint_task=lambda path: original_task,
+    )
+    monkeypatch.setitem(sys.modules, "iqs_company_agent_lab.api", company_api)
 
     def read_original(path):
         assert path.read_text() == "original-checkpoint"
@@ -240,20 +609,18 @@ def test_partial_export_is_not_published_and_resumes_original_checkpoint(
         return {"status": "completed"}
 
     engine = SimpleNamespace(
-        execute_shared_engine=execute, resume_shared_engine=resume, finalize_shared_engine=finalize
+        capabilities=lambda: {"protocol": "iqs.shared-company-engine/1.0.0"},
+        execute_shared_engine=execute,
+        resume_shared_engine=resume,
+        finalize_shared_engine=finalize,
     )
-    monkeypatch.setattr(module, "_modules", lambda config: (engine, factory))
+    monkeypatch.setattr(module, "_modules", lambda config: engine)
     monkeypatch.setattr(services_module, "OwnerResearchServices", lambda *a, **k: SimpleNamespace())
     config = {"state_root": str(tmp_path)}
     args = dict(
         config=config,
         questions=[Question("original question", question_id=q) for q in ("Q1", "Q2")],
     )
-    if factory_kind == "unsupported":
-        with pytest.raises(ValueError, match="shared_company_task_port_version_unsupported"):
-            module.run_shared_company_scan(lifecycle, client, **args)
-        assert not calls and not list(tmp_path.iterdir())
-        return
     with pytest.raises(OSError, match="scripted_partial_export"):
         module.run_shared_company_scan(lifecycle, client, **args)
     scope = next(tmp_path.glob("scan-*"))
@@ -333,6 +700,7 @@ def test_shared_received_recovery_uses_original_single_entry_without_new_spend(
 
 
 def test_received_recovery_uses_original_nonfirst_keyless_route():
+    from src.interfaces.quick_scan_owner_refresh import OwnerRefreshSnapshot
     from src.utils.quick_scan_shared_company import registered_recovery_routes
 
     routes = [
@@ -352,17 +720,34 @@ def test_received_recovery_uses_original_nonfirst_keyless_route():
         get_attempt_response=lambda a: {"receipt": "original"},
     )
     session = SimpleNamespace(
-        requested_question_ids=["Q1"],
-        entries={"Q1": {"kind": "work"}},
+        snapshot=lambda: OwnerRefreshSnapshot(
+            kind="approved",
+            plan={},
+            proof={},
+            record={},
+            bundle={},
+            entries={"Q1": {"kind": "work"}},
+            fields={},
+            work={},
+            deferred={},
+            scope_bindings={},
+            observation_context=None,
+            ordered_route_targets=None,
+            requested_question_ids=("Q1",),
+            needs_new_dispatch=False,
+            recovery_only=True,
+            recovery_work_item_ids=(),
+            remaining_work_item_ids=(),
+        ),
         existing_work=lambda q: {"work_item_id": "W1"},
-        service=SimpleNamespace(store=store),
+        is_bound_to=lambda candidate: candidate is store,
         execution_routes=lambda p: routes,
     )
-    assert registered_recovery_routes(session, {}) == [routes[1]]
+    assert registered_recovery_routes(session, {}, store=store) == [routes[1]]
     assert routes[1]["eligible"] is False
     store.get_attempt_response = lambda a: None
     with pytest.raises(ValueError, match="original_route_required"):
-        registered_recovery_routes(session, {})
+        registered_recovery_routes(session, {}, store=store)
 
 
 def test_comparison_scope_read_does_not_require_new_dispatch_key():

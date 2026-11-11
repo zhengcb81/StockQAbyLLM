@@ -43,9 +43,8 @@ from src.utils.quick_scan_work_store import QuickScanWorkStore
 from src.utils.quick_scan_work_transport import bind_quick_scan_budget
 
 if TYPE_CHECKING:
+    from src.interfaces.quick_scan_owner_refresh import QuickScanOwnerRefreshPort
     from src.utils.quick_scan_company_context import CompanyScanTaskPort
-    from src.utils.quick_scan_owner_refresh import OwnerRefreshSession
-    from src.utils.quick_scan_refresh_execution import ApprovedRefreshSession
 
 
 class _SearchGenerationOptions(TypedDict, total=False):
@@ -84,11 +83,7 @@ def _owner_analysis_scope(owner):
 
     from src.providers.base_llm_provider import analysis_subject_scope
 
-    native = getattr(owner, "native", owner)
-    current = getattr(native, "current", None)
-    snapshot = current.get("snapshot", {}) if isinstance(current, dict) else {}
-    binding = snapshot.get("subject_binding", {})
-    subject = binding.get("subject") if isinstance(binding, dict) else None
+    subject = owner.analysis_subject()
     return analysis_subject_scope(subject) if isinstance(subject, dict) else nullcontext()
 
 
@@ -165,7 +160,8 @@ def load_identity_snapshot(
 class RegisteredResearchWork:
     """StockQA composition contract for the live approval and detached runtime inputs."""
 
-    owner: "ApprovedRefreshSession"
+    owner: "QuickScanOwnerRefreshPort"
+    store: QuickScanWorkStore
     transport_managed: bool
     route_id: str
     provider_config_ref: str
@@ -176,9 +172,12 @@ class RegisteredResearchWork:
     observation_context: Optional[Dict[str, Any]]
 
     def provider_actual(self) -> str:
-        if self.owner.proof["request"].get("protocol") != "iqs.refresh_request/1.6.0":
-            return cast(str, self.owner.plan["provider"])
-        targets = self.owner.ordered_route_targets or []
+        snapshot = self.owner.snapshot()
+        if not snapshot.proof or "request" not in snapshot.proof:
+            raise ValueError("original_refresh_proof_required")
+        if snapshot.proof["request"].get("protocol") != "iqs.refresh_request/1.6.0":
+            return cast(str, snapshot.plan["provider"])
+        targets = snapshot.ordered_route_targets or ()
         matches = [
             target["provider"]
             for target in targets
@@ -249,7 +248,12 @@ class QuickScanWorkLifecycle:
         if (budget_policy is None) != (budget_route is None):
             raise ValueError("budget_policy and budget_route must be supplied together")
         self._store = store
-        self._owner_refresh = owner_refresh_session
+        if owner_refresh_session is None:
+            self._owner_refresh = None
+        else:
+            from src.utils.quick_scan_owner_refresh_api import adapt_owner_refresh
+
+            self._owner_refresh = adapt_owner_refresh(owner_refresh_session)
         self._transport_managed = transport_managed
         self._entity_id = entity_id
         self._run_id = run_id
@@ -306,24 +310,21 @@ class QuickScanWorkLifecycle:
         else:
             self._external_retrieval = None
 
-    def _registered_research_owner(self) -> "ApprovedRefreshSession":
-        from src.utils.quick_scan_owner_refresh import OwnerRefreshSession
-        from src.utils.quick_scan_refresh_execution import ApprovedRefreshSession
+    def _registered_research_owner(self) -> "QuickScanOwnerRefreshPort":
+        from src.utils.quick_scan_owner_refresh_api import is_owner_refresh_port
 
         owner = self._owner_refresh
-        if (
-            not isinstance(owner, ApprovedRefreshSession)
-            or not isinstance(owner.native, OwnerRefreshSession)
-            or owner.service.store is not self._store
-            or owner.native.store is not self._store
-        ):
+        if owner is None or not is_owner_refresh_port(owner):
             raise ValueError("original_registered_owner_required")
-        return owner
+        if owner.snapshot().kind != "approved" or not owner.is_bound_to(self._store):
+            raise ValueError("original_registered_owner_required")
+        return cast("QuickScanOwnerRefreshPort", owner)
 
     def registered_research_work(self) -> RegisteredResearchWork:
         """Return the original native approval and a detached route/context snapshot."""
         return RegisteredResearchWork(
             owner=self._registered_research_owner(),
+            store=self._store,
             transport_managed=self._transport_managed,
             route_id=self._route_id,
             provider_config_ref=self._provider_name,
@@ -345,7 +346,7 @@ class QuickScanWorkLifecycle:
         if not recovery_only:
             return self._external_retrieval is None
         owner = self._registered_research_owner()
-        for entry in owner.entries.values():
+        for entry in owner.snapshot().entries.values():
             if entry["kind"] != "work":
                 continue
             attempts = self._store.list_attempts(entry["work_item_id"])
@@ -360,7 +361,8 @@ class QuickScanWorkLifecycle:
     def company_scan_progress(self, question_ids: List[str]) -> dict:
         """Read original registered work for the selected questions in caller order."""
         owner = self._registered_research_owner()
-        work_ids = [owner.entries[qid]["work_item_id"] for qid in question_ids]
+        entries = owner.snapshot().entries
+        work_ids = [entries[qid]["work_item_id"] for qid in question_ids]
         return cast(dict, self._store.company_scan_progress(work_ids))
 
     def for_approved_company_route(self, route, client):
@@ -371,7 +373,8 @@ class QuickScanWorkLifecycle:
             owner = self._registered_research_owner()
         except ValueError as error:
             raise ValueError("shared_company_original_owner_required") from error
-        targets = owner.ordered_route_targets
+        owner_snapshot = owner.snapshot()
+        targets = owner_snapshot.ordered_route_targets
         if targets is None:
             raise ValueError("shared_company_ordered_approval_required")
         if route not in owner.execution_routes(self._budget_policy):
@@ -424,8 +427,9 @@ class QuickScanWorkLifecycle:
         if self._owner_refresh is None:
             return None, None, None
         session = self._owner_refresh
+        snapshot = session.snapshot()
         session.check()
-        action = session.fields[question_id]["decision"]
+        action = snapshot.fields[question_id]["decision"]
         if action in {"dispatch_new_work", "dispatch_new_generation"}:
             return None, session.binding(question_id), None
         if action == "resume_existing_work":
@@ -433,20 +437,14 @@ class QuickScanWorkLifecycle:
             bound = self._store.get_owner_refresh_binding(old["work_item_id"])
             if (
                 bound is None
-                or bound["binding"]["manifest_raw_sha256"] != session.plan["manifest_raw_sha256"]
-                or bound["binding"]["decision_id"] != session.plan["decision_id"]
-                or bound["binding"]["subject_key"] != session.plan["subject_key"]
-                or bound["binding"]["provider"] != session.plan["provider"]
-                or bound["binding"]["model"] != session.plan["model"]
+                or bound["binding"]["manifest_raw_sha256"] != snapshot.plan["manifest_raw_sha256"]
+                or bound["binding"]["decision_id"] != snapshot.plan["decision_id"]
+                or bound["binding"]["subject_key"] != snapshot.plan["subject_key"]
+                or bound["binding"]["provider"] != snapshot.plan["provider"]
+                or bound["binding"]["model"] != snapshot.plan["model"]
             ):
                 return old, None, "resume_original_work_context_required"
-            if bound["binding"]["anchor_version"] != session.plan["anchor_version"]:
-                from src.utils.quick_scan_refresh_execution import (
-                    ApprovedRefreshSession,
-                )
-
-                if not isinstance(session, ApprovedRefreshSession):
-                    return old, None, "resume_original_work_context_required"
+            if bound["binding"]["anchor_version"] != snapshot.plan["anchor_version"]:
                 try:
                     session.assert_reactivated_original_binding(
                         question_id, old, bound["binding"], store=self._store
@@ -469,14 +467,16 @@ class QuickScanWorkLifecycle:
 
     def before_registered_questions(self, questions):
         """Explicit approved-action batch path; the singleton API is unchanged."""
-        from src.utils.quick_scan_refresh_execution import ApprovedRefreshSession
+        from src.utils.quick_scan_owner_refresh_api import is_owner_refresh_port
         from src.utils.quick_scan_result_outbox import canonical_bytes
 
         owner = self._owner_refresh
         if (
             not self._transport_managed
-            or not isinstance(owner, ApprovedRefreshSession)
-            or owner.service.store is not self._store
+            or owner is None
+            or not is_owner_refresh_port(owner)
+            or owner.snapshot().kind != "approved"
+            or not owner.is_bound_to(self._store)
         ):
             raise ValueError("owner_batch_original_approved_transport_required")
         if (
@@ -491,8 +491,9 @@ class QuickScanWorkLifecycle:
         keys = [self.question_pack_group_key(q) for q in questions]
         if len(set(keys)) != 1 or (keys[0][2] == "security" and len(keys) > 1):
             raise ValueError("owner_batch_subject_scope_mismatch")
+        entries = owner.snapshot().entries
         for question in questions:
-            entry = owner.entries.get(question.question_id)
+            entry = entries.get(question.question_id)
             if entry is None or entry["kind"] != "work":
                 raise ValueError("owner_batch_registered_question_required")
             spec = entry["specification"]
@@ -673,11 +674,7 @@ class QuickScanWorkLifecycle:
         fingerprint = hashlib.sha256(text.encode("utf-8")).hexdigest()
         try:
             if self._owner_refresh is not None:
-                from src.utils.quick_scan_refresh_execution import (
-                    ApprovedRefreshSession,
-                )
-
-                if isinstance(self._owner_refresh, ApprovedRefreshSession):
+                if self._owner_refresh.snapshot().kind == "approved":
                     checkpoint = self._owner_refresh.restore_registered_checkpoint(
                         question, store=self._store
                     )
@@ -741,7 +738,7 @@ class QuickScanWorkLifecycle:
                     execution, work_store=self._store, work_item_id=row["work_item_id"]
                 )
                 checkpoint = {**checkpoint, "external_execution_metadata": execution}
-        return checkpoint
+        return checkpoint if checkpoint is None else dict(checkpoint)
 
     def _seal_delivery(self, work_item_id: str) -> None:
         """Q10: settle a freshly persisted checkpoint into a sealed C06 package
@@ -763,7 +760,7 @@ class QuickScanWorkLifecycle:
         owner = self._registered_research_owner()
         if not any(
             entry["kind"] == "work" and entry["work_item_id"] == work_item_id
-            for entry in owner.entries.values()
+            for entry in owner.snapshot().entries.values()
         ):
             raise ValueError("original_registered_work_required")
         self._seal_delivery(work_item_id)
@@ -818,7 +815,7 @@ class QuickScanWorkLifecycle:
                 from src.utils.quick_scan_work_transport import bind_owner_refresh_guard
 
                 self._owner_refresh.check()
-                context.enter_context(bind_owner_refresh_guard(self._owner_refresh.check))
+                context.enter_context(bind_owner_refresh_guard(self._owner_refresh))
                 context.enter_context(_owner_analysis_scope(self._owner_refresh))
             context.enter_context(
                 bind_quick_scan_work(self._store, handle["work_item_id"], handle["lease"])
@@ -880,29 +877,22 @@ class QuickScanWorkLifecycle:
 
     def assert_question_pack_ready(self, questions: List[Question]) -> None:
         """Admit original native session or its existing approved-action composition."""
-        from src.utils.quick_scan_owner_refresh import OwnerRefreshSession
-        from src.utils.quick_scan_refresh_execution import ApprovedRefreshSession
+        from src.utils.quick_scan_owner_refresh_api import is_owner_refresh_port
         from src.utils.quick_scan_result_outbox import canonical_sha256
 
         owner = self._owner_refresh
         context = self._observation_context
-        native = owner.native if isinstance(owner, ApprovedRefreshSession) else owner
-        same_store = (
-            owner.service.store is self._store
-            if isinstance(owner, ApprovedRefreshSession)
-            else True
-        )
+        snapshot = owner.snapshot() if owner is not None and is_owner_refresh_port(owner) else None
         if (
             not self._transport_managed
             or not isinstance(self._store, QuickScanWorkStore)
-            or not isinstance(owner, (OwnerRefreshSession, ApprovedRefreshSession))
-            or not isinstance(native, OwnerRefreshSession)
-            or not same_store
-            or native.store is not self._store
+            or snapshot is None
+            or owner is None
+            or not owner.is_bound_to(self._store)
             or not isinstance(context, dict)
             or context.get("schema") != "stockqa.quick_scan_observation_context/2.0.0"
-            or not isinstance(native.observation_context, dict)
-            or canonical_sha256(context) != canonical_sha256(native.observation_context)
+            or not isinstance(snapshot.observation_context, dict)
+            or canonical_sha256(context) != canonical_sha256(snapshot.observation_context)
             or self._external_retrieval is not None
         ):
             raise ValueError("question_pack_native_owner_transport_required")
@@ -929,8 +919,8 @@ class QuickScanWorkLifecycle:
             or not isinstance(perimeter, str)
             or re.fullmatch(r"[0-9a-f]{64}", perimeter) is None
             or self._owner_refresh is None
-            or perimeter != self._owner_refresh.plan.get("perimeter_sha256")
-            or question.question_id not in self._owner_refresh.fields
+            or perimeter != self._owner_refresh.snapshot().plan.get("perimeter_sha256")
+            or question.question_id not in self._owner_refresh.snapshot().fields
             or hashlib.sha256(question.text.strip().encode("utf-8")).hexdigest()
             != row.get("work_prompt_sha256")
         ):
@@ -1018,7 +1008,9 @@ class QuickScanWorkLifecycle:
         if len(set(keys)) != 1 or (keys[0][2] == "security" and len(keys) > 1):
             raise ValueError("question_pack_subject_scope_mismatch")
         # assert_question_pack_ready above verifies these exact owner/context values.
-        owner_refresh = cast("OwnerRefreshSession | ApprovedRefreshSession", self._owner_refresh)
+        owner_refresh = self._owner_refresh
+        if owner_refresh is None:
+            raise ValueError("question_pack_native_owner_transport_required")
         context = ExitStack()
         try:
             for handle in handles:
@@ -1028,7 +1020,7 @@ class QuickScanWorkLifecycle:
                     cast(Dict[str, Any], self._work_observation_context(handle["work_item_id"])),
                 )
             owner_refresh.check()
-            context.enter_context(bind_owner_refresh_guard(owner_refresh.check))
+            context.enter_context(bind_owner_refresh_guard(owner_refresh))
             context.enter_context(_owner_analysis_scope(owner_refresh))
             context.enter_context(
                 bind_subject_dispatch_registrar(owner_refresh.register_subject_dispatch)
@@ -1052,13 +1044,27 @@ class QuickScanWorkLifecycle:
             context.close()
             raise
 
+    def project_question_pack_failure(self, execution: Dict[str, Any]) -> Dict[str, Any]:
+        """Project verified transport facts for rejected members of a real pack."""
+        from src.utils.quick_scan_work_transport import (
+            project_question_pack_transport,
+            project_quick_scan_search,
+        )
+
+        project_question_pack_transport(execution)
+        original = execution["work_transport"]["final_receipt"]
+        search = project_quick_scan_search(original)
+        return {
+            "model_requested": original.get("requested_model"),
+            "actual_model": original.get("actual_model"),
+            "request_id": original.get("request_id"),
+            "response_id": original.get("response_id"),
+            "search_status": search.get("search_status"),
+            "search_receipt_id": search.get("search_receipt_id"),
+        }
+
     def assert_question_skip_terminal(self, question: Question, handle: Dict[str, Any]) -> bool:
         """Skip an original FAILED item only; never claim, renew or reclassify it."""
-        from contextlib import closing
-
-        from src.utils.quick_scan_known_outcome_journal import _physical
-        from src.utils.quick_scan_owner_refresh_journal import read as owner_binding
-        from src.utils.quick_scan_question_pack_journal import _read
         from src.utils.quick_scan_result_outbox import canonical_sha256
         from src.utils.quick_scan_work_store import WorkConflictError
 
@@ -1080,7 +1086,8 @@ class QuickScanWorkLifecycle:
         wid = handle["work_item_id"]
         # Pure reads only: _owner_work is not called because its normal
         # dispatch path can recover another projected expired lease.
-        resuming = owner.fields[qid]["decision"] == "resume_existing_work"
+        owner_snapshot = owner.snapshot()
+        resuming = owner_snapshot.fields[qid]["decision"] == "resume_existing_work"
         expected_binding = None
         if resuming:
             selected = owner.existing_work(qid)
@@ -1095,134 +1102,51 @@ class QuickScanWorkLifecycle:
             if expected_binding is None:
                 raise WorkConflictError("question_skip_terminal_registered_work_required")
         scope, scope_id, generation = self._dispatch_binding(qid)
-        with closing(self._store._connect()) as connection:
-            connection.execute("BEGIN")
-            item = self._store._item(connection, wid)
-            if (
-                item["status"] != "failed"
-                or item["question_id"] != qid
-                or item["entity_id"] != self._entity_id
-                or item["scope"] != scope
-                or item["scope_id"] != scope_id
-                or item["generation"] != generation
-                or item["identity_revision"] != self._identity["identity_revision"]
-                or item["source_binding_version"] != self._identity["source_binding_version"]
-                or item["identity_state"] != self._identity["identity_state"]
-                or item["source_binding_ref"] != self._identity["source_binding_ref"]
-                or sorted(json.loads(item["source_binding_refs_json"]))
-                != sorted(self._identity["source_binding_refs"])
-                or item["identity_snapshot_sha256"] != self._identity["identity_snapshot_sha256"]
-                or item["question_fingerprint"]
-                != hashlib.sha256(question.text.strip().encode("utf-8")).hexdigest()
-                or item["lease_token"] is not None
-                or item["uncertain_attempt_id"] is not None
+        subject_binding = (
+            (self._observation_context or {}).get("questions", {}).get(qid, {}) or {}
+        ).get("subject_binding")
+        evidence = self._store.inspect_question_skip_terminal(
+            wid,
+            question_id=qid,
+            entity_id=self._entity_id,
+            scope=scope,
+            scope_id=scope_id,
+            generation=generation,
+            identity=self._identity,
+            question_fingerprint=hashlib.sha256(question.text.strip().encode("utf-8")).hexdigest(),
+            subject_binding=subject_binding if isinstance(subject_binding, dict) else {},
+        )
+        item = evidence["item"]
+        bound = evidence["owner_binding"]
+        if expected_binding is not None and canonical_sha256(bound["binding"]) != canonical_sha256(
+            expected_binding
+        ):
+            raise WorkConflictError("question_skip_terminal_registered_binding_mismatch")
+        if resuming:
+            if any(
+                bound["binding"].get(key) != owner_snapshot.plan.get(key)
+                for key in (
+                    "manifest_raw_sha256",
+                    "decision_id",
+                    "subject_key",
+                    "provider",
+                    "model",
+                    "perimeter_sha256",
+                    "information_cutoff",
+                )
             ):
-                raise WorkConflictError("question_skip_terminal_work_mismatch")
-            bound = owner_binding(connection, wid)
-            if bound is None or (
-                expected_binding is not None
-                and canonical_sha256(bound["binding"]) != canonical_sha256(expected_binding)
-            ):
-                raise WorkConflictError("question_skip_terminal_registered_binding_mismatch")
-            if resuming:
-                if any(
-                    bound["binding"].get(key) != owner.plan.get(key)
-                    for key in (
-                        "manifest_raw_sha256",
-                        "decision_id",
-                        "subject_key",
-                        "provider",
-                        "model",
-                        "perimeter_sha256",
-                        "information_cutoff",
-                    )
-                ):
-                    raise WorkConflictError("question_skip_terminal_original_owner_context_changed")
-                if bound["binding"]["anchor_version"] != owner.plan["anchor_version"]:
-                    from src.utils.quick_scan_refresh_execution import (
-                        ApprovedRefreshSession,
-                    )
-
-                    if not isinstance(owner, ApprovedRefreshSession):
-                        raise WorkConflictError("question_skip_terminal_original_anchor_required")
-                    owner.assert_reactivated_original_binding(
-                        qid, dict(item), bound["binding"], store=self._store
-                    )
-            if (
-                connection.execute(
-                    "SELECT 1 FROM answer_checkpoint WHERE work_item_id=?", (wid,)
-                ).fetchone()
-                is not None
-            ):
-                raise WorkConflictError("question_skip_terminal_checkpoint_conflict")
-            attempt = connection.execute(
-                "SELECT * FROM attempt WHERE work_item_id=? ORDER BY ordinal DESC LIMIT 1", (wid,)
-            ).fetchone()
-            if attempt is None or attempt["phase"] != "response_available":
-                raise WorkConflictError("question_skip_terminal_known_response_required")
-            # Reuse the exact read-only native known-response owner proof,
-            # including physical response, subject receipt and settled fee.
-            physical = _physical(self._store, connection, item, attempt)
-            if physical.get("pack_id") is None or physical["subject_binding"] != (
-                self._observation_context or {}
-            ).get("questions", {}).get(qid, {}).get("subject_binding"):
-                raise WorkConflictError("question_skip_terminal_original_pack_required")
-            pack = _read(connection, physical["pack_id"])
-            if (
-                pack is None
-                or pack["members_uncertain"]
-                or pack["physical_outcome"] != "response_available"
-            ):
-                raise WorkConflictError("question_skip_terminal_pack_unresolved")
-            # Every original sibling of the shared physical request is already
-            # terminal; do not skip past a crash or a still-uncertain member.
-            for member in pack["members"]:
-                sibling = self._store._item(connection, member["work_item_id"])
-                latest = connection.execute(
-                    "SELECT attempt_id,phase,receipt_sha256 FROM attempt WHERE work_item_id=? ORDER BY ordinal DESC LIMIT 1",
-                    (member["work_item_id"],),
-                ).fetchone()
-                if latest is None or tuple(latest) != (
-                    member["attempt_id"],
-                    "response_available",
-                    pack["receipt_sha256"],
-                ):
-                    raise WorkConflictError("question_skip_terminal_sibling_attempt_changed")
-                cp = connection.execute(
-                    "SELECT c.*,w.*,a.attempt_id AS bound_attempt_id FROM answer_checkpoint c JOIN work_item w ON w.work_item_id=c.work_item_id JOIN attempt a ON a.attempt_id=c.attempt_id WHERE c.work_item_id=?",
-                    (member["work_item_id"],),
-                ).fetchone()
-                if sibling["status"] == "failed":
-                    if cp is not None:
-                        raise WorkConflictError(
-                            "question_skip_terminal_sibling_checkpoint_conflict"
-                        )
-                elif sibling["status"] in {"result_ready", "delivered"} and cp is not None:
-                    self._store._checkpoint_record(connection, cp)
-                else:
-                    raise WorkConflictError("question_skip_terminal_sibling_unresolved")
-            unresolved = connection.execute(
-                "SELECT 1 FROM work_item w WHERE w.entity_id=? AND w.scope=? AND w.scope_id=? AND (w.status='uncertain' OR (w.status='leased' AND EXISTS (SELECT 1 FROM attempt a WHERE a.work_item_id=w.work_item_id AND a.phase IN ('send_intent','response_available','uncertain')))) LIMIT 1",
-                (self._entity_id, scope, scope_id),
-            ).fetchone()
-            if unresolved is not None:
-                raise WorkConflictError("question_skip_terminal_owner_scope_unresolved")
+                raise WorkConflictError("question_skip_terminal_original_owner_context_changed")
+            if bound["binding"]["anchor_version"] != owner_snapshot.plan["anchor_version"]:
+                owner.assert_reactivated_original_binding(
+                    qid, dict(item), bound["binding"], store=self._store
+                )
         self.assert_question_pack_ready([question])
         return True
 
     def assert_question_pack_terminal(
         self, handles: List[Dict[str, Any]], failures: Dict[str, str]
     ) -> bool:
-        """Re-read original terminal members and one settled physical fee.
-
-        A pure assertion, not a retry receipt or a second journal. Unsupported
-        legacy runs retain the engine's conservative stop behavior.
-        """
-        from contextlib import closing
-
-        from src.utils.quick_scan_question_pack_journal import _read
-        from src.utils.quick_scan_work_store import WorkConflictError
-
+        """Validate a durable pack through the WorkStore's public operation."""
         allowed = {"invalid_question", "missing_question", "answer_generator_rejected_member"}
         if (
             not isinstance(self._c06_authority, dict)
@@ -1233,140 +1157,31 @@ class QuickScanWorkLifecycle:
             or not set(failures.values()) <= allowed
         ):
             raise ValueError("question_pack_terminal_proof_not_supported")
-        # No LLM-returned metadata is an input to this authority assertion.
-        with closing(self._store._connect()) as connection:
-            connection.execute("BEGIN")
-            attempts = []
-            for handle in handles:
-                if not isinstance(handle, dict) or handle.get("claimed") is not True:
-                    raise WorkConflictError("question_pack_terminal_handle_invalid")
-                attempt = connection.execute(
-                    "SELECT * FROM attempt WHERE work_item_id=? ORDER BY ordinal DESC LIMIT 1",
-                    (handle["work_item_id"],),
-                ).fetchone()
-                if (
-                    attempt is None
-                    or attempt["lease_epoch"] != handle["lease"].lease_epoch
-                    or attempt["lease_token"] != handle["lease"].lease_token
-                ):
-                    raise WorkConflictError("question_pack_terminal_attempt_changed")
-                attempts.append(attempt)
-            if len({a["work_item_id"] for a in attempts}) != len(handles):
-                raise WorkConflictError("question_pack_terminal_duplicate_member")
-            ids = [a["attempt_id"] for a in attempts]
-            membership = connection.execute(
-                "SELECT pack_id,attempt_id FROM quick_scan_question_pack_member "
-                "WHERE attempt_id IN (SELECT value FROM json_each(?))",
-                (json.dumps(ids),),
-            ).fetchall()
-            if len(membership) != len(ids) or len({m["pack_id"] for m in membership}) != 1:
-                raise WorkConflictError("question_pack_terminal_membership_changed")
-            pack = _read(connection, membership[0]["pack_id"])
-            if (
-                pack is None
-                or {m["attempt_id"] for m in pack["members"]} != set(ids)
-                or pack["physical_outcome"] != "response_available"
-                or pack["members_uncertain"]
-            ):
-                raise WorkConflictError("question_pack_terminal_physical_unresolved")
-            receipt = pack["execution_receipt"]
-            if (
-                not isinstance(receipt, dict)
-                or receipt.get("search_status") != "executed"
-                or not receipt.get("search_receipt_id")
-                or not receipt.get("source_urls")
-                or receipt.get("response_status") != "completed"
-                or type(receipt.get("http_status_code")) is not int
-                or not 200 <= receipt["http_status_code"] < 300
-            ):
-                raise WorkConflictError("question_pack_terminal_response_unknown")
-            budget = connection.execute(
-                "SELECT b.status,b.in_flight,b.http_status_code,t.terminal_outcome FROM quick_scan_budget_attempt b JOIN quick_scan_budget_terminal t USING(budget_attempt_id) WHERE b.budget_attempt_id=?",
-                (pack["budget_attempt_id"],),
-            ).fetchone()
-            if budget is None or tuple(budget) != (
-                "settled",
-                0,
-                receipt["http_status_code"],
-                "completed",
-            ):
-                raise WorkConflictError("question_pack_terminal_fee_unresolved")
-            questions = []
-            found_failures = set()
-            for attempt in attempts:
-                wid = attempt["work_item_id"]
-                item = self._store._item(connection, wid)
-                qid = item["question_id"]
-                scope, scope_id, generation = self._dispatch_binding(qid)
-                if (
-                    item["entity_id"] != self._entity_id
-                    or item["scope"] != scope
-                    or item["scope_id"] != scope_id
-                    or item["generation"] != generation
-                    or item["lease_epoch"] != attempt["lease_epoch"]
-                    or item["uncertain_attempt_id"] is not None
-                    or attempt["phase"] != "response_available"
-                    or attempt["receipt_sha256"] != pack["receipt_sha256"]
-                ):
-                    raise WorkConflictError("question_pack_terminal_work_changed")
-                original = self._store._response_for_checkpoint(
-                    connection, attempt, pack["receipt_sha256"]
+        context_questions = (self._observation_context or {}).get("questions", {})
+        question_ids = set(context_questions)
+        question_ids.update(self._scope_by_question)
+        question_ids.update(self._generation_by_question)
+        expected_bindings = {
+            question_id: self._dispatch_binding(question_id) for question_id in question_ids
+        }
+        verified_question_ids = self._store.assert_question_pack_terminal_persistence(
+            handles,
+            failures,
+            entity_id=self._entity_id,
+            expected_bindings=expected_bindings,
+        )
+        questions = []
+        for question_id in verified_question_ids:
+            row = context_questions.get(question_id) or {}
+            questions.append(
+                Question(
+                    text=(row.get("subject_binding") or {})
+                    .get("question_contract", {})
+                    .get("prompt")
+                    or "",
+                    question_id=question_id,
                 )
-                if (
-                    original["receipt_sha256"] != pack["receipt_sha256"]
-                    or original["receipt"].get("http_status_code") != receipt["http_status_code"]
-                ):
-                    raise WorkConflictError("question_pack_terminal_receipt_conflict")
-                cp = connection.execute(
-                    "SELECT c.*,w.*,a.attempt_id AS bound_attempt_id FROM answer_checkpoint c JOIN work_item w ON w.work_item_id=c.work_item_id JOIN attempt a ON a.attempt_id=c.attempt_id WHERE c.work_item_id=?",
-                    (wid,),
-                ).fetchone()
-                if qid in failures:
-                    found_failures.add(qid)
-                    event = connection.execute(
-                        "SELECT event_type,attempt_id,lease_epoch FROM work_event WHERE work_item_id=? AND to_status='failed' ORDER BY event_id DESC LIMIT 1",
-                        (wid,),
-                    ).fetchone()
-                    if (
-                        item["status"] != "failed"
-                        or cp is not None
-                        or event is None
-                        or tuple(event)
-                        != (
-                            "received_without_answer:" + failures[qid],
-                            attempt["attempt_id"],
-                            attempt["lease_epoch"],
-                        )
-                    ):
-                        raise WorkConflictError("question_pack_terminal_failure_not_durable")
-                else:
-                    if (
-                        item["status"] not in {"result_ready", "delivered"}
-                        or cp is None
-                        or cp["attempt_id"] != attempt["attempt_id"]
-                    ):
-                        raise WorkConflictError("question_pack_terminal_checkpoint_missing")
-                    self._store._checkpoint_record(connection, cp)
-                row = (self._observation_context or {}).get("questions", {}).get(qid) or {}
-                questions.append(
-                    Question(
-                        text=(row.get("subject_binding") or {})
-                        .get("question_contract", {})
-                        .get("prompt")
-                        or "",
-                        question_id=qid,
-                    )
-                )
-                # Other companies' permitted concurrent requests are unrelated.
-                # Only this original owner scope may block its own continuation.
-                unresolved = connection.execute(
-                    "SELECT 1 FROM work_item w WHERE w.entity_id=? AND w.scope=? AND w.scope_id=? AND (w.status='uncertain' OR (w.status='leased' AND EXISTS (SELECT 1 FROM attempt a WHERE a.work_item_id=w.work_item_id AND a.phase IN ('send_intent','response_available','uncertain')))) LIMIT 1",
-                    (self._entity_id, scope, scope_id),
-                ).fetchone()
-                if unresolved is not None:
-                    raise WorkConflictError("question_pack_terminal_owner_scope_unresolved")
-            if found_failures != set(failures):
-                raise WorkConflictError("question_pack_terminal_foreign_failure")
+            )
         self.assert_question_pack_ready(questions)  # original live owner/context check
         return True
 
@@ -1490,7 +1305,8 @@ class QuickScanWorkLifecycle:
                 standard_answer=standard_body,
                 _recovery_session=(
                     self._owner_refresh
-                    if getattr(self._owner_refresh, "recovery_only", False)
+                    if self._owner_refresh is not None
+                    and self._owner_refresh.snapshot().recovery_only
                     else None
                 ),
                 external_context_use=(
@@ -1699,13 +1515,13 @@ def _preflight_checkpoint(
     answer/receipt is not checkpoint-quality — the caller then falls back to
     the Q06 honest-unknown path with zero recorded state (no strand)."""
     from src.utils.quick_scan_work_store import (
-        _ENTITY_ID,
-        _canonical_source_urls,
-        _safe,
-        _safe_text,
-        _sanitized_receipt,
-        _timestamp,
+        ENTITY_ID,
+        canonical_source_urls,
         quick_scan_receipt_sha256,
+        sanitize_transport_receipt,
+        validate_safe_identifier,
+        validate_timestamp,
+        validate_transport_text,
     )
 
     if set(answer_payload) != {
@@ -1716,9 +1532,9 @@ def _preflight_checkpoint(
         "description",
     }:
         raise ValueError("answer must match the normalized checkpoint contract")
-    if not _ENTITY_ID.fullmatch(_safe(answer_payload["entity_id"], "entity_id")):
+    if not ENTITY_ID.fullmatch(validate_safe_identifier(answer_payload["entity_id"], "entity_id")):
         raise ValueError("invalid answer entity_id")
-    _safe(answer_payload["question_id"], "question_id")
+    validate_safe_identifier(answer_payload["question_id"], "question_id")
     if answer_payload["status"] not in REUSABLE_ANSWER_STATUSES:
         raise ValueError("answer status is not reusable")
     score = answer_payload["score"]
@@ -1727,10 +1543,10 @@ def _preflight_checkpoint(
             raise ValueError("scored answer requires an integer score from 1 to 10")
     elif score is not None:
         raise ValueError("non-scored answer must have a null score")
-    _safe_text(answer_payload["description"], "answer description", maximum=5000)
+    validate_transport_text(answer_payload["description"], "answer description", maximum=5000)
     if not isinstance(receipt, dict):
         raise ValueError("execution receipt is required")
-    sanitized = _sanitized_receipt(receipt)
+    sanitized = sanitize_transport_receipt(receipt)
     if not sanitized:
         raise ValueError("execution receipt is empty")
     search = sanitized if search_projection is None else search_projection
@@ -1740,19 +1556,19 @@ def _preflight_checkpoint(
         sanitized.get("provider") == "deepseek" and search_projection is not None
     ):
         raise ValueError("execution receipt has no verified provider")
-    _safe_text(sanitized.get("actual_model"), "actual_model", maximum=160)
-    _safe_text(sanitized.get("response_id"), "response_id", maximum=300)
-    _safe_text(sanitized.get("attempt_id"), "attempt_id", maximum=300)
-    _safe_text(search.get("search_receipt_id"), "search_receipt_id", maximum=300)
+    validate_transport_text(sanitized.get("actual_model"), "actual_model", maximum=160)
+    validate_transport_text(sanitized.get("response_id"), "response_id", maximum=300)
+    validate_transport_text(sanitized.get("attempt_id"), "attempt_id", maximum=300)
+    validate_transport_text(search.get("search_receipt_id"), "search_receipt_id", maximum=300)
     if sanitized.get("response_status") != "completed":
         raise ValueError("execution receipt response is not complete")
     http_status_code = sanitized.get("http_status_code")
     if type(http_status_code) is not int or not 200 <= http_status_code < 300:
         raise ValueError("execution receipt has no successful HTTP status")
-    _timestamp(sanitized.get("completed_at"), "response completion timestamp")
-    _canonical_source_urls(search.get("source_urls"))
+    validate_timestamp(sanitized.get("completed_at"), "response completion timestamp")
+    canonical_source_urls(search.get("source_urls"))
     if sanitized.get("request_id") is not None:
-        _safe_text(sanitized.get("request_id"), "request_id", maximum=300)
+        validate_transport_text(sanitized.get("request_id"), "request_id", maximum=300)
     quick_scan_receipt_sha256(receipt)
 
 
@@ -2092,9 +1908,9 @@ class LLMRunner:
         max_output_tokens: Optional[int] = None,
     ) -> List[Optional[LLMProvider]]:
         """Materialize one provider instance per eligible ordered route."""
-        from src.providers.llm_client import _validate_search_generation_controls
+        from src.providers.llm_client import validate_search_generation_controls
 
-        _validate_search_generation_controls(thinking_enabled, max_output_tokens)
+        validate_search_generation_controls(thinking_enabled, max_output_tokens)
         generation_options: _SearchGenerationOptions = {}
         if thinking_enabled is not None:
             generation_options["thinking_enabled"] = thinking_enabled
@@ -2220,23 +2036,26 @@ class LLMRunner:
                     shared_company_config=shared_company_config,
                     shared_company_recovery_only=True,
                 )
-            from src.providers.llm_provider import _final_answer_diagnostic_policy
+            from src.providers.llm_provider import final_answer_diagnostic_policy
+            from src.utils.quick_scan_owner_refresh_api import adapt_owner_refresh
             from src.utils.quick_scan_refresh_execution import prepare_execution
 
-            policy = _final_answer_diagnostic_policy(
+            policy = final_answer_diagnostic_policy(
                 Path.cwd() / "llm_apis.json", recovery_only=True
             )
-            session = prepare_execution(
-                refresh_admission_config,
-                refresh_confirmation_id,
-                recovery_only=True,
-                input_paths={
-                    "questions.json": config,
-                    "identity.json": identity_snapshot,
-                    "manifest.json": question_manifest,
-                    "authority.json": c06_authority,
-                    "owner-config.json": owner_refresh_config,
-                },
+            session = adapt_owner_refresh(
+                prepare_execution(
+                    refresh_admission_config,
+                    refresh_confirmation_id,
+                    recovery_only=True,
+                    input_paths={
+                        "questions.json": config,
+                        "identity.json": identity_snapshot,
+                        "manifest.json": question_manifest,
+                        "authority.json": c06_authority,
+                        "owner-config.json": owner_refresh_config,
+                    },
+                )
             )
             result = session.recover_received_checkpoints(capture_policy=policy)
             payload = dict(
@@ -2262,7 +2081,7 @@ class LLMRunner:
             from src.utils.quick_scan_shared_company import read_shared_company_config
 
             read_shared_company_config(shared_company_config)
-        from src.providers.llm_client import _validate_search_generation_controls
+        from src.providers.llm_client import validate_search_generation_controls
 
         work_lease_seconds = validate_work_lease_seconds(work_lease_seconds)
         if work_lease_seconds != 600.0 and (
@@ -2275,7 +2094,7 @@ class LLMRunner:
             raise ValueError("nondefault work lease requires one identity-bound search company")
         if type(question_pack_size) is not int or not 1 <= question_pack_size <= 30:
             raise ValueError("question_pack_size must be an integer from 1 to 30")
-        _validate_search_generation_controls(thinking_enabled, max_output_tokens)
+        validate_search_generation_controls(thinking_enabled, max_output_tokens)
         if (thinking_enabled is not None or max_output_tokens is not None) and (
             not require_search or batch_file or seal_deliveries
         ):
@@ -2499,10 +2318,10 @@ class LLMRunner:
                     shared_company_config,
                     **({"recovery_only": True} if shared_company_recovery_only else {}),
                 )
-            from src.providers.llm_client import _validate_search_generation_controls
+            from src.providers.llm_client import validate_search_generation_controls
 
             if not shared_company_recovery_only:
-                _validate_search_generation_controls(thinking_enabled, max_output_tokens)
+                validate_search_generation_controls(thinking_enabled, max_output_tokens)
             generation_options: _SearchGenerationOptions = {}
             if thinking_enabled is not None:
                 generation_options["thinking_enabled"] = thinking_enabled
@@ -2567,11 +2386,12 @@ class LLMRunner:
                     "complete authority requires identity and full manifest before any HTTP"
                 )
             if refresh_admission_config is not None:
+                from src.utils.quick_scan_owner_refresh_api import adapt_owner_refresh
                 from src.utils.quick_scan_refresh_execution import prepare_execution
 
                 if c06_authority is None or c06_authority.get("schema_version") != "3.0.0":
                     raise ValueError("approved refresh requires complete authority3/context2")
-                approved_session = prepare_execution(
+                prepared_session = prepare_execution(
                     refresh_admission_config,
                     refresh_confirmation_id,
                     recovery_only=shared_company_recovery_only,
@@ -2583,20 +2403,25 @@ class LLMRunner:
                         "questions.json": config,
                     },
                 )
-                if approved_session.needs_new_dispatch and not shared_company_recovery_only:
+                # The work store stays with the session's own composition; the
+                # adapted port is opaque and carries no store or service.
+                recovery_store = prepared_session.service.store
+                approved_session = adapt_owner_refresh(prepared_session)
+                approved_snapshot = approved_session.snapshot()
+                if approved_snapshot.needs_new_dispatch and not shared_company_recovery_only:
                     approved_session.assert_execution_controls(
                         pack_size=question_pack_size,
                         thinking_enabled=generation_options.get("thinking_enabled"),
                         max_output_tokens=generation_options.get("max_output_tokens"),
                     )
             readonly_recovery = (
-                approved_session is not None and not approved_session.needs_new_dispatch
+                approved_session is not None and not approved_session.snapshot().needs_new_dispatch
             )
 
             if shared_company_recovery_only:
                 if approved_session is None or shared_document is None or identity_payload is None:
                     raise ValueError("shared_recovery_original_registered_inputs_required")
-                selected = set(approved_session.requested_question_ids)
+                selected = set(approved_session.snapshot().requested_question_ids)
                 original_questions = [
                     q for q in questions if isinstance(q, Question) and q.question_id in selected
                 ]
@@ -2604,6 +2429,7 @@ class LLMRunner:
                     approved_session,
                     shared_document,
                     original_questions,
+                    store=recovery_store if refresh_admission_config is not None else None,
                     identity=identity_payload,
                     company=company,
                     entity_id=entity_id,
@@ -2689,7 +2515,7 @@ class LLMRunner:
             if approved_session is not None:
                 # FULL manifest and any supplied full external query plan are
                 # validated above. Only the execution collection is selected.
-                selected = set(approved_session.requested_question_ids)
+                selected = set(approved_session.snapshot().requested_question_ids)
                 if not all(isinstance(question, Question) for question in questions):
                     raise ValueError("owner_refresh_requires_stable_question_items")
                 question_items = cast(List[Question], questions)
@@ -2762,7 +2588,7 @@ class LLMRunner:
                         policy, search_document
                     )
                 if approved_session is not None:
-                    budget_store = approved_session.service.store
+                    budget_store = recovery_store
                     approved_session.assert_executor_policy(
                         llm_config.config_file,
                         shared_budget_policy or policy,
@@ -2796,7 +2622,7 @@ class LLMRunner:
                         )
 
                     execution_routes = (
-                        registered_recovery_routes(approved_session, policy)
+                        registered_recovery_routes(approved_session, policy, store=recovery_store)
                         if shared_company_recovery_only
                         else (
                             approved_session.execution_routes(policy)
@@ -2869,7 +2695,7 @@ class LLMRunner:
                         policy_source=(
                             None
                             if approved_session is not None
-                            and approved_session.proof["request"]["protocol"]
+                            and approved_session.snapshot().proof["request"]["protocol"]
                             == "iqs.refresh_request/1.3.0"
                             else {
                                 "policy_provider": policy_provider,
@@ -2999,7 +2825,9 @@ class LLMRunner:
 
                     from src.utils.quick_scan_owner_refresh import (
                         OwnerRefreshClient,
-                        routing_fingerprints,
+                    )
+                    from src.utils.quick_scan_owner_refresh_api import (
+                        adapt_owner_refresh,
                     )
 
                     if (
@@ -3013,14 +2841,14 @@ class LLMRunner:
                         )
                     # The route configuration reference is durable work identity;
                     # current-answer reuse compares the actual allowlisted adapter.
-                    from src.providers.llm_client import _search_endpoint
+                    from src.providers.llm_client import resolve_search_endpoint
 
                     provider_config = llm_config.get_provider_config(
                         primary_route["provider_config_ref"]
                     )
                     if provider_config is None:
                         raise ValueError("owner_refresh_provider_config_missing")
-                    _, refresh_provider, _ = _search_endpoint(
+                    _, refresh_provider, _ = resolve_search_endpoint(
                         provider_config["base_url"],
                         primary_route["model"],
                         primary_route["provider_config_ref"],
@@ -3034,33 +2862,36 @@ class LLMRunner:
                         approved_session.check()
                         owner_session = approved_session
                     else:
-                        owner_session = OwnerRefreshClient(Path(owner_refresh_config)).prepare(
-                            manifest,
-                            work_store,
-                            identity=identity_payload,
-                            provider=refresh_provider,
-                            model=primary_route["model"],
-                            now=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-                            observation_context=c06_authority.get("observation_context"),
+                        owner_session = adapt_owner_refresh(
+                            OwnerRefreshClient(Path(owner_refresh_config)).prepare(
+                                manifest,
+                                work_store,
+                                identity=identity_payload,
+                                provider=refresh_provider,
+                                model=primary_route["model"],
+                                now=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                                observation_context=c06_authority.get("observation_context"),
+                            )
                         )
-                    scope_bindings = owner_session.scope_bindings
+                    owner_snapshot = owner_session.snapshot()
+                    scope_bindings = dict(owner_snapshot.scope_bindings)
                     generation_overrides = {
                         qid: row["generation"]
-                        for qid, row in owner_session.fields.items()
+                        for qid, row in owner_snapshot.fields.items()
                         if type(row.get("generation")) is int
                     }
-                    routing_overrides = routing_fingerprints(owner_session)
-                    print(json.dumps(owner_session.plan, ensure_ascii=False, sort_keys=True))
+                    routing_overrides = owner_session.routing_fingerprints()
+                    print(json.dumps(owner_snapshot.plan, ensure_ascii=False, sort_keys=True))
                 work_lifecycle = QuickScanWorkLifecycle(
                     work_store,
                     entity_id=entity_id,
                     run_id=(
-                        approved_session.record["inputs"]["run_id"]
+                        approved_session.snapshot().record["inputs"]["run_id"]
                         if approved_session is not None
                         else "run-" + time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
                     ),
                     scan_id=(
-                        approved_session.record["inputs"]["scan_id"]
+                        approved_session.snapshot().record["inputs"]["scan_id"]
                         if approved_session is not None
                         else "scan-l02"
                     ),
@@ -3297,25 +3128,29 @@ class LLMRunner:
             return 1
 
     def _recover_shared_company_answers(
-        self, session, shared_config, questions, *, identity, company, entity_id, output
+        self, session, shared_config, questions, *, store, identity, company, entity_id, output
     ) -> int:
         """Preserve paid answers without loading today's sending configuration.
 
         The original SDK object carries only verified response/model metadata;
         it has no credentials or network endpoint. All generation paths remain
-        forbidden by the original recovery-only owner.
+        forbidden by the original recovery-only owner. The work store comes
+        from the composition root, never through the opaque owner port.
         """
         from src.providers.llm_client import LLMClient
         from src.utils.quick_scan_shared_routes import run_ordered_company_scan
 
+        if store is None:
+            raise ValueError("shared_recovery_original_work_store_required")
+        snapshot = session.snapshot()
         routes = session.execution_routes(None)
         pairs = []
         for route in routes:
             vendors = set()
-            for entry in session.entries.values():
+            for entry in snapshot.entries.values():
                 if entry["kind"] != "work":
                     continue
-                attempts = session.service.store.list_attempts(entry["work_item_id"])
+                attempts = store.list_attempts(entry["work_item_id"])
                 for attempt in attempts:
                     if attempt["phase"] != "response_available" or (
                         attempt["route_id"],
@@ -3323,7 +3158,7 @@ class LLMRunner:
                         attempt["model_requested"],
                     ) != (route["id"], route["provider_config_ref"], route["model"]):
                         continue
-                    response = session.service.store.get_attempt_response(attempt["attempt_id"])
+                    response = store.get_attempt_response(attempt["attempt_id"])
                     if response is not None:
                         vendors.add(response["receipt"]["provider"])
             if len(vendors) != 1:
@@ -3342,22 +3177,22 @@ class LLMRunner:
         if pairs:
             route = pairs[0][0]
             lifecycle = QuickScanWorkLifecycle(
-                session.service.store,
+                store,
                 entity_id=entity_id,
-                run_id=session.record["inputs"]["run_id"],
-                scan_id=session.record["inputs"]["scan_id"],
+                run_id=snapshot.record["inputs"]["run_id"],
+                scan_id=snapshot.record["inputs"]["scan_id"],
                 identity=identity,
                 transport_managed=True,
                 owner_refresh_session=session,
-                c06_authority=session.bundle["authority"],
+                c06_authority=snapshot.bundle["authority"],
                 route_id=route["id"],
                 provider_name=route["provider_config_ref"],
                 model_requested=route["model"],
-                observation_context=session.native.observation_context,
-                scope_by_question=session.scope_bindings,
+                observation_context=snapshot.observation_context,
+                scope_by_question=dict(snapshot.scope_bindings),
                 generation_by_question={
                     qid: session.existing_work(qid)["generation"]
-                    for qid, entry in session.entries.items()
+                    for qid, entry in snapshot.entries.items()
                     if entry["kind"] == "work"
                 },
             )
@@ -3377,9 +3212,9 @@ class LLMRunner:
             quick_scan_context=dict(
                 entity_id=entity_id,
                 company_name=company,
-                provider_name=session.proof["owner_policy"]["qa"]["provider_config_ref"],
-                requested_model=session.plan["model"],
-                work_store=session.service.store,
+                provider_name=snapshot.proof["owner_policy"]["qa"]["provider_config_ref"],
+                requested_model=snapshot.plan["model"],
+                work_store=store,
             ),
             owner_refresh_session=session,
         )

@@ -21,7 +21,7 @@ from src.config.quick_scan_search_policy import (
     EXECUTION_POLICY_SCHEMA_ID,
     EXTERNAL_ENDPOINTS,
     SearchPolicy,
-    _admit,
+    admit_search_route,
     assert_policy_frozen,
     execution_query_plans,
 )
@@ -32,12 +32,12 @@ from src.providers.external_search_parsers import (
     unwrap_json_text,
 )
 from src.utils.http_client import http_client_manager
-from src.utils.quick_scan_external_journal import _digest
+from src.utils.quick_scan_external_journal import digest_external_json
 from src.utils.quick_scan_mcp_journal import (
     APPROVED_SEARCH_TOOLS,
     SUPPORTED_PROTOCOLS,
-    _control,
-    _ready,
+    is_mcp_stage_ready,
+    validate_control_response,
 )
 from src.utils.quick_scan_work_store import QuickScanWorkStore
 from src.utils.quick_scan_work_transport import QuickScanSendAttempt
@@ -86,7 +86,7 @@ class ExternalSearchProvider:
         cap = self.retrieval["max_in_memory_response_bytes"]
         if type(cap) is not int or not 1024 <= cap <= DEFAULT_MAX_IN_MEMORY_BYTES:
             raise ValueError("external response byte cap must be within 1024..1000000")
-        ok, reason = _admit(self.route, require_storage_rights=True)
+        ok, reason = admit_search_route(self.route, require_storage_rights=True)
         if not ok:
             raise ValueError(reason)
         self._frozen_sha256 = self._configuration_sha256()
@@ -513,7 +513,7 @@ class ExternalSearchProvider:
         parent_id = stage["metadata"]["parent_stage_id"]
         while parent_id is not None:
             parent = store.get_mcp_stage(parent_id)
-            if not _ready(parent, store._now()):
+            if not is_mcp_stage_ready(parent, store.now()):
                 raise ValueError("MCP parent is no longer ready")
             if parent["stage"] == "initialize":
                 binding = parent["result"]["control"]
@@ -648,7 +648,7 @@ class ExternalSearchProvider:
                 raise ValueError("invalid private MCP session")
             control = {"protocol_version": protocol, "session_id": session}
             # Use the same exact typed bounds as the durable journal.
-            checked = _control(
+            checked = validate_control_response(
                 control, "initialize", {"outcome": "response_available", "parse_status": "ok"}
             )
             if checked is None:
@@ -669,7 +669,7 @@ class ExternalSearchProvider:
         tool = matches[0]
         schema = tool.get("inputSchema")
         self._validate_mcp_query_schema(schema, stage["plan"]["query"])
-        return {"tool_name": tool["name"], "input_schema_sha256": _digest(schema)}
+        return {"tool_name": tool["name"], "input_schema_sha256": digest_external_json(schema)}
 
     @staticmethod
     def _validate_mcp_query_schema(schema: Any, query: str) -> None:

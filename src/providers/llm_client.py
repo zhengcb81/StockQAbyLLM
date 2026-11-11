@@ -1657,8 +1657,10 @@ class LLMClient:
         visible = None
         if research_final_json or work_attempt is not None:
             from src.utils.quick_scan_research_output import (
-                public_final_output,
-                visible_output_sha256,
+                api_research_output_public_final as public_final_output,
+            )
+            from src.utils.quick_scan_research_output import (
+                api_research_output_visible_sha256 as visible_output_sha256,
             )
 
             visible = public_final_output(result.content, credential=self.api_key)
@@ -1675,11 +1677,11 @@ class LLMClient:
             )
             # Private transport provenance comes from this actual HTTP,
             # never from model-generated answer JSON or merged repair history.
-            from src.utils.quick_scan_work_store import _sanitized_receipt
+            from src.utils.quick_scan_work_store import sanitize_transport_receipt
 
             result.execution_metadata["work_transport"] = {
                 "work_attempt_id": work_attempt.attempt_id,
-                "final_receipt": _sanitized_receipt(result.execution_metadata),
+                "final_receipt": sanitize_transport_receipt(result.execution_metadata),
             }
         attach_external_use_proof(work_attempt, result.execution_metadata)
         return result
@@ -1891,8 +1893,10 @@ class AsyncLLMClient:
         visible = None
         if work_attempt is not None:
             from src.utils.quick_scan_research_output import (
-                public_final_output,
-                visible_output_sha256,
+                api_research_output_public_final as public_final_output,
+            )
+            from src.utils.quick_scan_research_output import (
+                api_research_output_visible_sha256 as visible_output_sha256,
             )
 
             visible = public_final_output(result.content, credential=self.api_key)
@@ -1908,11 +1912,44 @@ class AsyncLLMClient:
             )
             # Private transport provenance comes from this actual HTTP,
             # never from model-generated answer JSON or merged repair history.
-            from src.utils.quick_scan_work_store import _sanitized_receipt
+            from src.utils.quick_scan_work_store import sanitize_transport_receipt
 
             result.execution_metadata["work_transport"] = {
                 "work_attempt_id": work_attempt.attempt_id,
-                "final_receipt": _sanitized_receipt(result.execution_metadata),
+                "final_receipt": sanitize_transport_receipt(result.execution_metadata),
             }
         attach_external_use_proof(work_attempt, result.execution_metadata)
         return result
+
+
+# Versioned cross-module contract. Consumers use these exports, never owner internals.
+MODULE_API_PROTOCOL = "stockqa.llm-client-module/1.1.0"
+MODULE_API_EXPORTS = frozenset(
+    [
+        "SEARCH_MAX_OUTPUT_TOKENS",
+        "canonical_http_json",
+        "failed_attempt_receipt",
+        "resolve_search_endpoint",
+        "response_request_id",
+        "response_status_code",
+        "utc_now",
+        "validate_search_generation_controls",
+    ]
+)
+SEARCH_MAX_OUTPUT_TOKENS = _SEARCH_MAX_OUTPUT_TOKENS
+canonical_http_json = _canonical_http_json
+failed_attempt_receipt = _failed_attempt_receipt
+response_request_id = _response_request_id
+response_status_code = _response_status_code
+resolve_search_endpoint = _search_endpoint
+utc_now = _utc_now
+validate_search_generation_controls = _validate_search_generation_controls
+
+
+# Additive, versioned owner exports for cross-module consumers.
+MODULE_API_PROTOCOL = "stockqa.llm-client-module/1.1.0"
+api_llm_client_validate_search_generation_controls = _validate_search_generation_controls
+MODULE_API_EXPORTS = frozenset(
+    set(globals().get("MODULE_API_EXPORTS", ()))
+    | {"api_llm_client_validate_search_generation_controls"}
+)

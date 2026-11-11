@@ -11,19 +11,19 @@ from contextlib import closing
 from typing import TYPE_CHECKING, Any
 
 from src.utils.quick_scan_external_journal import (
-    _WORK_KEYS,
     ENDPOINTS,
     MODEL_BUDGET_LABEL,
-    _assert_no_unknown_scope,
-    _cache_key,
-    _canonical,
-    _digest,
-    _hash,
-    _plan,
-    _receipt,
-    _request_context,
-    _resumable_unsent,
+    WORK_FINGERPRINT_KEYS,
+    assert_scope_resolved,
+    build_external_request_context,
+    can_resume_unsent_external_operation,
+    canonical_external_json,
+    digest_external_json,
+    external_operation_cache_key,
     strict_search_json,
+    validate_external_plan,
+    validate_external_receipt,
+    validate_sha256,
 )
 from src.utils.quick_scan_prepaid_quota import (
     accounted,
@@ -153,7 +153,7 @@ def _control(value: Any, stage: str, receipt: dict) -> dict | None:
         return None
     if not isinstance(value, dict):
         raise ValueError("MCP control binding missing")
-    safe: dict = strict_search_json(_canonical(value))
+    safe: dict = strict_search_json(canonical_external_json(value))
     if stage == "initialize":
         if (
             set(safe) != {"protocol_version", "session_id"}
@@ -182,10 +182,10 @@ def _control(value: Any, stage: str, receipt: dict) -> dict | None:
             or safe["tool_name"] not in APPROVED_SEARCH_TOOLS
         ):
             raise ValueError("MCP approved tool binding mismatch")
-        _hash(safe["input_schema_sha256"])
+        validate_sha256(safe["input_schema_sha256"])
     else:
         raise ValueError("unsupported MCP control stage")
-    if len(_canonical(safe).encode("utf-8")) > 2500:
+    if len(canonical_external_json(safe).encode("utf-8")) > 2500:
         raise ValueError("MCP control size exceeded")
     return safe
 
@@ -205,7 +205,7 @@ def _ready(record: dict, now: float) -> bool:
 
 def _result_binding(record: dict) -> str:
     result = record["result"]
-    return _digest(
+    return digest_external_json(
         {
             "stage_id": record["stage_id"],
             "metadata_sha256": record["metadata_sha256"],
@@ -235,8 +235,8 @@ def read_record(connection: "sqlite3.Connection", row: "sqlite3.Row") -> dict:
         not isinstance(meta, dict)
         or set(meta) != keys
         or meta["schema"] != "stockqa.mcp_control_intent/1.0.0"
-        or _canonical(meta) != row["metadata_json"]
-        or _digest(meta) != row["metadata_sha256"]
+        or canonical_external_json(meta) != row["metadata_json"]
+        or digest_external_json(meta) != row["metadata_sha256"]
         or row["stage"] not in STAGES
         or meta["stage"] != row["stage"]
     ):
@@ -253,23 +253,23 @@ def read_record(connection: "sqlite3.Connection", row: "sqlite3.Row") -> dict:
         "budget",
     }:
         raise ValueError("MCP context binding mismatch")
-    _plan(context["plan"])
-    _hash(context["search_policy_sha256"])
+    validate_external_plan(context["plan"])
+    validate_sha256(context["search_policy_sha256"])
     route = context["route"]
     if (
         route["provider"] != "zai_mcp_streamable"
         or route["endpoint"] != ENDPOINTS["zai_mcp_streamable"]
     ):
         raise ValueError("MCP endpoint binding mismatch")
-    sequence_key = _cache_key(context)
-    stage_id = "MCP_" + _digest({"sequence_key": sequence_key, "stage": row["stage"]})
-    budget_id = "DISPATCH_" + _digest({"mcp_stage": stage_id})
+    sequence_key = external_operation_cache_key(context)
+    stage_id = "MCP_" + digest_external_json({"sequence_key": sequence_key, "stage": row["stage"]})
+    budget_id = "DISPATCH_" + digest_external_json({"mcp_stage": stage_id})
     message = _message(row["stage"], stage_id)
     if (
         row["sequence_key"] != sequence_key
         or row["stage_id"] != stage_id
         or row["budget_attempt_id"] != budget_id
-        or meta["message_sha256"] != _digest(message)
+        or meta["message_sha256"] != digest_external_json(message)
     ):
         raise ValueError("MCP message/identity binding mismatch")
     work = connection.execute(
@@ -282,7 +282,7 @@ def read_record(connection: "sqlite3.Connection", row: "sqlite3.Row") -> dict:
         work is None
         or budget is None
         or context["work_item_id"] != row["work_item_id"]
-        or context["work_fingerprint"] != {key: work[key] for key in _WORK_KEYS}
+        or context["work_fingerprint"] != {key: work[key] for key in WORK_FINGERPRINT_KEYS}
         or budget["work_attempt_id"] is not None
         or budget["model_requested"] != MODEL_BUDGET_LABEL
         or any(budget[key] != context["budget"][key] for key in ("policy_id", "policy_version"))
@@ -317,18 +317,20 @@ def read_record(connection: "sqlite3.Connection", row: "sqlite3.Row") -> dict:
     ).fetchone()
     result = None
     if raw is not None:
-        receipt = _receipt(strict_search_json(raw["receipt_json"]), context, budget_id)
+        receipt = validate_external_receipt(
+            strict_search_json(raw["receipt_json"]), context, budget_id
+        )
         control = _control(strict_search_json(raw["control_json"]), row["stage"], receipt)
         charge = strict_search_json(raw["charge_json"])
         if (
             dispatch is None
             or budget["status"] == "in_flight"
             or raw["recorded_at"] < dispatch["sent_at"]
-            or _canonical(receipt) != raw["receipt_json"]
-            or _digest(receipt) != raw["receipt_sha256"]
-            or _canonical(control) != raw["control_json"]
-            or _digest(control) != raw["control_sha256"]
-            or _canonical(charge) != raw["charge_json"]
+            or canonical_external_json(receipt) != raw["receipt_json"]
+            or digest_external_json(receipt) != raw["receipt_sha256"]
+            or canonical_external_json(control) != raw["control_json"]
+            or digest_external_json(control) != raw["control_sha256"]
+            or canonical_external_json(charge) != raw["charge_json"]
             or set(charge) != {"actual_cost_micros", "cost_source_ref"}
         ):
             raise ValueError("MCP result hash/binding mismatch")
@@ -399,25 +401,25 @@ def begin(
 ) -> dict:
     from src.utils.quick_scan_work_store import (
         BudgetAdmissionError,
-        _budget_policy_projection,
+        budget_policy_projection,
     )
 
     if stage not in STAGES or request.get("provider") != "zai_mcp_streamable":
         raise ValueError("unsupported MCP control route/stage")
-    normalized = _budget_policy_projection(policy)
-    now = store._now()
-    with store._transaction() as connection:
-        context = _request_context(
+    normalized = budget_policy_projection(policy)
+    now = store.now()
+    with store.transaction() as connection:
+        context = build_external_request_context(
             store, connection, work_item_id, lease, normalized=normalized, **request
         )
-        sequence_key = _cache_key(context)
+        sequence_key = external_operation_cache_key(context)
         previous = connection.execute(
             "SELECT * FROM quick_scan_mcp_stage WHERE sequence_key=? AND stage=?",
             (sequence_key, stage),
         ).fetchone()
         if previous is not None:
             record = read_record(connection, previous)
-            if _resumable_unsent(record, work_item_id, lease):
+            if can_resume_unsent_external_operation(record, work_item_id, lease):
                 return {**record, "send_required": True}
             if (
                 not accounted(record)
@@ -439,24 +441,24 @@ def begin(
                 parent = read_record(connection, parent_row)
             if parent is None or not _ready(parent, now):
                 raise BudgetAdmissionError("mcp_parent_not_ready")
-        _assert_no_unknown_scope(connection, context)
-        normalized = store._ensure_budget_policy_tx(connection, normalized, now=now)
-        stage_id = "MCP_" + _digest({"sequence_key": sequence_key, "stage": stage})
-        budget_id = "DISPATCH_" + _digest({"mcp_stage": stage_id})
+        assert_scope_resolved(connection, context)
+        normalized = store.ensure_budget_policy_tx(connection, normalized, now=now)
+        stage_id = "MCP_" + digest_external_json({"sequence_key": sequence_key, "stage": stage})
+        budget_id = "DISPATCH_" + digest_external_json({"mcp_stage": stage_id})
         meta = {
             "schema": "stockqa.mcp_control_intent/1.0.0",
             "context": context,
             "stage": stage,
             "parent_stage_id": None if parent is None else parent["stage_id"],
             "parent_result_sha256": None if parent is None else _result_binding(parent),
-            "message_sha256": _digest(_message(stage, stage_id)),
+            "message_sha256": digest_external_json(_message(stage, stage_id)),
             "lease_epoch": lease.lease_epoch,
             "lease_token": lease.lease_token,
             "created_at": now,
         }
-        if len(_canonical(meta).encode("utf-8")) > 30000:
+        if len(canonical_external_json(meta).encode("utf-8")) > 30000:
             raise ValueError("MCP intent exceeds bound")
-        store._reserve_budget_attempt_tx(
+        store.reserve_budget_attempt_tx(
             connection,
             normalized_policy=normalized,
             budget_attempt_id=budget_id,
@@ -478,8 +480,8 @@ def begin(
                 budget_id,
                 lease.lease_epoch,
                 lease.lease_token,
-                _canonical(meta),
-                _digest(meta),
+                canonical_external_json(meta),
+                digest_external_json(meta),
                 now,
             ),
         )
@@ -492,7 +494,7 @@ def begin(
 def consume(store: "QuickScanWorkStore", stage_id: str, *, budget_attempt_id: str) -> None:
     from src.utils.quick_scan_work_store import Lease, WorkConflictError
 
-    with store._transaction() as connection:
+    with store.transaction() as connection:
         row = connection.execute(
             "SELECT * FROM quick_scan_mcp_stage WHERE stage_id=?", (stage_id,)
         ).fetchone()
@@ -505,19 +507,19 @@ def consume(store: "QuickScanWorkStore", stage_id: str, *, budget_attempt_id: st
             or record["budget"]["status"] != "in_flight"
         ):
             raise WorkConflictError("MCP send intent already consumed or mismatched")
-        store._assert_lease(
-            store._item(connection, row["work_item_id"]),
+        store.assert_lease(
+            store.item_in_transaction(connection, row["work_item_id"]),
             Lease(row["lease_token"], row["lease_epoch"]),
-            store._now(),
+            store.now(),
         )
         connection.execute(
             "INSERT INTO quick_scan_mcp_dispatch (stage_id,sent_at) VALUES (?,?)",
-            (stage_id, store._now()),
+            (stage_id, store.now()),
         )
 
 
 def get(store: "QuickScanWorkStore", stage_id: str) -> dict:
-    with closing(store._connect()) as connection:
+    with closing(store.connect()) as connection:
         row = connection.execute(
             "SELECT * FROM quick_scan_mcp_stage WHERE stage_id=?", (stage_id,)
         ).fetchone()
@@ -539,35 +541,33 @@ def record_result(
         Lease,
         LeaseFencedError,
         WorkConflictError,
-        _cost_to_micros,
-        _safe_text,
+        cost_to_micros,
+        validate_transport_text,
     )
 
     micros = (
-        None
-        if actual_cost is None
-        else _cost_to_micros(actual_cost, "actual_cost", allow_zero=True)
+        None if actual_cost is None else cost_to_micros(actual_cost, "actual_cost", allow_zero=True)
     )
     if micros is not None:
-        cost_source_ref = _safe_text(cost_source_ref, "cost_source_ref", maximum=300)
+        cost_source_ref = validate_transport_text(cost_source_ref, "cost_source_ref", maximum=300)
     elif cost_source_ref is not None:
         raise ValueError("cost reference without exact MCP cost")
     charge = {"actual_cost_micros": micros, "cost_source_ref": cost_source_ref}
-    now = store._now()
-    with store._transaction() as connection:
+    now = store.now()
+    with store.transaction() as connection:
         row = connection.execute(
             "SELECT * FROM quick_scan_mcp_stage WHERE stage_id=?", (stage_id,)
         ).fetchone()
         if row is None:
             raise KeyError("unknown MCP control stage")
         record = read_record(connection, row)
-        safe = _receipt(receipt, record["context"], record["budget_attempt_id"])
+        safe = validate_external_receipt(receipt, record["context"], record["budget_attempt_id"])
         safe_control = _control(control, record["stage"], safe)
         if record["result"] is not None:
             before = record["result"]
             if (
-                before["receipt_sha256"] != _digest(safe)
-                or before["control_sha256"] != _digest(safe_control)
+                before["receipt_sha256"] != digest_external_json(safe)
+                or before["control_sha256"] != digest_external_json(safe_control)
                 or before["charge"] != charge
             ):
                 raise WorkConflictError("MCP control already has a different result")
@@ -576,14 +576,14 @@ def record_result(
             raise WorkConflictError("MCP result arrived before durable dispatch")
         late = False
         try:
-            store._assert_lease(
-                store._item(connection, row["work_item_id"]),
+            store.assert_lease(
+                store.item_in_transaction(connection, row["work_item_id"]),
                 Lease(row["lease_token"], row["lease_epoch"]),
                 now,
             )
         except LeaseFencedError:
             late = True
-        store._record_budget_outcome_tx(
+        store.record_budget_outcome_tx(
             connection,
             row["budget_attempt_id"],
             outcome=safe["outcome"],
@@ -596,11 +596,11 @@ def record_result(
             "INSERT INTO quick_scan_mcp_result (stage_id,receipt_json,receipt_sha256,control_json,control_sha256,charge_json,recorded_at,late) VALUES (?,?,?,?,?,?,?,?)",
             (
                 stage_id,
-                _canonical(safe),
-                _digest(safe),
-                _canonical(safe_control),
-                _digest(safe_control),
-                _canonical(charge),
+                canonical_external_json(safe),
+                digest_external_json(safe),
+                canonical_external_json(safe_control),
+                digest_external_json(safe_control),
+                canonical_external_json(charge),
                 now,
                 int(late),
             ),
@@ -609,7 +609,7 @@ def record_result(
             connection,
             row["budget_attempt_id"],
             receipt=safe,
-            receipt_sha256=_digest(safe),
+            receipt_sha256=digest_external_json(safe),
             now=now,
             category="protocol_control",
         )
@@ -617,14 +617,14 @@ def record_result(
 
 
 def get_binding(store: "QuickScanWorkStore", sequence_key: str) -> dict:
-    with closing(store._connect()) as connection:
-        return _binding(connection, sequence_key, now=store._now())
+    with closing(store.connect()) as connection:
+        return _binding(connection, sequence_key, now=store.now())
 
 
 def _binding(connection: "sqlite3.Connection", sequence_key: str, *, now: float) -> dict:
     from src.utils.quick_scan_work_store import BudgetAdmissionError
 
-    _hash(sequence_key)
+    validate_sha256(sequence_key)
     records = []
     for stage in STAGES:
         row = connection.execute(
@@ -648,7 +648,7 @@ def _binding(connection: "sqlite3.Connection", sequence_key: str, *, now: float)
 def bind_search(
     connection: "sqlite3.Connection", operation_id: str, context: dict, *, now: float
 ) -> None:
-    binding = _binding(connection, _cache_key(context), now=now)
+    binding = _binding(connection, external_operation_cache_key(context), now=now)
     meta = {
         "schema": "stockqa.mcp_search_binding/1.0.0",
         "operation_id": operation_id,
@@ -659,7 +659,13 @@ def bind_search(
     }
     connection.execute(
         "INSERT INTO quick_scan_mcp_search_binding (operation_id,sequence_key,metadata_json,metadata_sha256,created_at) VALUES (?,?,?,?,?)",
-        (operation_id, binding["sequence_key"], _canonical(meta), _digest(meta), now),
+        (
+            operation_id,
+            binding["sequence_key"],
+            canonical_external_json(meta),
+            digest_external_json(meta),
+            now,
+        ),
     )
 
 
@@ -673,7 +679,7 @@ def read_search_binding(
     if row is None:
         raise ValueError("MCP search binding missing")
     meta = strict_search_json(row["metadata_json"])
-    binding = _binding(connection, _cache_key(context), now=row["created_at"])
+    binding = _binding(connection, external_operation_cache_key(context), now=row["created_at"])
     expected = {
         "schema": "stockqa.mcp_search_binding/1.0.0",
         "operation_id": operation["operation_id"],
@@ -684,10 +690,37 @@ def read_search_binding(
     }
     if (
         meta != expected
-        or _canonical(meta) != row["metadata_json"]
-        or _digest(meta) != row["metadata_sha256"]
+        or canonical_external_json(meta) != row["metadata_json"]
+        or digest_external_json(meta) != row["metadata_sha256"]
         or row["sequence_key"] != expected["sequence_key"]
         or row["created_at"] != operation["created_at"]
     ):
         raise ValueError("MCP search control/intent binding mismatch")
     return {"metadata": meta, "metadata_sha256": row["metadata_sha256"]}
+
+
+# Versioned cross-module contract. Consumers use these exports, never owner internals.
+MODULE_API_PROTOCOL = "stockqa.mcp-journal-module/1.1.0"
+MODULE_API_EXPORTS = frozenset(
+    [
+        "APPROVED_SEARCH_TOOLS",
+        "DDL_V13_ADDITIONS",
+        "STAGES",
+        "SUPPORTED_PROTOCOLS",
+        "assert_no_unknown_scope",
+        "begin",
+        "bind_search",
+        "consume",
+        "get",
+        "get_binding",
+        "is_mcp_stage_ready",
+        "read_mcp_search_binding",
+        "read_search_binding",
+        "record_result",
+        "validate_control_response",
+        "validate_tables",
+    ]
+)
+validate_control_response = _control
+is_mcp_stage_ready = _ready
+read_mcp_search_binding = _binding

@@ -14,12 +14,19 @@ from .quick_scan_owner_refresh import public_observation_reference
 from .quick_scan_refresh_admission import (
     AdmissionRejected,
     RefreshAdmissionService,
-    _snapshot,
+)
+from .quick_scan_refresh_admission import api_refresh_admission_snapshot as _snapshot
+from .quick_scan_refresh_admission import (
     match_question,
 )
 from .quick_scan_refresh_batch import SPEC_FIELDS
 from .quick_scan_result_outbox import canonical_bytes, canonical_sha256
-from .quick_scan_work_store import _budget_policy_projection, _canonical_bindings
+from .quick_scan_work_store import (
+    api_work_store_budget_policy_projection as _budget_policy_projection,
+)
+from .quick_scan_work_store import (
+    api_work_store_canonical_bindings as _canonical_bindings,
+)
 
 
 def registered_scope(items, bundle, record, *, information_cutoff):
@@ -616,7 +623,7 @@ class ApprovedRefreshSession:
                 self.assert_received_checkpoint_recovery(
                     work_id, attempt["attempt_id"], store=store
                 )
-                with store._transaction() as con:
+                with store.transaction() as con:
                     member = con.execute(
                         "SELECT pack_id FROM quick_scan_question_pack_member WHERE attempt_id=?",
                         (attempt["attempt_id"],),
@@ -728,7 +735,7 @@ class ApprovedRefreshSession:
             self.check()
             for member in pack["members"]:
                 try:
-                    with store._transaction():
+                    with store.transaction():
                         if replay_path is not None and _snapshot(replay_path)[1] != raw:
                             raise AdmissionRejected("received_checkpoint_original_body_changed")
                         wid = member["work_item_id"]
@@ -1151,7 +1158,7 @@ class ApprovedRefreshSession:
 
     @staticmethod
     def _ordered_route_config(config_file, selected):
-        from src.providers.llm_client import _search_endpoint
+        from src.providers.llm_client import resolve_search_endpoint
 
         document = _snapshot(config_file)[0]
         projection = {}
@@ -1159,7 +1166,7 @@ class ApprovedRefreshSession:
             for target in selected:
                 alias = target["provider_config_ref"]
                 base_url = document["providers"][alias]["base_url"]
-                endpoint, provider, protocol = _search_endpoint(
+                endpoint, provider, protocol = resolve_search_endpoint(
                     base_url, target["model"], alias, external_context_only=True
                 )
                 if provider != target["provider"]:

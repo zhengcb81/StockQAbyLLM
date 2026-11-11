@@ -14,14 +14,16 @@ from jsonschema import Draft202012Validator, FormatChecker
 from referencing import Registry, Resource
 
 from .quick_scan_owner_budget_continuation import accepted_control, canonical, digest
-from .quick_scan_owner_refresh import _read
+from .quick_scan_owner_refresh import api_owner_refresh_read as _read
 from .quick_scan_refresh_admission import (
     CONFIG_KEYS,
     PATH_KEYS,
     ROOT_KEYS,
-    _plain_path,
-    _snapshot,
 )
+from .quick_scan_refresh_admission import (
+    api_refresh_admission_plain_path as _plain_path,
+)
+from .quick_scan_refresh_admission import api_refresh_admission_snapshot as _snapshot
 from .quick_scan_refresh_consent import (
     MAX_BYTES,
     OwnerConsentEndpoint,

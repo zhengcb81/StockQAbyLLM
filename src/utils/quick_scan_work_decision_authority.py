@@ -17,11 +17,14 @@ from .quick_scan_known_outcome_journal import (
     OwnerWorkDecisionAuthority,
     OwnerWorkDecisionGrant,
 )
-from .quick_scan_owner_refresh import OwnerRefreshRejected, _read
+from .quick_scan_owner_refresh import OwnerRefreshRejected
+from .quick_scan_owner_refresh import api_owner_refresh_read as _read
 from .quick_scan_refresh_consent import OwnerConsentEndpoint, RefreshConsentClient
 from .quick_scan_refresh_inspect import ReadOnlyWorkView
 from .quick_scan_result_outbox import canonical_bytes, canonical_sha256
-from .quick_scan_work_store import _budget_policy_projection
+from .quick_scan_work_store import (
+    api_work_store_budget_policy_projection as _budget_policy_projection,
+)
 
 MAX_BYTES = 8 * 1024 * 1024
 WIRE_FIELDS = {
@@ -181,7 +184,7 @@ class StockWikiWorkDecisionAuthority(OwnerWorkDecisionAuthority):
         """Only the actual validated local journal permits expiry replay."""
         request = value["request"]["decision_request"]
         view = ReadOnlyWorkView(self.work_store)
-        with closing(view._connect()) as con:
+        with closing(view.connect()) as con:
             con.execute("BEGIN")
             if con.execute("PRAGMA user_version").fetchone()[0] < 19:
                 return False
@@ -205,7 +208,9 @@ class StockWikiWorkDecisionAuthority(OwnerWorkDecisionAuthority):
             ).fetchone()
             if row is None:
                 return False
-            from .quick_scan_known_outcome_journal import _read
+            from .quick_scan_known_outcome_journal import (
+                api_known_outcome_journal_read as _read,
+            )
 
             document = _read(view, con, row)
             confirmation = value["confirmation"]

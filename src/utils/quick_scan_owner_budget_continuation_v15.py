@@ -13,10 +13,20 @@ from pathlib import Path
 
 from .quick_scan_owner_budget_continuation import (
     ATTEMPT_FIELDS,
-    _integer,
-    _sha,
-    _text,
-    _utc,
+)
+from .quick_scan_owner_budget_continuation import (
+    api_owner_budget_continuation_integer as _integer,
+)
+from .quick_scan_owner_budget_continuation import (
+    api_owner_budget_continuation_sha as _sha,
+)
+from .quick_scan_owner_budget_continuation import (
+    api_owner_budget_continuation_text as _text,
+)
+from .quick_scan_owner_budget_continuation import (
+    api_owner_budget_continuation_utc as _utc,
+)
+from .quick_scan_owner_budget_continuation import (
     canonical,
     digest,
 )
@@ -32,23 +42,19 @@ def _read_view(connection, path):
 
     # The original native/inspection transaction already owns this connection.
     # Borrow its read methods without creating a second connection or writer.
-    class BoundReadView(ReadOnlyWorkView):
-        def __init__(self, path, connection):
-            self.path = Path(path)
-            self._inspection_connection = connection
-
-        def get_question_pack(self, pack_id):
-            from .quick_scan_question_pack_journal import _read
-
-            return _read(self._inspection_connection, pack_id)
-
-    return BoundReadView(path, connection)
+    return ReadOnlyWorkView.from_transaction(path, connection)
 
 
 def native_projection(connection, path, row):
-    from .quick_scan_owner_refresh_journal import read as read_binding
-    from .quick_scan_question_pack_journal import _read as read_pack
-    from .quick_scan_research_intent import get_intent_response
+    from .quick_scan_owner_refresh_journal import (
+        api_owner_refresh_journal_read as read_binding,
+    )
+    from .quick_scan_question_pack_journal import (
+        api_question_pack_journal_read as read_pack,
+    )
+    from .quick_scan_research_intent import (
+        api_research_intent_get_response as get_intent_response,
+    )
 
     view = _read_view(connection, path)
     ref = row["budget_attempt_id"]
@@ -223,11 +229,13 @@ def exposure_snapshot(path, policy, attempt_ids=None):
     from contextlib import closing
 
     from .quick_scan_refresh_inspect import ReadOnlyWorkView
-    from .quick_scan_work_store import _budget_policy_projection
+    from .quick_scan_work_store import (
+        api_work_store_budget_policy_projection as _budget_policy_projection,
+    )
 
     normalized = _budget_policy_projection(policy)
     view = ReadOnlyWorkView(path)
-    with closing(view._connect()) as connection:
+    with closing(view.connect()) as connection:
         connection.execute("BEGIN")
         result = snapshot_tx(connection, path, normalized["policy_id"], attempt_ids)
         if result["policy_snapshot_sha256"] != normalized["policy_snapshot_sha256"]:
@@ -505,7 +513,9 @@ def _proven_new_comparison(connection, control, work):
     scope/generation. Missing provenance cannot establish independence. Merely
     changing a carrier, task, profile digest, strategy or generation is useless.
     """
-    from .quick_scan_owner_refresh_journal import read as read_binding
+    from .quick_scan_owner_refresh_journal import (
+        api_owner_refresh_journal_read as read_binding,
+    )
 
     cell = control["cells"][0]
     qid = work["question_id"]
@@ -610,3 +620,11 @@ def assert_profile_task(cell, task):
         or task.raw.get("execution_profile") != cell["execution_profile"]
     ):
         raise ValueError("owner_exposure_approved_profile_task_mismatch")
+
+
+# Additive, versioned owner exports for cross-module consumers.
+MODULE_API_PROTOCOL = "stockqa.utils-quick_scan_owner_budget_continuation_v15-module/1.0.0"
+api_owner_budget_continuation_v15_read_view = _read_view
+MODULE_API_EXPORTS = frozenset(
+    set(globals().get("MODULE_API_EXPORTS", ())) | {"api_owner_budget_continuation_v15_read_view"}
+)

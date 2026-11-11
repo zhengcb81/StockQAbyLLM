@@ -246,19 +246,21 @@ def test_public_company_task_validation_retains_original_v15_check_only(
         transport_managed=True,
         owner_refresh_session=owner,
     )
+    owner_port = lifecycle.registered_research_work().owner
+    assert owner_port is not owner
     source = lifecycle.company_scan_task_port() if use_port else lifecycle
     task = object()
     calls = []
 
-    def validate(candidate_owner, candidate_task, *, search_service):
-        calls.append((candidate_owner, candidate_task, search_service))
+    def validate(candidate_owner, candidate_task, *, store, search_service):
+        calls.append((candidate_owner, candidate_task, store, search_service))
         raise ValueError("original_v15_check_failure")
 
     monkeypatch.setattr(original, "assert_research_task", validate)
     if protocol == "iqs.refresh_request/1.5.0":
         with pytest.raises(ValueError, match="original_v15_check_failure"):
             validate_company_scan_task(source, task)
-        assert calls == [(owner, task, None)]
+        assert calls == [(owner_port, task, store, None)]
     else:
         assert validate_company_scan_task(source, task) is None
         assert calls == []

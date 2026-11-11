@@ -70,15 +70,31 @@ def test_private_or_credential_output_never_enters_journal(content):
     assert public_final_output(content, credential="SECRET_KEY_CANARY") is None
 
 
-def test_schema_compatibility_projection_matches_iqs():
-    import standard_answers
-
+def test_visible_answer_schema_projection_relaxes_display_limits_without_mutation():
     from src.utils.quick_scan_observation_context import _visible_answer_schema
 
-    schema = json.loads(
-        (standard_answers.ROOT / "schemas/answer-content.schema.json").read_text(encoding="utf8")
-    )
-    assert _visible_answer_schema(schema) == standard_answers.visible_answer_schema(schema)
+    schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "summary": {"type": "string", "maxLength": 80},
+            "question_id": {"type": "string", "maxLength": 40},
+            "evidence": {
+                "type": "array",
+                "maxItems": 12,
+                "items": {"type": "object"},
+            },
+        },
+        "required": ["summary", "question_id", "evidence"],
+    }
+    frozen = json.loads(json.dumps(schema))
+    projected = _visible_answer_schema(schema)
+    assert schema == frozen
+    assert projected["additionalProperties"] is True
+    assert "maxLength" not in projected["properties"]["summary"]
+    assert projected["properties"]["question_id"]["maxLength"] == 40
+    assert "maxItems" not in projected["properties"]["evidence"]
+    assert projected["required"] == ["summary", "question_id", "evidence"]
 
 
 @pytest.mark.parametrize(

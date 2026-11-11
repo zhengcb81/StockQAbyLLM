@@ -114,7 +114,9 @@ ATTEMPT_FIELDS = (
 
 def _fresh_exposure_snapshot(path, policy, *, owner_ack_ref):
     """Owner-explicit fresh budget: zero retained attempts, no prior cash state."""
-    from .quick_scan_work_store import _budget_policy_projection
+    from .quick_scan_work_store import (
+        api_work_store_budget_policy_projection as _budget_policy_projection,
+    )
 
     if not isinstance(owner_ack_ref, str) or not owner_ack_ref.strip():
         raise ValueError("owner_exposure_fresh_ack_required")
@@ -184,7 +186,9 @@ def exposure_snapshot(
         return project(path, policy, attempt_ids)
     if dialect != "1.4.0":
         raise ValueError("owner_exposure_snapshot_dialect_unsupported")
-    from .quick_scan_work_store import _budget_policy_projection
+    from .quick_scan_work_store import (
+        api_work_store_budget_policy_projection as _budget_policy_projection,
+    )
 
     if (
         not isinstance(attempt_ids, list)
@@ -630,20 +634,16 @@ def register_cells(connection, proof, items, specifications, bundles, *, ledger_
 
 
 def _current_session():
-    from .quick_scan_work_transport import _OWNER_REFRESH_GUARD
+    from .quick_scan_owner_refresh_api import is_owner_refresh_port
+    from .quick_scan_work_transport import (
+        current_quick_scan_owner_refresh_guard,
+    )
 
-    guard = _OWNER_REFRESH_GUARD.get()
-    session = getattr(guard, "__self__", None)
-    if session is None:
+    owner = current_quick_scan_owner_refresh_guard()
+    if not is_owner_refresh_port(owner):
         return None
-    from .quick_scan_refresh_execution import ApprovedRefreshSession
-
-    if (
-        not isinstance(session, ApprovedRefreshSession)
-        or getattr(guard, "__func__", None) is not ApprovedRefreshSession.check
-    ):
-        return None
-    return session
+    snapshot = owner.snapshot()
+    return owner if snapshot.kind == "approved" else None
 
 
 def _physical_ids(connection, members):
@@ -690,19 +690,20 @@ def reserve_projection(
             raise ValueError("owner_exposure_search_dispatch_work_item_required")
         return None
     session = _current_session()
-    if session is None or session.proof["request"].get("protocol") not in {
+    snapshot = None if session is None else session.snapshot()
+    if snapshot is None or snapshot.proof["request"].get("protocol") not in {
         "iqs.refresh_request/1.4.0",
         "iqs.refresh_request/1.5.0",
     }:
         return None
     session.check()
     # Never accept a caller-selected namespace/policy or JSON authority.
-    ref, control = accepted_control(
-        session.proof["owner_policy"], session.proof["request"], session.service.store.path, now=now
-    )
     actual_path = next(r[2] for r in connection.execute("PRAGMA database_list") if r[1] == "main")
-    if Path(actual_path).resolve() != session.service.store.path.resolve():
+    if not session.is_bound_to_path(actual_path):
         raise ValueError("owner_exposure_original_ledger_mismatch")
+    ref, control = accepted_control(
+        snapshot.proof["owner_policy"], snapshot.proof["request"], Path(actual_path), now=now
+    )
     refs = validate_retained_rows(connection, control, policy_id)
     if work_attempt_id is not None:
         row = connection.execute(
@@ -727,7 +728,7 @@ def reserve_projection(
     else:
         raise ValueError("owner_exposure_new_send_requires_original_work")
     if not members or not set(members) <= {
-        e["work_item_id"] for e in session.entries.values() if e["kind"] != "reference"
+        e["work_item_id"] for e in snapshot.entries.values() if e["kind"] != "reference"
     }:
         raise ValueError("owner_exposure_original_session_members_mismatch")
     rows = connection.execute(
@@ -741,8 +742,8 @@ def reserve_projection(
         )
         if (
             stored_control != control
-            or row["owner_policy_sha256"] != digest(session.proof["owner_policy"])
-            or row["confirmation_id"] != session.proof["confirmation"]["confirmation_id"]
+            or row["owner_policy_sha256"] != digest(snapshot.proof["owner_policy"])
+            or row["confirmation_id"] != snapshot.proof["confirmation"]["confirmation_id"]
             or row["cell_key"] != cell_key(cell)
         ):
             raise ValueError("owner_exposure_registered_action_changed")
@@ -753,8 +754,8 @@ def reserve_projection(
         raise ValueError("owner_exposure_send_not_one_exact_approved_cell")
     cell = found[0]
     if (
-        provider != session.proof["owner_policy"]["qa"]["provider_config_ref"]
-        or cell["provider"] != session.proof["owner_policy"]["provider"]
+        provider != snapshot.proof["owner_policy"]["qa"]["provider_config_ref"]
+        or cell["provider"] != snapshot.proof["owner_policy"]["provider"]
         or any(
             cell[k] != v
             for k, v in {
@@ -782,19 +783,20 @@ def assert_payload(store, work_ids, payload, *, provider, protocol):
     from contextlib import closing
 
     session = _current_session()
-    if session is None or session.proof["request"].get("protocol") not in {
+    snapshot = None if session is None else session.snapshot()
+    if snapshot is None or snapshot.proof["request"].get("protocol") not in {
         "iqs.refresh_request/1.4.0",
         "iqs.refresh_request/1.5.0",
     }:
         return
     session.check()
     ref, control = accepted_control(
-        session.proof["owner_policy"], session.proof["request"], store.path, now=store._now()
+        snapshot.proof["owner_policy"], snapshot.proof["request"], store.path, now=store.now()
     )
-    with closing(store._connect()) as db:
+    with closing(store.connect()) as db:
         rows = db.execute(
             "SELECT * FROM quick_scan_owner_continuation_cell WHERE acceptance_ref=? AND confirmation_id=?",
-            (ref, session.proof["confirmation"]["confirmation_id"]),
+            (ref, snapshot.proof["confirmation"]["confirmation_id"]),
         ).fetchall()
     cells = [
         json.loads(row["cell_json"])
@@ -803,7 +805,7 @@ def assert_payload(store, work_ids, payload, *, provider, protocol):
     ]
     if len(cells) != 1 or cells[0] not in control["cells"]:
         raise ValueError("owner_exposure_actual_payload_cell_mismatch")
-    cell, owner_policy = cells[0], session.proof["owner_policy"]
+    cell, owner_policy = cells[0], snapshot.proof["owner_policy"]
     if (
         protocol != "mimo_chat_completions"
         or provider != "mimo"
@@ -822,19 +824,22 @@ NO_EXTERNAL_SEARCH_POLICY = {
 }
 
 
-def assert_research_task(owner, task, *, search_service):
-    if owner.proof["request"].get("protocol") not in {
+def assert_research_task(owner, task, *, store, search_service):
+    snapshot = owner.snapshot()
+    if snapshot.kind != "approved" or snapshot.proof["request"].get("protocol") not in {
         "iqs.refresh_request/1.4.0",
         "iqs.refresh_request/1.5.0",
     }:
         return
+    if not owner.is_bound_to(store):
+        raise ValueError("owner_exposure_original_ledger_mismatch")
     _, control = accepted_control(
-        owner.proof["owner_policy"],
-        owner.proof["request"],
-        owner.service.store.path,
-        now=owner.service.store._now(),
+        snapshot.proof["owner_policy"],
+        snapshot.proof["request"],
+        store.path,
+        now=store.now(),
     )
-    if owner.proof["request"]["protocol"] == "iqs.refresh_request/1.5.0":
+    if snapshot.proof["request"]["protocol"] == "iqs.refresh_request/1.5.0":
         from .quick_scan_owner_budget_continuation_v15 import assert_profile_task
 
         assert_profile_task(control["cells"][0], task)
@@ -862,7 +867,7 @@ def assert_research_task(owner, task, *, search_service):
         raise ValueError("owner_exposure_registered_task_controls_mismatch")
     if (
         task.raw.get("information_cutoff")
-        != owner.proof["request"]["source_query"]["payload"]["information_cutoff"]
+        != snapshot.proof["request"]["source_query"]["payload"]["information_cutoff"]
         or {q["question_id"] for q in task.questions}
         != {q for c in cells for q in c["question_ids"]}
         or any(
@@ -895,3 +900,35 @@ def risk_hold_total(connection, policy_id, *, prospective_ref=None, prospective_
             raise ValueError("owner_exposure_risk_hold_invalid")
         holds[prospective_ref] = max(holds.get(prospective_ref, 0), amount)
     return sum(holds.values())
+
+
+# Versioned cross-module contract. Consumers use only names listed here.
+MODULE_API_PROTOCOL = "stockqa.utils-quick_scan_owner_budget_continuation-module/1.1.0"
+api_owner_budget_continuation_integer = _integer
+api_owner_budget_continuation_sha = _sha
+api_owner_budget_continuation_text = _text
+api_owner_budget_continuation_utc = _utc
+MODULE_API_EXPORTS = frozenset(
+    {
+        "ATTEMPT_FIELDS",
+        "DDL_V24_ADDITIONS",
+        "NO_EXTERNAL_SEARCH_POLICY",
+        "accepted_control",
+        "api_owner_budget_continuation_integer",
+        "api_owner_budget_continuation_sha",
+        "api_owner_budget_continuation_text",
+        "api_owner_budget_continuation_utc",
+        "assert_payload",
+        "assert_research_task",
+        "canonical",
+        "cell_key",
+        "digest",
+        "exposure_snapshot",
+        "future_request_core",
+        "register_cells",
+        "reserve_projection",
+        "risk_hold_total",
+        "validate_control",
+        "validate_retained_rows",
+    }
+)

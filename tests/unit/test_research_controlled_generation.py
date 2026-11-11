@@ -8,6 +8,7 @@ import pytest
 from src.utils import quick_scan_work_transport as transport
 from src.utils.quick_scan_work_control import project_owner_control
 from tests.unit import test_quick_scan_known_outcome as original
+from tests.unit.owner_refresh_port_test_support import approved_owner_refresh_port
 from tests.unit.test_controlled_refresh_binding import create
 from tests.unit.test_owner_comparison_target_grant import permission
 from tests.unit.test_w15_owner_refresh import _binding
@@ -99,8 +100,10 @@ def test_registered_deepseek_chat_payload_is_accepted_without_writing_or_dispatc
             else transport.bind_quick_scan_question_pack(store, ((item["work_item_id"], lease),))
         )
         scope.enter_context(
-            transport.bind_owner_refresh_guard(lambda: None)
-        )  # explicitly fixture-only
+            transport.bind_owner_refresh_guard(
+                approved_owner_refresh_port(store=store, work_item_ids=(item["work_item_id"],))
+            )
+        )
         scope.enter_context(
             transport.bind_quick_scan_route(
                 route_id="research-target", provider="deepseek", model_requested="deepseek-flash"
@@ -168,7 +171,11 @@ def test_chat_support_never_weakens_existing_native_controls(tmp_path, monkeypat
             transport.bind_quick_scan_question_pack(store, ((item["work_item_id"], lease),))
         )
         if fault != "guard":
-            scope.enter_context(transport.bind_owner_refresh_guard(lambda: None))
+            scope.enter_context(
+                transport.bind_owner_refresh_guard(
+                    approved_owner_refresh_port(store=store, work_item_ids=(item["work_item_id"],))
+                )
+            )
         if fault != "route_missing":
             scope.enter_context(
                 transport.bind_quick_scan_route(

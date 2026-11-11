@@ -232,13 +232,22 @@ def test_paid_only_routes_use_original_safe_target_without_current_endpoint_or_k
     before = store.path.read_bytes()
     session.assert_executor_policy(config, policy, executor_store=store)
     if fault is None:
-        assert session.execution_routes(policy) == [policy["routes"][1]]
+        routes = session.execution_routes(policy)
+        assert len(routes) == 1
+        assert routes[0]["id"] == policy["routes"][1]["id"]
+        assert routes[0]["eligible"] is False
+        assert routes[0]["unavailable_reason"] == "received_response_only"
         with pytest.raises(AdmissionRejected, match="paid_recovery_cannot_dispatch"):
             session.claim_registered_question_batch(
                 ["IQS_05"], run_id="NEW", scan_id="NEW", lease_seconds=60
             )
     else:
-        with pytest.raises(AdmissionRejected, match="original_target_response_required"):
+        expected_error = (
+            "paid_recovery_original_response_required"
+            if fault == "unknown_send"
+            else "paid_recovery_original_target_response_required"
+        )
+        with pytest.raises(AdmissionRejected, match=expected_error):
             session.execution_routes(policy)
     assert store.path.read_bytes() == before
 

@@ -2,6 +2,7 @@
 
 import copy
 import json
+import logging
 import time
 from contextlib import nullcontext
 from unittest.mock import Mock
@@ -25,6 +26,39 @@ from tests.unit.test_quick_scan_question_pack_transport import (
     _policy,
     _v2_context,
 )
+
+
+@pytest.fixture(autouse=True)
+def isolated_application_logs(tmp_path, monkeypatch):
+    """Keep file handlers inside each case's disposable directory."""
+    from src.utils import logger as logger_module
+
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    monkeypatch.setattr(logger_module, "LOG_DIR", log_dir)
+    loggers = {
+        value.name: value
+        for value in logging.Logger.manager.loggerDict.values()
+        if isinstance(value, logging.Logger) and value.name.startswith("src.")
+    }
+    previous_handlers = {name: list(logger.handlers) for name, logger in loggers.items()}
+    for logger in loggers.values():
+        logger.handlers.clear()
+    for name in sorted(loggers):
+        logger_module.get_logger(name)
+    try:
+        yield
+    finally:
+        active_loggers = {
+            value.name: value
+            for value in logging.Logger.manager.loggerDict.values()
+            if isinstance(value, logging.Logger) and value.name.startswith("src.")
+        }
+        for name, logger in active_loggers.items():
+            for handler in list(logger.handlers):
+                handler.close()
+            logger.handlers.clear()
+            logger.handlers.extend(previous_handlers.get(name, []))
 
 
 def test_optin_assertion_runs_after_finalizers_and_continues_only_future_pack():
@@ -150,7 +184,7 @@ def fixture(tmp_path, monkeypatch, mode):
     import hashlib
 
     future = questions[-1]
-    store.create_or_attach(
+    future_item = store.create_or_attach(
         **identity,
         question_id=future.question_id,
         generation=1,
@@ -162,6 +196,7 @@ def fixture(tmp_path, monkeypatch, mode):
         scan_id="SCAN_CONTINUE",
         owner_refresh_binding=owner.binding(future.question_id),
     )
+    assert future_item["status"] == "pending"
     config = tmp_path / "apis.json"
     config.write_text(
         json.dumps(
@@ -263,7 +298,7 @@ def fixture(tmp_path, monkeypatch, mode):
     if mode in {"proof_DB_error", "conflicting_receipt"}:
         import src.utils.quick_scan_question_pack_journal as journal
 
-        original = journal._read
+        original = journal.read_question_pack
 
         def read(connection, pack_id):
             row = connection.execute("SELECT 1 FROM work_item WHERE status='failed'").fetchone()
@@ -274,7 +309,9 @@ def fixture(tmp_path, monkeypatch, mode):
                 result = {**result, "receipt_sha256": "0" * 64}
             return result
 
-        monkeypatch.setattr(journal, "_read", read)
+        # Inject through the public journal operation consumed by WorkStore;
+        # patching the private implementation would miss its frozen export alias.
+        monkeypatch.setattr(journal, "read_question_pack", read)
     return store, provider, lc, questions, session, policy
 
 
@@ -341,7 +378,13 @@ def test_actual_sdk_sqlite_known_failure_continuation_and_failclosed(tmp_path, m
     )
     rows = store.find_work_items(entity_id="ENT_CONTEXT_FIXTURE", question_ids=QIDS)
     items = {qid: store.get_item(rows[qid][0]["work_item_id"]) for qid in QIDS}
-    assert items[QIDS[2]]["status"] == ("result_ready" if expected == 2 else "pending")
+    assert items[QIDS[2]]["status"] == ("result_ready" if expected == 2 else "pending"), {
+        "question_metadata": batch.results[2].metadata,
+        "question_status": batch.results[2].answer.status,
+        "question_text": batch.results[2].answer.text,
+        "failed_question_metadata": batch.results[1].metadata,
+        "failed_work_status": items[QIDS[1]]["status"],
+    }
     assert len(store.list_attempts(items[QIDS[2]]["work_item_id"])) == (1 if expected == 2 else 0)
     assert store.get_answer_checkpoint(items[QIDS[1]]["work_item_id"]) is None
     if mode != "unknown" and mode != "finalizer_error":
@@ -489,10 +532,10 @@ def test_resume_original_failed_work_skips_without_new_attempt_then_sends_pendin
     if mode == "no_hook":
         monkeypatch.setattr(lc, "assert_question_skip_terminal", None, raising=False)
     if mode == "DB":
-        import src.utils.quick_scan_known_outcome_journal as journal
-
         monkeypatch.setattr(
-            journal, "_physical", Mock(side_effect=RuntimeError("synthetic DB read failure"))
+            store,
+            "inspect_question_skip_terminal",
+            Mock(side_effect=RuntimeError("synthetic DB read failure")),
         )
     if mode == "new_generation":
         lc._generation_by_question[QIDS[0]] = 2

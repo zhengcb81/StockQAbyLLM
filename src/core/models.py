@@ -10,7 +10,10 @@ import json
 import re
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
-from typing import Any, Dict, Mapping, Optional
+from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional
+
+if TYPE_CHECKING:
+    from src.interfaces.quick_scan_result_proof import QuickScanResultProofPort
 
 SUCCESSFUL_ANSWER_STATUSES = frozenset({"scored", "answered"})
 REUSABLE_ANSWER_STATUSES = SUCCESSFUL_ANSWER_STATUSES | {
@@ -323,7 +326,11 @@ def final_transport_provider(*candidates: Any) -> Optional[str]:
 
 
 def execution_receipt_for_checkpoint(
-    metadata: Any, *, work_store: Any = None, work_item_id: Optional[str] = None
+    metadata: Any,
+    *,
+    result_proof_port: Optional["QuickScanResultProofPort"] = None,
+    work_store: Any = None,
+    work_item_id: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     """Q07: build the minimal trustworthy execution receipt for checkpointing.
 
@@ -342,18 +349,28 @@ def execution_receipt_for_checkpoint(
     transport = execution.get("work_transport")
     private_receipt = None
     external_projection = None
-    if "external_context_use" in execution:
-        from src.utils.quick_scan_work_transport import project_quick_scan_search
+    proof_port = result_proof_port
+    proof_needed = "external_context_use" in execution or (
+        isinstance(transport, dict) and isinstance(transport.get("final_receipt"), dict)
+    )
+    if proof_port is None and proof_needed:
+        from src.utils.quick_scan_result_proof import (
+            result_proof_port as create_result_proof_port,
+        )
 
-        external_projection = project_quick_scan_search(
-            execution, work_store=work_store, work_item_id=work_item_id
+        proof_port = create_result_proof_port(work_store)
+    if "external_context_use" in execution:
+        if proof_port is None:
+            raise ValueError("external checkpoint proof port is unavailable")
+        external_projection = proof_port.project_checkpoint_search(
+            execution, work_item_id=work_item_id
         )
     if isinstance(transport, dict) and isinstance(transport.get("final_receipt"), dict):
         # Immutable HTTP receipt includes usage and the exact source set;
         # aggregate repair/fallback metadata must not change its store hash.
-        from src.utils.quick_scan_work_store import _sanitized_receipt
-
-        private_receipt = _sanitized_receipt(transport["final_receipt"])
+        if proof_port is None:
+            raise ValueError("transport checkpoint proof port is unavailable")
+        private_receipt = proof_port.sanitize_transport_receipt(transport["final_receipt"])
         metadata = private_receipt
         execution = private_receipt
     attempts = metadata.get("attempts")
@@ -488,6 +505,7 @@ class QABatchResult:
         company_name: str,
         provider_name: Optional[str],
         requested_model: Optional[str],
+        result_proof_port: Optional["QuickScanResultProofPort"] = None,
         work_store: Any = None,
     ) -> Dict[str, Any]:
         """Serialize a stable per-question envelope and separate execution receipt.
@@ -498,6 +516,8 @@ class QABatchResult:
         optional sanitized fields without changing binding semantics; its hash
         always covers the complete original object, extensions included. Readers
         must not grant extra verification based on uninterpreted metadata.
+        New callers pass the public ``result_proof_port``. ``work_store`` stays
+        as a compatibility input and is adapted through that public contract.
         """
         answers: Dict[str, Dict[str, Any]] = {}
         execution_receipts: Dict[str, Dict[str, Any]] = {}
@@ -517,53 +537,32 @@ class QABatchResult:
             search_projection = None
             search_binding = None
             public_original = None
+            public_recorded_at = None
+            public_search_events = None
+            public_attempts = None
             if "external_context_use" in execution:
-                from src.utils.quick_scan_work_store import (
-                    QuickScanWorkStore,
-                    _canonical_native_events,
-                    _sanitized_receipt,
-                )
-                from src.utils.quick_scan_work_transport import (
-                    project_quick_scan_search,
-                )
-
                 try:
-                    if not isinstance(work_store, QuickScanWorkStore):
-                        raise ValueError("external public output requires its actual work store")
-                    proof = execution["external_context_use"]
-                    item = work_store.get_item(proof["work_item_id"])
-                    if item["entity_id"] != entity_id or item["question_id"] != question_id:
-                        raise ValueError(
-                            "external public output identity differs from its actual owner"
+                    proof_port = result_proof_port
+                    if proof_port is None and work_store is not None:
+                        from src.utils.quick_scan_result_proof import (
+                            result_proof_port_for_store,
                         )
-                    search_projection = project_quick_scan_search(
-                        execution, work_store=work_store, work_item_id=item["work_item_id"]
+
+                        proof_port = result_proof_port_for_store(work_store)
+                    project = getattr(proof_port, "project_external_result", None)
+                    if not callable(project):
+                        raise ValueError("external public output requires its owner proof port")
+                    proof_result = project(
+                        execution,
+                        entity_id=entity_id,
+                        question_id=question_id,
                     )
-                    original = work_store.get_attempt_response(proof["work_attempt_id"])
-                    if original is None:
-                        raise ValueError("external public output has no actual final response")
-                    if _sanitized_receipt(execution) != original["receipt"]:
-                        raise ValueError("external public output original HTTP receipt drifted")
-                    public_original = original["receipt"]
-                    native_events = original.get("native_search_events")
-                    if (
-                        native_events is None
-                        or _canonical_native_events(execution.get("web_search_calls", []))
-                        != native_events
-                    ):
-                        raise ValueError(
-                            "external public output native events differ from their actual owner"
-                        )
-                    search_binding = {
-                        "schema": "stockqa.search_binding/1.1.0",
-                        "entity_id": entity_id,
-                        "question_id": question_id,
-                        "identity_snapshot_sha256": item["identity_snapshot_sha256"],
-                        "external_context_use": copy.deepcopy(
-                            search_projection["external_context_use"]
-                        ),
-                        "native_receipt": copy.deepcopy(original["receipt"]),
-                    }
+                    search_projection = proof_result["search_projection"]
+                    search_binding = proof_result["search_binding"]
+                    public_original = proof_result["public_original"]
+                    public_recorded_at = proof_result["public_recorded_at"]
+                    public_attempts = proof_result["attempts"]
+                    public_search_events = proof_result["web_search_calls"]
                 except Exception as error:
                     raise ValueError(
                         "external public output could not verify its actual owner"
@@ -608,11 +607,7 @@ class QABatchResult:
                 # hydrated outputs. It must not use a naive local answer clock,
                 # ephemeral cascade decorations or the current run timestamp.
                 execution = public_original
-                attempts = [
-                    saved["receipt"]
-                    for attempt in work_store.list_attempts(item["work_item_id"])
-                    if (saved := work_store.get_attempt_response(attempt["attempt_id"])) is not None
-                ]
+                attempts = public_attempts
             provider_candidates = [execution, metadata, *reversed(attempts)]
             # r1 P2-2: single source of truth with the Q07 checkpoint path —
             # same predicate, output behavior unchanged (guarded by the CLI
@@ -640,10 +635,10 @@ class QABatchResult:
             execution_receipts[question_id] = {
                 "answer_sha256": answer_sha256,
                 "answered_at": (
-                    datetime.fromtimestamp(original["recorded_at"], timezone.utc)
+                    datetime.fromtimestamp(public_recorded_at, timezone.utc)
                     .isoformat()
                     .replace("+00:00", "Z")
-                    if public_original is not None and original is not None
+                    if public_original is not None and public_recorded_at is not None
                     else _utc_isoformat(result.answer.created_at)
                 ),
                 "input_question_sha256": hashlib.sha256(
@@ -685,7 +680,7 @@ class QABatchResult:
                 ),
                 "source_urls": source_urls,
                 "web_search_calls": copy.deepcopy(
-                    native_events
+                    public_search_events
                     if public_original is not None
                     else execution.get("web_search_calls", [])
                 ),

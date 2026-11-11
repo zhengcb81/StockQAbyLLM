@@ -17,7 +17,11 @@ from src.utils.quick_scan_owner_budget_continuation import (
     future_request_core,
     validate_control,
 )
-from src.utils.quick_scan_work_store import BudgetAdmissionError, QuickScanWorkStore
+from src.utils.quick_scan_work_store import (
+    SCHEMA_VERSION,
+    BudgetAdmissionError,
+    QuickScanWorkStore,
+)
 from tests.unit import test_quick_scan_uncertain_seal as fixture
 
 
@@ -188,7 +192,7 @@ def test_schema_addition_keeps_existing_rows_and_new_tables_empty(original):
         ]
         old = {t: list(db.execute('select * from "' + t + '"')) for t in tables}
         # This test uses the exact original schema migration, not ad-hoc DDL.
-        assert db.execute("pragma user_version").fetchone()[0] == 24
+        assert db.execute("pragma user_version").fetchone()[0] == SCHEMA_VERSION
         for table in ("quick_scan_owner_continuation_cell",):
             assert db.execute("select count(*) from " + table).fetchone()[0] == 0
         assert DDL_V24_ADDITIONS
@@ -292,31 +296,46 @@ def synthetic_cell(original, monkeypatch, *, risk_hold=0, qid="Q"):
             ledger_path=store.path,
             now=store._now(),
         )
-    session = SimpleNamespace(
-        proof=proof,
-        service=SimpleNamespace(store=store),
-        check=lambda: None,
-        entries={qid: {"kind": "work", "work_item_id": row["work_item_id"]}},
+    from src.utils.quick_scan_owner_refresh_api import adapt_owner_refresh
+    from tests.unit.owner_refresh_port_test_support import (
+        approved_owner_refresh_session,
     )
-    monkeypatch.setattr(continuation, "_current_session", lambda: session)
-    return attempt["attempt_id"], lease, row, session
+
+    owner = approved_owner_refresh_session(store=store, work_item_ids=(row["work_item_id"],))
+    owner.proof = proof
+    owner.bundle = {"manifest": {"questions": [{"id": qid, "question": question}]}}
+    owner.entries = {qid: {"kind": "work", "work_item_id": row["work_item_id"]}}
+    owner.fields = {qid: {"request_identity_key": cache_key}}
+    owner.work = {qid: {"status": "pending"}}
+    owner.scope_bindings = {qid: {"scope": "entity", "scope_id": "ENT_fixture"}}
+    owner.remaining_work_item_ids = [row["work_item_id"]]
+    port = adapt_owner_refresh(owner)
+    return attempt["attempt_id"], lease, row, port, owner
 
 
 def send_synthetic_cell(original, prepared):
     store, policy = original
-    attempt, lease, row, _ = prepared
-    return store.mark_send_intent(
-        row["work_item_id"],
-        lease,
-        attempt,
-        budget_policy=policy,
-        budget_route={
-            "route_id": "route",
-            "provider": "fixture",
-            "model_requested": "fixture-model",
-            "quota_group": "group",
-        },
+    from src.utils.quick_scan_work_transport import (
+        bind_owner_refresh_guard,
+        bind_quick_scan_work,
     )
+
+    attempt, lease, row, owner_port, _ = prepared
+    with bind_quick_scan_work(store, row["work_item_id"], lease), bind_owner_refresh_guard(
+        owner_port
+    ):
+        return store.mark_send_intent(
+            row["work_item_id"],
+            lease,
+            attempt,
+            budget_policy=policy,
+            budget_route={
+                "route_id": "route",
+                "provider": "fixture",
+                "model_requested": "fixture-model",
+                "quota_group": "group",
+            },
+        )
 
 
 def test_internal_budget_transaction_keeps_old_rows_and_reserves_new(original, monkeypatch):
@@ -338,7 +357,7 @@ def test_internal_cell_cannot_be_resent_with_new_attempt(original, monkeypatch):
     store, _ = original
     prepared = synthetic_cell(original, monkeypatch)
     send_synthetic_cell(original, prepared)
-    attempt, _, _, _ = prepared
+    attempt, _, _, _, _ = prepared
     with pytest.raises(Exception):
         # The original prepared/send state itself also refuses the same send.
         send_synthetic_cell(original, prepared)
@@ -369,9 +388,9 @@ def test_internal_projection_rejects_new_unknown_or_drift(original, monkeypatch,
                 "UPDATE quick_scan_budget_attempt SET reserved_cost_micros=200000 WHERE budget_attempt_id='DISPATCH_unknown'"
             )
     elif mutation == "model":
-        prepared[3].proof["owner_policy"]["model"] = "other-model"
+        prepared[4].proof["owner_policy"]["model"] = "other-model"
     else:
-        prepared[3].proof["request"]["cohort_id"] = "caller-changed-cohort"
+        prepared[4].proof["request"]["cohort_id"] = "caller-changed-cohort"
     with pytest.raises((BudgetAdmissionError, ValueError)):
         send_synthetic_cell(original, prepared)
     with closing(store._connect()) as db:
@@ -384,8 +403,13 @@ def test_internal_projection_rejects_new_unknown_or_drift(original, monkeypatch,
         )
 
 
-def test_task_uses_original_per_session_search_limit(monkeypatch):
+def test_task_uses_original_per_session_search_limit(monkeypatch, tmp_path):
     from types import SimpleNamespace
+
+    from src.utils.quick_scan_owner_refresh_api import adapt_owner_refresh
+    from tests.unit.owner_refresh_port_test_support import (
+        approved_owner_refresh_session,
+    )
 
     control = {
         "cells": [
@@ -401,25 +425,25 @@ def test_task_uses_original_per_session_search_limit(monkeypatch):
         ]
     }
     monkeypatch.setattr(continuation, "accepted_control", lambda *a, **k: ("ref", control))
-    owner = SimpleNamespace(
-        proof={
-            "request": {
-                "protocol": "iqs.refresh_request/1.4.0",
-                "source_query": {"payload": {"information_cutoff": "2026-10-13"}},
-            },
-            "owner_policy": {},
+    store = QuickScanWorkStore(tmp_path / "task-search.sqlite")
+    owner_session = approved_owner_refresh_session(store=store)
+    owner_session.proof = {
+        "request": {
+            "protocol": "iqs.refresh_request/1.4.0",
+            "source_query": {"payload": {"information_cutoff": "2026-10-13"}},
         },
-        service=SimpleNamespace(store=SimpleNamespace(path="unused", _now=lambda: "now")),
-    )
+        "owner_policy": {},
+    }
+    owner = adapt_owner_refresh(owner_session)
     task = SimpleNamespace(
         limits={"max_search_queries_per_session": 0},
         raw={"information_cutoff": "2026-10-13", "strategy_id": "free_agent"},
         questions=[{"question_id": "Q"}],
     )
-    continuation.assert_research_task(owner, task, search_service=None)
+    continuation.assert_research_task(owner, task, store=store, search_service=None)
     task.limits = {"max_search_queries": 0}
     with pytest.raises(ValueError, match="registered_task_controls"):
-        continuation.assert_research_task(owner, task, search_service=None)
+        continuation.assert_research_task(owner, task, store=store, search_service=None)
 
 
 @pytest.mark.parametrize(
@@ -442,7 +466,7 @@ def test_conservative_holds_deduplicate_by_acceptance_and_include_prospective(
     store = original[0]
     with closing(store._connect()) as db:
         same = dict(
-            prepared[3].proof["owner_policy"]["budget_exposure_acceptance"]["control"],
+            prepared[4].proof["owner_policy"]["budget_exposure_acceptance"]["control"],
             additional_risk_hold_micros=300000,
         )
         assert (
@@ -529,7 +553,7 @@ def test_unsupported_carrier_is_rejected_before_quote_or_any_new_send(
     original, monkeypatch, unsupported
 ):
     prepared = synthetic_cell(original, monkeypatch)
-    owner_policy = prepared[3].proof["owner_policy"]
+    owner_policy = prepared[4].proof["owner_policy"]
     if unsupported == "owner_vendor":
         owner_policy["provider"] = "deepseek"
     elif unsupported == "cell_vendor":
@@ -540,7 +564,7 @@ def test_unsupported_carrier_is_rejected_before_quote_or_any_new_send(
         ] = "fixed_pack"
     with pytest.raises(ValueError, match="supported_carrier_required"):
         continuation.accepted_control(
-            owner_policy, prepared[3].proof["request"], original[0].path, now=original[0]._now()
+            owner_policy, prepared[4].proof["request"], original[0].path, now=original[0]._now()
         )
     with closing(original[0]._connect()) as db:
         assert db.execute("SELECT COUNT(*) FROM quick_scan_budget_attempt").fetchone()[0] == 2
@@ -637,7 +661,12 @@ def test_fresh_snapshot_rejects_explicit_refs(fresh):
         )
 
 
-def test_search_exposure_task_requires_matching_service(monkeypatch):
+def test_search_exposure_task_requires_matching_service(monkeypatch, tmp_path):
+    from src.utils.quick_scan_owner_refresh_api import adapt_owner_refresh
+    from tests.unit.owner_refresh_port_test_support import (
+        approved_owner_refresh_session,
+    )
+
     exposure = {
         "protocol": "iqs.search_exposure/1.0.0",
         "consumer_id": "invest-quick-scan",
@@ -670,16 +699,16 @@ def test_search_exposure_task_requires_matching_service(monkeypatch):
         ]
     }
     monkeypatch.setattr(continuation, "accepted_control", lambda *a, **k: ("ref", control))
-    owner = SimpleNamespace(
-        proof={
-            "owner_policy": {},
-            "request": {
-                "protocol": "iqs.refresh_request/1.4.0",
-                "source_query": {"payload": {"information_cutoff": "2026-10-13"}},
-            },
+    store = QuickScanWorkStore(tmp_path / "search-exposure.sqlite")
+    owner_session = approved_owner_refresh_session(store=store)
+    owner_session.proof = {
+        "owner_policy": {},
+        "request": {
+            "protocol": "iqs.refresh_request/1.4.0",
+            "source_query": {"payload": {"information_cutoff": "2026-10-13"}},
         },
-        service=SimpleNamespace(store=SimpleNamespace(path="unused", _now=lambda: "now")),
-    )
+    }
+    owner = adapt_owner_refresh(owner_session)
     task = SimpleNamespace(
         limits={"max_search_queries_per_session": 2},
         raw={
@@ -689,10 +718,10 @@ def test_search_exposure_task_requires_matching_service(monkeypatch):
         },
         questions=[{"question_id": "Q"}],
     )
-    continuation.assert_research_task(owner, task, search_service=object())
+    continuation.assert_research_task(owner, task, store=store, search_service=object())
     with pytest.raises(ValueError, match="registered_search_exposure_required"):
-        continuation.assert_research_task(owner, task, search_service=None)
+        continuation.assert_research_task(owner, task, store=store, search_service=None)
     mismatched = copy.deepcopy(task)
     mismatched.raw["execution_profile"]["search_exposure"]["max_search_queries_per_session"] = 1
     with pytest.raises(ValueError, match="registered_search_exposure_required"):
-        continuation.assert_research_task(owner, mismatched, search_service=object())
+        continuation.assert_research_task(owner, mismatched, store=store, search_service=object())

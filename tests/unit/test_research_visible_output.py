@@ -75,7 +75,7 @@ def test_question_pack_wire_shared_output_and_mapping(pack, transport, monkeypat
     from src.providers import llm_research_client as research_mod
     from tests.unit.test_quick_scan_question_pack_transport import _bindings
 
-    monkeypatch.setattr(research_mod, "_utc_now", lambda: "2027-01-15T08:00:00Z")
+    monkeypatch.setattr(research_mod, "utc_now", lambda: "2027-01-15T08:00:00Z")
     wire, sent = transport
     wire.payloads = [response(actual_model="mimo-v2.6-flash")]
     c = client()
@@ -150,24 +150,73 @@ def test_insert_failure_rolls_back_original_receipt_and_cost_without_repost(
     def fail(*args):
         raise sqlite3.OperationalError("synthetic write failure")
 
-    monkeypatch.setattr(mod, "persist", fail)
+    monkeypatch.setattr(mod, "api_research_output_persist", fail)
     with budget(tmp_path) as store:
         session = ResearchChatSession(client(), system_prefix="stable", tools=TOOLS)
-        with pytest.raises(QuickScanWorkPersistenceError):
+        with pytest.raises(QuickScanWorkPersistenceError) as error:
             session.step(user_context="one")
         with pytest.raises(RuntimeError):
             session.step(user_context="retry")
-        assert store.get_quick_scan_budget_status("research-test")["in_flight"] == 1
+        attempt_id = error.value.attempt_receipt["attempt_id"]
+        assert store.get_research_visible_output(attempt_id) is not None
+        status = store.get_quick_scan_budget_status("research-test")
+        assert status["requests"] == 1 and status["unreconciled_attempts"] == 0
     with sqlite3.connect(store.path) as conn:
-        assert conn.execute("SELECT COUNT(*) FROM quick_scan_attempt_response").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM quick_scan_attempt_response").fetchone()[0] == 1
         assert (
             conn.execute("SELECT COUNT(*) FROM quick_scan_research_visible_output").fetchone()[0]
             == 0
         )
+        assert (
+            conn.execute(
+                "SELECT COUNT(*) FROM quick_scan_research_visible_output_recovery"
+            ).fetchone()[0]
+            == 1
+        )
         row = conn.execute(
             "SELECT status,actual_cost_micros,reserved_cost_micros FROM quick_scan_budget_attempt"
         ).fetchone()
-        assert row == ("in_flight", None, 500000)
+        assert row[0] != "in_flight" and row[1] == 1000 and row[2] == 500000
+    assert len(transport[1]) == 1
+
+
+def test_paid_output_projection_failure_recovers_durable_answer_without_repost(
+    tmp_path, transport, monkeypatch
+):
+    import src.utils.quick_scan_research_output as mod
+
+    payload = response()
+    transport[0].payloads = [payload]
+
+    def fail(*args):
+        raise sqlite3.OperationalError("synthetic final projection failure")
+
+    monkeypatch.setattr(mod, "api_research_output_persist", fail)
+    expected_content = payload["choices"][0]["message"]["content"]
+    with budget(tmp_path) as store:
+        with pytest.raises(QuickScanWorkPersistenceError) as error:
+            ResearchChatSession(client(), system_prefix="stable", tools=TOOLS).step(
+                user_context="one"
+            )
+        attempt_id = error.value.attempt_receipt.get(
+            "work_attempt_id", error.value.attempt_receipt["attempt_id"]
+        )
+        recovered = QuickScanWorkStore(store.path).get_research_visible_output(attempt_id)
+        assert recovered["visible_output"]["content"] == expected_content
+        status = store.get_quick_scan_budget_status("research-test")
+        assert status["requests"] == 1 and status["unreconciled_attempts"] == 0
+    with sqlite3.connect(store.path) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM quick_scan_attempt_response").fetchone()[0] == 1
+        assert (
+            conn.execute("SELECT COUNT(*) FROM quick_scan_research_visible_output").fetchone()[0]
+            == 0
+        )
+        assert (
+            conn.execute(
+                "SELECT COUNT(*) FROM quick_scan_research_visible_output_recovery"
+            ).fetchone()[0]
+            == 1
+        )
     assert len(transport[1]) == 1
 
 
@@ -247,6 +296,7 @@ def test_v22_migration_preserves_original_receipt_without_backfill(tmp_path, tra
             kind, name = re.match(r"CREATE (TABLE|TRIGGER) ([A-Za-z_]+)", statement).groups()
             conn.execute("DROP " + kind + " IF EXISTS " + name)
         conn.execute("DROP TABLE IF EXISTS quick_scan_owner_continuation_cell")
+        conn.execute("DROP TABLE quick_scan_research_visible_output_recovery")
         conn.execute("DROP TABLE quick_scan_research_intent")
         conn.execute("DROP TABLE quick_scan_research_turn")
         conn.execute("DROP TABLE quick_scan_research_session")
@@ -303,13 +353,100 @@ def test_ambiguous_sdk_id_never_guesses_between_physical_attempts(tmp_path, tran
     assert len(transport[1]) == 2
 
 
+def test_mixed_normal_and_recovery_provider_id_is_still_ambiguous(tmp_path, transport, monkeypatch):
+    import uuid
+    from types import SimpleNamespace
+
+    import src.utils.quick_scan_research_output as output_module
+    from src.providers import llm_research_client as client_module
+
+    monkeypatch.setattr(
+        client_module,
+        "uuid",
+        SimpleNamespace(uuid4=lambda: uuid.UUID("22222222-2222-4222-8222-222222222222")),
+    )
+
+    original_persist = output_module.api_research_output_persist
+    calls = 0
+
+    def fail_second_projection(*args):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise sqlite3.OperationalError("synthetic projection write failure")
+        return original_persist(*args)
+
+    monkeypatch.setattr(output_module, "api_research_output_persist", fail_second_projection)
+    transport[0].payloads = [response(), response()]
+    with budget(tmp_path) as store:
+        first = ResearchChatSession(client(), system_prefix="stable", tools=TOOLS).step(
+            user_context="first physical request"
+        )
+        with pytest.raises(QuickScanWorkPersistenceError):
+            ResearchChatSession(client(), system_prefix="stable", tools=TOOLS).step(
+                user_context="second physical request"
+            )
+
+    with sqlite3.connect(store.path) as connection:
+        assert (
+            connection.execute(
+                "SELECT COUNT(*) FROM quick_scan_research_visible_output"
+            ).fetchone()[0]
+            == 1
+        )
+        assert (
+            connection.execute(
+                "SELECT COUNT(*) FROM quick_scan_research_visible_output_recovery"
+            ).fetchone()[0]
+            == 1
+        )
+    assert store.get_research_visible_output(first["receipt"]["work_attempt_id"])
+    with pytest.raises(ValueError, match="ambiguous"):
+        store.get_research_visible_output(first["receipt"]["attempt_id"])
+
+
+def test_failed_recovery_stage_rolls_back_paid_receipt_and_output_together(
+    tmp_path, transport, monkeypatch
+):
+    import src.utils.quick_scan_research_output as output_module
+
+    monkeypatch.setattr(
+        output_module,
+        "api_research_output_persist",
+        lambda *args: (_ for _ in ()).throw(sqlite3.OperationalError("projection failed")),
+    )
+    monkeypatch.setattr(
+        output_module,
+        "api_research_output_stage",
+        lambda *args: (_ for _ in ()).throw(sqlite3.OperationalError("journal failed")),
+    )
+    transport[0].payloads = [response()]
+    with budget(tmp_path) as store:
+        with pytest.raises(QuickScanWorkPersistenceError):
+            ResearchChatSession(client(), system_prefix="stable", tools=TOOLS).step(
+                user_context="atomic crash boundary"
+            )
+
+    with sqlite3.connect(store.path) as connection:
+        assert (
+            connection.execute("SELECT COUNT(*) FROM quick_scan_attempt_response").fetchone()[0]
+            == 0
+        )
+        assert (
+            connection.execute(
+                "SELECT COUNT(*) FROM quick_scan_research_visible_output_recovery"
+            ).fetchone()[0]
+            == 0
+        )
+
+
 def test_pack_schema_failure_retains_each_native_receipt_and_one_charge(
     pack, transport, monkeypatch
 ):
     from src.providers import llm_research_client as mod
     from tests.unit.test_quick_scan_question_pack_transport import _bindings
 
-    monkeypatch.setattr(mod, "_utc_now", lambda: "2027-01-15T08:00:00Z")
+    monkeypatch.setattr(mod, "utc_now", lambda: "2027-01-15T08:00:00Z")
     transport[0].payloads = [
         response(actual_model="mimo-v2.6-flash", tools=True, arguments='{"key":99}')
     ]
@@ -391,17 +528,19 @@ def test_echoed_endpoint_credential_is_charged_but_never_persisted(tmp_path, tra
         )
 
 
-def test_pack_insert_failure_rolls_back_all_member_receipts_and_cost(pack, transport, monkeypatch):
+def test_pack_insert_failure_retains_paid_answer_for_zero_request_recovery(
+    pack, transport, monkeypatch
+):
     import src.utils.quick_scan_research_output as mod
     from src.providers import llm_research_client as research_mod
     from tests.unit.test_quick_scan_question_pack_transport import _bindings
 
-    monkeypatch.setattr(research_mod, "_utc_now", lambda: "2027-01-15T08:00:00Z")
+    monkeypatch.setattr(research_mod, "utc_now", lambda: "2027-01-15T08:00:00Z")
 
     def fail(*args):
         raise sqlite3.OperationalError("synthetic output write failure")
 
-    monkeypatch.setattr(mod, "persist", fail)
+    monkeypatch.setattr(mod, "api_research_output_persist", fail)
     transport[0].payloads = [response(actual_model="mimo-v2.6-flash")]
     c = client()
     c.model, c.provider_name, c.base_url = (
@@ -410,21 +549,33 @@ def test_pack_insert_failure_rolls_back_all_member_receipts_and_cost(pack, trans
         "https://api.xiaomimimo.com/v1/chat/completions",
     )
     with _bindings(pack):
-        with pytest.raises(QuickScanWorkPersistenceError):
+        with pytest.raises(QuickScanWorkPersistenceError) as error:
             ResearchChatSession(c, system_prefix="stable", tools=TOOLS).step(user_context="pack")
     store, members, _ = pack
+    assert store.get_research_visible_output(error.value.attempt_receipt["attempt_id"])
+    status = store.get_quick_scan_budget_status("pack-transport")
+    assert status["requests"] == 1 and status["unreconciled_attempts"] == 0
     with sqlite3.connect(store.path) as conn:
-        assert conn.execute("SELECT COUNT(*) FROM quick_scan_attempt_response").fetchone()[0] == 0
+        assert (
+            conn.execute("SELECT COUNT(*) FROM quick_scan_attempt_response").fetchone()[0]
+            == len(members) + 1
+        )
         assert (
             conn.execute("SELECT COUNT(*) FROM quick_scan_research_visible_output").fetchone()[0]
             == 0
         )
-        assert conn.execute("SELECT COUNT(*) FROM attempt WHERE phase='send_intent'").fetchone()[
-            0
-        ] == len(members)
-        assert conn.execute(
-            "SELECT status,actual_cost_micros FROM quick_scan_budget_attempt"
-        ).fetchone() == ("in_flight", None)
+        assert (
+            conn.execute(
+                "SELECT COUNT(*) FROM quick_scan_research_visible_output_recovery"
+            ).fetchone()[0]
+            == 1
+        )
+        assert (
+            conn.execute(
+                "SELECT status,actual_cost_micros FROM quick_scan_budget_attempt"
+            ).fetchone()[0]
+            != "in_flight"
+        )
     assert len(transport[1]) == 1
 
 
@@ -440,20 +591,30 @@ def test_work_insert_failure_rolls_back_original_response_and_cost(
     def fail(*args):
         raise sqlite3.OperationalError("synthetic output write failure")
 
-    monkeypatch.setattr(mod, "persist", fail)
+    monkeypatch.setattr(mod, "api_research_output_persist", fail)
     with budget(tmp_path) as store:
         member = _members(store, count=1)[0]
         with bind_quick_scan_work(store, member["work_item_id"], member["lease"]):
-            with pytest.raises(QuickScanWorkPersistenceError):
+            with pytest.raises(QuickScanWorkPersistenceError) as error:
                 ResearchChatSession(client(), system_prefix="stable", tools=TOOLS).step(
                     user_context="one"
                 )
+        assert store.get_research_visible_output(error.value.attempt_receipt["attempt_id"])
     with sqlite3.connect(store.path) as conn:
-        assert conn.execute("SELECT COUNT(*) FROM quick_scan_attempt_response").fetchone()[0] == 0
-        assert conn.execute("SELECT phase FROM attempt").fetchone()[0] == "send_intent"
-        assert conn.execute(
-            "SELECT status,actual_cost_micros FROM quick_scan_budget_attempt"
-        ).fetchone() == ("in_flight", None)
+        assert conn.execute("SELECT COUNT(*) FROM quick_scan_attempt_response").fetchone()[0] == 1
+        assert conn.execute("SELECT phase FROM attempt").fetchone()[0] == "response_available"
+        assert (
+            conn.execute(
+                "SELECT COUNT(*) FROM quick_scan_research_visible_output_recovery"
+            ).fetchone()[0]
+            == 1
+        )
+        assert (
+            conn.execute(
+                "SELECT status,actual_cost_micros FROM quick_scan_budget_attempt"
+            ).fetchone()[0]
+            != "in_flight"
+        )
     assert len(transport[1]) == 1
 
 
@@ -608,7 +769,7 @@ def test_pack_foreign_actual_model_keeps_known_charge_receipt_and_unknown_barrie
     from src.providers import llm_research_client as mod
     from tests.unit.test_quick_scan_question_pack_transport import _bindings
 
-    monkeypatch.setattr(mod, "_utc_now", lambda: "2027-01-15T08:00:00Z")
+    monkeypatch.setattr(mod, "utc_now", lambda: "2027-01-15T08:00:00Z")
     transport[0].payloads = [response(actual_model="mimo-v2.6-pro")]
     c = client()
     c.model, c.provider_name, c.base_url = (

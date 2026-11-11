@@ -1,7 +1,7 @@
 """Original approved owner -> shared Company Runner service seams.
 
-This module sends no HTTP and creates no ledger. It composes the original
-QuickScanWorkLifecycle, approved action, LLMClient and original transport.
+This module sends no HTTP and creates no ledger. It composes the public
+QuickScanWorkLifecyclePort, approved action, LLMClient and original transport.
 Native search/evidence and research continuation must be supported by those
 original services; absence is a refusal, never manufactured permission.
 """
@@ -10,15 +10,16 @@ from __future__ import annotations
 
 import copy
 from contextlib import ExitStack, contextmanager
+from dataclasses import dataclass
 
 from src.core.models import Answer, QAResult, Question
+from src.interfaces.quick_scan_lifecycle import QuickScanWorkLifecyclePort
 from src.providers.llm_client import LLMClient
-from src.runners.llm_runner import QuickScanWorkLifecycle
 from src.utils.quick_scan_result_outbox import canonical_sha256
 from src.utils.quick_scan_work_store import (
-    _budget_policy_projection,
-    _sanitized_receipt,
+    budget_policy_projection,
     quick_scan_receipt_sha256,
+    sanitize_transport_receipt,
 )
 
 
@@ -26,29 +27,99 @@ class OwnerResearchRejected(ValueError):
     """Bounded original-owner refusal; never a retry permission."""
 
 
-def _native_batch_scope(store, task, entries, sdk_id):
-    """Read original task/intent/receipt/member bindings on every cache intake."""
-    if task.raw.get("protocol") != "iqs.company-scan-task/1.0.0":
-        return None
-    from contextlib import closing
+def _component_api(name, family, minimum_version, required_operations):
     from importlib import import_module
 
-    batch_response_scope = import_module("iqs_agent_runtime_lab.receiptmap").batch_response_scope
+    from src.utils.quick_scan_company_api import (
+        supports_public_api,
+        supports_public_api_operations,
+    )
 
-    from src.utils.quick_scan_research_intent import get_intent_response
+    api = import_module(name)
+    if not supports_public_api(getattr(api, "PUBLIC_API_PROTOCOL", None), family, minimum_version):
+        raise OwnerResearchRejected("component_public_api_version_unsupported")
+    if not supports_public_api_operations(api, family, minimum_version, required_operations):
+        raise OwnerResearchRejected("component_public_api_operation_missing")
+    return api
 
-    if batch_response_scope(task) is None:
+
+def _runtime_public_api(*operations):
+    return _component_api(
+        "iqs_agent_runtime_lab.api",
+        "iqs.agent-runtime-public-api",
+        (1, 4, 0),
+        operations,
+    )
+
+
+@dataclass(frozen=True)
+class _CompanyTaskProjection:
+    """StockQA-owned view of the versioned Company Agent task DTO."""
+
+    protocol: str
+    task_sha256: str
+    contract_sha256: str
+    raw: dict
+    questions: list
+    question_ids: list
+    company_doc: dict
+    company_ref: dict
+    evidence_board_doc: dict
+    runtime_profile: dict
+    targets: dict
+    limits: dict
+    owner_binding: dict | None
+    owner_control_binding: dict | None
+
+
+def _company_task_projection(value):
+    """Convert a public Company Agent task handle/DTO into a detached local view."""
+    from src.utils.quick_scan_company_api import company_agent_public_api
+
+    company_api = company_agent_public_api("task_from_snapshot", "task_snapshot")
+
+    try:
+        contract = (
+            copy.deepcopy(value) if isinstance(value, dict) else company_api.task_snapshot(value)
+        )
+        if not isinstance(contract, dict):
+            raise ValueError("company_task_contract_required")
+        restored = company_api.task_from_snapshot(contract)
+        if company_api.task_snapshot(restored) != contract:
+            raise ValueError("company_task_contract_projection_mismatch")
+        fields = {
+            name: copy.deepcopy(contract[name])
+            for name in _CompanyTaskProjection.__dataclass_fields__
+        }
+        return contract, _CompanyTaskProjection(**fields)
+    except (AttributeError, KeyError, TypeError, ValueError) as error:
+        raise OwnerResearchRejected("versioned_company_task_contract_required") from error
+
+
+def _native_batch_scope(store, task_contract, entries, sdk_id):
+    """Read original task/intent/receipt/member bindings on every cache intake."""
+    if task_contract["raw"].get("protocol") != "iqs.company-scan-task/1.0.0":
         return None
-    with closing(store._connect()) as connection:
+    from contextlib import closing
+
+    batch_response_scope = _runtime_public_api("batch_response_scope").batch_response_scope
+
+    from src.utils.quick_scan_research_intent import (
+        api_research_intent_get_response as get_intent_response,
+    )
+
+    if batch_response_scope(task_contract) is None:
+        return None
+    with closing(store.connect()) as connection:
         rows = connection.execute(
             "SELECT i.intent_sha256 FROM quick_scan_research_intent i "
             "JOIN quick_scan_attempt_response r ON r.attempt_id=i.native_attempt_id "
             "WHERE i.task_sha256=? AND json_extract(r.receipt_json,'$.attempt_id')=?",
-            (canonical_sha256(task.raw), sdk_id),
+            (canonical_sha256(task_contract["raw"]), sdk_id),
         ).fetchall()
     if len(rows) != 1:
         raise OwnerResearchRejected("batch_original_native_intent_required")
-    original = get_intent_response(store, canonical_sha256(task.raw), rows[0][0])
+    original = get_intent_response(store, canonical_sha256(task_contract["raw"]), rows[0][0])
     if (
         original is None
         or original.get("native_receipt") is None
@@ -58,14 +129,14 @@ def _native_batch_scope(store, task, entries, sdk_id):
     members = original["work_item_ids"]
     selected = [
         qid
-        for qid in task.question_ids
+        for qid in task_contract["question_ids"]
         if entries.get(qid, {}).get("kind") == "work" and entries[qid]["work_item_id"] in members
     ]
     if len(selected) != len(members) or set(members) != {
         entries[q]["work_item_id"] for q in selected
     }:
         raise OwnerResearchRejected("batch_original_native_members_required")
-    batch_response_scope(task, selected)
+    batch_response_scope(task_contract, selected)
     return selected
 
 
@@ -104,21 +175,25 @@ class OwnerResearchServices:
         native_search=False,
         request_scope=None,
     ):
-        if not isinstance(lifecycle, QuickScanWorkLifecycle) or not isinstance(client, LLMClient):
+        if not isinstance(lifecycle, QuickScanWorkLifecyclePort) or not isinstance(
+            client, LLMClient
+        ):
             raise OwnerResearchRejected("original_lifecycle_and_client_required")
         try:
             work = lifecycle.registered_research_work()
         except ValueError as error:
             raise OwnerResearchRejected("original_registered_owner_required") from error
         owner = work.owner
-        store = owner.service.store
-        recovery_only = getattr(owner, "recovery_only", False)
+        store = work.store
+        owner_snapshot = owner.snapshot()
+        recovery_only = owner_snapshot.recovery_only
         if not work.transport_managed or (not recovery_only and not work.budget_policy):
             raise OwnerResearchRejected("original_metered_transport_required")
-        if not recovery_only and _budget_policy_projection(
-            work.budget_policy
-        ) != _budget_policy_projection(owner.service.budget):
-            raise OwnerResearchRejected("approved_budget_policy_required")
+        if not recovery_only:
+            try:
+                owner.assert_budget_policy(work.budget_policy)
+            except ValueError as error:
+                raise OwnerResearchRejected("approved_budget_policy_required") from error
         if not callable(getattr(store, "get_research_visible_output", None)):
             raise OwnerResearchRejected("native_visible_output_durability_required")
         try:
@@ -145,7 +220,10 @@ class OwnerResearchServices:
         self.lifecycle, self.client, self.owner = lifecycle, client, owner
         self.request_scope = copy.deepcopy(request_scope)
         self._request_scope_snapshot = copy.deepcopy(request_scope)
-        self.store, self.task = store, task
+        task_contract, task_projection = _company_task_projection(task)
+        self.store, self.task = store, task_projection
+        self.task_handle = task if not isinstance(task, dict) else None
+        self.task_contract = copy.deepcopy(task_contract)
         self.cost_resolver, self.search_service = cost_resolver, search_service
         if (
             type(native_session) is not bool
@@ -160,7 +238,7 @@ class OwnerResearchServices:
         self.native_search = self._native_search_snapshot = native_search
         self.owner_batch_claim = self._owner_batch_claim_snapshot = owner_batch_claim
         self.native_session, self.native_max_turns = native_session, native_max_turns
-        task_cap = getattr(task, "limits", {}).get("max_model_requests_per_session")
+        task_cap = self.task.limits.get("max_model_requests_per_session")
         if task_cap is not None:
             if type(task_cap) is not int or task_cap < 1:
                 raise OwnerResearchRejected("registered_native_turn_cap_invalid")
@@ -171,11 +249,11 @@ class OwnerResearchServices:
         self._active = False
         self._responded_work_ids = set()
         self._validate_task()
-        self._task_sha256 = canonical_sha256(task.raw)
-        self._questions_snapshot = copy.deepcopy(task.questions)
-        self._company_snapshot = copy.deepcopy(task.company_doc)
-        self._company_ref_snapshot = copy.deepcopy(task.company_ref)
-        self._limits_snapshot = copy.deepcopy(getattr(task, "limits", {}))
+        self._task_sha256 = canonical_sha256(self.task.raw)
+        self._questions_snapshot = copy.deepcopy(self.task.questions)
+        self._company_snapshot = copy.deepcopy(self.task.company_doc)
+        self._company_ref_snapshot = copy.deepcopy(self.task.company_ref)
+        self._limits_snapshot = copy.deepcopy(self.task.limits)
         self._client_endpoint_snapshot = client.base_url
         self._route_snapshot = (
             work.route_id,
@@ -186,7 +264,7 @@ class OwnerResearchServices:
         self._context_sha256 = canonical_sha256(work.observation_context)
         self.subject_dispatch_readiness = (
             {"status": "not_required_for_paid_response_recovery", "dispatch_started": False}
-            if getattr(self.owner, "recovery_only", False)
+            if self.owner.snapshot().recovery_only
             else self.preflight_subject_dispatch()
         )
 
@@ -215,8 +293,8 @@ class OwnerResearchServices:
         from src.utils.quick_scan_result_outbox import strict_json_loads
 
         self._assert_registered_inputs()
-        original_client = self.owner.native.client
-        config = original_client.config
+        owner_setup = self.owner.subject_dispatch_setup()
+        config = owner_setup
         maximum = 8 * 1024 * 1024
         try:
             schema_path = (
@@ -230,20 +308,7 @@ class OwnerResearchServices:
             )
             runs = Path(config["runs_dir"])
             runs.mkdir(parents=True, exist_ok=True)
-            supplied = original_client._environment
-            source_env = os.environ if supplied is None else supplied
-            allowed = {
-                "SYSTEMROOT",
-                "WINDIR",
-                "PATH",
-                "PATHEXT",
-                "COMSPEC",
-                "USERPROFILE",
-                "APPDATA",
-                "LOCALAPPDATA",
-                "SYSTEMDRIVE",
-            }
-            env = {key: value for key, value in source_env.items() if key.upper() in allowed}
+            env = dict(config["environment"])
             command = [
                 sys.executable,
                 "-B",
@@ -383,19 +448,20 @@ class OwnerResearchServices:
             or context.get("schema") != "stockqa.quick_scan_observation_context/2.0.0"
         ):
             raise OwnerResearchRejected("original_subject_context_required")
-        if canonical_sha256(context) != canonical_sha256(self.owner.native.observation_context):
+        owner_snapshot = self.owner.snapshot()
+        if canonical_sha256(context) != canonical_sha256(owner_snapshot.observation_context):
             raise OwnerResearchRejected("original_subject_context_changed")
         subject = self.task.company_doc.get("subject", {}).get("subject_ref")
         module_locks = {
             row["module_id"]: row["version"]
-            for row in self.owner.bundle["manifest"]["module_locks"]
+            for row in owner_snapshot.bundle["manifest"]["module_locks"]
         }
         for row in rows:
             qid = row["question_id"]
             binding = (context.get("questions", {}).get(qid) or {}).get("subject_binding") or {}
             contract = binding.get("question_contract")
             if (
-                qid not in self.owner.entries
+                qid not in owner_snapshot.entries
                 or not isinstance(contract, dict)
                 or contract.get("id") != qid
                 or row.get("question") != contract
@@ -406,14 +472,16 @@ class OwnerResearchServices:
             ):
                 raise OwnerResearchRejected("original_question_or_subject_mismatch")
             self.questions[qid] = Question(contract["prompt"], question_id=qid)
-        if self.task.raw.get("information_cutoff") != self.owner.plan.get("information_cutoff"):
+        if self.task.raw.get("information_cutoff") != owner_snapshot.plan.get("information_cutoff"):
             raise OwnerResearchRejected("original_information_cutoff_required")
         for question in self.questions.values():
             self.lifecycle.question_pack_group_key(question)
         from .quick_scan_owner_budget_continuation import assert_research_task
 
-        if not getattr(self.owner, "recovery_only", False):
-            assert_research_task(self.owner, self.task, search_service=self.search_service)
+        if not self.owner.snapshot().recovery_only:
+            assert_research_task(
+                self.owner, self.task, store=self.store, search_service=self.search_service
+            )
 
     def bind_task_owner_binding(self, binding):
         # This only binds immutable task inputs. The actual generation, claim
@@ -439,6 +507,11 @@ class OwnerResearchServices:
             provider = work.provider_actual()
         except ValueError as error:
             raise OwnerResearchRejected("registered_runtime_inputs_changed") from error
+        if not self.owner.snapshot().recovery_only:
+            try:
+                self.owner.assert_budget_policy(work.budget_policy)
+            except ValueError as error:
+                raise OwnerResearchRejected("registered_runtime_inputs_changed") from error
         if (
             work.owner is not self.owner
             or not work.transport_managed
@@ -463,11 +536,6 @@ class OwnerResearchServices:
                 work.model_resolution,
             )
             or canonical_sha256(work.observation_context) != self._context_sha256
-            or (
-                not getattr(self.owner, "recovery_only", False)
-                and _budget_policy_projection(work.budget_policy)
-                != _budget_policy_projection(self.owner.service.budget)
-            )
         ):
             raise OwnerResearchRejected("registered_runtime_inputs_changed")
         if check_current:
@@ -483,7 +551,7 @@ class OwnerResearchServices:
         if (
             dynamic.get("company_ref") != self.task.company_ref
             or dynamic.get("company") != self.task.company_doc
-            or dynamic.get("information_cutoff") != self.owner.plan["information_cutoff"]
+            or dynamic.get("information_cutoff") != self.owner.snapshot().plan["information_cutoff"]
         ):
             raise OwnerResearchRejected("runtime_subject_or_cutoff_mismatch")
         if (
@@ -506,13 +574,11 @@ class OwnerResearchServices:
             if "intent" in envelope and envelope["intent"].get("question_ids") != selected:
                 raise OwnerResearchRejected("runtime_question_intent_mismatch")
             if self.task.raw.get("protocol") == "iqs.company-scan-task/1.0.0":
-                from importlib import import_module
-
-                batch_response_scope = import_module(
-                    "iqs_agent_runtime_lab.receiptmap"
+                batch_response_scope = _runtime_public_api(
+                    "batch_response_scope"
                 ).batch_response_scope
 
-                profile = batch_response_scope(self.task, selected)
+                profile = batch_response_scope(self.task_contract, selected)
                 if profile is not None and (
                     dynamic.get("execution_profile") != profile
                     or dynamic.get("execution_profile_sha256")
@@ -527,7 +593,7 @@ class OwnerResearchServices:
 
     @contextmanager
     def generation_scope(self, envelope):
-        if getattr(self.owner, "recovery_only", False):
+        if self.owner.snapshot().recovery_only:
             raise OwnerResearchRejected("paid_recovery_cannot_dispatch")
         from src.utils.quick_scan_work_transport import (
             bind_quick_scan_budget,
@@ -537,12 +603,16 @@ class OwnerResearchServices:
         if self.request_scope is not None:
             ids, cap = self.request_scope
             if (
-                self.owner.ordered_route_targets is None
+                self.owner.snapshot().ordered_route_targets is None
                 or type(cap) is not int
                 or cap < 1
                 or cap != self.task.limits["max_model_requests_per_session"]
                 or set(ids)
-                != {e["work_item_id"] for e in self.owner.entries.values() if e["kind"] == "work"}
+                != {
+                    e["work_item_id"]
+                    for e in self.owner.snapshot().entries.values()
+                    if e["kind"] == "work"
+                }
             ):
                 raise OwnerResearchRejected("original_company_request_scope_required")
             if self.store.company_scan_progress(ids)["model_requests"] >= cap:
@@ -599,10 +669,15 @@ class OwnerResearchServices:
                 if self.native_session:
                     if len(handles) != 1:
                         raise OwnerResearchRejected("native_multiturn_question_pack_not_supported")
-                    from src.utils import quick_scan_research_session as native_sessions
+                    from src.utils.quick_scan_research_session import (
+                        api_research_session_bind as bind_native_session,
+                    )
+                    from src.utils.quick_scan_research_session import (
+                        api_research_session_register as register_native_session,
+                    )
 
                     handle = handles[0]
-                    session_id = native_sessions.register(
+                    session_id = register_native_session(
                         self.store,
                         self.owner,
                         handle["work_item_id"],
@@ -622,7 +697,7 @@ class OwnerResearchServices:
                         raise OwnerResearchRejected("native_session_registration_changed")
                     self._native_session_ids[handle["work_item_id"]] = session_id
                     stack.enter_context(
-                        native_sessions.bind(
+                        bind_native_session(
                             self.store,
                             handle["work_item_id"],
                             handle["lease"],
@@ -631,9 +706,11 @@ class OwnerResearchServices:
                         )
                     )
                 from src.utils.quick_scan_provided_context import (
-                    prepare_provided_context,
+                    api_provided_context_prepare as prepare_provided_context,
                 )
-                from src.utils.quick_scan_research_intent import bind_intent
+                from src.utils.quick_scan_research_intent import (
+                    api_research_intent_bind as bind_intent,
+                )
 
                 provided = prepare_provided_context(
                     self.task,
@@ -669,7 +746,7 @@ class OwnerResearchServices:
         return self.client
 
     def search(self, envelope):
-        if getattr(self.owner, "recovery_only", False):
+        if self.owner.snapshot().recovery_only:
             raise OwnerResearchRejected("paid_recovery_cannot_dispatch")
         self._validate_envelope(envelope)
         if self.search_service is None:
@@ -689,14 +766,14 @@ class OwnerResearchServices:
             for attempt in self.store.list_attempts(handle["work_item_id"]):
                 response = self.store.get_attempt_response(attempt["attempt_id"])
                 if response is not None and response["receipt"].get("attempt_id") == sdk_id:
-                    if _sanitized_receipt(receipt) != response["receipt"]:
+                    if sanitize_transport_receipt(receipt) != response["receipt"]:
                         raise OwnerResearchRejected("native_receipt_differs_from_original_owner")
                     original = response["receipt"]
                     native_work_ids.add(handle["work_item_id"])
         if original is None:
             # Failed transport may carry a known wire receipt but cannot be
             # declared replayable without original durable response proof.
-            original = _sanitized_receipt(receipt)
+            original = sanitize_transport_receipt(receipt)
             physical = receipt.get("work_attempt_id")
             known = {
                 a["attempt_id"]: a
@@ -752,7 +829,7 @@ class OwnerResearchServices:
             return None
         sdk_id = ref[len("stockqa:") :]
         # Scope before lookup. A valid foreign SDK UUID is not sufficient.
-        for qid, entry in self.owner.entries.items():
+        for qid, entry in self.owner.snapshot().entries.items():
             if qid not in self.questions:
                 continue
             if entry.get("kind") != "work":
@@ -804,11 +881,20 @@ class OwnerResearchServices:
 
     def _restore_model_receipt(self, ref, native, visible, native_attempt):
         from datetime import datetime, timezone
-        from importlib import import_module
 
         try:
-            mapping = import_module("iqs_agent_runtime_lab.receiptmap")
-            validation = import_module("iqs_company_agent_lab.receipts")
+            mapping = _runtime_public_api(
+                "project_batch_response",
+                "build_model_receipt",
+                "tool_calls_to_receipt",
+                "normalize_native_usage",
+            )
+            validation = _component_api(
+                "iqs_company_agent_lab.api",
+                "iqs.company-agent-public-api",
+                (2, 3, 0),
+                ("validate_model_receipt",),
+            )
         except ModuleNotFoundError as error:
             raise OwnerResearchRejected("shared_runtime_receipt_adapter_not_installed") from error
 
@@ -854,13 +940,13 @@ class OwnerResearchServices:
         )
         output = visible["visible_output"]
         selected = _native_batch_scope(
-            self.store, self.task, self.owner.entries, native["attempt_id"]
+            self.store, self.task_contract, self.owner.snapshot().entries, native["attempt_id"]
         )
         projected = (
             output
             if selected is None
             else mapping.project_batch_response(
-                self.task,
+                self.task_contract,
                 selected,
                 content=output["content"],
                 tool_calls=output["tool_calls"],
@@ -912,10 +998,13 @@ class OwnerResearchServices:
             or not set(selected) <= set(self.questions)
         ):
             raise OwnerResearchRejected("native_recovery_registered_question_scope_required")
-        entries = [self.owner.entries[qid] for qid in selected]
+        owner_entries = self.owner.snapshot().entries
+        entries = [owner_entries[qid] for qid in selected]
         if any(entry.get("kind") != "work" for entry in entries):
             raise OwnerResearchRejected("native_recovery_original_work_required")
-        from src.utils.quick_scan_research_intent import get_intent_response
+        from src.utils.quick_scan_research_intent import (
+            api_research_intent_get_response as get_intent_response,
+        )
 
         generic = get_intent_response(self.store, self._task_sha256, canonical_sha256(intent))
         if generic is not None:
@@ -943,7 +1032,9 @@ class OwnerResearchServices:
         if len(entries) != 1:  # Historical multiturn lookup remains unchanged.
             return None
         entry = entries[0]
-        from src.utils.quick_scan_research_session import find_attempt_for_task_intent
+        from src.utils.quick_scan_research_session import (
+            api_research_session_find_attempt_for_task_intent as find_attempt_for_task_intent,
+        )
 
         original = find_attempt_for_task_intent(
             self.store,
@@ -974,7 +1065,7 @@ class OwnerResearchServices:
         from src.utils.quick_scan_work_store import Lease
 
         self._assert_registered_inputs(check_current=False)
-        entry = self.owner.entries.get(question_id)
+        entry = self.owner.snapshot().entries.get(question_id)
         if (
             question_id not in self.questions
             or not isinstance(entry, dict)
@@ -1001,12 +1092,12 @@ class OwnerResearchServices:
         ):
             raise OwnerResearchRejected("finalization_original_lease_changed")
         lease = Lease(attempt["lease_token"], attempt["lease_epoch"])
-        if getattr(self.owner, "recovery_only", False):
+        if self.owner.snapshot().recovery_only:
             self.owner.assert_received_checkpoint_recovery(
                 work_id, attempt["attempt_id"], store=self.store
             )
         else:
-            self.store._assert_lease(item, lease, self.store._now())
+            self.store.assert_lease(item, lease, self.store.now())
         handle = dict(
             claimed=True,
             reason="restored_original_finalization_handle",
@@ -1048,7 +1139,7 @@ class OwnerResearchServices:
         saved = []
         for body in answers:
             qid = body["question_id"]
-            entry = self.owner.entries.get(qid)
+            entry = self.owner.snapshot().entries.get(qid)
             if not isinstance(entry, dict) or entry.get("kind") != "work":
                 raise OwnerResearchRejected("checkpoint_original_registered_work_required")
             work_id = entry["work_item_id"]

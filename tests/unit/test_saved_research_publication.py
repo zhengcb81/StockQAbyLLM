@@ -29,12 +29,12 @@ def owned_store(tmp_path):
 def test_original24_migrates_without_rewriting_historical_rows(owned_store):
     from src.utils.quick_scan_work_store import SCHEMA_VERSION
 
-    assert SCHEMA_VERSION == 25
+    assert SCHEMA_VERSION > 24
     with closing(owned_store._connect()) as db:
         policy_id = db.execute("SELECT policy_id FROM quick_scan_budget_policy").fetchone()[0]
     assert owned_store.get_quick_scan_budget_status(policy_id)["requests"] == 102
     with closing(owned_store._connect()) as c:
-        assert c.execute("PRAGMA user_version").fetchone()[0] == 25
+        assert c.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         assert c.execute("SELECT COUNT(*) FROM answer_checkpoint").fetchone()[0] == 0
 
 

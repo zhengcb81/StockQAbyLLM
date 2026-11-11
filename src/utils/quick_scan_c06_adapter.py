@@ -16,8 +16,8 @@ from __future__ import annotations
 from typing import Any
 
 from src.utils.quick_scan_result_outbox import (
-    _CAPABILITIES,
-    _CONTRACT_VERSION_KEYS,
+    CAPABILITIES,
+    CONTRACT_VERSION_KEYS,
     canonical_sha256,
 )
 
@@ -157,7 +157,7 @@ def _envelope_facts(
         raise MissingC06Fields("authority must be a dict")
     contract_versions = authority.get("contract_versions")
     if not isinstance(contract_versions, dict) or set(contract_versions) != set(
-        _CONTRACT_VERSION_KEYS
+        CONTRACT_VERSION_KEYS
     ):
         raise MissingC06Fields("authority contract_versions must carry the exact five-key set")
     if any(not isinstance(value, str) or not value.strip() for value in contract_versions.values()):
@@ -166,7 +166,7 @@ def _envelope_facts(
     if (
         not isinstance(capabilities, list)
         or not capabilities
-        or any(cap not in _CAPABILITIES for cap in capabilities)
+        or any(cap not in CAPABILITIES for cap in capabilities)
         or "standard_observation_v1" not in capabilities
     ):
         raise MissingC06Fields(

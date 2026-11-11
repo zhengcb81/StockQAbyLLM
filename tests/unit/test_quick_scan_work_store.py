@@ -230,6 +230,34 @@ def test_schema_is_versioned_full_and_rejects_fake_or_extra_tables(tmp_path):
         _store(tmp_path, clock)
 
 
+def test_schema_v26_adds_paid_output_recovery_table_without_changing_work_rows(tmp_path):
+    import re
+
+    from src.utils.quick_scan_research_output import api_research_output_ddl_v27
+
+    clock = [1_800_000_000.0]
+    store = _store(tmp_path, clock)
+    item = _created(store)
+    before = store.get_item(item["work_item_id"])
+    with closing(store._connect()) as connection, connection:
+        for statement in reversed(api_research_output_ddl_v27):
+            kind, name = re.match(r"CREATE (TABLE|TRIGGER) ([A-Za-z_]+)", statement).groups()
+            connection.execute("DROP " + kind + " IF EXISTS " + name)
+        connection.execute("PRAGMA user_version=26")
+
+    reopened = QuickScanWorkStore(store.path, clock=lambda: clock[0])
+    assert reopened.get_item(item["work_item_id"]) == before
+    with closing(reopened._connect()) as connection:
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 27
+        assert (
+            connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' "
+                "AND name='quick_scan_research_visible_output_recovery'"
+            ).fetchone()[0]
+            == "quick_scan_research_visible_output_recovery"
+        )
+
+
 def _claim_process(db_path, work_id, ready_path, start_path, result_path):
     program = (
         "import pathlib,time,sys; "
@@ -611,6 +639,7 @@ def _q10_reconstruct_old_schema(connection, version):
         "quick_scan_research_intent",
         "quick_scan_research_turn",  # schema23 children before registration
         "quick_scan_research_session",
+        "quick_scan_research_visible_output_recovery",  # schema27
         "quick_scan_research_visible_output",  # schema23, synthetic rows only
         "quick_scan_external_research_admission",  # schema22
         "quick_scan_quota_proof",  # schema21, child tables first

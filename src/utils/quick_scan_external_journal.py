@@ -659,8 +659,8 @@ def _request_context(
         "adapter_version": _text(adapter_version, 160),
         "endpoint": endpoint,
     }
-    item = store._item(connection, work_item_id)
-    store._assert_lease(item, lease, store._now())
+    item = store.item_in_transaction(connection, work_item_id)
+    store.assert_lease(item, lease, store.now())
     if (
         frozen["entity_id"] != item["entity_id"]
         or frozen["identity_snapshot_sha256"] != item["identity_snapshot_sha256"]
@@ -701,7 +701,7 @@ def validate_fetch_parent(store: "QuickScanWorkStore", record: dict) -> dict:
     ):
         raise ValueError("fetch_operation_required")
     parent = store.get_external_search(plan["source_operation_id"])
-    _reusable(parent, store._now())
+    _reusable(parent, store.now())
     result = parent["result"]
     if (
         parent["context"]["route"]["provider"] == "deepseek_fetch"
@@ -786,10 +786,10 @@ def lookup(
     Known failures remain available for the coordinator to price and skip;
     this is neither a successful-evidence verdict nor permission to send.
     """
-    from src.utils.quick_scan_work_store import _budget_policy_projection
+    from src.utils.quick_scan_work_store import budget_policy_projection
 
-    normalized = _budget_policy_projection(policy)
-    with closing(store._connect()) as connection:
+    normalized = budget_policy_projection(policy)
+    with closing(store.connect()) as connection:
         context = _request_context(
             store, connection, work_item_id, lease, normalized=normalized, **request
         )
@@ -818,8 +818,8 @@ def begin(
     independent_task: dict | None = None,
 ) -> dict:
     normalized = store.configure_quick_scan_budget(policy)
-    now = store._now()
-    with store._transaction() as connection:
+    now = store.now()
+    with store.transaction() as connection:
         context = _request_context(
             store,
             connection,
@@ -848,11 +848,11 @@ def begin(
             return {**record, "send_required": False}
         _assert_no_unknown_scope(connection, context)
         if provider == "zai_mcp_streamable":
-            from src.utils.quick_scan_mcp_journal import _binding
+            from src.utils.quick_scan_mcp_journal import read_mcp_search_binding
 
-            _binding(connection, cache_key, now=now)
+            read_mcp_search_binding(connection, cache_key, now=now)
         budget_attempt_id = "DISPATCH_" + _digest({"external_operation": operation_id})
-        store._reserve_budget_attempt_tx(
+        store.reserve_budget_attempt_tx(
             connection,
             normalized_policy=normalized,
             budget_attempt_id=budget_attempt_id,
@@ -894,7 +894,7 @@ def begin(
 def consume(store: "QuickScanWorkStore", operation_id: str, *, budget_attempt_id: str) -> None:
     from src.utils.quick_scan_work_store import Lease, WorkConflictError
 
-    with store._transaction() as connection:
+    with store.transaction() as connection:
         row = connection.execute(
             "SELECT * FROM quick_scan_external_operation WHERE operation_id=?", (operation_id,)
         ).fetchone()
@@ -907,10 +907,10 @@ def consume(store: "QuickScanWorkStore", operation_id: str, *, budget_attempt_id
             or record["budget"]["status"] != "in_flight"
         ):
             raise WorkConflictError("external send intent already consumed or mismatched")
-        store._assert_lease(
-            store._item(connection, row["work_item_id"]),
+        store.assert_lease(
+            store.item_in_transaction(connection, row["work_item_id"]),
             Lease(row["lease_token"], row["lease_epoch"]),
-            store._now(),
+            store.now(),
         )
         if record["context"]["route"]["provider"].startswith("deepseek_"):
             # Account-level gate, independent of key/route aliases. Atomic with
@@ -919,18 +919,18 @@ def consume(store: "QuickScanWorkStore", operation_id: str, *, budget_attempt_id
                 "SELECT MAX(d.sent_at) FROM quick_scan_external_dispatch d JOIN quick_scan_external_operation o USING(operation_id) WHERE json_extract(o.context_json,'$.route.provider')=?",
                 (record["context"]["route"]["provider"],),
             ).fetchone()[0]
-            if last is not None and store._now() - last < 0.2:
+            if last is not None and store.now() - last < 0.2:
                 from src.utils.quick_scan_work_store import BudgetAdmissionError
 
                 raise BudgetAdmissionError("deepseek_account_rate_wait")
         connection.execute(
             "INSERT INTO quick_scan_external_dispatch (operation_id,sent_at) VALUES (?,?)",
-            (operation_id, store._now()),
+            (operation_id, store.now()),
         )
 
 
 def get(store: "QuickScanWorkStore", operation_id: str) -> dict:
-    with closing(store._connect()) as connection:
+    with closing(store.connect()) as connection:
         row = connection.execute(
             "SELECT * FROM quick_scan_external_operation WHERE operation_id=?", (operation_id,)
         ).fetchone()
@@ -951,22 +951,20 @@ def record_result(
         Lease,
         LeaseFencedError,
         WorkConflictError,
-        _cost_to_micros,
-        _safe_text,
+        cost_to_micros,
+        validate_transport_text,
     )
 
     micros = (
-        None
-        if actual_cost is None
-        else _cost_to_micros(actual_cost, "actual_cost", allow_zero=True)
+        None if actual_cost is None else cost_to_micros(actual_cost, "actual_cost", allow_zero=True)
     )
     if micros is not None:
-        cost_source_ref = _safe_text(cost_source_ref, "cost_source_ref", maximum=300)
+        cost_source_ref = validate_transport_text(cost_source_ref, "cost_source_ref", maximum=300)
     elif cost_source_ref is not None:
         raise ValueError("cost reference without an exact cost")
     charge = {"actual_cost_micros": micros, "cost_source_ref": cost_source_ref}
-    now = store._now()
-    with store._transaction() as connection:
+    now = store.now()
+    with store.transaction() as connection:
         row = connection.execute(
             "SELECT * FROM quick_scan_external_operation WHERE operation_id=?", (operation_id,)
         ).fetchone()
@@ -1002,14 +1000,14 @@ def record_result(
             safe["entries"] = entries
         late = False
         try:
-            store._assert_lease(
-                store._item(connection, row["work_item_id"]),
+            store.assert_lease(
+                store.item_in_transaction(connection, row["work_item_id"]),
                 Lease(row["lease_token"], row["lease_epoch"]),
                 now,
             )
         except LeaseFencedError:
             late = True
-        store._record_budget_outcome_tx(
+        store.record_budget_outcome_tx(
             connection,
             row["budget_attempt_id"],
             outcome=safe["outcome"],
@@ -1174,17 +1172,17 @@ def read_use(connection: "sqlite3.Connection", row: "sqlite3.Row") -> dict:
         ):
             raise ValueError("external context use retrieval binding mismatch")
         if "source_urls" in meta:
-            from src.utils.quick_scan_external_context import _bound_candidate
-            from src.utils.quick_scan_work_store import _canonical_source_urls
+            from src.utils.quick_scan_external_context import bind_external_candidate
+            from src.utils.quick_scan_work_store import canonical_source_urls
 
             for entry in result["receipt"].get("entries", []):
-                if _bound_candidate(entry, record["plan"]) is not None:
-                    eligible_urls.update(_canonical_source_urls([entry["url"]]))
+                if bind_external_candidate(entry, record["plan"]) is not None:
+                    eligible_urls.update(canonical_source_urls([entry["url"]]))
     if "source_urls" in meta:
-        from src.utils.quick_scan_work_store import _canonical_source_urls
+        from src.utils.quick_scan_work_store import canonical_source_urls
 
         urls = meta["source_urls"]
-        if not urls or _canonical_source_urls(urls) != urls or not set(urls) <= eligible_urls:
+        if not urls or canonical_source_urls(urls) != urls or not set(urls) <= eligible_urls:
             raise ValueError(
                 "external context use source URLs differ from actual eligible retrieval"
             )
@@ -1193,7 +1191,7 @@ def read_use(connection: "sqlite3.Connection", row: "sqlite3.Row") -> dict:
     ).fetchone()
     proof = None
     if response_row is not None and attempt["phase"] in {"response_available", "completed"}:
-        response = QuickScanWorkStore._response_record(connection, response_row)
+        response = QuickScanWorkStore.response_record(connection, response_row)
         original = response["receipt"]
         allowed = model_resolution_allowed(
             response["provider"],
@@ -1266,7 +1264,7 @@ def record_use(
     )
     if context["context_sha256"] != context_sha256:
         raise ValueError("external context changed before answer send")
-    from src.utils.quick_scan_work_store import _canonical_source_urls
+    from src.utils.quick_scan_work_store import canonical_source_urls
 
     meta = {
         "schema": "stockqa.external_context_use_intent/1.1.0",
@@ -1284,13 +1282,13 @@ def record_use(
         "retrievals": context["retrievals"],
         "lease_epoch": lease.lease_epoch,
         "lease_token": lease.lease_token,
-        "created_at": store._now(),
+        "created_at": store.now(),
     }
-    meta["source_urls"] = _canonical_source_urls([source["url"] for source in context["sources"]])
+    meta["source_urls"] = canonical_source_urls([source["url"] for source in context["sources"]])
     if len(_canonical(meta)) > 30000:
         raise ValueError("external context use metadata exceeds cap")
-    with store._transaction() as connection:
-        store._assert_lease(store._item(connection, work_item_id), lease, store._now())
+    with store.transaction() as connection:
+        store.assert_lease(store.item_in_transaction(connection, work_item_id), lease, store.now())
         previous = connection.execute(
             "SELECT * FROM quick_scan_external_use_intent WHERE attempt_id=?", (attempt_id,)
         ).fetchone()
@@ -1319,8 +1317,55 @@ def record_use(
 
 
 def get_use(store: "QuickScanWorkStore", attempt_id: str) -> dict | None:
-    with closing(store._connect()) as connection:
+    with closing(store.connect()) as connection:
         row = connection.execute(
             "SELECT * FROM quick_scan_external_use_intent WHERE attempt_id=?", (attempt_id,)
         ).fetchone()
         return None if row is None else read_use(connection, row)
+
+
+# Versioned cross-module contract. Consumers use these exports, never owner internals.
+MODULE_API_PROTOCOL = "stockqa.external-journal-module/1.1.0"
+MODULE_API_EXPORTS = frozenset(
+    [
+        "DDL_V9_ADDITIONS",
+        "DDL_V10_ADDITIONS",
+        "ENDPOINTS",
+        "MODEL_BUDGET_LABEL",
+        "WORK_FINGERPRINT_KEYS",
+        "begin",
+        "consume",
+        "assert_external_operation_reusable",
+        "assert_scope_resolved",
+        "build_external_request_context",
+        "can_resume_unsent_external_operation",
+        "canonical_external_json",
+        "digest_external_json",
+        "external_identity_basis",
+        "external_operation_cache_key",
+        "get",
+        "get_use",
+        "lookup",
+        "read_use",
+        "record_result",
+        "record_use",
+        "strict_search_json",
+        "validate_external_plan",
+        "validate_external_receipt",
+        "validate_fetch_parent",
+        "validate_sha256",
+        "validate_tables",
+    ]
+)
+WORK_FINGERPRINT_KEYS = _WORK_KEYS
+assert_scope_resolved = _assert_no_unknown_scope
+external_operation_cache_key = _cache_key
+canonical_external_json = _canonical
+digest_external_json = _digest
+validate_sha256 = _hash
+external_identity_basis = _identity_basis
+validate_external_plan = _plan
+validate_external_receipt = _receipt
+build_external_request_context = _request_context
+can_resume_unsent_external_operation = _resumable_unsent
+assert_external_operation_reusable = _reusable

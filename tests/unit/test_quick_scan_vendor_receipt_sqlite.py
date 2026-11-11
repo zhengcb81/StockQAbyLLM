@@ -24,8 +24,8 @@ from src.utils.quick_scan_work_store import (
     quick_scan_receipt_sha256,
 )
 from tests.unit.test_quick_scan_c06_complete_seal import _forged_complete_package
-from tests.unit.test_quick_scan_vendor_receipt_seal import exported, pair
 from tests.unit.test_quick_scan_observation_context import fact_content
+from tests.unit.test_quick_scan_vendor_receipt_seal import exported, pair
 
 
 def stored(tmp_path, exported, *, fact=False, fact_status="answered", request_id=None):
