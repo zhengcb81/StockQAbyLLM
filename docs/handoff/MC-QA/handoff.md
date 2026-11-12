@@ -1,0 +1,34 @@
+# MC-QA Handoff — 执行 owner 与已付结果边界收口
+
+- 包ID / 工作树 / 分支 / 输入HEAD / 最终实现commit
+  - 包ID：MC-QA（StockQAbyLLM 执行与持久化 owner）
+  - 工作树：`C:/Users/郑曾波/Projects/iqs-modularity-worktrees-20261111/MC-QA`
+  - 分支：`codex/modularity-qa-20261111`（本地，无远端；base = canonical master `4c24789`）
+  - 输入HEAD：`4c24789`（canonical 与 `.tmp-stockqa-current-wt-20261110` 候选同 HEAD，均为工作树未提交形态）
+  - 实现commits：`9585431`（归拢 + 边界收口，110 文件 +9434/−1772）、`72fae07`（独审 F1-F4 修复，仅边界测试）
+- 实际修改路径与保留的并行修改
+  - src：87 个双改路径按候选解决（符号级超集验证，独有 `_require_company_scan_task_port`/CA 源路径常量除外——契约 C1 明确移除）；在候选之上追加修改：`quick_scan_company_api.py`（有限投影）、`quick_scan_shared_company.py`（facade 协议组合根）、`llm_runner.py`（store 接线 + NameError + mypy）、`quick_scan_company_context.py`/`research_output.py`/`work_transport.py`/`owner_refresh_api.py`（mypy 净化）；11 个新接口文件 + 17 个新/重写测试文件入库；`scripts/checks.py` 日检目标登记。
+  - 保留未动：`nul`、`progress_update.txt`、`.workbuddy-ai/`、`.codegraph/`、`pilot_runs/`、历史实验与个人文件；canonical 仓与其工作树未被写入。
+- 公开入口、protocol、兼容范围
+  - `src.utils.quick_scan_company_api`：`stockqa.company-scan-public-api/1.8.0`（IQS floor 1.7 同 major 兼容）。`company_agent_public_api(*ops)` 返回 `CompanyAgentPublicOperations` 有限投影——只含被请求的名字，值导出（`LIMIT_CAPS`/`QUESTION_IDS`）合法，module 对象永不出境。
+  - 组合根 `_modules`：companion 仅 `<pkg>.api` 且版本 floor（CA 2.3.0 / RT 1.4.0）；新可选配置 `company_agent_import_root`/`runtime_import_root`；companion 源文件布局检查删除，仅消费者自身 engine 保留 shadow 检查。
+  - owner refresh port `stockqa.quick_scan_owner_refresh_port/1.3.0`、lifecycle `stockqa.quick_scan_work_lifecycle/1.1.0`、contract `stockqa.company_scan_contract/1.0.0`、runtime port `stockqa.company_scan_runtime_port/2.2.0`、work store `1.4.0`（均随候选版本）。
+- 已验证TDD行（命令、结果、运行源码来源）
+  - 短组（包卡入口 + 新文件，源=本工作树 `9585431..72fae07`）：
+    `python -B -m pytest -q tests/unit/test_quick_scan_company_api.py tests/unit/test_quick_scan_company_contract.py tests/unit/test_quick_scan_company_task_factory.py tests/unit/test_quick_scan_module_boundaries.py tests/unit/test_quick_scan_public_api_contracts.py tests/unit/test_quick_scan_owner_public_boundary.py tests/unit/test_shared_company_entry.py tests/integration/test_owner_research_services.py -p no:cacheprovider` → 全绿（99 passed → 收敛后含新文件全绿；独审复跑 106 passed/1 skipped）。
+  - 已付恢复/题包/共享额度回归组（24 文件）：336 passed / 41 skipped（skip 均为显式外部依赖）。
+  - mypy（触碰的 5 个 src 文件）：候选 24 errors → **0 errors**。
+  - pre-commit 全套（black/isort/mypy/mixed-line-ending/detect-secrets）：通过。
+  - 边界检测器反例探针（独审执行）：F1 五种违规形态、F2 别名属性链绕过全部命中，合法对照不误报。
+  - 未跑项及原因：`tests/live`、收费 API（禁令）；真 CA/RT 组合（本机未安装，`test_company_agent_facade_material.py` skip，留总控 I1）；`IQS_ORIGINAL_ROOT`/`IQS_ROUTE_TEST_CODE_ROOT` 未配置场景 skip（配置后已验证 13 passed）。
+- 独立agent：身份、审过的实现commit、结果、修复事项、剩余实质问题
+  - 独立 general-purpose agent（独立会话），审 `4c24789..9585431` 完整 diff + 亲跑短组/mypy/夹具字节对比：**ACCEPT-WITH-FIXES**（F1 companion facade 守卫缺失、F2 owner export 别名检查缺失、F3 空断言、F4 SQL 尾匹配）。
+  - 作者修复 `72fae07` 后同一 agent 复核 delta：**ACCEPT**（反例注入探针验证；非阻塞残留 R1 别名动态 loader、R2 全路径 Attribute 链，属契约声明的静态边界，已记 findings）。
+  - 剩余实质问题：无。
+- 测试清理与生产数据/API是否触及
+  - 全程离线；未触生产库、回答库、密钥、额度；无网络/收费调用。临时根统一 `--basetemp` 于 `%TEMP%/iqs-mcqa-merge/bt*`（本次创建，可整目录删除）；独审自建 scratch/basetemp 自行清理。
+  - 工作树恢复 `core.autocrlf=true` 磁盘约定（437 个未改动文件重写 CRLF，`git diff` 证实零内容漂移）；未改任何夹具语义。
+- 总控如何复现 / 依赖哪个owner尚未交付
+  - 复现：`git -C <StockQAbyLLM> worktree` 已注册的上述路径检出 `codex/modularity-qa-20261111`@`72fae07`；跑上面短组命令即可（Windows，autocrlf=true）。
+  - 组合验收建议：I1 用 `iqs.company-agent-public-api/2.3.0` + `iqs.agent-runtime-public-api/1.4.0` 真包安装后跑 `tests/integration/test_company_agent_facade_material.py`；I2/I3/I4 从 `9585431`+`72fae07` 导出源码到短临时根。
+  - 依赖：无未交付阻塞。注意两点交接——(a) IQS 若曾用 canonical 的 `_require_company_scan_task_port`/`COMPANY_SCAN_TASK_PORT_*`，需改走 `company_scan_contract`/`create_company_scan_task`（1.8 公开操作）；(b) `company_agent_public_api` 返回从 module 变为有限投影，消费者只可按属性访问。
