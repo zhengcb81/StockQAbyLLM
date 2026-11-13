@@ -29,7 +29,7 @@ def test_company_scan_public_api_is_versioned_and_explicit():
     assert len(api.__all__) == len(set(api.__all__))
     assert all(not name.startswith("_") for name in api.__all__)
     assert api.COMPANY_SCAN_TASK_PORT_PROTOCOL == "stockqa.company_scan_task_port/1.0.0"
-    assert api.COMPANY_SCAN_RUNTIME_PORT_PROTOCOL == "stockqa.company_scan_runtime_port/2.2.0"
+    assert api.COMPANY_SCAN_RUNTIME_PORT_PROTOCOL == "stockqa.company_scan_runtime_port/2.3.0"
     assert api.CompanyScanTaskPort is not None
     assert api.company_scan_inputs is not None
     assert api.company_scan_contract is not None
@@ -117,6 +117,9 @@ def test_runtime_facade_exposes_owner_operations_without_consumer_store_access(m
         def validate_registered_inputs(self):
             return True
 
+        def endpoint_profile_id(self):
+            return "stockqa.endpoint-profile/1.0.0:" + "a" * 64
+
         def bind_task_owner_binding(self, _binding):
             return None
 
@@ -137,6 +140,7 @@ def test_runtime_facade_exposes_owner_operations_without_consumer_store_access(m
     changed["company_doc"] = {"origin": "synthetic"}
     assert not runtime.is_bound_to_task_contract(changed)
     assert runtime.has_native_session()
+    assert runtime.endpoint_profile_id() == "stockqa.endpoint-profile/1.0.0:" + "a" * 64
     assert runtime.attempt_observations(transport_origin="test") == [{"transport_origin": "test"}]
     assert runtime.supports_intent_recovery()
     assert runtime.recover_intent({"id": "i-1"}) == {"intent": {"id": "i-1"}}
@@ -146,6 +150,26 @@ def test_runtime_facade_exposes_owner_operations_without_consumer_store_access(m
     description = runtime.describe()
     assert description["protocol"] == "iqs.agent-runtime-services/1.0.0"
     assert description["capabilities"]["original_semantic_resources"] is True
+
+
+def test_runtime_endpoint_profile_is_optional_but_rejects_nonopaque_values(monkeypatch):
+    from types import SimpleNamespace
+
+    from src.utils import quick_scan_company_runtime as runtime_impl
+
+    task_contract = {"protocol": "task/1", "owner_binding": {"id": "owner-1"}}
+    services = SimpleNamespace(
+        bind_task_owner_binding=lambda _binding: None,
+        endpoint_profile_id=lambda: None,
+    )
+    monkeypatch.setattr(runtime_impl, "is_admitted_research_service", lambda _: True)
+    monkeypatch.setattr(runtime_impl, "_service_task_contract", lambda _: task_contract)
+    runtime = runtime_impl.CompanyResearchRuntime(services, task_contract=task_contract)
+    assert runtime.endpoint_profile_id() is None
+
+    services.endpoint_profile_id = lambda: "provider@https://secret.example/token"
+    with pytest.raises(ValueError, match="runtime_endpoint_profile_invalid"):
+        runtime.endpoint_profile_id()
 
 
 def test_runtime_semantic_resources_use_the_owner_facade_and_return_a_detached_dto(monkeypatch):

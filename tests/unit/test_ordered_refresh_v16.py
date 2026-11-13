@@ -228,6 +228,10 @@ def test_paid_only_routes_use_original_safe_target_without_current_endpoint_or_k
             execution_receipt=receipt,
         )
     session.entries = {"IQS_05": dict(kind="work", work_item_id=work["work_item_id"])}
+    # prepare_execution normally supplies these from the immutable work rows.
+    received = store.get_attempt_response(attempt["attempt_id"]) is not None
+    session.recovery_work_item_ids = [work["work_item_id"]] if received else []
+    session.remaining_work_item_ids = [] if received else [work["work_item_id"]]
     config.unlink()  # Only the disposable test's current model configuration.
     before = store.path.read_bytes()
     session.assert_executor_policy(config, policy, executor_store=store)

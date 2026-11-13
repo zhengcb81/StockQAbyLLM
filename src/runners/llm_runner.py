@@ -172,12 +172,14 @@ class RegisteredResearchWork:
     observation_context: Optional[Dict[str, Any]]
 
     def provider_actual(self) -> str:
-        snapshot = self.owner.snapshot()
-        if not snapshot.proof or "request" not in snapshot.proof:
+        from src.utils.quick_scan_owner_refresh_api import runtime_projection
+
+        projection = runtime_projection(self.owner)
+        if projection.request_protocol is None:
             raise ValueError("original_refresh_proof_required")
-        if snapshot.proof["request"].get("protocol") != "iqs.refresh_request/1.6.0":
-            return cast(str, snapshot.plan["provider"])
-        targets = snapshot.ordered_route_targets or ()
+        if projection.request_protocol != "iqs.refresh_request/1.6.0":
+            return cast(str, projection.plan_bindings["provider"])
+        targets = projection.ordered_route_targets or ()
         matches = [
             target["provider"]
             for target in targets
@@ -311,12 +313,15 @@ class QuickScanWorkLifecycle:
             self._external_retrieval = None
 
     def _registered_research_owner(self) -> "QuickScanOwnerRefreshPort":
-        from src.utils.quick_scan_owner_refresh_api import is_owner_refresh_port
+        from src.utils.quick_scan_owner_refresh_api import (
+            is_owner_refresh_port,
+            runtime_projection,
+        )
 
         owner = self._owner_refresh
         if owner is None or not is_owner_refresh_port(owner):
             raise ValueError("original_registered_owner_required")
-        if owner.snapshot().kind != "approved" or not owner.is_bound_to(self._store):
+        if runtime_projection(owner).kind != "approved" or not owner.is_bound_to(self._store):
             raise ValueError("original_registered_owner_required")
         return cast("QuickScanOwnerRefreshPort", owner)
 
@@ -346,7 +351,9 @@ class QuickScanWorkLifecycle:
         if not recovery_only:
             return self._external_retrieval is None
         owner = self._registered_research_owner()
-        for entry in owner.snapshot().entries.values():
+        from src.utils.quick_scan_owner_refresh_api import runtime_projection
+
+        for entry in runtime_projection(owner).entries.values():
             if entry["kind"] != "work":
                 continue
             attempts = self._store.list_attempts(entry["work_item_id"])
@@ -361,7 +368,9 @@ class QuickScanWorkLifecycle:
     def company_scan_progress(self, question_ids: List[str]) -> dict:
         """Read original registered work for the selected questions in caller order."""
         owner = self._registered_research_owner()
-        entries = owner.snapshot().entries
+        from src.utils.quick_scan_owner_refresh_api import runtime_projection
+
+        entries = runtime_projection(owner).entries
         work_ids = [entries[qid]["work_item_id"] for qid in question_ids]
         return cast(dict, self._store.company_scan_progress(work_ids))
 
@@ -373,14 +382,25 @@ class QuickScanWorkLifecycle:
             owner = self._registered_research_owner()
         except ValueError as error:
             raise ValueError("shared_company_original_owner_required") from error
-        owner_snapshot = owner.snapshot()
-        targets = owner_snapshot.ordered_route_targets
+        from src.utils.quick_scan_owner_refresh_api import runtime_projection
+
+        owner_projection = runtime_projection(owner)
+        targets = owner_projection.ordered_route_targets
         if targets is None:
             raise ValueError("shared_company_ordered_approval_required")
-        if route not in owner.execution_routes(self._budget_policy):
+        binding = (route.get("id"), route.get("provider_config_ref"), route.get("model"))
+        target_matches = [
+            row
+            for row in targets
+            if (row["route_id"], row["provider_config_ref"], row["model"]) == binding
+        ]
+        if len(target_matches) != 1:
             raise ValueError("shared_company_unapproved_route")
-        owner.assert_provider_model(client.provider_name, client.model)
-        target = next(row for row in targets if row["route_id"] == route["id"])
+        if not owner_projection.recovery_only:
+            if route not in owner.execution_routes(self._budget_policy):
+                raise ValueError("shared_company_unapproved_route")
+            owner.assert_provider_model(client.provider_name, client.model)
+        target = target_matches[0]
         if (client.provider_name, client.model) != (target["provider"], target["model"]):
             raise ValueError("shared_company_original_client_mismatch")
         clone = copy.copy(self)
@@ -1868,6 +1888,39 @@ def log_final_results(results: dict[str, Any], start_time: float, output_dir: st
     logger.info("\n输出文件位置: %s", output_dir)
 
 
+def shared_recovery_report_state(
+    unknown_question_ids, recovery_work_item_ids, never_sent_question_ids, remaining_question_ids
+):
+    """Project recovery-only work into a stable, non-dispatching report state."""
+    has_unknown = bool(unknown_question_ids)
+    never_sent_only = (
+        not recovery_work_item_ids
+        and bool(never_sent_question_ids)
+        and len(never_sent_question_ids) == len(remaining_question_ids)
+    )
+    return {
+        "recovery_mode": (
+            "received_plus_unknown"
+            if has_unknown and recovery_work_item_ids
+            else (
+                "outcome_unknown_only"
+                if has_unknown
+                else "never_sent_only" if never_sent_only else "received_original_response"
+            )
+        ),
+        "status": (
+            "paused_unknown"
+            if has_unknown
+            else "partial" if remaining_question_ids else "completed"
+        ),
+        "pause_reason": (
+            "original_send_outcome_unknown"
+            if has_unknown
+            else "original_scope_never_sent" if never_sent_only else None
+        ),
+    }
+
+
 class LLMRunner:
     """LLM运行器类。
 
@@ -2395,6 +2448,7 @@ class LLMRunner:
                     refresh_admission_config,
                     refresh_confirmation_id,
                     recovery_only=shared_company_recovery_only,
+                    allow_unknown_only=shared_company_recovery_only,
                     input_paths={
                         "manifest.json": question_manifest,
                         "identity.json": identity_snapshot_path,
@@ -3137,68 +3191,157 @@ class LLMRunner:
         forbidden by the original recovery-only owner. The work store comes
         from the composition root, never through the opaque owner port.
         """
-        from src.providers.llm_client import LLMClient
-        from src.utils.quick_scan_shared_routes import run_ordered_company_scan
-
         if store is None:
             raise ValueError("shared_recovery_original_work_store_required")
-        snapshot = session.snapshot()
-        routes = session.execution_routes(None)
+        from src.utils.quick_scan_owner_refresh_api import runtime_projection
+
+        snapshot = runtime_projection(session)
         pairs = []
-        for route in routes:
-            vendors = set()
-            for entry in snapshot.entries.values():
-                if entry["kind"] != "work":
+        # A response_available owner row is not the only reason to consult the
+        # original Company Agent task. A durable send_intent/uncertain row
+        # must be matched back to its exact original route so the versioned
+        # Runtime port can inspect that task's pending intent before we pause.
+        recovery_route_work_ids = set(snapshot.recovery_work_item_ids)
+        unknown_route_work_ids = set()
+        route_attempts: list[tuple[str, dict[str, Any]]] = []
+        for question_id, entry in snapshot.entries.items():
+            work_id = entry.get("work_item_id")
+            if entry.get("kind") != "work":
+                continue
+            attempts = store.list_attempts(work_id)
+            if work_id in snapshot.recovery_work_item_ids:
+                route_attempts.extend(
+                    (work_id, attempt)
+                    for attempt in attempts
+                    if attempt.get("phase") == "response_available"
+                )
+            if work_id not in snapshot.remaining_work_item_ids:
+                continue
+            if attempts and attempts[-1].get("phase") in {"send_intent", "uncertain"}:
+                unknown_route_work_ids.add(work_id)
+                route_attempts.append((work_id, attempts[-1]))
+        recovery_route_work_ids.update(unknown_route_work_ids)
+        if recovery_route_work_ids:
+            from src.providers.llm_client import LLMClient
+            from src.utils.quick_scan_shared_routes import run_ordered_company_scan
+
+            # Recovery route selection must use the frozen admission proof,
+            # not today's execution order (which deliberately exposes no route
+            # for unknown-only rows). WorkStore attempts are matched back to
+            # that proof before a credential-free Runtime task is opened.
+            ordered_targets = snapshot.ordered_route_targets
+            if ordered_targets is None:
+                legacy_route = snapshot.legacy_route_target or {}
+                approved_routes = [
+                    dict(
+                        id=legacy_route.get("route_id"),
+                        provider_config_ref=legacy_route.get("provider_config_ref"),
+                        model=legacy_route.get("model"),
+                        provider=legacy_route.get("provider"),
+                    )
+                ]
+            else:
+                approved_routes = [
+                    {**dict(target), "id": target.get("route_id")} for target in ordered_targets
+                ]
+            routes_by_binding = {
+                (route.get("id"), route.get("provider_config_ref"), route.get("model")): route
+                for route in approved_routes
+            }
+            used_bindings = set()
+            for work_id, attempt in route_attempts:
+                if work_id not in recovery_route_work_ids:
                     continue
-                attempts = store.list_attempts(entry["work_item_id"])
-                for attempt in attempts:
-                    if attempt["phase"] != "response_available" or (
-                        attempt["route_id"],
-                        attempt["provider"],
-                        attempt["model_requested"],
-                    ) != (route["id"], route["provider_config_ref"], route["model"]):
+                binding = (attempt["route_id"], attempt["provider"], attempt["model_requested"])
+                if binding not in routes_by_binding:
+                    raise ValueError("shared_recovery_original_route_unavailable")
+                used_bindings.add(binding)
+            for route in approved_routes:
+                binding = (
+                    route.get("id"),
+                    route.get("provider_config_ref"),
+                    route.get("model"),
+                )
+                if binding not in used_bindings:
+                    continue
+                response_vendors = set()
+                has_unknown_route = False
+                for work_id, attempt in route_attempts:
+                    if (
+                        work_id not in recovery_route_work_ids
+                        or (attempt["route_id"], attempt["provider"], attempt["model_requested"])
+                        != binding
+                    ):
                         continue
                     response = store.get_attempt_response(attempt["attempt_id"])
                     if response is not None:
-                        vendors.add(response["receipt"]["provider"])
-            if len(vendors) != 1:
-                raise ValueError("paid_recovery_original_response_vendor_required")
-            pairs.append(
-                (
-                    route,
-                    LLMClient(
-                        api_key="",
-                        model=route["model"],
-                        base_url="",
-                        provider_name=next(iter(vendors)),
+                        response_vendors.add(response["receipt"]["provider"])
+                    elif work_id in unknown_route_work_ids:
+                        has_unknown_route = True
+                # Recovery-only clients carry no key/endpoint. When there is
+                # no safe response from which to read the resolved provider,
+                # the provider in the original admission proof is used only to
+                # bind the task DTO. Current route order/config is never read.
+                vendors = response_vendors or (
+                    {route.get("provider")} if has_unknown_route else set()
+                )
+                vendors.discard(None)
+                if len(vendors) != 1:
+                    if not vendors:
+                        continue
+                    raise ValueError("paid_recovery_original_response_vendor_required")
+                if route.get("provider") not in (None, next(iter(vendors))):
+                    raise ValueError("shared_recovery_original_route_unavailable")
+                pairs.append(
+                    (
+                        route,
+                        LLMClient(
+                            api_key="",
+                            model=cast(str, route["model"]),
+                            base_url="",
+                            provider_name=next(iter(vendors)),
+                        ),
                     ),
                 )
-            )
+        # Materialize the frozen bootstrap data once. Runtime routing and
+        # classification use the bounded projection above.
+        registration = session.snapshot()
         if pairs:
             route = pairs[0][0]
             lifecycle = QuickScanWorkLifecycle(
                 store,
                 entity_id=entity_id,
-                run_id=snapshot.record["inputs"]["run_id"],
-                scan_id=snapshot.record["inputs"]["scan_id"],
+                run_id=registration.record["inputs"]["run_id"],
+                scan_id=registration.record["inputs"]["scan_id"],
                 identity=identity,
                 transport_managed=True,
                 owner_refresh_session=session,
-                c06_authority=snapshot.bundle["authority"],
-                route_id=route["id"],
-                provider_name=route["provider_config_ref"],
-                model_requested=route["model"],
-                observation_context=snapshot.observation_context,
-                scope_by_question=dict(snapshot.scope_bindings),
+                c06_authority=registration.bundle["authority"],
+                route_id=cast(str, route["id"]),
+                provider_name=cast(str, route["provider_config_ref"]),
+                model_requested=cast(str, route["model"]),
+                observation_context=registration.observation_context,
+                scope_by_question=dict(registration.scope_bindings),
                 generation_by_question={
                     qid: session.existing_work(qid)["generation"]
                     for qid, entry in snapshot.entries.items()
                     if entry["kind"] == "work"
                 },
             )
-            run_ordered_company_scan(
-                lifecycle, pairs, config=shared_config, questions=questions, recovery_only=True
-            )
+            try:
+                run_ordered_company_scan(
+                    lifecycle, pairs, config=shared_config, questions=questions, recovery_only=True
+                )
+            except ValueError as error:
+                # The shared engine has already inspected the original pending
+                # intent through the public Runtime port. With no native safe
+                # receipt there is intentionally nothing to hydrate; preserve
+                # that outcome for the report below.
+                if (
+                    str(error) != "shared_company_original_saved_response_required"
+                    or not unknown_route_work_ids
+                ):
+                    raise
             batch = QAEngine.hydrate_saved_questions(questions, lifecycle, allow_partial=True)
         else:
             from src.core.models import QABatchResult
@@ -3212,16 +3355,60 @@ class LLMRunner:
             quick_scan_context=dict(
                 entity_id=entity_id,
                 company_name=company,
-                provider_name=snapshot.proof["owner_policy"]["qa"]["provider_config_ref"],
-                requested_model=snapshot.plan["model"],
+                provider_name=registration.proof["owner_policy"]["qa"]["provider_config_ref"],
+                requested_model=registration.plan["model"],
                 work_store=store,
             ),
             owner_refresh_session=session,
         )
+        unknown_question_ids = []
+        unknown_intent_question_ids = []
+        unknown_dispatch_receipt_question_ids = []
+        never_sent_question_ids = []
+        recovery_ids = set(snapshot.recovery_work_item_ids)
+        remaining_ids = set(snapshot.remaining_work_item_ids)
+        for question_id, entry in snapshot.entries.items():
+            work_id = entry.get("work_item_id")
+            if entry.get("kind") != "work" or work_id not in remaining_ids:
+                continue
+            attempts = store.list_attempts(work_id)
+            if attempts and attempts[-1].get("phase") in {"send_intent", "uncertain"}:
+                unknown_question_ids.append(question_id)
+                attempt_id = attempts[-1]["attempt_id"]
+                transmission = store.get_attempt_transmission(attempt_id)
+                if transmission.get("send_intent_at") is None:
+                    raise ValueError("shared_recovery_unknown_send_intent_unavailable")
+                unknown_intent_question_ids.append(question_id)
+                receipt_record = store.get_subject_dispatch_receipt(attempt_id)
+                if receipt_record is not None:
+                    dispatch_request = receipt_record["receipt"]["dispatch_request"]
+                    if (
+                        dispatch_request.get("work_item_id") != work_id
+                        or dispatch_request.get("work_attempt_id") != attempt_id
+                        or dispatch_request.get("question_id") != question_id
+                    ):
+                        raise ValueError("shared_recovery_unknown_dispatch_receipt_mismatch")
+                    unknown_dispatch_receipt_question_ids.append(question_id)
+            elif not attempts or all(
+                attempt.get("phase") in {"prepared", "abandoned_unsent"}
+                and store.get_attempt_transmission(attempt["attempt_id"]).get("send_intent_at")
+                is None
+                for attempt in attempts
+            ):
+                never_sent_question_ids.append(question_id)
+        recovery_state = shared_recovery_report_state(
+            unknown_question_ids,
+            recovery_ids,
+            never_sent_question_ids,
+            remaining,
+        )
         report = {
             **session.dispatch_scope_report(batch),
-            "recovery_mode": "received_original_response",
-            "status": "partial" if remaining else "completed",
+            **recovery_state,
+            "unknown_question_ids": unknown_question_ids,
+            "unknown_intent_question_ids": unknown_intent_question_ids,
+            "unknown_dispatch_receipt_question_ids": unknown_dispatch_receipt_question_ids,
+            "never_sent_question_ids": never_sent_question_ids,
             "saved_question_ids": saved,
             "remaining_question_ids": remaining,
             "original_question_count": len(questions),

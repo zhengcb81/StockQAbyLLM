@@ -1,10 +1,22 @@
 """Ordered shared dispatch coordination; synthetic ports, no financial claims."""
 
+import sys
 from types import SimpleNamespace
 
 import pytest
 
 from src.utils.quick_scan_shared_routes import next_route_questions, routed_lifecycle
+
+
+def install_public_task_snapshot(monkeypatch, projections):
+    handles = projections
+    api = SimpleNamespace(
+        PUBLIC_API_PROTOCOL="iqs.company-agent-public-api/2.3.0",
+        __all__=["task_snapshot"],
+        task_snapshot=lambda task: handles[id(task)],
+    )
+    monkeypatch.setitem(sys.modules, "iqs_company_agent_lab.api", api)
+    return handles
 
 
 def targets():
@@ -591,11 +603,12 @@ def test_resume_new_backup_inherits_first_frozen_company_cap(coordinator_ports, 
         "original_task_checkpoint",
         lambda root: root / "checkpoint.json" if root == primary else None,
     )
-    monkeypatch.setattr(
-        p.entry,
-        "load_original_company_task",
-        lambda checkpoint: SimpleNamespace(limits={"max_model_requests_per_session": 5}),
+    opaque_task = object()
+    install_public_task_snapshot(
+        monkeypatch,
+        {id(opaque_task): {"limits": {"max_model_requests_per_session": 5}}},
     )
+    monkeypatch.setattr(p.entry, "load_original_company_task", lambda checkpoint: opaque_task)
 
     def scan(life, client, **kw):
         calls.append(
@@ -627,12 +640,17 @@ def test_mixed_paid_recovery_uses_route_task_roots_and_never_live_dispatch(
     }
     monkeypatch.setattr(p.entry, "original_task_checkpoint", lambda root: root / "checkpoint.json")
 
+    projections = {}
+    install_public_task_snapshot(monkeypatch, projections)
+
     def task(checkpoint):
         q = roots[checkpoint.parent]
-        return SimpleNamespace(
-            limits={"max_model_requests_per_session": 5},
-            questions=[dict(question_id=q, question={"prompt": q})],
-        )
+        handle = object()
+        projections[id(handle)] = {
+            "limits": {"max_model_requests_per_session": 5},
+            "questions": [dict(question_id=q, question={"prompt": q})],
+        }
+        return handle
 
     monkeypatch.setattr(p.entry, "load_original_company_task", task)
 
@@ -688,14 +706,17 @@ def test_paid_recovery_skips_partial_primary_whose_success_already_has_cp(
         row("Q2", "response_available", route="b"),
     ]
     monkeypatch.setattr(p.entry, "original_task_checkpoint", lambda root: root / "checkpoint.json")
-    monkeypatch.setattr(
-        p.entry,
-        "load_original_company_task",
-        lambda path: SimpleNamespace(
-            limits={"max_model_requests_per_session": 5},
-            questions=[dict(question_id="Q2", question={"prompt": "Q2"})],
-        ),
+    opaque_task = object()
+    install_public_task_snapshot(
+        monkeypatch,
+        {
+            id(opaque_task): {
+                "limits": {"max_model_requests_per_session": 5},
+                "questions": [dict(question_id="Q2", question={"prompt": "Q2"})],
+            }
+        },
     )
+    monkeypatch.setattr(p.entry, "load_original_company_task", lambda path: opaque_task)
 
     def scan(life, client, **kw):
         assert kw["recovery_only"] is True

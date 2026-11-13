@@ -14,7 +14,7 @@ from typing import Any
 
 from src.utils import quick_scan_company_context
 
-COMPANY_SCAN_RUNTIME_PORT_PROTOCOL = "stockqa.company_scan_runtime_port/2.2.0"
+COMPANY_SCAN_RUNTIME_PORT_PROTOCOL = "stockqa.company_scan_runtime_port/2.3.0"
 _RUNTIME_SERVICES: weakref.WeakKeyDictionary[object, Any] = weakref.WeakKeyDictionary()
 _RUNTIME_TASK_CONTRACTS: weakref.WeakKeyDictionary[object, dict[str, Any]] = (
     weakref.WeakKeyDictionary()
@@ -117,6 +117,22 @@ class CompanyResearchRuntime:
     def route(self, envelope):
         client = _services_for(self).client_for(copy.deepcopy(envelope))
         return {"provider": client.provider_name, "model": client.model}
+
+    def endpoint_profile_id(self):
+        """Return the owner's opaque endpoint descriptor, never a caller URL."""
+        operation = getattr(_services_for(self), "endpoint_profile_id", None)
+        if not callable(operation):
+            return None
+        value = operation()
+        if value is None:
+            return None
+        from src.utils.quick_scan_research_intent import (
+            api_research_intent_is_endpoint_profile_id as is_profile_id,
+        )
+
+        if not is_profile_id(value):
+            raise ValueError("runtime_endpoint_profile_invalid")
+        return value
 
     def create_session(self, envelope, session_spec):
         if not isinstance(session_spec, dict):

@@ -59,9 +59,10 @@ def test_owner_port_is_opaque_and_snapshot_is_detached():
     port = adapt_owner_refresh(owner)
 
     assert quick_scan_owner_refresh_api.PUBLIC_API_PROTOCOL == (
-        "stockqa.quick_scan_owner_refresh_public_api/1.1.0"
+        "stockqa.quick_scan_owner_refresh_public_api/1.2.0"
     )
     assert "original_semantic_resources" in quick_scan_owner_refresh_api.__all__
+    assert "runtime_projection" in quick_scan_owner_refresh_api.__all__
     assert QUICK_SCAN_OWNER_REFRESH_PORT_PROTOCOL == "stockqa.quick_scan_owner_refresh_port/1.3.0"
     assert is_owner_refresh_port(port)
     assert port.is_bound_to(store)
@@ -78,6 +79,143 @@ def test_owner_port_is_opaque_and_snapshot_is_detached():
     snapshot.entries["Q1"]["kind"] = "changed"
     assert owner.plan["model"] == "m1"
     assert owner.entries["Q1"]["kind"] == "work"
+
+
+def test_runtime_projection_does_not_deepcopy_bundle_or_native_context():
+    class ForbiddenDeepcopyDict(dict):
+        def __deepcopy__(self, memo):
+            raise AssertionError("full_snapshot_deepcopy_was_used")
+
+    owner = _approved_owner(object())
+    owner.bundle = ForbiddenDeepcopyDict(owner.bundle)
+    owner.native.observation_context = ForbiddenDeepcopyDict(owner.native.observation_context)
+    port = adapt_owner_refresh(owner)
+
+    projection = quick_scan_owner_refresh_api.runtime_projection(port)
+
+    assert projection.kind == "approved"
+    assert projection.recovery_only is True
+    assert projection.ordered_route_targets[0]["route_id"] == "r1"
+    assert not hasattr(projection, "bundle")
+    assert not hasattr(projection, "observation_context")
+
+
+def test_work_item_scope_checks_original_registration_without_copying_bundle():
+    class ForbiddenDeepcopyDict(dict):
+        def __deepcopy__(self, memo):
+            raise AssertionError("full_snapshot_deepcopy_was_used")
+
+    store = SimpleNamespace(
+        get_item=lambda work_id: {"question_id": "Q1", "work_item_id": work_id},
+    )
+    owner = _approved_owner(store)
+    owner.bundle = ForbiddenDeepcopyDict(owner.bundle)
+    port = adapt_owner_refresh(owner)
+
+    port.assert_work_item_scope(store, ("W1",))
+    with pytest.raises(ValueError, match="owner_refresh_work_scope_mismatch"):
+        port.assert_work_item_scope(store, ("different-work",))
+
+
+def test_registered_provider_actual_uses_runtime_projection_without_snapshot():
+    from src.runners.llm_runner import RegisteredResearchWork
+
+    class ForbiddenDeepcopyDict(dict):
+        def __deepcopy__(self, memo):
+            raise AssertionError("full_snapshot_deepcopy_was_used")
+
+    owner = _approved_owner(object())
+    owner.bundle = ForbiddenDeepcopyDict(owner.bundle)
+    owner.native.observation_context = ForbiddenDeepcopyDict(owner.native.observation_context)
+    owner.proof["preview"]["ordered_route_targets"] = [
+        {
+            "route_id": "route-a",
+            "provider_config_ref": "provider-a",
+            "model": "model-a",
+            "provider": "resolved-provider-a",
+        }
+    ]
+    port = adapt_owner_refresh(owner)
+
+    work = RegisteredResearchWork(
+        owner=port,
+        store=None,
+        transport_managed=True,
+        route_id="route-a",
+        provider_config_ref="provider-a",
+        model_requested="model-a",
+        model_resolution=None,
+        budget_policy=None,
+        budget_route=None,
+        observation_context=None,
+    )
+
+    assert work.provider_actual() == "resolved-provider-a"
+
+
+def test_runtime_projection_preserves_exact_route_binding_and_rejects_duplicates(monkeypatch):
+    from src.runners.llm_runner import RegisteredResearchWork
+
+    route = {
+        "route_id": "route-a",
+        "provider_config_ref": "provider-a",
+        "model": "model-a",
+        "provider": "resolved-provider-a",
+    }
+    projection = SimpleNamespace(
+        request_protocol="iqs.refresh_request/1.6.0",
+        ordered_route_targets=(route,),
+    )
+    monkeypatch.setattr(
+        quick_scan_owner_refresh_api, "runtime_projection", lambda _owner: projection
+    )
+
+    class ProjectionOnlyPort:
+        def snapshot(self):
+            raise AssertionError("snapshot_must_not_be_used")
+
+    work = RegisteredResearchWork(
+        owner=ProjectionOnlyPort(),
+        store=None,
+        transport_managed=True,
+        route_id="route-a",
+        provider_config_ref="provider-a",
+        model_requested="model-a",
+        model_resolution=None,
+        budget_policy=None,
+        budget_route=None,
+        observation_context=None,
+    )
+    assert work.provider_actual() == "resolved-provider-a"
+
+    projection.ordered_route_targets = ({**route, "model": "today-model"},)
+    with pytest.raises(ValueError, match="approved_client_route_mismatch"):
+        work.provider_actual()
+
+    projection.ordered_route_targets = (route, route)
+    with pytest.raises(ValueError, match="approved_client_route_mismatch"):
+        work.provider_actual()
+
+
+def test_runtime_projection_falls_back_to_legacy_snapshot_and_is_fresh(monkeypatch):
+    owner = _approved_owner(object())
+    port = adapt_owner_refresh(owner)
+    monkeypatch.setattr(type(port), "runtime_projection", None)
+
+    legacy = quick_scan_owner_refresh_api.runtime_projection(port)
+    assert legacy.entries["Q1"]["work_item_id"] == "W1"
+    assert legacy.ordered_route_targets[0]["route_id"] == "r1"
+
+    owner.entries["Q1"]["work_item_id"] = "W2"
+    owner.recovery_only = False
+    owner.native.observation_context["questions"]["Q1"]["changed"] = True
+    current = quick_scan_owner_refresh_api.runtime_projection(port)
+
+    assert legacy.entries["Q1"]["work_item_id"] == "W1"
+    assert current.entries["Q1"]["work_item_id"] == "W2"
+    assert legacy.recovery_only is True
+    assert current.recovery_only is False
+    assert current.observation_context_sha256 != legacy.observation_context_sha256
 
 
 def test_owner_port_rejects_unregistered_objects_and_other_stores():
@@ -155,8 +293,11 @@ def test_semantic_resources_are_resolved_from_owner_config_without_returning_pat
         "iqs_release_root": str(release_root),
     }
     port = adapt_owner_refresh(owner)
-    check_calls = []
-    owner.check = lambda: check_calls.append("checked")
+
+    def dispatch_check_unavailable():
+        raise RuntimeError("current dispatch permission service unavailable")
+
+    owner.check = dispatch_check_unavailable
     captured = []
     projection = {
         "protocol": "iqs.answer-semantic-resources/1.0.0",
@@ -174,8 +315,10 @@ def test_semantic_resources_are_resolved_from_owner_config_without_returning_pat
     result = port.original_semantic_resources(context)
 
     assert captured == [(context, release_root.resolve())]
-    assert check_calls == ["checked", "checked"]
     assert result == projection and result is not projection
+    # The public dispatch check remains live, independently of frozen reads.
+    with pytest.raises(RuntimeError, match="current dispatch permission service unavailable"):
+        port.check()
     assert str(iqs_root) not in json.dumps(result)
     assert str(release_root) not in json.dumps(result)
 

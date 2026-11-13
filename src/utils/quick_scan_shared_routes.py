@@ -50,6 +50,16 @@ def next_route_questions(rows, targets, index):
     return selected
 
 
+def _company_task_snapshot(task):
+    """Read an opaque Company Agent task only through its public JSON projection."""
+    from src.utils.quick_scan_company_api import company_agent_public_api
+
+    snapshot = company_agent_public_api("task_snapshot").task_snapshot(task)
+    if not isinstance(snapshot, dict):
+        raise ValueError("shared_company_original_task_snapshot_invalid")
+    return snapshot
+
+
 def routed_lifecycle(lifecycle, route, client):
     if not isinstance(lifecycle, QuickScanWorkLifecyclePort):
         raise ValueError("shared_company_original_owner_required")
@@ -128,24 +138,24 @@ def run_ordered_company_scan(lifecycle, route_clients, *, config, questions, **o
         root = ordered_task_root(config, owner, scope, target["route_id"])
         checkpoint = original_task_checkpoint(root)
         if checkpoint is not None:
-            task = load_original_company_task(checkpoint)
+            snapshot = _company_task_snapshot(load_original_company_task(checkpoint))
             # The first task holds the original company cap; later tasks only
             # consume its remaining quota, never create another full allowance.
-            cap = task.limits["max_model_requests_per_session"]
+            cap = snapshot["limits"]["max_model_requests_per_session"]
             break
     # A received answer must first return to its ORIGINAL immutable task and
     # zero-send recovery path, including when its route is a fallback target.
     progress = lifecycle.company_scan_progress(scope)
-    received_routes = {
+    recovery_routes = {
         row["latest_attempt"]["route_id"]
         for row in progress["rows"]
         if row["question_id"] in requested
         and row["checkpoint_id"] is None
         and row["latest_attempt"] is not None
-        and row["latest_attempt"]["phase"] == "response_available"
+        and row["latest_attempt"]["phase"] in {"response_available", "send_intent", "uncertain"}
     }
     for target in targets:
-        if target["route_id"] not in received_routes:
+        if target["route_id"] not in recovery_routes:
             continue
         matched = [
             (r, c) for r, c in route_clients if r["id"] == target["route_id"] and c is not None
@@ -157,11 +167,12 @@ def run_ordered_company_scan(lifecycle, route_clients, *, config, questions, **o
         checkpoint = original_task_checkpoint(ordered_task_root(config, owner, scope, route["id"]))
         if checkpoint is None:
             raise ValueError("shared_company_original_checkpoint_required")
-        task = load_original_company_task(checkpoint)
+        snapshot = _company_task_snapshot(load_original_company_task(checkpoint))
         from src.core.models import Question
 
         original_questions = [
-            Question(q["question"]["prompt"], question_id=q["question_id"]) for q in task.questions
+            Question(q["question"]["prompt"], question_id=q["question_id"])
+            for q in snapshot["questions"]
         ]
         recovery_options = {**options, "recovery_only": True}
         try:
@@ -226,7 +237,8 @@ def run_ordered_company_scan(lifecycle, route_clients, *, config, questions, **o
         root = ordered_task_root(config, owner, scope, route["id"])
         checkpoint = original_task_checkpoint(root)
         if cap is None and checkpoint is not None:
-            cap = load_original_company_task(checkpoint).limits["max_model_requests_per_session"]
+            snapshot = _company_task_snapshot(load_original_company_task(checkpoint))
+            cap = snapshot["limits"]["max_model_requests_per_session"]
     progress = lifecycle.company_scan_progress(scope)
     if any(row["checkpoint_id"] is None for row in progress["rows"]):
         # Also surface an uncertain/received failure at the final route.

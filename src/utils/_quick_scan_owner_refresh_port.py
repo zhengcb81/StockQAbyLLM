@@ -9,9 +9,13 @@ import json
 import os
 import weakref
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
-from src.interfaces.quick_scan_owner_refresh import OwnerRefreshSnapshot
+from src.interfaces.quick_scan_owner_refresh import (
+    OwnerRefreshRuntimeProjection,
+    OwnerRefreshSnapshot,
+)
 
 _PORTS: weakref.WeakKeyDictionary[Any, Any] = weakref.WeakKeyDictionary()
 
@@ -74,6 +78,138 @@ class _OwnerRefreshPort:
             ),
         )
 
+    def runtime_projection(self) -> OwnerRefreshRuntimeProjection:
+        """Return fresh, bounded owner bindings without copying large inputs."""
+        owner = _owner_for(self)
+        approved = _is_approved(owner)
+        native = getattr(owner, "native", owner) if approved else owner
+        proof = getattr(owner, "proof", None) if approved else None
+        proof = proof if isinstance(proof, dict) else {}
+        request = proof.get("request", {})
+        request = request if isinstance(request, dict) else {}
+        request_protocol = request.get("protocol")
+        plan = getattr(owner, "plan", {})
+        plan = plan if isinstance(plan, dict) else {}
+        entries_raw = getattr(owner, "entries", {})
+        entries_raw = entries_raw if isinstance(entries_raw, dict) else {}
+        fields_raw = getattr(owner, "fields", {})
+        fields_raw = fields_raw if isinstance(fields_raw, dict) else {}
+        projected_entries = {
+            question_id: MappingProxyType(
+                {
+                    key: value
+                    for key in ("kind", "work_item_id")
+                    if isinstance((value := row.get(key)), str)
+                }
+            )
+            for question_id, row in entries_raw.items()
+            if isinstance(question_id, str) and isinstance(row, dict)
+        }
+        projected_decisions = {
+            question_id: row.get("decision")
+            for question_id, row in fields_raw.items()
+            if isinstance(question_id, str)
+            and isinstance(row, dict)
+            and (row.get("decision") is None or isinstance(row.get("decision"), str))
+        }
+        bundle = getattr(owner, "bundle", None) if approved else None
+        manifest = bundle.get("manifest", {}) if isinstance(bundle, dict) else {}
+        module_locks = {
+            row["module_id"]: row["version"]
+            for row in manifest.get("module_locks", [])
+            if isinstance(row, dict)
+            and isinstance(row.get("module_id"), str)
+            and isinstance(row.get("version"), str)
+        }
+        if approved:
+            questions = manifest.get("questions", [])
+            requested = tuple(
+                row["id"]
+                for row in questions
+                if isinstance(row, dict)
+                and isinstance(row.get("id"), str)
+                and row["id"] in projected_entries
+            )
+            targets = (
+                proof.get("preview", {}).get("ordered_route_targets")
+                if request_protocol == "iqs.refresh_request/1.6.0"
+                else None
+            )
+        else:
+            requested = tuple(
+                question_id
+                for question_id in getattr(owner, "requested_question_ids", ()) or ()
+                if isinstance(question_id, str)
+            )
+            targets = getattr(owner, "ordered_route_targets", None)
+        projected_targets = (
+            None
+            if targets is None
+            else tuple(
+                MappingProxyType(copy.deepcopy(dict(target)))
+                for target in targets
+                if isinstance(target, dict)
+            )
+        )
+        policy = proof.get("owner_policy", {})
+        policy = policy if isinstance(policy, dict) else {}
+        qa_policy = policy.get("qa", {})
+        qa_policy = qa_policy if isinstance(qa_policy, dict) else {}
+        legacy_route = None
+        if request_protocol != "iqs.refresh_request/1.6.0":
+            legacy_route = MappingProxyType(
+                {
+                    "route_id": qa_policy.get("route_id"),
+                    "provider_config_ref": qa_policy.get("provider_config_ref"),
+                    "model": policy.get("model"),
+                    "provider": policy.get("provider"),
+                }
+            )
+        context = getattr(native, "observation_context", None)
+        context_sha256 = None
+        if context is not None:
+            from .quick_scan_result_outbox import canonical_sha256
+
+            context_sha256 = canonical_sha256(context)
+        from .quick_scan_result_outbox import canonical_sha256
+
+        plan_keys = (
+            "information_cutoff",
+            "perimeter_sha256",
+            "manifest_raw_sha256",
+            "decision_id",
+            "subject_key",
+            "provider",
+            "model",
+            "anchor_version",
+        )
+        return OwnerRefreshRuntimeProjection(
+            kind="approved" if approved else "native",
+            request_protocol=request_protocol if isinstance(request_protocol, str) else None,
+            recovery_only=bool(getattr(owner, "recovery_only", False)),
+            information_cutoff=plan.get("information_cutoff"),
+            observation_context_sha256=context_sha256,
+            plan_bindings=MappingProxyType(
+                {key: copy.deepcopy(plan.get(key)) for key in plan_keys if key in plan}
+            ),
+            entries=MappingProxyType(projected_entries),
+            decisions=MappingProxyType(projected_decisions),
+            module_locks=MappingProxyType(module_locks),
+            ordered_route_targets=projected_targets,
+            legacy_route_target=legacy_route,
+            requested_question_ids=requested,
+            recovery_work_item_ids=tuple(
+                value
+                for value in (getattr(owner, "recovery_work_item_ids", ()) or ())
+                if isinstance(value, str)
+            ),
+            remaining_work_item_ids=tuple(
+                value
+                for value in (getattr(owner, "remaining_work_item_ids", ()) or ())
+                if isinstance(value, str)
+            ),
+        )
+
     def check(self) -> None:
         _owner_for(self).check()
 
@@ -100,14 +236,14 @@ class _OwnerRefreshPort:
             raise ValueError("owner_refresh_store_mismatch")
         if not work_item_ids:
             raise ValueError("owner_refresh_work_scope_required")
+        approved = _is_approved(_owner_for(self))
         for work_item_id in work_item_ids:
             try:
                 item = store.get_item(work_item_id)
                 question_id = item.get("question_id") if isinstance(item, dict) else None
                 if not isinstance(question_id, str) or not question_id:
                     raise ValueError("owner_refresh_work_scope_mismatch")
-                snapshot = self.snapshot()
-                if snapshot.kind == "approved":
+                if approved:
                     original_work = self.existing_work(question_id)
                     if (
                         not isinstance(original_work, dict)
@@ -333,11 +469,12 @@ class _OwnerRefreshPort:
         Filesystem roots remain inside this owner operation. The only returned
         value is the IQS answer-validation DTO, which contains detached JSON
         resources and their digests rather than paths or source bytes.
+        The historical context and release authenticate this read; current
+        dispatch permission is checked at the claim and transport boundaries.
         """
         owner = _owner_for(self)
         if not _is_approved(owner):
             raise ValueError("approved_owner_semantic_resources_required")
-        owner.check()
         native = owner.native
         original_context = getattr(native, "observation_context", None)
         from src.utils.quick_scan_result_outbox import canonical_sha256
@@ -375,7 +512,6 @@ class _OwnerRefreshPort:
             encoded = json.dumps(projection, ensure_ascii=False, sort_keys=True, allow_nan=False)
             if str(code_root) in encoded or str(release_root) in encoded:
                 raise ValueError("original_semantic_resource_path_leak")
-            owner.check()
             return copy.deepcopy(projection)
         except (ImportError, OSError, TypeError, KeyError, ValueError) as error:
             reason = str(error)

@@ -258,6 +258,74 @@ def load_original_company_task(checkpoint):
     return company_api.load_checkpoint_task(checkpoint)
 
 
+def original_endpoint_profiles(checkpoint, task, task_contract, *, legacy_prefixes=()):
+    """Project exact receipt endpoints from the verified original task history.
+
+    A recovery client may intentionally have an empty base URL. Reconstructing
+    a receipt from today's provider configuration would change its identity,
+    so only endpoint profiles carried by this task's verified native receipts
+    cross into the StockQA runtime adapter.
+    """
+    company_api = company_agent_public_api(
+        "load_verified_recovery",
+        "recovery_projection",
+        "recovery_event_journals",
+        "event_journal_projection",
+    )
+    recovery = company_api.load_verified_recovery(checkpoint, task)
+    projection = company_api.recovery_projection(recovery)
+    references = set(projection.get("attempt_refs", []))
+    pending = projection.get("pending_receipt")
+    if isinstance(pending, dict) and isinstance(pending.get("runtime_attempt_ref"), str):
+        # The checkpoint receipt can be ahead of the journal projection.
+        references.add(pending["runtime_attempt_ref"])
+    from src.utils.quick_scan_research_intent import (
+        api_research_intent_is_endpoint_profile_id as is_opaque_profile_id,
+    )
+
+    profiles: dict[str, str] = {}
+    runtime_profile = task_contract.get("runtime_profile", {})
+    allowed_legacy_prefixes = {
+        runtime_profile.get("model"),
+        runtime_profile.get("provider"),
+    }
+    allowed_legacy_prefixes.update(
+        prefix for prefix in legacy_prefixes if isinstance(prefix, str) and prefix
+    )
+
+    def bind(reference, profile):
+        if reference not in references:
+            raise ValueError("shared_recovery_original_endpoint_reference_mismatch")
+        if profile is None:
+            return  # Older verified receipts may omit endpoint provenance.
+        legacy_match = isinstance(profile, str) and any(
+            profile.startswith(prefix + "@")
+            for prefix in allowed_legacy_prefixes
+            if isinstance(prefix, str) and prefix
+        )
+        if not is_opaque_profile_id(profile) and not legacy_match:
+            raise ValueError("shared_recovery_original_endpoint_profile_invalid")
+        previous = profiles.get(reference)
+        if previous is not None and previous != profile:
+            raise ValueError("shared_recovery_original_endpoint_profile_conflict")
+        profiles[reference] = profile
+
+    pending = projection.get("pending_receipt")
+    if isinstance(pending, dict):
+        bind(pending.get("runtime_attempt_ref"), pending.get("endpoint_profile_id"))
+    for _, journal in company_api.recovery_event_journals(recovery):
+        for event in company_api.event_journal_projection(journal).get("events", []):
+            if event.get("event_type") != "receipt_model":
+                continue
+            data = event.get("data")
+            if not isinstance(data, dict):
+                raise ValueError("shared_recovery_original_receipt_projection_invalid")
+            reference = data.get("attempt_ref")
+            if reference in references:
+                bind(reference, data.get("endpoint_profile_id"))
+    return profiles
+
+
 class SharedCompanyIncomplete(ValueError):
     """Original export is partial; only native receipts may permit fallback."""
 
@@ -363,9 +431,14 @@ def run_shared_company_scan(
         if (root / "export").exists()
         else sorted(root.glob("session-[0-9][0-9][0-9][0-9]/checkpoint.json"), reverse=True)
     )
+    original_endpoint_profile_map = {}
     if checkpoints:
         task = load_original_company_task(checkpoints[0])
         task_contract = company_api.task_snapshot(task)
+        if recovery_only:
+            original_endpoint_profile_map = original_endpoint_profiles(
+                checkpoints[0], task, task_contract, legacy_prefixes=(client.provider_name,)
+            )
         task_questions = task_contract["question_ids"]
         task_limits = task_contract["limits"]
         task_raw = task_contract["raw"]
@@ -437,6 +510,7 @@ def run_shared_company_scan(
         cost_resolver=cost_resolver,
         owner_batch_claim=True,
         native_search=native_search,
+        original_endpoint_profiles=original_endpoint_profile_map,
         request_scope=(
             None
             if request_scope is None
@@ -450,10 +524,17 @@ def run_shared_company_scan(
             )
         ),
     )
+    if recovery_only:
+        proven_profiles = set(original_endpoint_profile_map.values())
+        endpoint_profile_id = next(iter(proven_profiles)) if len(proven_profiles) == 1 else None
+    else:
+        endpoint_profile_id = OwnerResearchServices.endpoint_profile_id_for(
+            client, work, native_search=native_search
+        )
     session_config = {
         "protocol": "iqs.agent-runtime-lab.session-config/1.1.0",
         "planned_model": client.model,
-        "endpoint_profile_id": client.provider_name + "@" + client.base_url,
+        "endpoint_profile_id": endpoint_profile_id,
         "max_output_tokens": max_output_tokens,
         "session_input_tokens": task_limits["session_input_tokens"],
         "session_output_tokens": task_limits["session_output_tokens_including_reasoning"],
@@ -471,10 +552,10 @@ def run_shared_company_scan(
         candidate_export = root / ("export-%04d" % sequence)
         if sessions:
             checkpoint = sessions[-1] / "checkpoint.json"
-            if recovery_only and not (checkpoint.exists() or checkpoint.is_symlink()):
-                # A rejected replay can export diagnostics without creating a
-                # new send checkpoint. Re-read the latest original pending
-                # checkpoint under the same zero-send guard; keep diagnostics.
+            if not (checkpoint.exists() or checkpoint.is_symlink()):
+                # A replay-only diagnostic session can exist without a new
+                # checkpoint. Always resume from the latest original checkpoint,
+                # regardless of whether this invocation is read-only or can send.
                 checkpoint = next(
                     (
                         folder / "checkpoint.json"

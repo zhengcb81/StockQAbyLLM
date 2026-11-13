@@ -15,10 +15,13 @@ from types import SimpleNamespace
 
 import pytest
 
+from src.utils.quick_scan_owner_refresh import OwnerRefreshSession
+from src.utils.quick_scan_owner_refresh_api import adapt_owner_refresh
 from src.utils.quick_scan_owner_research import (
     OwnerResearchRejected,
     OwnerResearchServices,
 )
+from src.utils.quick_scan_refresh_execution import ApprovedRefreshSession
 
 IQS_ROOT = Path(
     os.environ.get("IQS_C06_IQS", str(Path(__file__).resolve().parents[3] / "invest-quick-scan"))
@@ -253,17 +256,17 @@ def readiness(tmp_path, monkeypatch):
     checks, calls = [], []
     mapper = OwnerResearchServices.__new__(OwnerResearchServices)
     mapper._assert_registered_inputs = lambda **kw: checks.append(kw.get("check_current", True))
-    mapper.owner = SimpleNamespace(
-        native=SimpleNamespace(
-            client=SimpleNamespace(
-                config=config,
-                _environment={
-                    "PATH": os.environ.get("PATH", ""),
-                    "DEEPSEEK_API_KEY": "NEVER-IN-CHILD",
-                },
-            )
-        )
+    native = object.__new__(OwnerRefreshSession)
+    native.client = SimpleNamespace(
+        config=config,
+        _environment={
+            "PATH": os.environ.get("PATH", ""),
+            "DEEPSEEK_API_KEY": "NEVER-IN-CHILD",
+        },
     )
+    owner = object.__new__(ApprovedRefreshSession)
+    owner.native = native
+    mapper.owner = adapt_owner_refresh(owner)
     payload = copy.deepcopy(CAPABILITIES)
 
     def run(command, **kwargs):
@@ -293,7 +296,7 @@ def test_initialized_schema_uses_fixed_readonly_cli_and_cleans_up(readiness, ver
     assert result["dispatch_started"] is False
     assert result["financial_accuracy_proven"] is False
     command, kwargs = calls[0]
-    config = mapper.owner.native.client.config
+    config = mapper.owner.subject_dispatch_setup()
     assert command == [
         sys.executable,
         "-B",
@@ -401,8 +404,6 @@ def test_constructor_calls_readiness_before_any_dispatch(monkeypatch):
 
     from src.providers.llm_client import LLMClient
     from src.runners.llm_runner import QuickScanWorkLifecycle
-    from src.utils.quick_scan_owner_refresh import OwnerRefreshSession
-    from src.utils.quick_scan_refresh_execution import ApprovedRefreshSession
     from tests.unit.test_quick_scan_budget import _policy
 
     budget = _policy(model="deepseek-flash")
@@ -419,7 +420,7 @@ def test_constructor_calls_readiness_before_any_dispatch(monkeypatch):
     owner.check = lambda: None
     lifecycle = QuickScanWorkLifecycle.__new__(QuickScanWorkLifecycle)
     for key, value in dict(
-        _owner_refresh=owner,
+        _owner_refresh=adapt_owner_refresh(owner),
         _store=store,
         _transport_managed=True,
         _budget_policy=budget,
@@ -469,7 +470,7 @@ def test_constructor_calls_readiness_before_any_dispatch(monkeypatch):
 def test_schema_cannot_trigger_implicit_network_resolution(readiness):
     mapper, _, _, _, runs, _ = readiness
     schema = (
-        Path(mapper.owner.native.client.config["iqs_code_root"])
+        Path(mapper.owner.subject_dispatch_setup()["iqs_code_root"])
         / "schemas/quick_scan/query-capabilities.schema.json"
     )
     schema.write_text(

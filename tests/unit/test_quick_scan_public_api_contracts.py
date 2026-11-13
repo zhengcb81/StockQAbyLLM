@@ -205,7 +205,7 @@ PUBLIC_API_CONTRACTS = {
         },
     ),
     "src.utils.quick_scan_research_intent": (
-        "stockqa.utils-quick_scan_research_intent-module/1.1.0",
+        "stockqa.utils-quick_scan_research_intent-module/1.2.0",
         {
             "api_research_intent_encode",
             "api_research_intent_hash",
@@ -215,6 +215,8 @@ PUBLIC_API_CONTRACTS = {
             "api_research_intent_get_response",
             "api_research_intent_bind_native_send",
             "api_research_intent_anchor_original_receipt",
+            "api_research_intent_endpoint_profile_id",
+            "api_research_intent_is_endpoint_profile_id",
         },
     ),
     "src.utils.quick_scan_research_output": (
@@ -249,7 +251,7 @@ PUBLIC_API_CONTRACTS = {
         {"CAPABILITIES", "CONTRACT_VERSION_KEYS"},
     ),
     "src.utils.quick_scan_work_store": (
-        "stockqa.quick-scan-work-store-module/1.9.0",
+        "stockqa.quick-scan-work-store-module/1.10.0",
         {
             "BudgetAdmissionError",
             "BudgetPolicyConflict",
@@ -416,7 +418,7 @@ def test_transport_imports_only_public_store_contracts():
     ]
     assert not private_imports, private_imports
     assert store.WORK_STORE_API_PROTOCOL == "stockqa.quick_scan_work_store/1.4.0"
-    assert store.MODULE_API_PROTOCOL == "stockqa.quick-scan-work-store-module/1.9.0"
+    assert store.MODULE_API_PROTOCOL == "stockqa.quick-scan-work-store-module/1.10.0"
     assert {
         "connect",
         "validate_schema",

@@ -10,6 +10,7 @@ import contextvars
 import functools
 import hashlib
 import json
+import re
 from contextlib import closing, contextmanager
 
 DDL_RESEARCH_INTENT = (
@@ -42,8 +43,46 @@ def _hash(value):
     return hashlib.sha256(_encode(value).encode("utf8")).hexdigest()
 
 
+_ENDPOINT_PROFILE_PREFIX = "stockqa.endpoint-profile/1.0.0:"
+_ENDPOINT_PROFILE_RE = re.compile(r"^stockqa\.endpoint-profile/1\.0\.0:[a-f0-9]{64}$")
+
+
+def endpoint_profile_id(endpoint, *, route_id, provider_config_ref, provider, model):
+    """Return a versioned opaque identity for one exact endpoint/route tuple.
+
+    The endpoint is an input to the digest only; callers persist only the
+    resulting identifier, never a URL that could contain tenant details.
+    """
+    values = (endpoint, route_id, provider_config_ref, provider, model)
+    if any(not isinstance(value, str) or not value.strip() for value in values):
+        raise ValueError("native_endpoint_profile_binding_invalid")
+    digest = _hash(
+        {
+            "protocol": "stockqa.endpoint-profile/1.0.0",
+            "endpoint": endpoint,
+            "route_id": route_id,
+            "provider_config_ref": provider_config_ref,
+            "provider": provider,
+            "model": model,
+        }
+    )
+    return _ENDPOINT_PROFILE_PREFIX + digest
+
+
+def is_endpoint_profile_id(value):
+    return isinstance(value, str) and _ENDPOINT_PROFILE_RE.fullmatch(value) is not None
+
+
 @contextmanager
-def bind_intent(store, task_sha256, intent_sha256, work_item_ids, *, provided_context=None):
+def bind_intent(
+    store,
+    task_sha256,
+    intent_sha256,
+    work_item_ids,
+    *,
+    provided_context=None,
+    endpoint_profile_id=None,
+):
     from .quick_scan_work_store import QuickScanWorkStore
     from .quick_scan_work_store import api_work_store_sha256 as _sha256
 
@@ -51,6 +90,8 @@ def bind_intent(store, task_sha256, intent_sha256, work_item_ids, *, provided_co
         raise ValueError("native_research_intent_binding_invalid")
     _sha256(task_sha256, "research task hash")
     _sha256(intent_sha256, "research intent hash")
+    if endpoint_profile_id is not None and not is_endpoint_profile_id(endpoint_profile_id):
+        raise ValueError("native_endpoint_profile_binding_invalid")
     if (
         not isinstance(work_item_ids, list)
         or not 1 <= len(work_item_ids) <= 30
@@ -59,7 +100,14 @@ def bind_intent(store, task_sha256, intent_sha256, work_item_ids, *, provided_co
     ):
         raise ValueError("native_research_intent_members_invalid")
     token = _INTENT.set(
-        (store, task_sha256, intent_sha256, tuple(sorted(work_item_ids)), provided_context)
+        (
+            store,
+            task_sha256,
+            intent_sha256,
+            tuple(sorted(work_item_ids)),
+            provided_context,
+            endpoint_profile_id,
+        )
     )
     try:
         yield
@@ -156,7 +204,7 @@ def bind_native_send(function):
         bound = _INTENT.get()
         if bound is None:
             return function(*args, **kwargs)
-        store, task_sha, intent_sha, members, provided = bound
+        store, task_sha, intent_sha, members, provided, endpoint_id = bound
         from .quick_scan_work_transport import (
             current_quick_scan_question_pack_binding,
             current_quick_scan_work_binding,
@@ -231,7 +279,7 @@ def anchor_original_receipt(attempt, receipt):
     bound = _INTENT.get()
     if bound is None:
         return
-    store, task_sha, intent_sha, _members, _provided = bound
+    store, task_sha, intent_sha, _members, _provided, endpoint_id = bound
     with closing(store.connect()) as connection:
         row = connection.execute(
             "SELECT * FROM quick_scan_research_intent WHERE task_sha256=? AND intent_sha256=? AND native_attempt_id=?",
@@ -248,11 +296,18 @@ def anchor_original_receipt(attempt, receipt):
         != row["binding_sha256"]
     ):
         raise ValueError("native_research_intent_receipt_anchor_conflict")
+    if endpoint_id is not None:
+        if not is_endpoint_profile_id(endpoint_id):
+            raise ValueError("native_endpoint_profile_binding_invalid")
+        existing_endpoint = receipt.get("endpoint_profile_id")
+        if existing_endpoint not in (None, endpoint_id):
+            raise ValueError("native_endpoint_profile_receipt_anchor_conflict")
+        receipt["endpoint_profile_id"] = endpoint_id
     receipt["research_intent_binding_sha256"] = row["binding_sha256"]
 
 
 # Additive, versioned owner exports for cross-module consumers.
-MODULE_API_PROTOCOL = "stockqa.utils-quick_scan_research_intent-module/1.1.0"
+MODULE_API_PROTOCOL = "stockqa.utils-quick_scan_research_intent-module/1.2.0"
 api_research_intent_encode = _encode
 api_research_intent_hash = _hash
 api_research_intent_ddl_v23 = DDL_RESEARCH_INTENT
@@ -261,6 +316,8 @@ api_research_intent_binding_from_row = binding_from_row
 api_research_intent_get_response = get_intent_response
 api_research_intent_bind_native_send = bind_native_send
 api_research_intent_anchor_original_receipt = anchor_original_receipt
+api_research_intent_endpoint_profile_id = endpoint_profile_id
+api_research_intent_is_endpoint_profile_id = is_endpoint_profile_id
 STORE_TABLE_DEPENDENCIES = frozenset({"quick_scan_budget_attempt", "quick_scan_research_intent"})
 MODULE_API_EXPORTS = frozenset(
     set(globals().get("MODULE_API_EXPORTS", ()))
@@ -273,6 +330,8 @@ MODULE_API_EXPORTS = frozenset(
         "api_research_intent_get_response",
         "api_research_intent_bind_native_send",
         "api_research_intent_anchor_original_receipt",
+        "api_research_intent_endpoint_profile_id",
+        "api_research_intent_is_endpoint_profile_id",
         "STORE_TABLE_DEPENDENCIES",
     }
 )

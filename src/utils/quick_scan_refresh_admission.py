@@ -149,8 +149,11 @@ def match_question(item, bundle, *, information_cutoff):
 
 
 class RefreshAdmissionService:
-    def __init__(self, config_path, *, process_env=None, recovery_only=False):
+    def __init__(
+        self, config_path, *, process_env=None, recovery_only=False, allow_unknown_only=False
+    ):
         self.recovery_only = recovery_only
+        self.allow_unknown_only = allow_unknown_only
         self.recovery_work_item_ids, self.remaining_work_item_ids = [], []
         self.config_path = Path(config_path).absolute()
         self.config, self.config_raw = _snapshot(self.config_path)
@@ -320,7 +323,7 @@ class RefreshAdmissionService:
             execution_inputs_sha256=input_sha,
         )
 
-    def _assert_received_response_scope(self, record):
+    def _assert_received_response_scope(self, record, *, allow_unknown_only=False):
         """Read the original registered responses; never permit a new send."""
         items = record["receipt"]["items"]
         if not items:
@@ -344,8 +347,11 @@ class RefreshAdmissionService:
                 received.append(work_id)
             else:
                 remaining.append(work_id)
-        if not received:
+        if not received and not allow_unknown_only:
             raise AdmissionRejected("paid_recovery_original_response_required")
+        # An unknown send outcome remains inside the original registered scope.
+        # Only the shared-company read-only recovery path may admit this empty
+        # received set so it can inspect the original intent/receipt and pause.
         self.recovery_work_item_ids, self.remaining_work_item_ids = received, remaining
         return received
 
@@ -385,7 +391,7 @@ class RefreshAdmissionService:
         if canonical_bytes(original_action) != canonical_bytes(expected_action):
             raise AdmissionRejected("refresh_admission_idempotency_conflict")
         if recovery_only:
-            self._assert_received_response_scope(record)
+            self._assert_received_response_scope(record, allow_unknown_only=self.allow_unknown_only)
         return proof, bundles, record
 
     def admit(self, confirmation_id):

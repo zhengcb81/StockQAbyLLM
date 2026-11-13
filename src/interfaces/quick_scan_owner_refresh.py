@@ -11,6 +11,9 @@ from dataclasses import dataclass
 from typing import Any, Dict, Mapping, Optional, Protocol, Tuple, runtime_checkable
 
 QUICK_SCAN_OWNER_REFRESH_PORT_PROTOCOL = "stockqa.quick_scan_owner_refresh_port/1.3.0"
+QUICK_SCAN_OWNER_REFRESH_RUNTIME_PORT_PROTOCOL = (
+    "stockqa.quick_scan_owner_refresh_runtime_port/1.0.0"
+)
 
 
 @dataclass(frozen=True)
@@ -34,6 +37,38 @@ class OwnerRefreshSnapshot:
     recovery_only: bool
     recovery_work_item_ids: Tuple[str, ...]
     remaining_work_item_ids: Tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class OwnerRefreshRuntimeProjection:
+    """Small, fresh projection for repeated runtime admission checks.
+
+    This intentionally omits the owner bundle, proof, native context, record,
+    service, and store.  Callers receive only frozen scalar bindings and the
+    bounded route targets needed to validate the current runtime operation.
+    """
+
+    kind: str
+    request_protocol: Optional[str]
+    recovery_only: bool
+    information_cutoff: Any
+    observation_context_sha256: Optional[str]
+    plan_bindings: Mapping[str, Any]
+    entries: Mapping[str, Mapping[str, Any]]
+    decisions: Mapping[str, Optional[str]]
+    module_locks: Mapping[str, str]
+    ordered_route_targets: Optional[Tuple[Mapping[str, Any], ...]]
+    legacy_route_target: Optional[Mapping[str, Any]]
+    requested_question_ids: Tuple[str, ...]
+    recovery_work_item_ids: Tuple[str, ...]
+    remaining_work_item_ids: Tuple[str, ...]
+
+
+@runtime_checkable
+class QuickScanOwnerRefreshRuntimePort(Protocol):
+    """Optional additive capability; older refresh ports remain valid."""
+
+    def runtime_projection(self) -> OwnerRefreshRuntimeProjection: ...
 
 
 @runtime_checkable
@@ -105,6 +140,9 @@ class QuickScanOwnerRefreshPort(Protocol):
 
 __all__ = [
     "QUICK_SCAN_OWNER_REFRESH_PORT_PROTOCOL",
+    "QUICK_SCAN_OWNER_REFRESH_RUNTIME_PORT_PROTOCOL",
     "OwnerRefreshSnapshot",
+    "OwnerRefreshRuntimeProjection",
+    "QuickScanOwnerRefreshRuntimePort",
     "QuickScanOwnerRefreshPort",
 ]

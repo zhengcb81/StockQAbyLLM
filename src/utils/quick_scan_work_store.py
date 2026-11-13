@@ -753,6 +753,7 @@ _RECEIPT_FIELDS = (
     "request_payload_sha256",
     "research_visible_output_sha256",
     "research_intent_binding_sha256",
+    "endpoint_profile_id",
     "provider",
     "request_id",
     "response_id",
@@ -801,6 +802,11 @@ def _sanitized_receipt(receipt: object) -> dict:
                 result[key] = value
         elif key == "research_validation_code":
             if isinstance(value, str) and value in _RESEARCH_VALIDATION_CODES:
+                result[key] = value
+        elif key == "endpoint_profile_id":
+            if isinstance(value, str) and re.fullmatch(
+                r"stockqa\.endpoint-profile/1\.0\.0:[a-f0-9]{64}", value
+            ):
                 result[key] = value
         elif key == "usage":
             usage = _canonical_usage(value)
@@ -7357,7 +7363,7 @@ class QuickScanWorkStore:
 
 
 # Versioned cross-module contract. Consumers use these exports, never owner internals.
-MODULE_API_PROTOCOL = "stockqa.quick-scan-work-store-module/1.9.0"
+MODULE_API_PROTOCOL = "stockqa.quick-scan-work-store-module/1.10.0"
 WORK_STORE_API_METHODS = frozenset(
     {
         "amend_isolated_research_budget",
@@ -7494,7 +7500,7 @@ unmapped_run_scan_pairs = _unmapped_run_scan_pairs
 
 
 # Additive, versioned owner exports for cross-module consumers.
-MODULE_API_PROTOCOL = "stockqa.quick-scan-work-store-module/1.9.0"
+MODULE_API_PROTOCOL = "stockqa.quick-scan-work-store-module/1.10.0"
 api_work_store_budget_policy_projection = _budget_policy_projection
 api_work_store_canonical_bindings = _canonical_bindings
 api_work_store_canonical_source_urls = _canonical_source_urls

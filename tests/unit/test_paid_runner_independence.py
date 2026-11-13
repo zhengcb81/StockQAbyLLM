@@ -46,6 +46,8 @@ def test_paid_runner_uses_original_receipt_metadata_without_today_model_or_budge
     tmp_path, monkeypatch
 ):
     import src.runners.llm_runner as runner
+    from src.interfaces.quick_scan_owner_refresh import OwnerRefreshSnapshot
+    from src.utils import quick_scan_owner_refresh_api as owner_api
     from src.utils import quick_scan_shared_routes as shared
 
     q = [Question("first", question_id="Q1"), Question("second", question_id="Q2")]
@@ -71,7 +73,17 @@ def test_paid_runner_uses_original_receipt_metadata_without_today_model_or_budge
         record={"inputs": {"run_id": "ORIGINAL", "scan_id": "ORIGINAL"}},
         service=SimpleNamespace(store=store),
         plan=dict(provider="mimo", model="original-model"),
-        proof={"owner_policy": {"qa": {"provider_config_ref": "original-account"}}},
+        proof={
+            "request": {"protocol": "iqs.refresh_request/1.1.0"},
+            "owner_policy": {
+                "provider": "mimo",
+                "model": route["model"],
+                "qa": {
+                    "provider_config_ref": route["provider_config_ref"],
+                    "route_id": route["id"],
+                },
+            },
+        },
         entries={
             "Q1": {"kind": "work", "work_item_id": "W1"},
             "Q2": {"kind": "work", "work_item_id": "W2"},
@@ -87,7 +99,8 @@ def test_paid_runner_uses_original_receipt_metadata_without_today_model_or_budge
     # The runner consumes the owner-refresh port's detached snapshot; the
     # work store is wired in explicitly by the composition, never reached
     # through the opaque port.
-    owner.snapshot = lambda: SimpleNamespace(
+    owner.snapshot = lambda: OwnerRefreshSnapshot(
+        kind="approved",
         entries=dict(owner.entries),
         record=copy.deepcopy(owner.record),
         plan=dict(owner.plan),
@@ -95,8 +108,17 @@ def test_paid_runner_uses_original_receipt_metadata_without_today_model_or_budge
         bundle=dict(owner.bundle),
         observation_context={},
         scope_bindings={},
-        requested_question_ids=list(owner.requested_question_ids),
+        fields={},
+        work={},
+        deferred={},
+        ordered_route_targets=None,
+        needs_new_dispatch=False,
+        recovery_only=True,
+        requested_question_ids=tuple(owner.requested_question_ids),
+        recovery_work_item_ids=("W1", "W2"),
+        remaining_work_item_ids=(),
     )
+    monkeypatch.setattr(owner_api, "is_owner_refresh_port", lambda candidate: candidate is owner)
     cp = dict(
         payload=dict(
             answer=dict(status="scored", score=7, description="original"),

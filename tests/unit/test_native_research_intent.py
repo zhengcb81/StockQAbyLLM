@@ -41,6 +41,53 @@ def test_received_work_response_native_intent_join_prevents_second_post(tmp_path
     assert len(sent) == 1
 
 
+def test_native_paid_receipt_persists_opaque_endpoint_without_raw_url(tmp_path, transport):
+    import json
+
+    from src.utils.quick_scan_research_intent import endpoint_profile_id
+
+    wire, sent = transport
+    wire.payloads = [response()]
+    current = client()
+    current.base_url = "https://api.deepseek.com/chat/completions"
+    profile = endpoint_profile_id(
+        current.base_url,
+        route_id="route-original",
+        provider_config_ref="provider-config-original",
+        provider=current.provider_name,
+        model=current.model,
+    )
+    with budget(tmp_path) as store:
+        member = _members(store, count=1)[0]
+        with pytest.raises(ValueError, match="native_endpoint_profile_binding_invalid"):
+            with bind_intent(
+                store,
+                "a" * 64,
+                "f" * 64,
+                [member["work_item_id"]],
+                endpoint_profile_id=current.base_url,
+            ):
+                pass
+        with bind_quick_scan_work(store, member["work_item_id"], member["lease"]), bind_intent(
+            store,
+            "a" * 64,
+            "d" * 64,
+            [member["work_item_id"]],
+            endpoint_profile_id=profile,
+        ):
+            session = ResearchChatSession(current, system_prefix="stable", tools=TOOLS)
+            session.step(user_context="one")
+        original = get_intent_response(store, "a" * 64, "d" * 64)
+        receipt = original["native_receipt"]
+        assert receipt["endpoint_profile_id"] == profile
+        assert receipt["research_intent_binding_sha256"]
+        serialized = json.dumps(receipt, sort_keys=True)
+        assert current.base_url not in serialized
+        assert current.api_key not in serialized
+        assert len(store.list_attempts(member["work_item_id"])) == 1
+    assert len(sent) == 1
+
+
 def test_rehashed_join_cannot_substitute_original_native_members(tmp_path, transport):
     import json
     import sqlite3
@@ -80,7 +127,7 @@ def test_rehashed_join_cannot_substitute_original_native_members(tmp_path, trans
 def test_original_pack_response_native_intent_join_survives_reopen(pack, transport, monkeypatch):
     from src.providers import llm_research_client as module
 
-    monkeypatch.setattr(module, "_utc_now", lambda: "2027-01-15T08:00:00Z")
+    monkeypatch.setattr(module, "utc_now", lambda: "2027-01-15T08:00:00Z")
     store, members, _ = pack
     workids = [work_id for work_id, _lease in members]
     wire, sent = transport

@@ -24,7 +24,11 @@ from tests.unit.test_quick_scan_work_store import (
 
 
 @pytest.fixture
-def native(tmp_path):
+def native(tmp_path, monkeypatch):
+    from types import MappingProxyType
+
+    from src.utils import quick_scan_owner_research
+
     clock = [1_800_000_000.0]
     store = _store(tmp_path, clock)
     item = _created(store)
@@ -34,6 +38,14 @@ def native(tmp_path):
     mapper.store, mapper._handles = store, {}
     mapper.owner = SimpleNamespace(
         entries={"IQS_05": {"kind": "work", "work_item_id": item["work_item_id"]}}
+    )
+    monkeypatch.setattr(
+        quick_scan_owner_research,
+        "_owner_runtime_projection",
+        lambda owner: SimpleNamespace(
+            recovery_only=bool(getattr(owner, "recovery_only", False)),
+            entries=MappingProxyType(dict(getattr(owner, "entries", {}))),
+        ),
     )
     mapper.questions = {"IQS_05": Question("synthetic mapper fixture", question_id="IQS_05")}
     return mapper, item, lease, attempt, receipt, clock
@@ -260,11 +272,81 @@ def test_paid_mode_restores_expired_original_handle_without_renewal(native):
     assert len(mapper.store.list_attempts(item["work_item_id"])) == 1
 
 
-def test_paid_mode_cannot_enter_model_or_search_transport():
+def test_paid_mode_cannot_enter_model_or_search_transport(monkeypatch):
+    from src.utils import quick_scan_owner_research
+
     mapper = OwnerResearchServices.__new__(OwnerResearchServices)
     mapper.owner = SimpleNamespace(recovery_only=True)
+    monkeypatch.setattr(
+        quick_scan_owner_research,
+        "_owner_runtime_projection",
+        lambda _owner: SimpleNamespace(recovery_only=True, entries={}),
+    )
     with pytest.raises(OwnerResearchRejected, match="cannot_dispatch"):
         with mapper.generation_scope({}):
             pytest.fail("paid recovery may not enter transport")
     with pytest.raises(OwnerResearchRejected, match="cannot_dispatch"):
         mapper.search({})
+
+
+def test_paid_mode_mapping_projection_restores_and_reseals_original_answer(native, monkeypatch):
+    from types import MappingProxyType
+
+    from src.interfaces.quick_scan_owner_refresh import OwnerRefreshRuntimeProjection
+    from src.utils import quick_scan_owner_research
+    from tests.unit.test_quick_scan_work_store import _answer_for
+
+    mapper, item, lease, attempt, receipt, _ = native
+    recovered = []
+    mapper.owner = SimpleNamespace(
+        recovery_only=True,
+        assert_received_checkpoint_recovery=lambda work_id, attempt_id, **_kwargs: recovered.append(
+            (work_id, attempt_id)
+        ),
+    )
+    entry = MappingProxyType({"kind": "work", "work_item_id": item["work_item_id"]})
+    projection = OwnerRefreshRuntimeProjection(
+        kind="approved",
+        request_protocol="iqs.refresh_request/1.6.0",
+        recovery_only=True,
+        information_cutoff="2026-11-13",
+        observation_context_sha256=None,
+        plan_bindings=MappingProxyType({}),
+        entries=MappingProxyType({"IQS_05": entry}),
+        decisions=MappingProxyType({"IQS_05": "resume_existing_work"}),
+        module_locks=MappingProxyType({}),
+        ordered_route_targets=(),
+        legacy_route_target=None,
+        requested_question_ids=("IQS_05",),
+        recovery_work_item_ids=(item["work_item_id"],),
+        remaining_work_item_ids=(),
+    )
+    monkeypatch.setattr(
+        quick_scan_owner_research, "_owner_runtime_projection", lambda _owner: projection
+    )
+
+    handle = mapper.restore_finalization_handle(
+        "IQS_05", native_reference="stockqa:" + receipt["attempt_id"]
+    )
+    assert handle["lease"] == lease
+    assert recovered == [(item["work_item_id"], attempt["attempt_id"])]
+
+    body = dict(question_id="IQS_05", status="scored", score=8, summary="Synthetic mapper fixture")
+    checkpoint = mapper.store.save_answer_checkpoint(
+        item["work_item_id"],
+        lease,
+        attempt["attempt_id"],
+        answer=_answer_for(item, description=body["summary"]),
+        execution_receipt=receipt,
+    )
+    monkeypatch.setattr(mapper.store, "get_standard_answer", lambda _work_id: {"answer": body})
+    seals = []
+    mapper.lifecycle = SimpleNamespace(seal_saved_delivery=lambda work_id: seals.append(work_id))
+
+    result = mapper.commit_standard_answers(
+        [body], native_reference="stockqa:" + receipt["attempt_id"]
+    )
+    assert result["saved_question_ids"] == ["IQS_05"]
+    assert mapper.store.get_answer_checkpoint(item["work_item_id"]) == checkpoint
+    assert seals == [item["work_item_id"]]
+    assert len(mapper.store.list_attempts(item["work_item_id"])) == 1

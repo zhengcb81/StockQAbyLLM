@@ -20,6 +20,39 @@ def configured(tmp_path):
     return config, tmp_path / "config.json"
 
 
+def test_original_endpoint_profile_reader_preserves_verified_legacy_empty_model_marker(
+    monkeypatch,
+):
+    from src.utils import quick_scan_shared_company
+
+    reference = "stockqa:attempt-1"
+    recovery = object()
+    projection = {
+        "attempt_refs": [reference],
+        "pending_receipt": {
+            "runtime_attempt_ref": reference,
+            "endpoint_profile_id": "mimo-v2.6-flash@",
+        },
+    }
+    operations = SimpleNamespace(
+        load_verified_recovery=lambda _checkpoint, _task: recovery,
+        recovery_projection=lambda _recovery: projection,
+        recovery_event_journals=lambda _recovery: [],
+        event_journal_projection=lambda _journal: {"events": []},
+    )
+    monkeypatch.setattr(
+        quick_scan_shared_company, "company_agent_public_api", lambda *_names: operations
+    )
+
+    profiles = quick_scan_shared_company.original_endpoint_profiles(
+        "verified-checkpoint.json",
+        object(),
+        {"runtime_profile": {"model": "mimo-v2.6-flash", "provider": "mimo"}},
+    )
+
+    assert profiles == {reference: "mimo-v2.6-flash@"}
+
+
 @pytest.mark.parametrize(
     "fault",
     [
@@ -559,6 +592,8 @@ def test_partial_export_is_not_published_and_resumes_original_checkpoint(
         return original_task
 
     monkeypatch.setattr(module, "load_original_company_task", read_original)
+    # This test uses marker files instead of Company Agent checkpoints.
+    monkeypatch.setattr(module, "original_endpoint_profiles", lambda *a, **k: {})
     calls = []
 
     def execute(task, services, config, output, *, session_dir, **kwargs):
@@ -615,7 +650,16 @@ def test_partial_export_is_not_published_and_resumes_original_checkpoint(
         finalize_shared_engine=finalize,
     )
     monkeypatch.setattr(module, "_modules", lambda config: engine)
-    monkeypatch.setattr(services_module, "OwnerResearchServices", lambda *a, **k: SimpleNamespace())
+
+    class ServicesStub:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        @staticmethod
+        def endpoint_profile_id_for(_client, _work, *, native_search):
+            return "stockqa.endpoint-profile/1.0.0:" + "a" * 64
+
+    monkeypatch.setattr(services_module, "OwnerResearchServices", ServicesStub)
     config = {"state_root": str(tmp_path)}
     args = dict(
         config=config,
@@ -627,18 +671,23 @@ def test_partial_export_is_not_published_and_resumes_original_checkpoint(
     args["max_output_tokens"] = 32768
     assert not (scope / "export").exists() and (scope / "export-0001/partial.txt").is_file()
     if not resume_complete:
+        incomplete_resume = ["resume"] + (["finalize_partial"] if completed_on_refusal else [])
         with pytest.raises(ValueError, match="scan_incomplete"):
             module.run_shared_company_scan(lifecycle, client, **args)
         assert not (scope / "export").exists()
         assert (scope / "export-0002/complete.txt").is_file()
-        assert calls == ["execute", "resume"] + (
-            ["finalize_partial"] if completed_on_refusal else []
-        )
+        assert calls == ["execute"] + incomplete_resume
+        # Read-only recovery may create diagnostic sessions without a new
+        # checkpoint. Ordinary continuation must still select the latest valid
+        # checkpoint, not fail on the final directory in session order.
+        for _ in range(2):
+            with pytest.raises(ValueError, match="scan_incomplete"):
+                module.run_shared_company_scan(lifecycle, client, recovery_only=True, **args)
+            assert not (scope / "export").exists()
+        assert calls == ["execute"] + incomplete_resume * 3
         with pytest.raises(ValueError, match="scan_incomplete"):
-            module.run_shared_company_scan(lifecycle, client, recovery_only=True, **args)
-        assert calls == ["execute", "resume"] + (
-            ["finalize_partial"] if completed_on_refusal else []
-        ) + ["resume"] + (["finalize_partial"] if completed_on_refusal else [])
+            module.run_shared_company_scan(lifecycle, client, **args)
+        assert calls == ["execute"] + incomplete_resume * 4
         assert (scope / "export-0002/complete.txt").is_file()
         return
     assert module.run_shared_company_scan(lifecycle, client, **args)["status"] == "completed"

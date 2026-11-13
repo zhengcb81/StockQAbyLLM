@@ -149,11 +149,20 @@ def registered_scope(items, bundle, record, *, information_cutoff):
 
 
 def prepare_execution(
-    config_path, confirmation_id, *, input_paths, process_env=None, recovery_only=False
+    config_path,
+    confirmation_id,
+    *,
+    input_paths,
+    process_env=None,
+    recovery_only=False,
+    allow_unknown_only=False,
 ):
     """Trusted original runner calls this after full manifest/context validation."""
     service = RefreshAdmissionService(
-        config_path, process_env=process_env, recovery_only=recovery_only
+        config_path,
+        process_env=process_env,
+        recovery_only=recovery_only,
+        allow_unknown_only=allow_unknown_only,
     )
     proof, bundles, record = (
         service.read_registered(confirmation_id, recovery_only=True)
@@ -234,6 +243,7 @@ def prepare_execution(
         input_paths,
         raw,
         recovery_only=recovery_only,
+        allow_unknown_only=allow_unknown_only,
     )
     session.original_registered_question_count = len(items)
     if recovery_only:
@@ -257,6 +267,7 @@ class ApprovedRefreshSession:
         raw,
         *,
         recovery_only=False,
+        allow_unknown_only=False,
     ):
         self.service, self.proof, self.bundles, self.bundle, self.record = (
             service,
@@ -272,6 +283,7 @@ class ApprovedRefreshSession:
         self.scope_bindings = {qid: copy.deepcopy(native.scope_bindings[qid]) for qid in entries}
         self.fields, self.work, self.deferred = {}, {}, {}
         self.recovery_only = recovery_only
+        self.allow_unknown_only = allow_unknown_only
         self.recovery_work_item_ids = list(getattr(service, "recovery_work_item_ids", []))
         self.remaining_work_item_ids = list(getattr(service, "remaining_work_item_ids", []))
         self._policy_check = None
@@ -430,7 +442,7 @@ class ApprovedRefreshSession:
                     received.append(wid)
                 else:
                     remaining.append(wid)
-            if not received:
+            if not received and not getattr(self, "allow_unknown_only", False):
                 raise AdmissionRejected("paid_recovery_original_response_required")
             self.recovery_work_item_ids, self.remaining_work_item_ids = received, remaining
         for entry in self.entries.values():
@@ -1199,10 +1211,12 @@ class ApprovedRefreshSession:
             received_routes = {}
             approved_targets = self.ordered_route_targets
             received_work_ids = set(getattr(self, "recovery_work_item_ids", []))
+            if not received_work_ids:
+                if getattr(self, "allow_unknown_only", False):
+                    return []
+                raise AdmissionRejected("paid_recovery_original_response_required")
             for qid, entry in self.entries.items():
-                if entry["kind"] != "work" or (
-                    received_work_ids and entry["work_item_id"] not in received_work_ids
-                ):
+                if entry["kind"] != "work" or entry["work_item_id"] not in received_work_ids:
                     continue
                 attempts = self.service.store.list_attempts(entry["work_item_id"])
                 received_attempt = attempts[-1] if attempts else None

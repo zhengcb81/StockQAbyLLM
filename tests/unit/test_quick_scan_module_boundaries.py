@@ -417,9 +417,13 @@ def test_research_output_schema_composes_only_versioned_owner_apis():
     )
     assert "api_research_session_ddl_v23" in quick_scan_research_session.MODULE_API_EXPORTS
     assert quick_scan_research_intent.MODULE_API_PROTOCOL == (
-        "stockqa.utils-quick_scan_research_intent-module/1.1.0"
+        "stockqa.utils-quick_scan_research_intent-module/1.2.0"
     )
     assert "api_research_intent_ddl_v23" in quick_scan_research_intent.MODULE_API_EXPORTS
+    assert {
+        "api_research_intent_endpoint_profile_id",
+        "api_research_intent_is_endpoint_profile_id",
+    } <= quick_scan_research_intent.MODULE_API_EXPORTS
     assert quick_scan_research_output.MODULE_API_PROTOCOL == (
         "stockqa.quick-scan-research-output-adapter/1.1.0"
     )
