@@ -719,11 +719,22 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="数据流">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        快扫模块边界与持久化接口
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="快扫模块边界与持久化接口">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#_5" class="md-nav__link">
+  <a href="#_6" class="md-nav__link">
     <span class="md-ellipsis">
       
         基础模式流程
@@ -750,7 +761,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_6" class="md-nav__link">
+  <a href="#_7" class="md-nav__link">
     <span class="md-ellipsis">
       
         设计模式
@@ -833,7 +844,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_7" class="md-nav__link">
+  <a href="#_8" class="md-nav__link">
     <span class="md-ellipsis">
       
         核心概念
@@ -845,7 +856,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#_8" class="md-nav__link">
+  <a href="#_9" class="md-nav__link">
     <span class="md-ellipsis">
       
         问题处理流程
@@ -856,7 +867,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_9" class="md-nav__link">
+  <a href="#_10" class="md-nav__link">
     <span class="md-ellipsis">
       
         配置管理
@@ -867,7 +878,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_10" class="md-nav__link">
+  <a href="#_11" class="md-nav__link">
     <span class="md-ellipsis">
       
         错误处理
@@ -878,7 +889,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_11" class="md-nav__link">
+  <a href="#_12" class="md-nav__link">
     <span class="md-ellipsis">
       
         批量处理
@@ -894,7 +905,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_12" class="md-nav__link">
+  <a href="#_13" class="md-nav__link">
     <span class="md-ellipsis">
       
         性能优化
@@ -955,7 +966,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_13" class="md-nav__link">
+  <a href="#_14" class="md-nav__link">
     <span class="md-ellipsis">
       
         扩展性
@@ -967,7 +978,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#_14" class="md-nav__link">
+  <a href="#_15" class="md-nav__link">
     <span class="md-ellipsis">
       
         添加新的搜索引擎
@@ -989,7 +1000,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_15" class="md-nav__link">
+  <a href="#_16" class="md-nav__link">
     <span class="md-ellipsis">
       
         添加新的输出格式
@@ -1005,7 +1016,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_16" class="md-nav__link">
+  <a href="#_17" class="md-nav__link">
     <span class="md-ellipsis">
       
         安全考虑
@@ -1016,7 +1027,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_17" class="md-nav__link">
+  <a href="#_18" class="md-nav__link">
     <span class="md-ellipsis">
       
         测试架构
@@ -1027,7 +1038,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_18" class="md-nav__link">
+  <a href="#_19" class="md-nav__link">
     <span class="md-ellipsis">
       
         部署架构
@@ -1039,7 +1050,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#_19" class="md-nav__link">
+  <a href="#_20" class="md-nav__link">
     <span class="md-ellipsis">
       
         开发环境
@@ -1050,7 +1061,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_20" class="md-nav__link">
+  <a href="#_21" class="md-nav__link">
     <span class="md-ellipsis">
       
         生产环境
@@ -1287,7 +1298,28 @@
 </tbody>
 </table>
 <h2 id="_4">数据流<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
-<h3 id="_5">基础模式流程<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h3>
+<h2 id="_5">快扫模块边界与持久化接口<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
+<p>快扫模块之间以版本化 API、接口协议和 detached DTO 通讯。消费者只能调用 owner
+模块在 <code>MODULE_API_EXPORTS</code> / facade <code>__all__</code> 中声明的操作；只存在但未公开的可调用对象
+不构成接口。架构测试会解析直接属性、字面量 <code>getattr</code> 和 <code>from ... import</code>，阻止业务模块
+绕过公开 facade 进入其他模块的私有实现。</p>
+<p>SQLite 是一个明确的<strong>持久化适配子系统</strong>：<code>QuickScanWorkStore</code> 拥有数据库连接和事务，
+21 个已声明的存储/持久化适配模块可以在同一事务协议内维护各自的日志表。低层
+<code>connect()</code> / <code>transaction()</code> 是该子系统公开的 <code>stockqa.quick_scan_work_store/1.4.0</code>
+协议，不是面向 UI、路由或普通业务模块的通用 API；架构测试会阻止新增的非适配模块
+直接取得数据库连接。研究输出和已发送上下文适配器另有自己的版本化契约，并声明
+依赖的表；WorkStore、WorkTransport 只通过这些公开契约调用它们。每个适配模块仍共享
+该子系统的 SQLite schema，因此 schema 演进按持久化子系统整体协调；跨出该边界的模块
+只使用语义化 Store 操作和公共 ports。</p>
+<p>题包 journal 与 WorkStore 通过版本化的 <code>stockqa.question-pack-journal-module/1.3.0</code>
+导出操作交互；WorkStore 的 schema 装配、校验、读写都调用 journal 声明的 <code>api_*</code> 操作。
+题包原子事务比普通持久化协议更窄：仅 <code>quick_scan_question_pack_journal</code> 持有私有的
+运行时 capability token。<code>QuickScanWorkStore.question_pack_operation()</code> 在交出原始连接前
+验证 token，并只在 token 有效时报告活动题包 ID。仅修改 WorkStore 的私有线程状态不能
+授权单题发送；边界测试会拒绝其他源码读取该状态或绕过公开导出。测试入口：
+<code>tests/unit/test_quick_scan_module_boundaries.py</code> 和
+<code>tests/unit/test_quick_scan_question_pack_store.py</code>。</p>
+<h3 id="_6">基础模式流程<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h3>
 <pre class="mermaid"><code>sequenceDiagram
     participant User
     participant BasicRunner
@@ -1326,7 +1358,7 @@
     OutputValidator--&gt;&gt;BatchProcessor: validated_result
     BatchProcessor--&gt;&gt;LLMRunner: batch_result
     LLMRunner--&gt;&gt;User: 输出结果</code></pre>
-<h2 id="_6">设计模式<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h2>
+<h2 id="_7">设计模式<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h2>
 <h3 id="1-strategy-pattern">1. 策略模式 (Strategy Pattern)<a class="headerlink" href="#1-strategy-pattern" title="Permanent link">&para;</a></h3>
 <p><strong>位置</strong>: <code>src/interfaces/search_provider.py</code></p>
 <p>允许在运行时切换不同的搜索引擎实现。</p>
@@ -1350,8 +1382,8 @@
 <h3 id="6-builder-pattern">6. 建造者模式 (Builder Pattern)<a class="headerlink" href="#6-builder-pattern" title="Permanent link">&para;</a></h3>
 <p><strong>位置</strong>: <code>src/core/models.py</code></p>
 <p>使用 dataclass 简化对象构建。</p>
-<h2 id="_7">核心概念<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h2>
-<h3 id="_8">问题处理流程<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h3>
+<h2 id="_8">核心概念<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h2>
+<h3 id="_9">问题处理流程<a class="headerlink" href="#_9" title="Permanent link">&para;</a></h3>
 <ol>
 <li><strong>加载配置</strong>: 从配置文件读取问题列表</li>
 <li><strong>验证问题</strong>: 检查问题格式和内容</li>
@@ -1360,25 +1392,25 @@
 <li><strong>修复输出</strong>: 自动修复缺失或不完整的答案</li>
 <li><strong>保存结果</strong>: 将结果保存到文件或输出到控制台</li>
 </ol>
-<h3 id="_9">配置管理<a class="headerlink" href="#_9" title="Permanent link">&para;</a></h3>
+<h3 id="_10">配置管理<a class="headerlink" href="#_10" title="Permanent link">&para;</a></h3>
 <p>系统支持多种配置格式：</p>
 <ul>
 <li><strong>TXT 格式</strong>: 简单的文本文件，每行一个问题</li>
 <li><strong>JSON 格式</strong>: 结构化配置，支持分类和元数据</li>
 </ul>
-<h3 id="_10">错误处理<a class="headerlink" href="#_10" title="Permanent link">&para;</a></h3>
+<h3 id="_11">错误处理<a class="headerlink" href="#_11" title="Permanent link">&para;</a></h3>
 <ul>
 <li><strong>自定义异常</strong>: 继承自 <code>StockQAError</code></li>
 <li><strong>异常链</strong>: 使用 <code>raise ... from e</code> 保留原始错误</li>
 <li><strong>日志记录</strong>: 所有错误都被记录到日志文件</li>
 </ul>
-<h3 id="_11">批量处理<a class="headerlink" href="#_11" title="Permanent link">&para;</a></h3>
+<h3 id="_12">批量处理<a class="headerlink" href="#_12" title="Permanent link">&para;</a></h3>
 <p>支持两种批量处理模式：</p>
 <ol>
 <li><strong>串行模式</strong>: 逐个处理问题</li>
 <li><strong>并行模式</strong>: 使用异步 API 并发处理</li>
 </ol>
-<h2 id="_12">性能优化<a class="headerlink" href="#_12" title="Permanent link">&para;</a></h2>
+<h2 id="_13">性能优化<a class="headerlink" href="#_13" title="Permanent link">&para;</a></h2>
 <h3 id="1">1. 文件缓存<a class="headerlink" href="#1" title="Permanent link">&para;</a></h3>
 <p>使用 <code>FileCache</code> 类缓存配置文件读取，减少 I/O 操作。</p>
 <h3 id="2">2. 连接池<a class="headerlink" href="#2" title="Permanent link">&para;</a></h3>
@@ -1387,8 +1419,8 @@
 <p>支持使用 <code>AsyncLLMProvider</code> 进行异步 API 调用。</p>
 <h3 id="4">4. 批量处理<a class="headerlink" href="#4" title="Permanent link">&para;</a></h3>
 <p><code>BatchProcessor</code> 支持批量处理问题，减少 API 调用开销。</p>
-<h2 id="_13">扩展性<a class="headerlink" href="#_13" title="Permanent link">&para;</a></h2>
-<h3 id="_14">添加新的搜索引擎<a class="headerlink" href="#_14" title="Permanent link">&para;</a></h3>
+<h2 id="_14">扩展性<a class="headerlink" href="#_14" title="Permanent link">&para;</a></h2>
+<h3 id="_15">添加新的搜索引擎<a class="headerlink" href="#_15" title="Permanent link">&para;</a></h3>
 <ol>
 <li>实现 <code>SearchProvider</code> 接口</li>
 <li>在 <code>SearchService</code> 中注册新提供者</li>
@@ -1398,19 +1430,19 @@
 <li>在 <code>llm_apis.json</code> 中添加配置</li>
 <li>确保符合配置格式规范</li>
 </ol>
-<h3 id="_15">添加新的输出格式<a class="headerlink" href="#_15" title="Permanent link">&para;</a></h3>
+<h3 id="_16">添加新的输出格式<a class="headerlink" href="#_16" title="Permanent link">&para;</a></h3>
 <ol>
 <li>在 <code>models.py</code> 中定义新的数据模型</li>
 <li>更新 <code>output_results</code> 方法</li>
 </ol>
-<h2 id="_16">安全考虑<a class="headerlink" href="#_16" title="Permanent link">&para;</a></h2>
+<h2 id="_17">安全考虑<a class="headerlink" href="#_17" title="Permanent link">&para;</a></h2>
 <ol>
 <li><strong>API 密钥</strong>: 使用环境变量存储敏感信息</li>
 <li><strong>输入验证</strong>: 验证所有用户输入</li>
 <li><strong>错误处理</strong>: 不暴露敏感信息在错误消息中</li>
 <li><strong>日志脱敏</strong>: API 密钥在日志中自动脱敏</li>
 </ol>
-<h2 id="_17">测试架构<a class="headerlink" href="#_17" title="Permanent link">&para;</a></h2>
+<h2 id="_18">测试架构<a class="headerlink" href="#_18" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>tests/
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>├── unit/              # 单元测试
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>│   ├── test_config_manager.py
@@ -1423,14 +1455,14 @@
 <a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>└── fixtures/          # 测试夹具
 <a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>    └── conftest.py
 </code></pre></div>
-<h2 id="_18">部署架构<a class="headerlink" href="#_18" title="Permanent link">&para;</a></h2>
-<h3 id="_19">开发环境<a class="headerlink" href="#_19" title="Permanent link">&para;</a></h3>
+<h2 id="_19">部署架构<a class="headerlink" href="#_19" title="Permanent link">&para;</a></h2>
+<h3 id="_20">开发环境<a class="headerlink" href="#_20" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Python 3.9+</li>
 <li>虚拟环境</li>
 <li>本地配置文件</li>
 </ul>
-<h3 id="_20">生产环境<a class="headerlink" href="#_20" title="Permanent link">&para;</a></h3>
+<h3 id="_21">生产环境<a class="headerlink" href="#_21" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Docker 容器化（待实现）</li>
 <li>环境变量配置</li>
