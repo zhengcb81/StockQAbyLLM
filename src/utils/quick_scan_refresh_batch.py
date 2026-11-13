@@ -41,12 +41,11 @@ class _TransactionView(QuickScanWorkStore):
         yield self.connection
 
 
-def attach_owner_refresh_batch(store, specifications, *, run_id, scan_id, recheck):
+def _validated_specs(specifications):
     if (
         not isinstance(specifications, list)
         or not 1 <= len(specifications) <= 20000
         or len(canonical_bytes(specifications)) > 8 * 1024 * 1024
-        or not callable(recheck)
     ):
         raise ValueError("refresh_batch_invalid")
     specs = copy.deepcopy(specifications)
@@ -74,28 +73,37 @@ def attach_owner_refresh_batch(store, specifications, *, run_id, scan_id, rechec
             != "stockqa.quick_scan_observation_context/2.0.0"
         ):
             raise ValueError("refresh_batch_subject_context_required")
+    return specs
+
+
+def _attach_validated_specs(store, connection, specs, *, run_id, scan_id):
+    view = _TransactionView(store, connection)
     items = []
+    for spec in specs:
+        row = view.create_or_attach(**spec, run_id=run_id, scan_id=scan_id)
+        items.append(
+            dict(
+                work_item_id=row["work_item_id"],
+                entity_id=row["entity_id"],
+                question_id=row["question_id"],
+                generation=row["generation"],
+                scope=row["scope"],
+                scope_id=row["scope_id"],
+            )
+        )
+    return items
+
+
+def attach_owner_refresh_batch(store, specifications, *, run_id, scan_id, recheck):
+    if not callable(recheck):
+        raise ValueError("refresh_batch_invalid")
+    specs = _validated_specs(specifications)
     with store.transaction() as connection:
         if connection.execute("PRAGMA user_version").fetchone()[0] != SCHEMA_VERSION:
             raise ValueError("refresh_batch_executor_schema_unavailable")
         store.validate_schema(connection, schema_version=SCHEMA_VERSION)
         recheck()
-        view = _TransactionView(store, connection)
-        for spec in specs:
-            row = view.create_or_attach(**spec, run_id=run_id, scan_id=scan_id)
-            items.append(
-                dict(
-                    work_item_id=row["work_item_id"],
-                    entity_id=row["entity_id"],
-                    question_id=row["question_id"],
-                    generation=row["generation"],
-                    scope=row["scope"],
-                    scope_id=row["scope_id"],
-                )
-            )
-        # All original writes roll back if owner/permission changes mid-batch.
-        # A callback must not recursively write this ledger or issue a model
-        # call while its native transaction is held.
+        items = _attach_validated_specs(store, connection, specs, run_id=run_id, scan_id=scan_id)
         recheck()
     return dict(
         protocol="stockqa.refresh_batch_registration/1.0.0",
@@ -123,15 +131,16 @@ def register_refresh_action(
     if not callable(recheck):
         raise ValueError("refresh_admission_recheck_required")
     value = journal.inputs(action, specifications, run_id, scan_id, references)
+    confirmation_id = value["action"]["confirmation_id"]
+    original_specs = value["specifications"]
     with store.transaction() as connection:
         if connection.execute("PRAGMA user_version").fetchone()[0] != SCHEMA_VERSION:
             raise ValueError("refresh_admission_executor_schema_unavailable")
         store.validate_schema(connection, schema_version=SCHEMA_VERSION)
-        existing = journal.read_record(connection, action["confirmation_id"])
+        existing = journal.read_record(connection, confirmation_id)
         if existing is not None:
             if existing["inputs"] != value:
                 raise ValueError("refresh_admission_idempotency_conflict")
-            recheck("current_permissions")
             recheck("current_permissions")
             if continuation is not None:
                 from .quick_scan_owner_budget_continuation import register_cells
@@ -140,26 +149,21 @@ def register_refresh_action(
                     connection,
                     continuation["proof"],
                     existing["receipt"]["items"],
-                    specifications,
+                    original_specs,
                     continuation["bundles"],
                     ledger_path=store.path,
                     now=store.now(),
                 )
+                recheck("current_permissions")
             return existing["receipt"]
         recheck("fresh_registration")
-        view = _TransactionView(store, connection)
-        items = []
-        if specifications:
-            result = attach_owner_refresh_batch(
-                view,
-                specifications,
-                run_id=run_id,
-                scan_id=scan_id,
-                recheck=lambda: recheck("current_permissions"),
+        items = (
+            _attach_validated_specs(
+                store, connection, _validated_specs(original_specs), run_id=run_id, scan_id=scan_id
             )
-            items = result["items"]
-        else:
-            recheck("current_permissions")
+            if original_specs
+            else []
+        )
         receipt = journal.publish(connection, value, items, registered_at=store.now())
         if continuation is not None:
             from .quick_scan_owner_budget_continuation import register_cells
@@ -168,7 +172,7 @@ def register_refresh_action(
                 connection,
                 continuation["proof"],
                 items,
-                specifications,
+                original_specs,
                 continuation["bundles"],
                 ledger_path=store.path,
                 now=store.now(),

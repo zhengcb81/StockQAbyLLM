@@ -5,7 +5,6 @@ from __future__ import annotations
 import copy
 
 from src.utils.quick_scan_company_context import (
-    assert_company_scan_admission,
     company_scan_contract,
     company_scan_pack_group_key,
     validate_company_scan_task,
@@ -136,7 +135,6 @@ def _binding(subject, native_inputs, company_api):
 
 
 def _assert_unchanged(lifecycle, original_contract, original_owner):
-    assert_company_scan_admission(lifecycle)
     current = company_scan_contract(lifecycle)
     if current != original_contract:
         raise CompanyScanTaskRejected("original_owner_changed_during_task_creation")
@@ -145,8 +143,10 @@ def _assert_unchanged(lifecycle, original_contract, original_owner):
 
 
 def _capture_admitted_owner(lifecycle):
-    """Bind the first projection to the exact approved owner before building a task."""
-    assert_company_scan_admission(lifecycle)
+    """Bind task construction to the registered owner and its original inputs.
+
+    This only constructs data. Claim and transport enforce current permission.
+    """
     work = lifecycle.registered_research_work()
     owner = work.owner
     contract = company_scan_contract(lifecycle)

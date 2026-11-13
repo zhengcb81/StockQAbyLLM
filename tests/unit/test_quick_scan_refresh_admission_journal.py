@@ -40,13 +40,13 @@ def test_action_and_work_commit_atomically_then_restart_reuses_original_rows(tmp
     store = QuickScanWorkStore(tmp_path / "work.sqlite")
     checks = []
     first = register(store, recheck=checks.append)
-    assert checks[0] == "fresh_registration" and checks[-1] == "current_permissions"
+    assert checks == ["fresh_registration", "current_permissions"]
     assert first["permission_authenticated"] is False and first["API_requests"] == 0
     assert first["dispatch_started"] is False
     before = counts(store.path)
     checks.clear()
     again = register(QuickScanWorkStore(store.path), recheck=checks.append)
-    assert again == first and set(checks) == {"current_permissions"}
+    assert again == first and checks == ["current_permissions"]
     assert counts(store.path) == before
     with store._transaction() as con:
         assert read(con, action()["confirmation_id"]) == first
@@ -70,9 +70,24 @@ def test_admission_fault_rolls_back_action_work_run_refs_and_no_attempt(
 
         monkeypatch.setattr("src.utils.quick_scan_refresh_admission_journal.publish", fail)
 
+    published = []
+    if fault == "post_check":
+        from src.utils import quick_scan_refresh_admission_journal as journal
+
+        publish = journal.publish
+
+        def observe_publication(*args, **kwargs):
+            receipt = publish(*args, **kwargs)
+            published.append(receipt)
+            return receipt
+
+        monkeypatch.setattr(journal, "publish", observe_publication)
+
     def check(mode):
         checks.append(mode)
         if fault == "first_check" or fault == "post_check" and mode == "current_permissions":
+            if fault == "post_check":
+                assert published, "permission recheck should fence the final commit"
             raise ValueError("synthetic permission revoked")
 
     with pytest.raises(ValueError):
@@ -113,6 +128,29 @@ def test_existing_action_never_rebinds_input_and_current_permission_still_requir
         register(store, recheck=denied)
     with store._transaction() as con:
         assert read(con, claim["confirmation_id"]) == first
+
+
+def test_permission_rechecks_cannot_change_the_detached_registration_inputs(tmp_path):
+    store = QuickScanWorkStore(tmp_path / "work.sqlite")
+    rows, claim = specs(), action()
+    confirmation_id = claim["confirmation_id"]
+    fingerprint = rows[0]["routing_fingerprint"]
+
+    def recheck(mode):
+        if mode == "fresh_registration":
+            claim["confirmation_id"] = "rc1_" + "9" * 64
+            rows[0]["routing_fingerprint"] = "0" * 64
+
+    receipt = register(store, rows, claim, recheck=recheck)
+    assert receipt["confirmation_id"] == confirmation_id
+    with store.transaction() as connection:
+        assert read(connection, confirmation_id) == receipt
+        assert read(connection, claim["confirmation_id"]) is None
+        row = connection.execute(
+            "SELECT routing_fingerprint FROM work_item WHERE work_item_id=?",
+            (receipt["items"][0]["work_item_id"],),
+        ).fetchone()
+        assert row["routing_fingerprint"] == fingerprint
 
 
 def test_two_process_like_connections_share_one_atomic_action(tmp_path):

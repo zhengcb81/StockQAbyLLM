@@ -579,7 +579,8 @@ class RefreshAdmissionService:
                 receipt
             ):
                 raise AdmissionRejected("refresh_admission_commit_unavailable")
-            recheck("current_permissions")
+            # Registration is already durable. Claim and transport check
+            # current permission independently before any model dispatch.
             return dict(
                 protocol="stockqa.refresh_admission/1.0.0",
                 status="already_registered" if existing else "accepted",

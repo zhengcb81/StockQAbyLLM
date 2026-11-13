@@ -84,7 +84,6 @@ def _wire(monkeypatch, contract_values=None):
             return contract_values.pop(0)
         return contract
 
-    monkeypatch.setattr(factory, "assert_company_scan_admission", lambda _lifecycle: None)
     monkeypatch.setattr(factory, "company_scan_contract", contract_for_owner)
     monkeypatch.setattr(factory, "validate_company_scan_task", lambda _lifecycle, _task: None)
     monkeypatch.setattr(context, "company_scan_pack_group_key", lambda *args: "base")
@@ -211,25 +210,28 @@ def test_company_task_factory_rejects_forged_identity_projection_before_agent_ca
     assert calls == []
 
 
-def test_company_task_factory_stops_before_agent_call_when_original_owner_refuses(
-    monkeypatch,
+@pytest.mark.parametrize(
+    "create_task",
+    [factory.create_company_scan_task, factory.create_native_task],
+)
+def test_task_factory_reads_original_registration_without_live_dispatch_permission(
+    monkeypatch, create_task
 ):
-    lifecycle, _contract_value, calls, _api_impl = _wire(monkeypatch)
+    lifecycle, _contract, calls, _api = _wire(monkeypatch)
+
+    def dispatch_check_unavailable(_lifecycle):
+        raise RuntimeError("current dispatch permission service unavailable")
+
     monkeypatch.setattr(
-        factory,
-        "assert_company_scan_admission",
-        lambda _lifecycle: (_ for _ in ()).throw(ValueError("owner_changed")),
+        factory, "assert_company_scan_admission", dispatch_check_unavailable, raising=False
     )
 
-    with pytest.raises(ValueError, match="owner_changed"):
-        factory.create_company_scan_task(
-            lifecycle,
-            experiment_id="synthetic",
-            run_id="run-1",
-            question_ids=["Q1"],
-        )
+    task = create_task(
+        lifecycle, experiment_id="synthetic", run_id="run-registered", question_ids=["Q1"]
+    )
 
-    assert calls == []
+    assert len(calls) == 1
+    assert task.raw["run_id"] == "run-registered"
 
 
 def test_company_task_factory_rechecks_changed_owner_before_agent_call(monkeypatch):
