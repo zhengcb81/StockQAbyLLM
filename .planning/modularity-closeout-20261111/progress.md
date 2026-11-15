@@ -53,3 +53,8 @@
 - 本机 Python 3.13.9；`iqs_company_agent_lab`/`iqs_agent_runtime_lab` 未安装 → 真包组合测试 skip。
 - `IQS_ORIGINAL_ROOT`/`IQS_ROUTE_TEST_CODE_ROOT` 未配置 → 对应测试干净 skip（配置后 13 passed 验证过）。
 - 测试临时根统一 `--basetemp` 到 `%TEMP%/iqs-mcqa-merge/bt*`，未触生产库/密钥/收费 API。
+## 2026-11-15 总控固定组合状态同步
+
+- 总控报告 invest-quick-scan/docs/implementation/parallel-lanes/packages/2026-11-11-modularity-closeout/fixed-combination-2026-11-14.md 在 StockQA f6897ac5c437f6baa36bae336d2c47a7e1722ad1 上通过 I1/I2/I3。独立总组合边界审查 final_boundary_review 为 ACCEPT；本包自己的审查 72fae07 已在本目录 Findings/交接记录为 ACCEPT。
+- 本轮状态同步前，canonical master@f6897ac 有 4 个源码/测试 tracked WIP：src/utils/quick_scan_refresh_inspect.py、tests/unit/test_quick_scan_public_api_contracts.py、tests/unit/test_quick_scan_refresh_inspect.py、tests/unit/test_unusable_checkpoint_retry.py。这些文件不在固定组合中；不据固定组合推断其行为已测。
+- 本次仅同步计划与证据引用，不改 StockQA 源码或上述 WIP，不调用模型/搜索 API。

@@ -1,3 +1,7 @@
+## 2026-11-15 总控状态同步 — MC-QA
+
+本包独立审查 72fae07 已是 ACCEPT；下文“等待复核 72fae07”及等待交 handoff 的步骤已完成。总控固定组合在 StockQA f6897ac pin 验证 I1、I2、I3；它也是当前 master HEAD。当前另有 4 个源码/测试文件 WIP；本轮状态同步另改 task_plan/progress 两个 PWF 文件（详见本文件对应进度同步），不属于该固定组合，也未由本同步验收；保持其原 writer 所有权。
+
 # MC-QA 任务计划 — 执行 owner 与已付结果边界收口
 
 计划根：`C:/Users/郑曾波/Projects/iqs-modularity-worktrees-20261111/MC-QA/.planning/modularity-closeout-20261111/`
@@ -40,8 +44,8 @@
 
 ## 当前状态
 
-实现 + 独审 + 修复完成；等待独审复核 `72fae07`。
+MC-QA 已完成并进入固定组合；独立复核 72fae07 为 ACCEPT。StockQA f6897ac 是 I1–I3 实际测试 pin 与当前 master HEAD。4 个源码/测试 WIP 仍由原 writer 持有，不属于固定组合。
 
 ## 单一 Next Step
 
-独审复核通过后：写 handoff.md，交回总控（组合验收 I1-I4 用本分支 commit）。
+MC-QA 模块卡已关闭，无剩余交接动作。后续新功能或当前 4 个源码/测试 WIP 按各自 owner 计划处理；不得为本卡重做 72fae07 复审或重复交 handoff。
