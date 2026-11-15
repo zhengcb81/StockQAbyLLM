@@ -1,6 +1,6 @@
 ## 2026-11-15 总控状态同步 — MC-QA
 
-本包独立审查 72fae07 已是 ACCEPT；下文“等待复核 72fae07”及等待交 handoff 的步骤已完成。总控固定组合在 StockQA f6897ac pin 验证 I1、I2、I3；它也是当前 master HEAD。当前另有 4 个源码/测试文件 WIP；本轮状态同步另改 task_plan/progress 两个 PWF 文件（详见本文件对应进度同步），不属于该固定组合，也未由本同步验收；保持其原 writer 所有权。
+本包独立审查 72fae07 为 ACCEPT；固定组合在 StockQA 源码 pin f6897ac 验证 I1–I3。其后的 69406e8 及本次后续提交只同步 PWF Markdown，不改变或重验产品代码。当前另有 4 个源码/测试 WIP，由原 writer 持有且不属于固定组合。
 
 # MC-QA 任务计划 — 执行 owner 与已付结果边界收口
 
