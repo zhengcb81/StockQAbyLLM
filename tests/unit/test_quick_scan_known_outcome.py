@@ -697,7 +697,7 @@ def test_public_read_only_quote_keeps_version18_compatible_without_hidden_migrat
     assert store.path.read_bytes() == before
 
 
-@pytest.mark.parametrize("response_status", ["completed", "length"])
+@pytest.mark.parametrize("response_status", ["completed", "length", "content_filter"])
 def test_neutral_owner_resolution_does_not_claim_a_specific_parser_or_financial_fault(
     tmp_path, response_status
 ):
@@ -721,8 +721,42 @@ def test_neutral_owner_resolution_does_not_claim_a_specific_parser_or_financial_
         diagnostic=diagnostic,
     )
     assert saved["request"]["diagnostic"]["code"] == "known_response_no_accepted_answer"
+    assert saved["request"]["physical"]["response_status"] == response_status
     assert immutable(store) == before
     assert store.get_answer_checkpoint(members[0]["work_item_id"]) is None
+
+
+def test_content_filter_response_cannot_claim_a_specific_parser_fault(tmp_path):
+    """A content-filter refusal stays bound to the neutral no-answer reason only.
+
+    The specific-fault reasons (missing_question_answer / answer_validation_rejected)
+    assert something about the parsed answer body, which a filtered response never
+    produced, so they must keep refusing it.
+    """
+    store, clock, members, pack, receipt, _, _ = fixture(tmp_path, response_status="content_filter")
+    clock[0] += 121
+    for reason, code in (
+        ("missing_question_answer", "missing_question_answer"),
+        ("answer_validation_rejected", "standard_answer_invalid"),
+    ):
+        diagnostic = dict(
+            code=code,
+            artifact_ref="synthetic-terminal.json",
+            artifact_sha256="d" * 64,
+            response_sha256=store.get_attempt_response(pack["members"][0]["attempt_id"])[
+                "response_sha256"
+            ],
+        )
+        with pytest.raises(WorkConflictError, match="diagnostic_required"):
+            resolve(
+                store,
+                members,
+                pack,
+                receipt,
+                reason=reason,
+                diagnostic=diagnostic,
+            )
+        clock[0] += 121
 
 
 def received_recovery_fixture(tmp_path, monkeypatch, *, fault=None):
