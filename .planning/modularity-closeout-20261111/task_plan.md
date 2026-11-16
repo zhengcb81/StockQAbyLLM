@@ -1,3 +1,7 @@
+## 2026-11-16 已付回执与恢复边界
+
+从 `14f1a1c` 的内容过滤恢复向前收敛。中性无答案决议以原始 HTTP 已收到、实付已结算、原请求绑定、缺有效 checkpoint 和 owner 授权为准。具体解析失败与输出截断仍用各自的证据，供应商状态原样保留。后续 retry 沿现有公开授权和代际路径。
+
 ## 2026-11-15 总控状态同步 — MC-QA
 
 本包独立审查 72fae07 为 ACCEPT；固定组合在 StockQA 源码 pin f6897ac 验证 I1–I3。其后的 69406e8 及本次后续提交只同步 PWF Markdown，不改变或重验产品代码。当前另有 4 个源码/测试 WIP，由原 writer 持有且不属于固定组合。
@@ -42,10 +46,10 @@
 - 消费 CA/RT：仅 `<pkg>.api` facade（CA 2.3.0 / RT 1.4.0 floor）。
 - IQS ports 要求 QA facade ≥1.7；本包交付 1.8（同 major 兼容）。
 
-## 当前状态
+## 11-14 固定组合来源
 
-MC-QA 已完成并进入固定组合；独立复核 72fae07 为 ACCEPT。StockQA f6897ac 是 I1–I3 实际测试 pin 与当前 master HEAD。4 个源码/测试 WIP 仍由原 writer 持有，不属于固定组合。
+MC-QA 已完成并进入原固定组合。独立复核 72fae07 为 ACCEPT，StockQA f6897ac 是 I1–I3 的实际测试 pin。最新中性恢复演进及测试见 11-16 记录。
 
 ## 单一 Next Step
 
-MC-QA 模块卡已关闭，无剩余交接动作。后续新功能或当前 4 个源码/测试 WIP 按各自 owner 计划处理；不得为本卡重做 72fae07 复审或重复交 handoff。
+沿公开恢复接口接续真实任务。现有 provider、Runtime 和 Company Agent 继续消费正常回执及状态，新的 provider 标签由 StockQA 中性决议机制处理。原 checkout 的四个 WIP 由对应 owner 继续维护。
