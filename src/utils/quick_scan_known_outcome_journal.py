@@ -23,15 +23,6 @@ from .quick_scan_result_outbox import (
     strict_json_loads,
 )
 
-# Provider terminal statuses whose settled responses provably contain no
-# accepted standard answer: a completed response the answer-validation refused,
-# a length-truncated response, or a provider content-filter refusal. The owner
-# may close such receipts with the neutral known_response_no_accepted_answer
-# reason; the physical receipt stays bound and a later generation retries.
-# Reasons that claim a specific parser/validation fault still require a
-# completed response, because that claim needs the parsed answer body.
-_NO_ACCEPTED_ANSWER_RESPONSE_STATUSES = frozenset({"completed", "length", "content_filter"})
-
 DDL_V19_ADDITIONS = (
     """CREATE TABLE quick_scan_owner_work_decision (
         decision_id TEXT PRIMARY KEY, work_item_id TEXT NOT NULL REFERENCES work_item(work_item_id),
@@ -744,6 +735,8 @@ def resolution_request(
         or physical["request_payload_sha256"] != request_payload_sha256
     ):
         raise WorkConflictError("owner_work_caller_proof_mismatch")
+    # A neutral resolution records the missing checkpoint for a known,
+    # settled response. Specific diagnostics describe the response itself.
     if reason == "output_length":
         if physical["response_status"] != "length" or diagnostic is not None:
             raise WorkConflictError("owner_work_length_receipt_required")
@@ -759,11 +752,9 @@ def resolution_request(
             }[reason]
         )
         or diagnostic["response_sha256"] != physical["response_sha256"]
-        or physical["response_status"]
-        not in (
-            _NO_ACCEPTED_ANSWER_RESPONSE_STATUSES
-            if reason == "known_response_no_accepted_answer"
-            else {"completed"}
+        or (
+            reason != "known_response_no_accepted_answer"
+            and physical["response_status"] != "completed"
         )
     ):
         raise WorkConflictError("owner_work_bound_validation_diagnostic_required")

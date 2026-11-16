@@ -9,7 +9,7 @@ import dataclasses
 import hashlib
 import json
 import sqlite3
-from contextlib import closing
+from contextlib import closing, contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -545,7 +545,7 @@ def test_current_durable_bindings_are_rechecked_not_just_caller_hashes(tmp_path,
     assert store.path.read_bytes() == before
 
 
-def test_guard_prevents_parent_and_child_network_foreign_db_and_file_writes(tmp_path):
+def test_delegated_child_guard_prevents_network_foreign_db_and_file_writes(tmp_path):
     import os
     import subprocess
     import sys
@@ -563,21 +563,29 @@ assert checks==3
 print('3 guard refusals')
 print('guard-child-pid',os.getpid())
 """
+    owned = tmp_path / "owned"
+    owned.mkdir()
+    guard = Path(__file__).resolve().parents[1] / "fixtures" / "delegated_guard"
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if key.upper() in {"SYSTEMROOT", "WINDIR", "PATH", "PATHEXT", "TEMP", "TMP"}
+    }
+    env.update(IQS_C06_OWN=str(owned), PYTHONPATH=str(guard))
     result = subprocess.run(
         [sys.executable, "-B", "-X", "utf8", "-c", code],
-        env=dict(os.environ),
+        env=env,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
         timeout=15,
     )
     assert result.returncode == 0, result.stderr
     assert "3 guard refusals" in result.stdout
     child_pid = int(result.stdout.split("guard-child-pid ")[1].split()[0])
-    attestation = json.loads(
-        (Path(os.environ["IQS_C06_OWN"]) / "attestations" / f"{child_pid}.json").read_bytes()
-    )
+    attestation = json.loads((owned / "attestations" / f"{child_pid}.json").read_bytes())
     assert attestation["pid"] == child_pid
     assert attestation["guard_loaded"] is True
+    assert attestation["refusal_counts"] == {"network": 1, "foreign_sqlite": 1, "foreign_write": 1}
 
 
 @pytest.mark.parametrize("currency", ["CNY", "USD"])
@@ -697,7 +705,9 @@ def test_public_read_only_quote_keeps_version18_compatible_without_hidden_migrat
     assert store.path.read_bytes() == before
 
 
-@pytest.mark.parametrize("response_status", ["completed", "length", "content_filter"])
+@pytest.mark.parametrize(
+    "response_status", ["completed", "length", "content_filter", "provider_terminal_example", None]
+)
 def test_neutral_owner_resolution_does_not_claim_a_specific_parser_or_financial_fault(
     tmp_path, response_status
 ):
@@ -726,14 +736,10 @@ def test_neutral_owner_resolution_does_not_claim_a_specific_parser_or_financial_
     assert store.get_answer_checkpoint(members[0]["work_item_id"]) is None
 
 
-def test_content_filter_response_cannot_claim_a_specific_parser_fault(tmp_path):
-    """A content-filter refusal stays bound to the neutral no-answer reason only.
-
-    The specific-fault reasons (missing_question_answer / answer_validation_rejected)
-    assert something about the parsed answer body, which a filtered response never
-    produced, so they must keep refusing it.
-    """
-    store, clock, members, pack, receipt, _, _ = fixture(tmp_path, response_status="content_filter")
+@pytest.mark.parametrize("response_status", ["content_filter", "provider_terminal_example", None])
+def test_non_completed_response_cannot_claim_a_specific_parser_fault(tmp_path, response_status):
+    """A parser diagnostic requires a completed response from the provider."""
+    store, clock, members, pack, receipt, _, _ = fixture(tmp_path, response_status=response_status)
     clock[0] += 121
     for reason, code in (
         ("missing_question_answer", "missing_question_answer"),
@@ -838,7 +844,7 @@ def received_recovery_fixture(tmp_path, monkeypatch, *, fault=None):
         ],
     )
     capture = dict(
-        directory=(tmp_path / "final-answer-diagnostics").absolute(),
+        directory=(tmp_path / "d").absolute(),
         max_final_answer_bytes=262144,
     )
     retained = _capture_final_answer_diagnostic(
@@ -855,9 +861,7 @@ def received_recovery_fixture(tmp_path, monkeypatch, *, fault=None):
         else:
             doc["original_transport"]["members"][0]["work_item_id"] = "WORK_FOREIGN"
         path.write_text(json.dumps(doc), encoding="utf8")
-    session = ApprovedRefreshSession.__new__(ApprovedRefreshSession)
-    session.service = SimpleNamespace(store=store)
-    session.entries = {
+    entries = {
         m["question_id"]: dict(
             kind="work",
             work_item_id=m["work_item_id"],
@@ -867,19 +871,56 @@ def received_recovery_fixture(tmp_path, monkeypatch, *, fault=None):
     }
     manifest = copy.deepcopy(MANIFEST)
     manifest["manifest_sha256"] = context["manifest_file_sha256"]
-    session.bundle = dict(
-        identity=dict(entity_id=bodies[0]["entity_id"]), manifest=manifest, authority={}
-    )
-    session.input_raw = {
+    raw = {
         "identity.json": json.dumps(dict(payload=dict(canonical_name="Synthetic fixture"))).encode()
     }
+    session = ApprovedRefreshSession(
+        service=SimpleNamespace(store=store),
+        proof={},
+        bundles={},
+        bundle=dict(
+            identity=dict(entity_id=bodies[0]["entity_id"]), manifest=manifest, authority={}
+        ),
+        record={},
+        entries=entries,
+        native=SimpleNamespace(
+            store=store,
+            plan={},
+            scope_bindings={qid: {} for qid in entries},
+            fields={qid: {} for qid in entries},
+        ),
+        input_paths={},
+        raw=raw,
+        recovery_only=True,
+    )
     session.check = lambda: None
     checks = []
+    checkpoint_inserts = []
+
+    if fault == "revoked_before_commit":
+        transaction = store.transaction
+
+        def track_checkpoint(sql):
+            if sql.startswith("INSERT INTO answer_checkpoint "):
+                checkpoint_inserts.append(True)
+
+        @contextmanager
+        def traced_transaction():
+            with transaction() as con:
+                con.set_trace_callback(track_checkpoint)
+                try:
+                    yield con
+                finally:
+                    con.set_trace_callback(None)
+
+        monkeypatch.setattr(store, "transaction", traced_transaction)
 
     def guard(wid, aid, *, store):
         checks.append((wid, aid))
-        if fault == "revoked" or (fault == "revoked_before_commit" and len(checks) > 5):
+        if fault == "revoked":
             raise PermissionError("synthetic current owner revoked")
+        if checkpoint_inserts:
+            raise PermissionError("synthetic current owner revoked after checkpoint insert")
 
     session.assert_received_checkpoint_recovery = guard  # fixture-only native port boundary
     monkeypatch.setattr(
@@ -936,7 +977,6 @@ def test_received_original_pack_recovers_same_attempt_after_closed_failure_witho
         "wrong_body_hash",
         "wrong_response",
         "wrong_members",
-        "bad_second_body",
         "revoked",
         "revoked_before_commit",
     ],
@@ -949,11 +989,42 @@ def test_received_original_pack_recovery_rejects_changed_body_scope_or_revocatio
     )
     before = immutable(store)
     budget = store.get_quick_scan_budget_status("pack-policy")
-    with pytest.raises((ValueError, PermissionError)):
-        session.recover_received_checkpoints(capture_policy=capture)
+    if fault.startswith("revoked"):
+        phase = " after checkpoint insert" if fault == "revoked_before_commit" else ""
+        with pytest.raises(PermissionError, match=f"current owner revoked{phase}$"):
+            session.recover_received_checkpoints(capture_policy=capture)
+    else:
+        result = session.recover_received_checkpoints(capture_policy=capture)
+        assert result["recovered_work_item_ids"] == []
+        assert set(result["remaining_work_item_ids"]) == {
+            m["work_item_id"] for m in pack["members"]
+        }
+        assert (
+            result["recovery_errors"][0]["reason"]
+            == "received_checkpoint_original_body_binding_mismatch"
+        )
     assert (
         immutable(store) == before and store.get_quick_scan_budget_status("pack-policy") == budget
     )
+
+
+def test_received_recovery_keeps_valid_members_when_one_body_is_invalid(tmp_path, monkeypatch):
+    store, _, pack, _, _, session, capture, _ = received_recovery_fixture(
+        tmp_path, monkeypatch, fault="bad_second_body"
+    )
+    first, invalid, third = [member["work_item_id"] for member in pack["members"]]
+    budget = store.get_quick_scan_budget_status("pack-policy")
+    result = session.recover_received_checkpoints(capture_policy=capture)
+    assert set(result["recovered_work_item_ids"]) == {first, third}
+    assert result["remaining_work_item_ids"] == [invalid]
+    assert store.get_answer_checkpoint(invalid) is None
+    for member in (pack["members"][0], pack["members"][2]):
+        assert (
+            store.get_answer_checkpoint(member["work_item_id"])["attempt_id"]
+            == member["attempt_id"]
+        )
+    assert result["API_requests"] == result["new_attempts"] == 0
+    assert store.get_quick_scan_budget_status("pack-policy") == budget
 
 
 def test_received_recovery_ignores_unrelated_bad_captures_and_needs_no_remaining_budget(
@@ -1005,9 +1076,25 @@ def test_received_recovery_rejects_later_generation_without_changing_prior_faile
     )
     store.create_or_attach(**spec)
     before = immutable(store)
-    with pytest.raises(WorkConflictError, match="later_generation"):
-        session.recover_received_checkpoints(capture_policy=capture)
-    assert immutable(store) == before
+    budget = store.get_quick_scan_budget_status("pack-policy")
+    result = session.recover_received_checkpoints(capture_policy=capture)
+    assert result["remaining_work_item_ids"] == [old["work_item_id"]]
+    assert set(result["recovered_work_item_ids"]) == {
+        member["work_item_id"] for member in pack["members"][1:]
+    }
+    assert result["recovery_errors"] == [
+        {
+            "reason": "received_checkpoint_later_generation_exists",
+            "work_item_ids": [old["work_item_id"]],
+        }
+    ]
+    assert store.get_item(old["work_item_id"]) == old
+    assert store.get_answer_checkpoint(old["work_item_id"]) is None
+    assert {key: rows for key, rows in immutable(store).items() if key != "answer_checkpoint"} == {
+        key: rows for key, rows in before.items() if key != "answer_checkpoint"
+    }
+    assert result["API_requests"] == 0
+    assert store.get_quick_scan_budget_status("pack-policy") == budget
 
 
 def test_received_recovery_cannot_downgrade_to_compact_checkpoint_without_standard_body(
@@ -1060,8 +1147,12 @@ def test_received_recovery_deduplicates_safe_same_content_copies_but_rejects_bod
     (capture["directory"] / ("2" * 64 + ".final.json")).write_bytes(raw)
     before = immutable(store)
     if different_body:
-        with pytest.raises(ValueError, match="unique_original_body_required"):
-            session.recover_received_checkpoints(capture_policy=capture)
+        result = session.recover_received_checkpoints(capture_policy=capture)
+        assert result["recovered_work_item_ids"] == []
+        assert (
+            result["recovery_errors"][0]["reason"]
+            == "received_checkpoint_unique_original_body_required"
+        )
         assert immutable(store) == before
     else:
         result = session.recover_received_checkpoints(capture_policy=capture)
