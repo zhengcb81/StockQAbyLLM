@@ -31,15 +31,26 @@ description: 从本仓问题卡或 feedback-observation/1 观察行出发，复�
 |---|---|---|---|
 | `settled-disposition` | 原生结算类别 | 公开投影状态词 | 每题一行；`disposition` 只表示“公开结果是否忠实反映原生结算” |
 | `generation-binding` | `latest_unresolved_generation` | `stale_generation` | 只在投影选了旧代际而存在更新未决代际时出现 |
-| `cost-state` | `cost_unknown` | `cost_<budget_status>` / `cost_zero_unverified` | 费用未结清或零费用缺来源引用；永远记 `unknown` |
+| `cost-state` | `cost_unknown` | `cost_<budget_status>` / `cost_zero_unverified` / `cost_unverified` | 费用未结清或已结算金额缺来源引用；永远记 `unknown`；`in_flight` 不报 |
+| `snapshot-consistency` | `single_snapshot` | `ledger_changed_between_reads` | 公开结果与本次重投影之间账本被改过；该题只报漂移，不判偏差 |
+
+原生结算类别（`expected`）：`settled_no_answer`、`answer_readable`、`answer_unusable`、`answer_unsettled`、`send_unknown`、`not_attempted`、`cancelled`、`refused_settled`，以及待查的 `missing_receipt`、`unreadable_receipt`、`unrecognized_label`、`late_receipt_observed`、`late_receipt_unresolved`、`unclassified`。
+
+公开投影状态词（`actual`）：`failed_settled`、`answer_ready`、`answer_delivered`、`send_uncertain`、`retry_scheduled`、`cancelled`、`not_projected`、`unclassified`。
 
 判定规则：
 
 - `settled_no_answer` + `failed_settled` + `expected`：已收到、已结算、无可用答案。该工作项**不可再次领取**，任何“再发一次”的建议都是偏离。
 - `settled_no_answer` + `retry_scheduled` / `send_uncertain` + `deviation`，且 `issue_key=settled-answer-replayed`：公开投影把已结算题重新变成可发状态，会重复付费。本仓修投影或恢复分支。
 - `answer_readable` + `retry_scheduled` + `deviation`（`issue_key=readable-answer-replayed`）：已有可读 checkpoint 却仍要求重发。先查 outbox 与恢复入口，不重发。
+- `answer_readable` + `failed_settled` + `deviation`（`issue_key=readable-answer-marked-settled`）：可读答案被标成已结算无答案，恢复路径会丢掉已付结果。
+- `answer_unusable` + `answer_ready` / `answer_delivered` + `deviation`（`issue_key=unusable-answer-presented-ready`）：checkpoint 不可用（研究型或不满足合同）却被当成可交付答案；先修 checkpoint 判定，不要把损坏答案送出去。
+- `answer_unusable` + `failed_settled` + `expected`：不可用 checkpoint 与已结算无答案一致，无需动作。
 - `send_unknown` + `failed_settled` + `deviation`（`issue_key=unknown-send-classified-settled`）：把未知发送抹成确定无答案，会丢失真实风险。恢复为 unknown，不改写成失败。
-- `unrecognized_label` / `late_receipt_unresolved` / `missing_receipt` / `unreadable_receipt`：`disposition=unknown`。这是**待查**，不是偏差，也不是零答案。先只读对账。
+- `refused_settled`：已确认的供应商拒绝（401/403/404/429 等）。`retry_scheduled` 或 `failed_settled` 都合法，取决于原作业是否已终结；不改写成 unknown。
+- `late_receipt_observed` / `late_receipt_unresolved`：迟到回执到达（带正文或只有哈希）。`disposition=unknown`，先只读对账；迟到正文可能正是缺失的答案，不得先重发。
+- `unrecognized_label` / `missing_receipt` / `unreadable_receipt` / `unclassified`：`disposition=unknown`。这是**待查**，不是偏差，也不是零答案。
+- `snapshot-consistency` 为 `unknown`：账本在两次读之间变化，先重跑公开 inspect 再判断，不得据此立卡。
 - `cost-state` 出现即费用未知：保留 `unknown`，按原作业只读对账；不得写成 0，也不得据此发起新付费尝试。
 - 只有 `generation-binding` 偏离、`settled-disposition` 正常：修投影的代际选择，不动结算。
 
@@ -69,10 +80,14 @@ python -B -m src.utils.quick_scan_refresh_inspect_cli --ledger <tmp>\ledger.sqli
 | 可读 checkpoint | `answer_readable` / `answer_ready` / `expected` |
 | 发送后结果未知 | `send_unknown` / `send_uncertain` / `expected` |
 | 有 `response_available` 但无回执 | `missing_receipt` / `unknown` |
+| 迟到回执带正文 | `late_receipt_observed` / `unknown`，不并入 `send_unknown` |
 | 未识别的 provider 标签 | `unrecognized_label` / `unknown`，不判为无答案 |
+| 不可用 checkpoint | `answer_unusable`；投影成可交付即 `deviation` |
+| 已确认的供应商拒绝 | `refused_settled` / `retry_scheduled` / `expected` |
 | 旧代际已结算 + 新代际未开始 | 观察新代际，`evidence_ref` 指向 `g2`，不串号 |
 | 假零费用 | `cost_zero_unverified` / `unknown` |
 | 投影错误地重新发题 | `deviation` + `issue_key=settled-answer-replayed` |
+| 两次读之间账本被改 | `snapshot-consistency` / `unknown`，不判偏差 |
 | 侧车写失败 / 账本损坏 | 业务结果与退出码不变，只少诊断 |
 
 新增母例时扩展该测试文件的合成账本，不改生产代码来迎合夹具。

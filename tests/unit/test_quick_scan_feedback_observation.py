@@ -75,7 +75,7 @@ def _unknown_send(tmp_path):
     store.record_attempt_outcome(
         item["work_item_id"], lease, attempt["attempt_id"], outcome="unknown"
     )
-    return store, item, attempt
+    return store, item, attempt, lease
 
 
 def _observed(store, request, policy):
@@ -131,7 +131,7 @@ def test_readable_answer_is_reported_as_answer_readable(tmp_path):
 
 
 def test_unknown_send_is_reported_as_send_unknown_not_as_settled(tmp_path):
-    store, item, attempt = _unknown_send(tmp_path)
+    store, item, attempt, lease = _unknown_send(tmp_path)
     policy = _policy()
     request = _request(store, item, policy)
     _, facts, rows = _observed(store, request, policy)
@@ -143,7 +143,7 @@ def test_unknown_send_is_reported_as_send_unknown_not_as_settled(tmp_path):
 
 
 def test_missing_durable_receipt_stays_unknown(tmp_path):
-    store, item, attempt = _unknown_send(tmp_path)
+    store, item, attempt, lease = _unknown_send(tmp_path)
     policy = _policy()
     request = _request(store, item, policy)
     with closing(sqlite3.connect(store.path)) as connection:
@@ -156,6 +156,30 @@ def test_missing_durable_receipt_stays_unknown(tmp_path):
     settled = _by_check(rows, "settled-disposition")[0]
     assert facts[item["question_id"]]["has_response"] is False
     assert settled["expected"] == "missing_receipt"
+    assert settled["disposition"] == "unknown"
+
+
+def test_late_receipt_with_a_body_is_observed_from_the_native_journal(tmp_path):
+    store, item, attempt, lease = _unknown_send(tmp_path)
+    from src.utils.quick_scan_work_store import quick_scan_receipt_sha256
+    from tests.unit.test_quick_scan_work_store import _synthetic_search_receipt
+
+    receipt = _synthetic_search_receipt(provider="mimo", model="mimo-v2.6-flash")
+    store.note_late_receipt(
+        item["work_item_id"],
+        lease,
+        attempt["attempt_id"],
+        receipt_sha256=quick_scan_receipt_sha256(receipt),
+        execution_receipt=receipt,
+    )
+    policy = _policy()
+    request = _request(store, item, policy)
+    _, facts, rows = _observed(store, request, policy)
+    assert facts[item["question_id"]]["late_receipt"] is True
+    assert facts[item["question_id"]]["has_response"] is True
+    settled = _by_check(rows, "settled-disposition")[0]
+    assert settled["expected"] == "late_receipt_observed"
+    assert settled["actual"] == "send_uncertain"
     assert settled["disposition"] == "unknown"
 
 
@@ -215,39 +239,66 @@ def test_newer_generation_is_not_crossed_with_older_settled_generation(tmp_path)
     assert settled["evidence_ref"].endswith("/g2")
 
 
-def test_projection_that_reoffers_a_settled_question_is_a_deviation():
-    facts = {
-        "IQS_05": {
-            "entity_id": "ENT_BYD",
-            "question_id": "IQS_05",
+def _fact(**overrides):
+    """A synthetic fact row; tests override only the field under study."""
+    fact = {
+        "entity_id": "ENT_BYD",
+        "question_id": "IQS_05",
+        "work_item_id": "W1",
+        "generation": 1,
+        "projected": True,
+        "reprojected": {"work_item_id": "W1", "generation": 1, "status": "pending"},
+        "projected_status": "pending",
+        "highest_generation": 1,
+        "newer_unresolved_generation": False,
+        "attempts": 1,
+        "attempt_id": "ATTEMPT_FIXTURE",
+        "attempt_ordinal": 1,
+        "phase": "response_available",
+        "has_response": True,
+        "receipt_readable": True,
+        "late_receipt": False,
+        "unrecognized_label": False,
+        "checkpoint": "absent",
+        "settled_reason": None,
+        "budget_status": None,
+        "terminal_outcome": None,
+        "actual_cost_micros": None,
+        "cost_source_ref": None,
+        "delivery_state": None,
+        "status": "failed",
+    }
+    fact.update(overrides)
+    return fact
+
+
+def _rows_for(**overrides):
+    values = dict(overrides)
+    values.setdefault("projected_status", "pending")
+    values.setdefault(
+        "reprojected",
+        {
             "work_item_id": "W1",
             "generation": 1,
-            "projected": True,
-            "projected_status": "pending",
-            "highest_generation": 1,
-            "newer_unresolved_generation": False,
-            "attempts": 1,
-            "attempt_ordinal": 1,
-            "phase": "response_available",
-            "has_response": True,
-            "receipt_readable": True,
-            "late_receipt": False,
-            "unrecognized_label": False,
-            "checkpoint": "absent",
-            "settled_reason": "missing_question",
-            "budget_status": "settled",
-            "terminal_outcome": "completed",
-            "actual_cost_micros": 1200,
-            "cost_source_ref": "fixture-rate-card",
-            "delivery_state": None,
-            "status": "failed",
-        }
-    }
+            "status": values["projected_status"],
+        },
+    )
     result = {
         "protocol": "stockqa.refresh_inspection/1.0.0",
-        "work_items": {"IQS_05": {"work_item_id": "W1", "generation": 1, "status": "pending"}},
+        "work_items": {
+            "IQS_05": {
+                "work_item_id": "W1",
+                "generation": 1,
+                "status": values["projected_status"],
+            }
+        },
     }
-    rows = observe(result, facts, run_id="run-fixture", attempt_id="attempt-fixture")
+    facts = {"IQS_05": _fact(**values)}
+    return observe(result, facts, run_id="run-fixture", attempt_id="attempt-fixture")
+
+
+def test_projection_that_reoffers_a_settled_question_is_a_deviation():
+    rows = _rows_for(settled_reason="missing_question", status="failed")
     settled = _by_check(rows, "settled-disposition")[0]
     assert settled["expected"] == "settled_no_answer"
     assert settled["actual"] == "retry_scheduled"
@@ -256,6 +307,98 @@ def test_projection_that_reoffers_a_settled_question_is_a_deviation():
     assert settled["run_id"] == "run-fixture"
     assert settled["attempt_id"] == "attempt-fixture"
     assert settled["step_id"] == "ENT_BYD/question-IQS_05-inspect"
+
+
+def test_unusable_checkpoint_is_never_reported_as_a_readable_answer():
+    rows = _rows_for(checkpoint="invalid", projected_status="result_ready", status="result_ready")
+    settled = _by_check(rows, "settled-disposition")[0]
+    assert settled["expected"] == "answer_unusable"
+    assert settled["actual"] == "answer_ready"
+    assert settled["disposition"] == "deviation"
+    assert settled["issue_key"] == "unusable-answer-presented-ready"
+    # A settled item with an unusable checkpoint is consistent.
+    consistent = _by_check(
+        _rows_for(checkpoint="not_usable", status="failed", projected_status="failed"),
+        "settled-disposition",
+    )[0]
+    assert consistent["expected"] == "answer_unusable"
+    assert consistent["actual"] == "failed_settled"
+    assert consistent["disposition"] == "expected"
+
+
+def test_late_receipt_with_a_body_is_reported_separately():
+    rows = _rows_for(
+        late_receipt=True,
+        phase="uncertain",
+        status="uncertain",
+        projected_status="uncertain",
+    )
+    settled = _by_check(rows, "settled-disposition")[0]
+    assert settled["expected"] == "late_receipt_observed"
+    assert settled["actual"] == "send_uncertain"
+    assert settled["disposition"] == "unknown"
+    unresolved = _by_check(
+        _rows_for(late_receipt=True, has_response=False, receipt_readable=False),
+        "settled-disposition",
+    )[0]
+    assert unresolved["expected"] == "late_receipt_unresolved"
+    assert unresolved["disposition"] == "unknown"
+
+
+def test_confirmed_refusal_and_cancelled_states_are_named():
+    refused = _by_check(
+        _rows_for(phase="confirmed_failure", has_response=False, status="leased"),
+        "settled-disposition",
+    )[0]
+    assert refused["expected"] == "refused_settled"
+    assert refused["actual"] == "retry_scheduled"
+    assert refused["disposition"] == "expected"
+    cancelled = _by_check(
+        _rows_for(status="cancelled", projected_status="cancelled"), "settled-disposition"
+    )[0]
+    assert cancelled["expected"] == "cancelled"
+    assert cancelled["actual"] == "cancelled"
+    assert cancelled["disposition"] == "expected"
+
+
+def test_unreadable_receipt_stays_unknown():
+    rows = _rows_for(receipt_readable=False)
+    settled = _by_check(rows, "settled-disposition")[0]
+    assert settled["expected"] == "unreadable_receipt"
+    assert settled["disposition"] == "unknown"
+
+
+def test_changed_ledger_between_reads_is_unknown_not_a_deviation():
+    rows = _rows_for(
+        settled_reason="missing_question",
+        reprojected={"work_item_id": "W1", "generation": 1, "status": "failed"},
+        status="failed",
+    )
+    assert _by_check(rows, "settled-disposition") == []
+    drift = _by_check(rows, "snapshot-consistency")[0]
+    assert drift["expected"] == "single_snapshot"
+    assert drift["actual"] == "ledger_changed_between_reads"
+    assert drift["disposition"] == "unknown"
+    assert "issue_key" not in drift
+
+
+def test_stale_generation_projection_is_reported():
+    rows = _rows_for(
+        newer_unresolved_generation=True, status="failed", settled_reason="missing_question"
+    )
+    generation = _by_check(rows, "generation-binding")[0]
+    assert generation["expected"] == "latest_unresolved_generation"
+    assert generation["actual"] == "stale_generation"
+    assert generation["disposition"] == "deviation"
+    assert generation["issue_key"] == "stale-generation-projection"
+
+
+def test_in_flight_budget_is_not_reported_as_unknown_cost():
+    rows = _rows_for(budget_status="in_flight")
+    assert _by_check(rows, "cost-state") == []
+    unpriced = _by_check(_rows_for(budget_status="response_unpriced"), "cost-state")[0]
+    assert unpriced["actual"] == "cost_response_unpriced"
+    assert unpriced["disposition"] == "unknown"
 
 
 def test_settled_zero_cost_without_source_stays_unknown(tmp_path):
@@ -290,7 +433,14 @@ def test_stable_identity_is_reused_for_repeated_export(tmp_path):
         (row["run_id"], row["attempt_id"], row["step_id"], row["check_id"]) for row in first
     ]
     assert len(set(identity)) == len(identity)
-    assert all(row["attempt_id"] == "inspect-g1a1" for row in first)
+    # The native attempt identity is kept; a real retry gets a new ordinal.
+    assert all(row["attempt_id"] == attempt["attempt_id"] for row in first)
+    retry = _fact(attempt_id="ATTEMPT_RETRY", attempt_ordinal=2)
+    result = {"protocol": "stockqa.refresh_inspection/1.0.0", "work_items": {}}
+    retried = observe(result, {"IQS_05": retry})
+    assert retried[0]["attempt_id"] == "ATTEMPT_RETRY"
+    unattempted = observe(result, {"IQS_05": _fact(attempt_id=None, attempts=0, phase=None)})
+    assert unattempted[0]["attempt_id"] == "inspect-g1a0"
 
 
 def test_emit_without_environment_writes_nothing(tmp_path):

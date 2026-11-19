@@ -36,13 +36,16 @@ KNOWN_SEARCH_STATUS = frozenset({"executed"})
 #: Expected settlement words derived from native rows.
 SETTLED_NO_ANSWER = "settled_no_answer"
 ANSWER_READABLE = "answer_readable"
+ANSWER_UNUSABLE = "answer_unusable"
 ANSWER_UNSETTLED = "answer_unsettled"
 SEND_UNKNOWN = "send_unknown"
 NOT_ATTEMPTED = "not_attempted"
 CANCELLED = "cancelled"
+REFUSED_SETTLED = "refused_settled"
 MISSING_RECEIPT = "missing_receipt"
 UNREADABLE_RECEIPT = "unreadable_receipt"
 UNRECOGNIZED_LABEL = "unrecognized_label"
+LATE_RECEIPT_OBSERVED = "late_receipt_observed"
 LATE_RECEIPT_UNRESOLVED = "late_receipt_unresolved"
 UNCLASSIFIED = "unclassified"
 
@@ -72,7 +75,9 @@ _ALLOWED_ACTUALS = {
     SEND_UNKNOWN: frozenset({SEND_UNCERTAIN}),
     SETTLED_NO_ANSWER: frozenset({FAILED_SETTLED}),
     ANSWER_READABLE: frozenset({ANSWER_READY, ANSWER_DELIVERED}),
+    ANSWER_UNUSABLE: frozenset({FAILED_SETTLED}),
     ANSWER_UNSETTLED: frozenset({RETRY_SCHEDULED, ANSWER_READY}),
+    REFUSED_SETTLED: frozenset({RETRY_SCHEDULED, FAILED_SETTLED}),
     CANCELLED: frozenset({ACTUAL_CANCELLED}),
 }
 
@@ -81,6 +86,9 @@ _ISSUE_KEYS = {
     (SETTLED_NO_ANSWER, SEND_UNCERTAIN): "settled-answer-replayed",
     (ANSWER_READABLE, RETRY_SCHEDULED): "readable-answer-replayed",
     (ANSWER_READABLE, FAILED_SETTLED): "readable-answer-marked-settled",
+    (ANSWER_UNUSABLE, RETRY_SCHEDULED): "unusable-answer-replayed",
+    (ANSWER_UNUSABLE, ANSWER_READY): "unusable-answer-presented-ready",
+    (ANSWER_UNUSABLE, ANSWER_DELIVERED): "unusable-answer-presented-ready",
     (SEND_UNKNOWN, FAILED_SETTLED): "unknown-send-classified-settled",
 }
 
@@ -88,14 +96,28 @@ _STALE_GENERATION = "stale-generation-projection"
 
 
 def project_question_receipts(view, result, request):
-    """Project native per-question facts inside one read-only transaction."""
+    """Project native per-question facts inside one read-only transaction.
+
+    The public result was read in an earlier snapshot. The same public
+    projection is recomputed here so the comparison can tell a stale read
+    (the ledger moved) from a projection that really contradicts the native
+    settlement.
+    """
     facts = {}
     projected_items = result.get("work_items") or {}
     with view.inspection_transaction() as connection:
+        reprojection = view.owner_refresh_projection(
+            entity_id=request["entity_id"],
+            question_ids=request["question_ids"],
+            scope_bindings=request["scope_bindings"],
+        )
         for question_id in request["question_ids"]:
             projected = projected_items.get(question_id)
+            reprojected = reprojection.get(question_id)
             if not isinstance(projected, dict) or not projected.get("work_item_id"):
-                facts[question_id] = _fb_absent_fact(request["entity_id"], question_id)
+                fact = _fb_absent_fact(request["entity_id"], question_id)
+                fact["reprojected"] = reprojected
+                facts[question_id] = fact
                 continue
             facts[question_id] = _fb_fact(
                 connection,
@@ -103,6 +125,7 @@ def project_question_receipts(view, result, request):
                 entity_id=request["entity_id"],
                 question_id=question_id,
                 projected=projected,
+                reprojected=reprojected,
                 scope_binding=request["scope_bindings"][question_id],
             )
     return facts
@@ -113,6 +136,7 @@ def _fb_absent_fact(entity_id, question_id):
         "entity_id": entity_id,
         "question_id": question_id,
         "projected": False,
+        "reprojected": None,
         "work_item_id": None,
         "generation": 0,
         "status": None,
@@ -137,14 +161,14 @@ def _fb_absent_fact(entity_id, question_id):
     }
 
 
-def _fb_fact(connection, view, *, entity_id, question_id, projected, scope_binding):
+def _fb_fact(connection, view, *, entity_id, question_id, projected, reprojected, scope_binding):
     work_item_id = projected["work_item_id"]
     item = connection.execute(
         "SELECT * FROM work_item WHERE work_item_id=?", (work_item_id,)
     ).fetchone()
     if item is None:
         fact = _fb_absent_fact(entity_id, question_id)
-        fact.update(projected=True, work_item_id=work_item_id)
+        fact.update(projected=True, reprojected=reprojected, work_item_id=work_item_id)
         return fact
     attempts = connection.execute(
         "SELECT * FROM attempt WHERE work_item_id=? ORDER BY ordinal", (work_item_id,)
@@ -177,6 +201,7 @@ def _fb_fact(connection, view, *, entity_id, question_id, projected, scope_bindi
         "entity_id": entity_id,
         "question_id": question_id,
         "projected": True,
+        "reprojected": reprojected,
         "work_item_id": work_item_id,
         "generation": item["generation"],
         "status": item["status"],
@@ -283,18 +308,25 @@ def _fb_expected(fact):
         return CANCELLED, None
     if fact["checkpoint"] == "valid":
         return ANSWER_READABLE, None
+    if fact["late_receipt"]:
+        # A late receipt may carry the answer a settled attempt was missing.
+        return (
+            LATE_RECEIPT_OBSERVED if fact["has_response"] else LATE_RECEIPT_UNRESOLVED
+        ), "unknown"
     if fact["unrecognized_label"]:
         return UNRECOGNIZED_LABEL, "unknown"
-    if fact["late_receipt"] and not fact["has_response"]:
-        return LATE_RECEIPT_UNRESOLVED, "unknown"
     if fact["settled_reason"] and fact["has_response"]:
         return SETTLED_NO_ANSWER, None
+    if fact["checkpoint"] in {"not_usable", "invalid"}:
+        return ANSWER_UNUSABLE, None
     if fact["phase"] == "response_available":
         if not fact["has_response"]:
             return MISSING_RECEIPT, "unknown"
         if not fact["receipt_readable"]:
             return UNREADABLE_RECEIPT, "unknown"
         return ANSWER_UNSETTLED, None
+    if fact["phase"] == "confirmed_failure":
+        return REFUSED_SETTLED, None
     if fact["phase"] in {"send_intent", "uncertain"} or fact["status"] == "uncertain":
         return SEND_UNKNOWN, None
     if fact["terminal_outcome"] in {"unknown", "legacy_unverified"}:
@@ -312,7 +344,10 @@ def _fb_actual(fact):
 
 
 def _fb_attempt_identity(fact):
-    return "inspect-g{}a{}".format(fact["generation"] or 0, fact["attempt_ordinal"] or 0)
+    """Keep the native attempt identity; only unattempted work gets a label."""
+    if fact["attempt_id"]:
+        return fact["attempt_id"]
+    return "inspect-g{}a0".format(fact["generation"] or 0)
 
 
 def _fb_row(
@@ -355,6 +390,24 @@ def observe(result, facts, *, run_id=None, attempt_id=None):
     rows = []
     for question_id in sorted(facts):
         fact = facts[question_id]
+        identity = attempt_id or _fb_attempt_identity(fact)
+        if _fb_snapshot_changed(fact):
+            # The ledger moved between the public read and this projection.
+            # Comparing across snapshots would manufacture a deviation, so
+            # report the drift and leave the question for a fresh read.
+            rows.append(
+                _fb_row(
+                    fact,
+                    check_id="snapshot-consistency",
+                    expected="single_snapshot",
+                    actual="ledger_changed_between_reads",
+                    disposition="unknown",
+                    run_id=base_run,
+                    attempt_id=identity,
+                    version=version,
+                )
+            )
+            continue
         expected, forced = _fb_expected(fact)
         actual = _fb_actual(fact)
         if forced is not None:
@@ -372,7 +425,7 @@ def observe(result, facts, *, run_id=None, attempt_id=None):
                 actual=actual,
                 disposition=disposition,
                 run_id=base_run,
-                attempt_id=attempt_id or _fb_attempt_identity(fact),
+                attempt_id=identity,
                 version=version,
             )
         )
@@ -385,7 +438,7 @@ def observe(result, facts, *, run_id=None, attempt_id=None):
                     actual="stale_generation",
                     disposition="deviation",
                     run_id=base_run,
-                    attempt_id=attempt_id or _fb_attempt_identity(fact),
+                    attempt_id=identity,
                     version=version,
                     issue_key=_STALE_GENERATION,
                 )
@@ -400,17 +453,33 @@ def observe(result, facts, *, run_id=None, attempt_id=None):
                     actual=cost,
                     disposition="unknown",
                     run_id=base_run,
-                    attempt_id=attempt_id or _fb_attempt_identity(fact),
+                    attempt_id=identity,
                     version=version,
                 )
             )
     return rows
 
 
+def _fb_snapshot_changed(fact):
+    """True when the public result and the native reprojection disagree."""
+    reprojected = fact.get("reprojected")
+    if not isinstance(reprojected, dict):
+        return False
+    return (
+        reprojected.get("work_item_id") != fact["work_item_id"]
+        or reprojected.get("generation") != fact["generation"]
+        or reprojected.get("status") != fact["projected_status"]
+    )
+
+
 def _fb_cost(fact):
-    """Return an unknown-cost word, or None when the native cost is settled."""
+    """Return an unknown-cost word, or None when the native cost is settled.
+
+    ``in_flight`` is a normal state, not an unknown outcome: the attempt is
+    still running and the caller has no reconciliation to do yet.
+    """
     status = fact["budget_status"]
-    if status is None:
+    if status is None or status == "in_flight":
         return None
     if status != "settled":
         return "cost_" + status
