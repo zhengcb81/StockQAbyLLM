@@ -399,6 +399,26 @@ def test_stale_generation_projection_is_reported():
     assert generation["issue_key"] == "stale-generation-projection"
 
 
+def test_late_receipt_with_a_new_label_reports_both_facts():
+    rows = _rows_for(
+        late_receipt=True,
+        unrecognized_label=True,
+        phase="uncertain",
+        status="uncertain",
+        projected_status="uncertain",
+    )
+    assert _by_check(rows, "settled-disposition")[0]["expected"] == "late_receipt_observed"
+    label = _by_check(rows, "provider-label")[0]
+    assert label["expected"] == "recognized_label"
+    assert label["actual"] == "unrecognized_label"
+    assert label["disposition"] == "unknown"
+    assert "issue_key" not in label
+    # A non-late unrecognized label is already named by the settlement row.
+    plain = _rows_for(unrecognized_label=True)
+    assert _by_check(plain, "provider-label") == []
+    assert _by_check(plain, "settled-disposition")[0]["expected"] == "unrecognized_label"
+
+
 def test_retained_paid_body_marks_a_recovery_candidate():
     rows = _rows_for(
         settled_reason="missing_question",

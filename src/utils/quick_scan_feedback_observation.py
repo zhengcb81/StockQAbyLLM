@@ -476,6 +476,21 @@ def observe(result, facts, *, run_id=None, attempt_id=None):
                         version=version,
                     )
                 )
+            if fact["unrecognized_label"] and expected != UNRECOGNIZED_LABEL:
+                # A late receipt dominates the settlement row; the unknown
+                # provider label must still be reported on its own.
+                rows.append(
+                    _fb_row(
+                        fact,
+                        check_id="provider-label",
+                        expected="recognized_label",
+                        actual="unrecognized_label",
+                        disposition="unknown",
+                        run_id=base_run,
+                        attempt_id=identity,
+                        version=version,
+                    )
+                )
         delivery = _fb_delivery_word(fact)
         if delivery is not None:
             # The answer may be readable and still never reach the consumer.
