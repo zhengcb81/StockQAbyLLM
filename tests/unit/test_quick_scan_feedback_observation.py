@@ -373,6 +373,7 @@ def test_changed_ledger_between_reads_is_unknown_not_a_deviation():
         settled_reason="missing_question",
         reprojected={"work_item_id": "W1", "generation": 1, "status": "failed"},
         status="failed",
+        budget_status="response_unpriced",
     )
     assert _by_check(rows, "settled-disposition") == []
     drift = _by_check(rows, "snapshot-consistency")[0]
@@ -380,6 +381,8 @@ def test_changed_ledger_between_reads_is_unknown_not_a_deviation():
     assert drift["actual"] == "ledger_changed_between_reads"
     assert drift["disposition"] == "unknown"
     assert "issue_key" not in drift
+    # The unknown cost is independent of the projection drift.
+    assert _by_check(rows, "cost-state")[0]["actual"] == "cost_response_unpriced"
 
 
 def test_stale_generation_projection_is_reported():
@@ -391,6 +394,23 @@ def test_stale_generation_projection_is_reported():
     assert generation["actual"] == "stale_generation"
     assert generation["disposition"] == "deviation"
     assert generation["issue_key"] == "stale-generation-projection"
+
+
+def test_blocked_outbox_is_reported_without_blaming_the_settlement(tmp_path):
+    store, item, checkpoint, clock = _checkpointed_work_item(tmp_path)
+    store.mark_result_delivery_blocked(item["work_item_id"], "c06_standard_answer_unavailable")
+    policy = _policy()
+    request = _request(store, item, policy)
+    _, facts, rows = _observed(store, request, policy)
+    assert facts[item["question_id"]]["delivery_state"] == "blocked"
+    settled = _by_check(rows, "settled-disposition")[0]
+    assert settled["expected"] == "answer_readable"
+    assert settled["disposition"] == "expected"
+    delivery = _by_check(rows, "delivery-state")[0]
+    assert delivery["expected"] == "delivery_available"
+    assert delivery["actual"] == "delivery_blocked"
+    assert delivery["disposition"] == "unknown"
+    assert "issue_key" not in delivery
 
 
 def test_in_flight_budget_is_not_reported_as_unknown_cost():

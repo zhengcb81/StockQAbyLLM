@@ -407,40 +407,58 @@ def observe(result, facts, *, run_id=None, attempt_id=None):
                     version=version,
                 )
             )
-            continue
-        expected, forced = _fb_expected(fact)
-        actual = _fb_actual(fact)
-        if forced is not None:
-            disposition = forced
         else:
-            allowed = _ALLOWED_ACTUALS.get(expected)
-            disposition = (
-                "unknown" if allowed is None else "expected" if actual in allowed else "deviation"
-            )
-        rows.append(
-            _fb_row(
-                fact,
-                check_id="settled-disposition",
-                expected=expected,
-                actual=actual,
-                disposition=disposition,
-                run_id=base_run,
-                attempt_id=identity,
-                version=version,
-            )
-        )
-        if fact["newer_unresolved_generation"]:
+            expected, forced = _fb_expected(fact)
+            actual = _fb_actual(fact)
+            if forced is not None:
+                disposition = forced
+            else:
+                allowed = _ALLOWED_ACTUALS.get(expected)
+                disposition = (
+                    "unknown"
+                    if allowed is None
+                    else "expected" if actual in allowed else "deviation"
+                )
             rows.append(
                 _fb_row(
                     fact,
-                    check_id="generation-binding",
-                    expected="latest_unresolved_generation",
-                    actual="stale_generation",
-                    disposition="deviation",
+                    check_id="settled-disposition",
+                    expected=expected,
+                    actual=actual,
+                    disposition=disposition,
                     run_id=base_run,
                     attempt_id=identity,
                     version=version,
-                    issue_key=_STALE_GENERATION,
+                )
+            )
+            if fact["newer_unresolved_generation"]:
+                rows.append(
+                    _fb_row(
+                        fact,
+                        check_id="generation-binding",
+                        expected="latest_unresolved_generation",
+                        actual="stale_generation",
+                        disposition="deviation",
+                        run_id=base_run,
+                        attempt_id=identity,
+                        version=version,
+                        issue_key=_STALE_GENERATION,
+                    )
+                )
+        delivery = _fb_delivery_word(fact)
+        if delivery is not None:
+            # The answer may be readable and still never reach the consumer.
+            # That is an outbox fact, not a settlement verdict.
+            rows.append(
+                _fb_row(
+                    fact,
+                    check_id="delivery-state",
+                    expected="delivery_available",
+                    actual=delivery,
+                    disposition="unknown",
+                    run_id=base_run,
+                    attempt_id=identity,
+                    version=version,
                 )
             )
         cost = _fb_cost(fact)
@@ -470,6 +488,18 @@ def _fb_snapshot_changed(fact):
         or reprojected.get("generation") != fact["generation"]
         or reprojected.get("status") != fact["projected_status"]
     )
+
+
+def _fb_delivery_word(fact):
+    """Return an outbox word for a delivery that cannot reach the consumer.
+
+    ``ready``, ``delivered`` and the in-progress ``send_uncertain`` are normal
+    outbox states; only a terminal refusal is worth a separate observation.
+    """
+    state = fact["delivery_state"]
+    if state in {"blocked", "conflict", "rejected", "unreadable"}:
+        return "delivery_" + state
+    return None
 
 
 def _fb_cost(fact):
