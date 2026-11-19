@@ -68,3 +68,26 @@
 ## 2026-11-15 PWF-only follow-up
 
 - StockQA PWF-only commit 69406e8 is pushed to origin/master. This follow-up clarifies that f6897ac is the tested source pin and subsequent commits contain only PWF text. Four source/test WIP files remain unchanged and outside the fixed combo; no product tests rerun.
+
+## 2026-11-19 F2-STOCKQA-FEEDBACK 逐题结算观察
+
+共因：公开只读 inspect 只回答“能不能发”，不回答“这题之前发生过什么”。已收到并结算但无可用答案、可读答案、发送后结果未知三种状态在消费方看来同形，前者被重发会重复付费，后者被当成确定无答案会抹掉真实风险。原有 work journal、已付可见回执、checkpoint、预算结算和 outbox 已经各自持有事实，缺的是把它们投影成逐题、可跨仓回告的稳定观察。
+
+验证范围：只读投影 + 公开 CLI 旁路 + 单根因修复技能。共享检查器只承接恢复线已完成的 `checkpoint_record` 契约（`9361aa8`，协议 1.3.0），本卡不再改它。
+
+- 实现：`d481df3`（base `9be7176`）。新增 `src/utils/quick_scan_feedback_observation.py`、
+  `tests/unit/test_quick_scan_feedback_observation.py`（25 例）、
+  `skills/repair-stockqa-issue/SKILL.md`；`quick_scan_refresh_inspect_cli` 在打印前调用旁路。
+- 词表：`settled_no_answer` / `answer_readable` / `answer_unusable` / `send_unknown` /
+  `late_receipt_observed` / `unrecognized_label` 等；`deviation` 只在同一快照内可证，
+  跨快照漂移报 `snapshot-consistency=unknown`。
+- 结果：定向组合 96 passed（含边界与公开契约扫描）；账本 230 passed；新增 25 passed。
+  旁路写失败、账本被删、未设 `RESEARCH_FEEDBACK_OUT` 时 stdout/退出码/账本字节均不变。
+- 未决：`test_quick_scan_known_outcome.py`、`test_unusable_checkpoint_retry.py` 因本机缺
+  `subject_dispatch_contract` 记为 skipped；`test_received_without_answer.py` 的 v17 迁移
+  用例在 base `9be7176` 干净工作树同样失败，归原迁移线。
+- 交接：`.planning/modularity-closeout-20261111/F2-STOCKQA-FEEDBACK-handoff.md` 与同名
+  `-sample.jsonl`（真实 CLI 子进程产出的三行脱敏观察）。
+- 独审：`0c7b623` REJECT → `4a42b16` REJECT → `d481df3` ACCEPT（同一未参与实现的审查 agent）。
+- 清理：pytest 临时根均在 `.test-runs/`（仅合成 SQLite），批量删除被本机 safe-delete
+  阈值拦截，未强删；临时 worktree 与临时样例目录已删。
