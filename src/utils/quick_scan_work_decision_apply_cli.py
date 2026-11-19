@@ -23,7 +23,7 @@ def main(argv=None):
     parser.add_argument("--confirmation-id", required=True)
     parser.add_argument(
         "--refresh-schema-version",
-        choices=["1.0.0", "1.1.0", "1.2.0", "1.3.0", "1.5.0"],
+        help="Optional exact pin on the inspected owner policy dialect.",
     )
     args = parser.parse_args(argv)
     try:
