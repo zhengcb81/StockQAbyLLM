@@ -33,6 +33,7 @@ description: 从本仓问题卡或 feedback-observation/1 观察行出发，复�
 | `generation-binding` | `latest_unresolved_generation` | `stale_generation` | 只在投影选了旧代际而存在更新未决代际时出现 |
 | `cost-state` | `cost_unknown` | `cost_<budget_status>` / `cost_zero_unverified` / `cost_unverified` | 费用未结清或已结算金额缺来源引用；永远记 `unknown`；`in_flight` 不报 |
 | `delivery-state` | `delivery_available` | `delivery_blocked` / `delivery_conflict` / `delivery_rejected` / `delivery_unreadable` | outbox 已终结但送不到消费方；只记 `unknown`，不改判结算 |
+| `retained-body` | `no_retained_body` | `visible_body_present` / `visible_body_unreadable` | 已结算无答案但付费可见日志仍留有正文（或读不出）；恢复候选，不是重发理由 |
 | `snapshot-consistency` | `single_snapshot` | `ledger_changed_between_reads` | 公开结果与本次重投影之间账本被改过；该题只报漂移，不判偏差 |
 
 原生结算类别（`expected`）：`settled_no_answer`、`answer_readable`、`answer_unusable`、`answer_unsettled`、`send_unknown`、`not_attempted`、`cancelled`、`refused_settled`，以及待查的 `missing_receipt`、`unreadable_receipt`、`unrecognized_label`、`late_receipt_observed`、`late_receipt_unresolved`、`unclassified`。
@@ -53,6 +54,7 @@ description: 从本仓问题卡或 feedback-observation/1 观察行出发，复�
 - `unrecognized_label` / `missing_receipt` / `unreadable_receipt` / `unclassified`：`disposition=unknown`。这是**待查**，不是偏差，也不是零答案。
 - `snapshot-consistency` 为 `unknown`：账本在两次读之间变化，先重跑公开 inspect 再判断，不得据此立卡。
 - `delivery-state` 为 `unknown`：答案可读但 outbox 被 block/conflict/rejected，或交付记录损坏。先查投递层与恢复入口；该题的结算判定仍成立，不要把投递故障改写成无答案。
+- `retained-body` 为 `unknown`：已结算无答案，但付费可见日志仍有正文（`visible_body_present`）或读不出（`visible_body_unreadable`）。这是恢复候选：先走本仓已付结果恢复入口只读核对，**不得**因为“可能有答案”而重发付费请求。
 - `cost-state` 出现即费用未知：保留 `unknown`，按原作业只读对账；不得写成 0，也不得据此发起新付费尝试。
 - 只有 `generation-binding` 偏离、`settled-disposition` 正常：修投影的代际选择，不动结算。
 
@@ -90,6 +92,7 @@ python -B -m src.utils.quick_scan_refresh_inspect_cli --ledger <tmp>\ledger.sqli
 | 假零费用 | `cost_zero_unverified` / `unknown` |
 | 投影错误地重新发题 | `deviation` + `issue_key=settled-answer-replayed` |
 | 可读答案但 outbox 被 block | `delivery-state` / `delivery_blocked` / `unknown`，结算仍 `expected` |
+| 已结算无答案但留有付费正文 | `retained-body` / `visible_body_present` / `unknown`，先只读恢复 |
 | 两次读之间账本被改 | `snapshot-consistency` / `unknown`，不判偏差 |
 | 侧车写失败 / 账本损坏 | 业务结果与退出码不变，只少诊断 |
 

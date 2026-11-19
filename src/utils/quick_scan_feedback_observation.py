@@ -106,6 +106,7 @@ def project_question_receipts(view, result, request):
     facts = {}
     projected_items = result.get("work_items") or {}
     with view.inspection_transaction() as connection:
+        schema_version = connection.execute("PRAGMA user_version").fetchone()[0]
         reprojection = view.owner_refresh_projection(
             entity_id=request["entity_id"],
             question_ids=request["question_ids"],
@@ -127,6 +128,7 @@ def project_question_receipts(view, result, request):
                 projected=projected,
                 reprojected=reprojected,
                 scope_binding=request["scope_bindings"][question_id],
+                visible_journal=schema_version >= 23,
             )
     return facts
 
@@ -153,6 +155,7 @@ def _fb_absent_fact(entity_id, question_id):
         "unrecognized_label": False,
         "checkpoint": "absent",
         "settled_reason": None,
+        "visible_output": "absent",
         "budget_status": None,
         "terminal_outcome": None,
         "actual_cost_micros": None,
@@ -161,7 +164,17 @@ def _fb_absent_fact(entity_id, question_id):
     }
 
 
-def _fb_fact(connection, view, *, entity_id, question_id, projected, reprojected, scope_binding):
+def _fb_fact(
+    connection,
+    view,
+    *,
+    entity_id,
+    question_id,
+    projected,
+    reprojected,
+    scope_binding,
+    visible_journal,
+):
     work_item_id = projected["work_item_id"]
     item = connection.execute(
         "SELECT * FROM work_item WHERE work_item_id=?", (work_item_id,)
@@ -218,6 +231,7 @@ def _fb_fact(connection, view, *, entity_id, question_id, projected, reprojected
         "unrecognized_label": _fb_unrecognized(receipt),
         "checkpoint": _fb_checkpoint(connection, view, work_item_id),
         "settled_reason": settled_reason,
+        "visible_output": _fb_visible_output(view, latest, available=visible_journal),
         "budget_status": None if budget is None else budget["status"],
         "terminal_outcome": None if budget is None else budget["terminal_outcome"],
         "actual_cost_micros": None if budget is None else budget["actual_cost_micros"],
@@ -445,6 +459,23 @@ def observe(result, facts, *, run_id=None, attempt_id=None):
                         issue_key=_STALE_GENERATION,
                     )
                 )
+            retained = _fb_retained_body(fact, expected)
+            if retained is not None:
+                # Settled without an accepted answer, yet the paid visible
+                # journal still holds a body: a recovery candidate, not a
+                # reason to send the question again.
+                rows.append(
+                    _fb_row(
+                        fact,
+                        check_id="retained-body",
+                        expected="no_retained_body",
+                        actual=retained,
+                        disposition="unknown",
+                        run_id=base_run,
+                        attempt_id=identity,
+                        version=version,
+                    )
+                )
         delivery = _fb_delivery_word(fact)
         if delivery is not None:
             # The answer may be readable and still never reach the consumer.
@@ -488,6 +519,30 @@ def _fb_snapshot_changed(fact):
         or reprojected.get("generation") != fact["generation"]
         or reprojected.get("status") != fact["projected_status"]
     )
+
+
+def _fb_retained_body(fact, expected):
+    """Name a retained paid body only for a settled-without-answer question."""
+    if expected != SETTLED_NO_ANSWER:
+        return None
+    if fact["visible_output"] == "present":
+        return "visible_body_present"
+    if fact["visible_output"] == "unreadable":
+        return "visible_body_unreadable"
+    return None
+
+
+def _fb_visible_output(view, latest, *, available):
+    """Presence of the paid visible journal body; content is never copied."""
+    if latest is None:
+        return "absent"
+    if not available:
+        return "not_applicable"
+    try:
+        row = view.get_research_visible_output(latest["attempt_id"])
+    except Exception:  # a corrupt or ambiguous projection stays unreadable
+        return "unreadable"
+    return "absent" if row is None else "present"
 
 
 def _fb_delivery_word(fact):

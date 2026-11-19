@@ -102,6 +102,8 @@ def test_settled_no_answer_is_reported_from_native_receipt_without_ledger_writes
     assert result["API_requests"] == 0
     assert facts[item["question_id"]]["settled_reason"] == "missing_question"
     assert facts[item["question_id"]]["has_response"] is True
+    # The paid visible journal is consulted; this synthetic attempt has no row.
+    assert facts[item["question_id"]]["visible_output"] == "absent"
     settled = _by_check(rows, "settled-disposition")
     assert len(settled) == 1
     assert settled[0]["schema_version"] == SCHEMA_VERSION
@@ -261,6 +263,7 @@ def _fact(**overrides):
         "unrecognized_label": False,
         "checkpoint": "absent",
         "settled_reason": None,
+        "visible_output": "absent",
         "budget_status": None,
         "terminal_outcome": None,
         "actual_cost_micros": None,
@@ -394,6 +397,43 @@ def test_stale_generation_projection_is_reported():
     assert generation["actual"] == "stale_generation"
     assert generation["disposition"] == "deviation"
     assert generation["issue_key"] == "stale-generation-projection"
+
+
+def test_retained_paid_body_marks_a_recovery_candidate():
+    rows = _rows_for(
+        settled_reason="missing_question",
+        status="failed",
+        projected_status="failed",
+        visible_output="present",
+    )
+    retained = _by_check(rows, "retained-body")[0]
+    assert retained["expected"] == "no_retained_body"
+    assert retained["actual"] == "visible_body_present"
+    assert retained["disposition"] == "unknown"
+    assert "issue_key" not in retained
+    unreadable = _by_check(
+        _rows_for(
+            settled_reason="missing_question",
+            status="failed",
+            projected_status="failed",
+            visible_output="unreadable",
+        ),
+        "retained-body",
+    )[0]
+    assert unreadable["actual"] == "visible_body_unreadable"
+    # A readable answer is not a recovery candidate and gets no such row.
+    assert (
+        _by_check(
+            _rows_for(
+                checkpoint="valid",
+                status="result_ready",
+                projected_status="result_ready",
+                visible_output="present",
+            ),
+            "retained-body",
+        )
+        == []
+    )
 
 
 def test_blocked_outbox_is_reported_without_blaming_the_settlement(tmp_path):
