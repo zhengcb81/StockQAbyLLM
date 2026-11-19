@@ -287,7 +287,7 @@ PUBLIC_API_CONTRACTS = {
         },
     ),
     "src.utils.quick_scan_refresh_inspect": (
-        "stockqa.read-only-work-view/1.2.0",
+        "stockqa.read-only-work-view/1.3.0",
         {
             "ReadOnlyWorkView",
             "READ_ONLY_SCHEMA_VERSIONS",
