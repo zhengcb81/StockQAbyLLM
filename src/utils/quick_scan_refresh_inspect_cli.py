@@ -5,6 +5,7 @@ import json
 import sqlite3
 from pathlib import Path
 
+from src.utils.quick_scan_feedback_observation import emit_refresh_observation
 from src.utils.quick_scan_refresh_inspect import inspect_refresh
 from src.utils.quick_scan_result_outbox import strict_json_loads
 
@@ -34,14 +35,19 @@ def main(argv=None):
     )
     args = parser.parse_args(argv)
     try:
+        request = read(args.request)
+        policy = read(args.policy)
         result = inspect_refresh(
             args.ledger,
-            read(args.request),
-            policy=read(args.policy),
+            request,
+            policy=policy,
             schema_version=args.schema_version,
             admission_config=args.admission_config,
             budget_policy_file=args.policy,
         )
+        # Optional per-question settlement sidecar. It never raises, never
+        # touches the ledger and never changes the envelope printed below.
+        emit_refresh_observation(result, request, args.ledger)
         print(json.dumps(result, ensure_ascii=False, allow_nan=False))
         return 0
     except (
