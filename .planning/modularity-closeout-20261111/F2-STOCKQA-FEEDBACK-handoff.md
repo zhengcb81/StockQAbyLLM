@@ -120,6 +120,8 @@ python -B -m src.utils.quick_scan_refresh_inspect_cli `
 
 处置：新增 `provider-label` 检查（迟到回执占据结算行时单独报告新标签）、样例补假零费用题、本文件补机器摘要与最终计数；`retained-body` 与上述改动一并提交为 `ab42dd9`，由该轮审查者复核。
 
+**复核 `ab42dd9` + `217973b`：COMPLETE。** 五项逐一关闭；复核者另发现 `.secrets.baseline` 被本地扫描命令改写（工作树残留），已 `git checkout --` 恢复，未进入任何 F2 提交。审查者核对的实现 SHA 为 `ab42dd9e43d77589f5e770dfe9034deb0cf6593e`。
+
 口径说明（审查者要求写入）：`settled-disposition` 的 `deviation` 只在**同一快照内**公开投影与原生结算矛盾时可证。若公开结果本身来自更早的快照，重投影会先发现漂移并只报 `snapshot-consistency=unknown`——这两种情形在数据上不可区分，当前选择是保守的 `unknown`，由消费端重读后判定。
 
 ## 逻辑引用
