@@ -75,19 +75,22 @@
 
 验证范围：只读投影 + 公开 CLI 旁路 + 单根因修复技能。共享检查器只承接恢复线已完成的 `checkpoint_record` 契约（`9361aa8`，协议 1.3.0），本卡不再改它。
 
-- 实现：`d481df3`（base `9be7176`）。新增 `src/utils/quick_scan_feedback_observation.py`、
-  `tests/unit/test_quick_scan_feedback_observation.py`（25 例）、
+- 实现：`ab42dd9`（base `9be7176`）。新增 `src/utils/quick_scan_feedback_observation.py`、
+  `tests/unit/test_quick_scan_feedback_observation.py`（27 例）、
   `skills/repair-stockqa-issue/SKILL.md`；`quick_scan_refresh_inspect_cli` 在打印前调用旁路。
 - 词表：`settled_no_answer` / `answer_readable` / `answer_unusable` / `send_unknown` /
   `late_receipt_observed` / `unrecognized_label` 等；`deviation` 只在同一快照内可证，
-  跨快照漂移报 `snapshot-consistency=unknown`。
-- 结果：定向组合 96 passed（含边界与公开契约扫描）；账本 230 passed；新增 25 passed。
+  跨快照漂移报 `snapshot-consistency=unknown`；`delivery-state`、`retained-body`、
+  `provider-label` 分别覆盖 outbox 阻塞、已付正文可恢复、迟到回执新标签。
+- 结果：定向组合 98 passed（含边界与公开契约扫描）；账本 230 passed；新增 27 passed。
   旁路写失败、账本被删、未设 `RESEARCH_FEEDBACK_OUT` 时 stdout/退出码/账本字节均不变。
 - 未决：`test_quick_scan_known_outcome.py`、`test_unusable_checkpoint_retry.py` 因本机缺
   `subject_dispatch_contract` 记为 skipped；`test_received_without_answer.py` 的 v17 迁移
   用例在 base `9be7176` 干净工作树同样失败，归原迁移线。
 - 交接：`.planning/modularity-closeout-20261111/F2-STOCKQA-FEEDBACK-handoff.md` 与同名
-  `-sample.jsonl`（真实 CLI 子进程产出的三行脱敏观察）。
-- 独审：`0c7b623` REJECT → `4a42b16` REJECT → `d481df3` ACCEPT（同一未参与实现的审查 agent）。
+  `-sample.jsonl`（真实 CLI 子进程产出的五行脱敏观察，含费用未知样本）。
+- 独审：`0c7b623` REJECT → `4a42b16` REJECT → `d481df3` ACCEPT；
+  另一名全新独立 agent 复核 `b06f23a` 为 INCOMPLETE（迟到新标签、机器摘要、费用样本、
+  最终 SHA 未审），修复后由该审查者核对 `ab42dd9`。
 - 清理：pytest 临时根均在 `.test-runs/`（仅合成 SQLite），批量删除被本机 safe-delete
   阈值拦截，未强删；临时 worktree 与临时样例目录已删。
