@@ -4611,11 +4611,9 @@ class QuickScanWorkStore:
             except ValueError as error:
                 raise TypeError("received_checkpoint_approved_owner_required") from error
             snapshot = owner_port.snapshot()
-            if (
-                snapshot.kind != "approved"
-                or not snapshot.recovery_only
-                or not owner_port.is_bound_to(self)
-            ):
+            # Both approved modes can recover a settled failed response.
+            # The recovery-only mode is checked separately for leased work.
+            if snapshot.kind != "approved" or not owner_port.is_bound_to(self):
                 raise TypeError("received_checkpoint_recovery_owner_required")
             owner_port.assert_received_checkpoint_recovery(work_item_id, attempt_id, store=self)
         if not isinstance(answer, dict) or set(answer) != {

@@ -212,3 +212,9 @@ src.utils.quick_scan_refresh_inspect_cli`）在一次性合成账本上产出，
   "remaining": ["IQS consumer adoption and paid-result recovery", "real new provider label distribution", "real-ledger cost-state reconciliation", "rerun with subject_dispatch_contract installed", "branch not pushed"]
 }
 ```
+
+## ROOT 组合复验
+
+首次正式交付 ca896a0，作者验收到 ab42dd9，ROOT 验收起点 8d27c36。补齐已发布 IQS 的同版公开 subject_dispatch_contract 后，实际旧付费回复恢复路径变红。普通 approved 入口进入已结算失败恢复时重复要求 recovery_only。保留原绑定、失败事件、租约和回执核验，把 recovery_only 继续用于原本受其约束的 leased 状态。单题原答案解析不合法时回告具体原因，合理兄弟题仍用原结果。
+
+仓内验收 102 项，实际已收到恢复正反例 14 项。独立 reviewer 复跑另 14 项，核对原尝试、后续代隔离、坏包零写、撤销回滚及零新增 API、尝试和费用。ROOT 接受此既有工作线。原 master 的分歧由原线按自身计划处理。

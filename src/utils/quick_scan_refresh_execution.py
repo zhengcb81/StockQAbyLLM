@@ -795,6 +795,12 @@ class ApprovedRefreshSession:
                             )
                         except (ValueError, KeyError, TypeError):
                             remaining.append(wid)
+                            recovery_errors.append(
+                                dict(
+                                    work_item_ids=[wid],
+                                    reason="received_checkpoint_standard_member_invalid",
+                                )
+                            )
                             continue
                         store.save_answer_checkpoint(
                             wid,

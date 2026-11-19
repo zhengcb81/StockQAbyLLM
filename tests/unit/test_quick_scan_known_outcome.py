@@ -856,7 +856,9 @@ def received_recovery_fixture(tmp_path, monkeypatch, *, fault=None):
             doc["original_transport"]["members"][0]["work_item_id"] = "WORK_FOREIGN"
         path.write_text(json.dumps(doc), encoding="utf8")
     session = ApprovedRefreshSession.__new__(ApprovedRefreshSession)
+    session.native = SimpleNamespace(store=store)
     session.service = SimpleNamespace(store=store)
+    session.recovery_only = False
     session.entries = {
         m["question_id"]: dict(
             kind="work",
@@ -941,7 +943,7 @@ def test_received_original_pack_recovers_same_attempt_after_closed_failure_witho
         "revoked_before_commit",
     ],
 )
-def test_received_original_pack_recovery_rejects_changed_body_scope_or_revocation_atomically(
+def test_received_original_pack_recovery_preserves_invalid_members_and_ledger(
     tmp_path, monkeypatch, fault
 ):
     store, clock, pack, receipt, policy, session, capture, checks = received_recovery_fixture(
@@ -949,11 +951,40 @@ def test_received_original_pack_recovery_rejects_changed_body_scope_or_revocatio
     )
     before = immutable(store)
     budget = store.get_quick_scan_budget_status("pack-policy")
-    with pytest.raises((ValueError, PermissionError)):
-        session.recover_received_checkpoints(capture_policy=capture)
-    assert (
-        immutable(store) == before and store.get_quick_scan_budget_status("pack-policy") == budget
-    )
+    if fault.startswith("revoked"):
+        with pytest.raises(PermissionError, match="synthetic current owner revoked"):
+            session.recover_received_checkpoints(capture_policy=capture)
+        assert immutable(store) == before
+    else:
+        result = session.recover_received_checkpoints(capture_policy=capture)
+        assert result["API_requests"] == result["new_attempts"] == result["new_generations"] == 0
+        if fault == "bad_second_body":
+            invalid = pack["members"][1]["work_item_id"]
+            assert result["remaining_work_item_ids"] == [invalid]
+            assert set(result["recovered_work_item_ids"]) == {
+                member["work_item_id"]
+                for member in pack["members"]
+                if member["work_item_id"] != invalid
+            }
+            assert result["recovery_errors"] == [
+                {
+                    "work_item_ids": [invalid],
+                    "reason": "received_checkpoint_standard_member_invalid",
+                }
+            ]
+            assert store.get_answer_checkpoint(invalid) is None
+            assert store.get_item(invalid)["status"] == "failed"
+            after = immutable(store)
+            assert {key: value for key, value in after.items() if key != "answer_checkpoint"} == {
+                key: value for key, value in before.items() if key != "answer_checkpoint"
+            }
+        else:
+            assert result["recovered_work_item_ids"] == []
+            assert {issue["reason"] for issue in result["recovery_errors"]} == {
+                "received_checkpoint_original_body_binding_mismatch",
+            }
+            assert immutable(store) == before
+    assert store.get_quick_scan_budget_status("pack-policy") == budget
 
 
 def test_received_recovery_ignores_unrelated_bad_captures_and_needs_no_remaining_budget(
@@ -1003,11 +1034,27 @@ def test_received_recovery_rejects_later_generation_without_changing_prior_faile
         run_id="RUN_NEW",
         scan_id="SCAN_NEW",
     )
-    store.create_or_attach(**spec)
+    new = store.create_or_attach(**spec)
     before = immutable(store)
-    with pytest.raises(WorkConflictError, match="later_generation"):
-        session.recover_received_checkpoints(capture_policy=capture)
-    assert immutable(store) == before
+    budget = store.get_quick_scan_budget_status("pack-policy")
+    result = session.recover_received_checkpoints(capture_policy=capture)
+    assert result["API_requests"] == result["new_attempts"] == result["new_generations"] == 0
+    old_id = old["work_item_id"]
+    assert result["remaining_work_item_ids"] == [old_id]
+    assert result["recovery_errors"] == [
+        {
+            "work_item_ids": [old_id],
+            "reason": "received_checkpoint_later_generation_exists",
+        }
+    ]
+    assert store.get_item(old_id) == old
+    assert store.get_answer_checkpoint(old_id) is None
+    assert store.get_answer_checkpoint(new["work_item_id"]) is None
+    after = immutable(store)
+    assert {key: value for key, value in after.items() if key != "answer_checkpoint"} == {
+        key: value for key, value in before.items() if key != "answer_checkpoint"
+    }
+    assert store.get_quick_scan_budget_status("pack-policy") == budget
 
 
 def test_received_recovery_cannot_downgrade_to_compact_checkpoint_without_standard_body(
@@ -1059,10 +1106,12 @@ def test_received_recovery_deduplicates_safe_same_content_copies_but_rejects_bod
         raw = json.dumps(doc).encode("utf8")
     (capture["directory"] / ("2" * 64 + ".final.json")).write_bytes(raw)
     before = immutable(store)
+    result = session.recover_received_checkpoints(capture_policy=capture)
     if different_body:
-        with pytest.raises(ValueError, match="unique_original_body_required"):
-            session.recover_received_checkpoints(capture_policy=capture)
+        assert result["recovered_work_item_ids"] == []
+        assert {issue["reason"] for issue in result["recovery_errors"]} == {
+            "received_checkpoint_unique_original_body_required",
+        }
         assert immutable(store) == before
     else:
-        result = session.recover_received_checkpoints(capture_policy=capture)
         assert len(result["recovered_work_item_ids"]) == 3
