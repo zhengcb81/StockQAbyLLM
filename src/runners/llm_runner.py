@@ -2490,6 +2490,21 @@ class LLMRunner:
                     output=output,
                 )
 
+            if readonly_recovery and approved_session is not None:
+                report = approved_session.recovery_report()
+                destination = Path(output)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.write_text(
+                    json.dumps(report, ensure_ascii=False, allow_nan=False, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+                destination.with_suffix(destination.suffix + ".scope.json").write_text(
+                    json.dumps(report, ensure_ascii=False, allow_nan=False, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+                print(json.dumps(report, ensure_ascii=False, allow_nan=False))
+                return 0
+
             # Q02: import and admit the versioned search policy BEFORE any
             # attempt. The IQS fillable template is refused as non-executable,
             # and an external mode with no admitted route fails closed instead
@@ -2576,20 +2591,6 @@ class LLMRunner:
                 questions = [
                     question for question in question_items if question.question_id in selected
                 ]
-                if readonly_recovery and not shared_company_recovery_only:
-                    report = approved_session.recovery_report()
-                    destination = Path(output)
-                    destination.parent.mkdir(parents=True, exist_ok=True)
-                    destination.write_text(
-                        json.dumps(report, ensure_ascii=False, allow_nan=False, indent=2) + "\n",
-                        encoding="utf-8",
-                    )
-                    destination.with_suffix(destination.suffix + ".scope.json").write_text(
-                        json.dumps(report, ensure_ascii=False, allow_nan=False, indent=2) + "\n",
-                        encoding="utf-8",
-                    )
-                    print(json.dumps(report, ensure_ascii=False, allow_nan=False))
-                    return 0
                 blocked = (
                     None
                     if shared_company_recovery_only

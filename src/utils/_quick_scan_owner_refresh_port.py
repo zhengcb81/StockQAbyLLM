@@ -63,11 +63,15 @@ class _OwnerRefreshPort:
             observation_context=copy.deepcopy(getattr(native, "observation_context", None)),
             ordered_route_targets=(None if ordered is None else tuple(copy.deepcopy(ordered))),
             requested_question_ids=requested,
-            needs_new_dispatch=any(
-                isinstance(item, dict)
-                and item.get("status") == "pending"
-                and question_id not in deferred
-                for question_id, item in work.items()
+            needs_new_dispatch=(
+                owner.needs_new_dispatch
+                if approved
+                else any(
+                    isinstance(item, dict)
+                    and item.get("status") == "pending"
+                    and question_id not in deferred
+                    for question_id, item in work.items()
+                )
             ),
             recovery_only=bool(getattr(owner, "recovery_only", False)),
             recovery_work_item_ids=tuple(

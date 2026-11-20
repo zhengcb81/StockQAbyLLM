@@ -1096,3 +1096,43 @@ def test_paid_prepare_keeps_original_mixed_scope_but_materializes_work_only(tmp_
     assert report["recovered_work_question_count"] == 1
     assert report["whole_manifest_answered"] is False
     assert report["original_cached_references_retained"] is True
+
+
+def test_paid_snapshot_and_report_keep_mixed_work_read_only(monkeypatch):
+    from types import SimpleNamespace
+
+    from src.utils.quick_scan_owner_refresh_api import adapt_owner_refresh
+
+    def unexpected_seal(*args, **kwargs):
+        pytest.fail("a diagnostic replay wrote a delivery to the ledger")
+
+    monkeypatch.setattr("src.utils.quick_scan_delivery_seal.seal_result_delivery", unexpected_seal)
+    session = report_session()
+    session.check = lambda: None
+    session.recovery_only = True
+    session.recovery_work_item_ids = ["W_PAID"]
+    session.remaining_work_item_ids = ["W_UNSENT"]
+    session.entries = {
+        "IQS_05": {"kind": "work", "work_item_id": "W_PAID"},
+        "IQS_10": {"kind": "work", "work_item_id": "W_UNSENT"},
+    }
+    session.fields = {qid: {"decision": "resume_existing_work"} for qid in session.entries}
+    session.work = {
+        "IQS_05": {"work_item_id": "W_PAID", "status": "result_ready"},
+        "IQS_10": {"work_item_id": "W_UNSENT", "status": "pending"},
+    }
+    by_id = {item["work_item_id"]: item for item in session.work.values()}
+    session.deferred = {}
+    session.service = SimpleNamespace(
+        store=SimpleNamespace(get_item=by_id.__getitem__, get_result_delivery=lambda _: None)
+    )
+    handle = adapt_owner_refresh(session)
+    assert handle.snapshot().needs_new_dispatch is False
+    report = handle.recovery_report()
+    assert report["API_requests"] == 0 and report["model_dispatch_started"] is False
+    assert report["remaining_work_item_ids"] == ["W_UNSENT"]
+    assert report["delivery_references"] == []
+    assert [(row["work_item_id"], row["status"]) for row in report["deferred_work"]] == [
+        ("W_PAID", "result_ready"),
+        ("W_UNSENT", "pending"),
+    ]

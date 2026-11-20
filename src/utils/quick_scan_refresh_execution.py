@@ -10,7 +10,7 @@ import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .quick_scan_owner_refresh import public_observation_reference
+from .quick_scan_owner_refresh import OwnerRefreshRejected, public_observation_reference
 from .quick_scan_refresh_admission import (
     AdmissionRejected,
     RefreshAdmissionService,
@@ -158,17 +158,33 @@ def prepare_execution(
     allow_unknown_only=False,
 ):
     """Trusted original runner calls this after full manifest/context validation."""
-    service = RefreshAdmissionService(
-        config_path,
-        process_env=process_env,
-        recovery_only=recovery_only,
-        allow_unknown_only=allow_unknown_only,
-    )
-    proof, bundles, record = (
-        service.read_registered(confirmation_id, recovery_only=True)
-        if recovery_only
-        else service.read_registered(confirmation_id)
-    )
+    try:
+        service = RefreshAdmissionService(
+            config_path,
+            process_env=process_env,
+            recovery_only=recovery_only,
+            allow_unknown_only=allow_unknown_only,
+        )
+        proof, bundles, record = service.read_registered(
+            confirmation_id, recovery_only=recovery_only
+        )
+    except (AdmissionRejected, OwnerRefreshRejected) as current_error:
+        if recovery_only:
+            raise
+        # Today's dispatch configuration can be missing or changed after a
+        # successful request. The native paid read independently verifies
+        # current authority and an original persisted response before replay.
+        service = RefreshAdmissionService(config_path, process_env=process_env, recovery_only=True)
+        try:
+            proof, bundles, record = service.read_registered(confirmation_id, recovery_only=True)
+        except AdmissionRejected as recovery_error:
+            if recovery_error.reason in {
+                "paid_recovery_registered_work_required",
+                "paid_recovery_original_response_required",
+            }:
+                raise current_error from recovery_error
+            raise
+        recovery_only = True
     expected = {
         "manifest.json",
         "identity.json",
@@ -369,9 +385,10 @@ class ApprovedRefreshSession:
 
     @property
     def needs_new_dispatch(self):
-        return any(
-            item["status"] == "pending" and qid not in self.deferred
-            for qid, item in self.work.items()
+        deferred = getattr(self, "deferred", {})
+        return not getattr(self, "recovery_only", False) and any(
+            isinstance(item, dict) and item.get("status") == "pending" and qid not in deferred
+            for qid, item in getattr(self, "work", {}).items()
         )
 
     def check(self):
@@ -1461,6 +1478,19 @@ class ApprovedRefreshSession:
                 )
                 continue
             item = self.existing_work(qid)
+            if (
+                getattr(self, "recovery_only", False)
+                and item["work_item_id"] not in self.recovery_work_item_ids
+            ):
+                deferred.append(
+                    dict(
+                        question_id=qid,
+                        work_item_id=item["work_item_id"],
+                        status=item["status"],
+                        reason="paid_recovery_original_response_required",
+                    )
+                )
+                continue
             delivery = self.service.store.get_result_delivery(item["work_item_id"])
             if qid in self.deferred:
                 deferred.append(
@@ -1472,8 +1502,10 @@ class ApprovedRefreshSession:
                     )
                 )
                 continue  # Never seal superseded work under the old action.
-            if item["status"] == "result_ready" and (
-                delivery is None or delivery.get("package") is None
+            if (
+                not getattr(self, "recovery_only", False)
+                and item["status"] == "result_ready"
+                and (delivery is None or delivery.get("package") is None)
             ):
                 self.check()
                 seal_result_delivery(
