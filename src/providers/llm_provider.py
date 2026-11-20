@@ -496,7 +496,7 @@ class LLMProvider(BaseLLMProvider):
                 "information_as_of and every evidence.published_at must be on or before the information cutoff; unknown dates stay null. "
                 "A forecast window is not an information or source publication date."
                 "\nFULL-STANDARD SELF-CHECK: For every original question_id, emit its own complete standard answer object. "
-                "Never merge answers or omit a requested question_id. Evidence insufficient for one member still requires that member's independent status=insufficient_evidence answer with score=null. "
+                "Never merge answers or omit a requested question_id. Partial evidence for one score question may support its own provisional status=scored judgment with confidence=low, explicit missing_fields and coverage.status=partial; only no meaningful judgment basis requires insufficient_evidence with score=null. "
                 "Use status=not_applicable only when the question is genuinely inapplicable; "
                 "use status=search_unavailable only when search is actually unavailable; both also require score=null. "
                 "Unknown means missing knowledge, never a permitted answer status: never emit status=unknown. "

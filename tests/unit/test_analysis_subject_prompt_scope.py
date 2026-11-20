@@ -94,11 +94,11 @@ def test_foreign_issuer_scope_rejected_before_any_provider_call():
 
 
 def test_runner_takes_subject_from_original_native_session_not_question_metadata():
-    native = SimpleNamespace(current={"snapshot": {"subject_binding": {"subject": SUBJECT}}})
-    approved = SimpleNamespace(native=native)
+    # The runner consumes the owner port's public detached projection.
+    approved = SimpleNamespace(analysis_subject=lambda: dict(SUBJECT))
     with _owner_analysis_scope(approved):
         assert "ISSUER_LEGAL_ONLY" in provider()._build_prompt("Q")
-    with _owner_analysis_scope(None):
+    with _owner_analysis_scope(SimpleNamespace(analysis_subject=lambda: None)):
         assert "ISSUER_LEGAL_ONLY" not in provider()._build_prompt("Q")
 
 
@@ -126,7 +126,8 @@ def test_prompt_requires_comparable_unique_metrics_and_question_level_evidence(p
     assert "character for character" in prompt and "do not add entity/company identity" in prompt
     assert "subject, generation, manifest, provenance" in prompt
     assert "retain information_as_of, period_start, period_end and evidence.published_at" in prompt
-    assert "each metric_id MUST occur at most once" in prompt
+    assert "keep the SAME canonical metric_id across distinct explicit periods" in prompt
+    assert "same ID, period_start/end, basis and currency are duplicates" in prompt
     assert "even for non-currency units set currency:null" in prompt
     assert "never omit required keys just because their value is null" in prompt
     assert "distinct custom.<segment>.<metric> IDs" in prompt

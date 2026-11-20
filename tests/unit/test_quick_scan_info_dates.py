@@ -102,7 +102,10 @@ def test_prompt_requests_structured_information_as_of() -> None:
     assert "not today's date" in prompt
     assert "never guess" in prompt
     # the added field must not break the JSON template shape
-    assert prompt.rstrip().endswith("}")
+    template = prompt.split("Return exactly one JSON object:\n", 1)[1].split(
+        "\nIdentity/authority boundary:", 1
+    )[0]
+    assert template.rstrip().endswith("}")
     assert prompt.count('"description"') == 1
 
 

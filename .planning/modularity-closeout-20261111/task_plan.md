@@ -1,3 +1,9 @@
+## 2026-11-20 暂定评分与证据强弱分离
+
+按用户要求，新单题、打包和格式修复提示不再把“题目所需粒度的数据不齐全”直接变为无分。有意义的部分依据允许 `status=scored`、1–10暂定分、`confidence=low`，并在现有 `missing_fields`、`coverage.partial` 和理由中说明假设及缺口。无判断依据及不适用仍可空分；事实关系不评分，缺失财务数值及引用不补造。
+
+实现只修改新提示构造，不改变status/null合同、历史答案或outbox。LLMProvider标准pack追加的同类强制空分句也已移除。新TDD、原解析/pack及原outbox请求bytes接续共207项隔离测试通过，Black/isort与diff检查通过，总控独立复审ACCEPT，提交并线由总控统一记录。四个旧提示测试失败已按现有公开owner投影及当前metric坐标含义修正，无生产接口扩展；测试临时根已删除，0真实API。
+
 ## 2026-11-20 公开语义接口兼容
 
 `original_semantic_resources` 复用现有 `supports_public_api`，按 `iqs.answer-validation-api` 协议族、同主版本及最低 1.1.0 判断；1.1.1/1.2.0 等兼容实现不再因小版本标签被拒。原代码来源、公开导出操作及实际输入绑定继续核实。8 项版本定向、整个 owner refresh port 文件 24 项通过，独立审查 ACCEPT。未调用真实 API。
