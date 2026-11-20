@@ -277,11 +277,14 @@ def _original_iqs_root_or_skip(monkeypatch):
     pytest.skip("original IQS scripts root not configured; set IQS_ORIGINAL_ROOT")
 
 
+@pytest.mark.parametrize("version", ["1.1.0", "1.1.1", "1.2.0"])
 def test_semantic_resources_are_resolved_from_owner_config_without_returning_paths(
-    monkeypatch, tmp_path
+    monkeypatch, tmp_path, version
 ):
     iqs_root = _original_iqs_root_or_skip(monkeypatch)
     import answer_validation
+
+    monkeypatch.setattr(answer_validation, "API_PROTOCOL", "iqs.answer-validation-api/" + version)
 
     release_root = tmp_path / "separate-owner-release"
     release_root.mkdir()
@@ -321,6 +324,28 @@ def test_semantic_resources_are_resolved_from_owner_config_without_returning_pat
         port.check()
     assert str(iqs_root) not in json.dumps(result)
     assert str(release_root) not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "protocol",
+    [
+        "other.answer-validation-api/1.1.0",
+        "iqs.answer-validation-api/2.0.0",
+        "iqs.answer-validation-api/1.0.0",
+        "iqs.answer-validation-api/unversioned",
+    ],
+)
+def test_original_semantic_resources_report_unsupported_api(monkeypatch, tmp_path, protocol):
+    iqs_root = _original_iqs_root_or_skip(monkeypatch)
+    import answer_validation
+
+    owner = _approved_owner(object())
+    context = {"schema": "context-v1", "questions": {"Q1": {"metadata": {}}}}
+    owner.native.observation_context = context
+    owner.native.client.config = {"iqs_code_root": str(iqs_root), "iqs_release_root": str(tmp_path)}
+    monkeypatch.setattr(answer_validation, "API_PROTOCOL", protocol)
+    with pytest.raises(ValueError, match="original_semantic_api_version_unsupported"):
+        adapt_owner_refresh(owner).original_semantic_resources(context)
 
 
 def test_semantic_resources_reject_context_from_another_owner(monkeypatch, tmp_path):

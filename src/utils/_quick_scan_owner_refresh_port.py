@@ -503,9 +503,11 @@ class _OwnerRefreshPort:
             api_origin = Path(inspect.getfile(api)).resolve()
             if api_origin != api_path:
                 raise ValueError("original_semantic_api_origin_mismatch")
-            if getattr(
-                api, "API_PROTOCOL", None
-            ) != "iqs.answer-validation-api/1.1.0" or "project_original_semantic_resources" not in getattr(
+            from src.utils.quick_scan_company_api import supports_public_api
+
+            if not supports_public_api(
+                getattr(api, "API_PROTOCOL", None), "iqs.answer-validation-api", (1, 1, 0)
+            ) or "project_original_semantic_resources" not in getattr(
                 api, "PUBLIC_API_EXPORTS", frozenset()
             ):
                 raise ValueError("original_semantic_api_version_unsupported")
