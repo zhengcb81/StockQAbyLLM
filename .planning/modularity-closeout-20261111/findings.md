@@ -72,3 +72,8 @@
 - R2：`import src.utils.quick_scan_X` 后以全路径 `src.utils.X.attr` 访问不被
   F2 捕获（`import X as alias` + `alias.attr` 已捕获；grep 确认真实 src 无此形态）。
 - 相对导入别名注册（`from . import X as y`）未实现；真实使用不在 EXPORT_BOUND_OWNERS。
+
+
+## 2026-11-20 StockQA F4
+
+旧固定目录无法代表多个已使用布局，仓根 SQLite 本次只读探测为 schema 5。按实际 inspect 已知 ledger、原工作项、代际和原生 attempt 建索引，外层 attempt 覆盖无影响。仅原生终态和同次收费收据能确证历史；派生修复不会补猜费用。 [F4 端口](F4-STOCKQA.md)

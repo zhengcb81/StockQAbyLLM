@@ -53,3 +53,8 @@ MC-QA 已完成并进入原固定组合。独立复核 72fae07 为 ACCEPT，Stoc
 ## 单一 Next Step
 
 沿公开恢复接口接续真实任务。现有 provider、Runtime 和 Company Agent 继续消费正常回执及状态，新的 provider 标签由 StockQA 中性决议机制处理。原 checkout 的四个 WIP 由对应 owner 继续维护。
+
+
+### 2026-11-20 F4-STOCKQA
+
+本仓候选补齐原已收结算的分诊、派生终态、只读复验、可恢复回告。独立便携账本和实际宿主中断恢复已跑通，交 ROOT 完成本机上线和组合签收。 [执行版本和复验](F4-STOCKQA.md)

@@ -20,6 +20,7 @@ native work item so a reviewer can re-read the same question.
 
 import json
 import os
+import sqlite3
 from pathlib import Path
 
 SCHEMA_VERSION = "feedback-observation/1"
@@ -28,6 +29,7 @@ OWNER = "stockqa"
 ENV_OUT = "RESEARCH_FEEDBACK_OUT"
 ENV_RUN_ID = "RESEARCH_FEEDBACK_RUN_ID"
 ENV_ATTEMPT_ID = "RESEARCH_FEEDBACK_ATTEMPT_ID"
+ENV_STATE = "STOCKQA_FEEDBACK_STATE"
 
 #: Provider labels that the verified-search checkpoint contract accepts.
 KNOWN_RESPONSE_STATUS = frozenset({"completed"})
@@ -151,6 +153,7 @@ def _fb_absent_fact(entity_id, question_id):
         "phase": None,
         "has_response": False,
         "receipt_readable": False,
+        "receipt_sha256": None,
         "late_receipt": False,
         "unrecognized_label": False,
         "checkpoint": "absent",
@@ -174,6 +177,7 @@ def _fb_fact(
     reprojected,
     scope_binding,
     visible_journal,
+    attempt_id=None,
 ):
     work_item_id = projected["work_item_id"]
     item = connection.execute(
@@ -187,6 +191,11 @@ def _fb_fact(
         "SELECT * FROM attempt WHERE work_item_id=? ORDER BY ordinal", (work_item_id,)
     ).fetchall()
     latest = attempts[-1] if attempts else None
+    selected = (
+        latest
+        if attempt_id is None
+        else next((row for row in attempts if row["attempt_id"] == attempt_id), None)
+    )
     highest = connection.execute(
         "SELECT MAX(generation) FROM work_item WHERE entity_id=? AND question_id=? "
         "AND scope=? AND scope_id=?",
@@ -207,9 +216,13 @@ def _fb_fact(
         ).fetchone()
         is not None
     )
-    receipt, has_response, receipt_readable = _fb_response(connection, view, latest)
-    settled_reason = _fb_settled_reason(connection, work_item_id)
-    budget = _fb_budget(connection, latest)
+    receipt, has_response, receipt_readable = _fb_response(connection, view, selected)
+    settled_reason = (
+        _fb_settled_reason(connection, work_item_id, selected["attempt_id"])
+        if selected is not None
+        else None
+    )
+    budget = _fb_budget(connection, selected)
     fact = {
         "entity_id": entity_id,
         "question_id": question_id,
@@ -222,16 +235,18 @@ def _fb_fact(
         "highest_generation": highest or item["generation"],
         "newer_unresolved_generation": newer_unresolved,
         "attempts": len(attempts),
-        "attempt_id": None if latest is None else latest["attempt_id"],
-        "attempt_ordinal": 0 if latest is None else latest["ordinal"],
-        "phase": None if latest is None else latest["phase"],
+        "attempt_id": None if selected is None else selected["attempt_id"],
+        "attempt_is_latest": selected is not None and selected == latest,
+        "attempt_ordinal": 0 if selected is None else selected["ordinal"],
+        "phase": None if selected is None else selected["phase"],
         "has_response": has_response,
         "receipt_readable": receipt_readable,
-        "late_receipt": bool(latest is not None and latest["late_receipt_sha256"]),
+        "receipt_sha256": selected["receipt_sha256"] if selected is not None else None,
+        "late_receipt": bool(selected is not None and selected["late_receipt_sha256"]),
         "unrecognized_label": _fb_unrecognized(receipt),
         "checkpoint": _fb_checkpoint(connection, view, work_item_id),
         "settled_reason": settled_reason,
-        "visible_output": _fb_visible_output(view, latest, available=visible_journal),
+        "visible_output": _fb_visible_output(view, selected, available=visible_journal),
         "budget_status": None if budget is None else budget["status"],
         "terminal_outcome": None if budget is None else budget["terminal_outcome"],
         "actual_cost_micros": None if budget is None else budget["actual_cost_micros"],
@@ -257,11 +272,11 @@ def _fb_response(connection, view, latest):
         return None, True, False
 
 
-def _fb_settled_reason(connection, work_item_id):
+def _fb_settled_reason(connection, work_item_id, attempt_id):
     row = connection.execute(
-        "SELECT event_type FROM work_event WHERE work_item_id=? "
+        "SELECT event_type FROM work_event WHERE work_item_id=? AND attempt_id=? "
         "AND event_type LIKE 'received_without_answer:%' ORDER BY event_id DESC LIMIT 1",
-        (work_item_id,),
+        (work_item_id, attempt_id),
     ).fetchone()
     return None if row is None else row[0].split(":", 1)[1]
 
@@ -393,6 +408,8 @@ def _fb_row(
     row["evidence_ref"] = "qa:{}/g{}".format(
         fact["work_item_id"] or "absent", fact["generation"] or 0
     )
+    if fact["attempt_id"]:
+        row["details_ref"] = "qa-attempt/1/" + fact["attempt_id"]
     row["version"] = version
     return row
 
@@ -589,6 +606,68 @@ def _fb_cost(fact):
     return None
 
 
+def read_feedback_attempt(view, work_item_id, generation, attempt_id) -> dict | None:
+    """Recheck the original attempt using the same owner read facts as F2."""
+    with view.inspection_transaction() as connection:
+        item = view.item_in_transaction(connection, work_item_id)
+        if item["generation"] != generation:
+            return None
+        scope_binding = {key: item[key] for key in ("scope", "scope_id")}
+        projected = {key: item[key] for key in ("work_item_id", "generation", "status")}
+        schema_version = connection.execute("PRAGMA user_version").fetchone()[0]
+        fact = _fb_fact(
+            connection,
+            view,
+            entity_id=item["entity_id"],
+            question_id=item["question_id"],
+            projected=projected,
+            reprojected=projected,
+            scope_binding=scope_binding,
+            visible_journal=schema_version >= 23,
+            attempt_id=attempt_id,
+        )
+    if fact["attempt_id"] != attempt_id:
+        return None
+    expected, _ = _fb_expected(fact)
+    job_status = {
+        "failed": "failed",
+        "result_ready": "succeeded",
+        "delivered": "succeeded",
+        "cancelled": "cancelled",
+    }.get(item["status"], "unconfirmed")
+    if not fact["attempt_is_latest"]:
+        # A newer attempt's work status cannot describe this original attempt.
+        job_status = "failed" if fact["settled_reason"] else "unconfirmed"
+    proof = {
+        "job_status": job_status,
+        "cost_state": (
+            "known"
+            if (
+                job_status != "unconfirmed"
+                and fact["budget_status"] == "settled"
+                and fact["terminal_outcome"]
+                in {"completed", "confirmed_failure", "confirmed_not_sent"}
+                and fact["actual_cost_micros"] is not None
+                and fact["cost_source_ref"]
+            )
+            else "unknown"
+        ),
+        "status": None,
+    }
+    if (
+        job_status == "failed"
+        and expected == SETTLED_NO_ANSWER
+        and fact["receipt_readable"]
+        and fact["receipt_sha256"]
+    ):
+        proof.update(
+            status=FAILED_SETTLED,
+            receipt_sha256=fact["receipt_sha256"],
+            settled_reason=fact["settled_reason"],
+        )
+    return proof
+
+
 def write_observations(path, rows):
     """Append UTF-8 JSONL; every exported value must already be a string."""
     payload = []
@@ -620,6 +699,15 @@ def emit_refresh_observation(result, request, ledger_path, *, environ=None):
             run_id=environment.get(ENV_RUN_ID),
             attempt_id=environment.get(ENV_ATTEMPT_ID),
         )
+        state = environment.get(ENV_STATE)
+        if state:
+            from src.utils.quick_scan_feedback_registry import bind_feedback_ledger
+
+            try:
+                bind_feedback_ledger(Path(state), Path(ledger_path), rows)
+            except (OSError, ValueError, sqlite3.Error):
+                # Emit the observation even when its native locator cannot be retained.
+                pass
         write_observations(out, rows)
         return rows
     except Exception:  # diagnostics are optional; the native contract is not
