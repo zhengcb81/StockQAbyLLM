@@ -201,6 +201,14 @@ class RegisteredResearchWork:
         return cast(str, matches[0])
 
 
+def _claim_refusal_reason(prefix, diagnostic):
+    reason = prefix + ":" + diagnostic["error_type"]
+    for node in diagnostic["chain"]:
+        if node.get("code"):
+            return reason + ":" + node["code"]
+    return reason
+
+
 class QuickScanWorkLifecycle:
     """Q06：把公共题路径绑定到 QuickScanWorkStore 的逐题生命周期。
 
@@ -622,7 +630,7 @@ class QuickScanWorkLifecycle:
             )
             return {
                 "claimed": False,
-                "reason": f"store_error:{type(exc).__name__}",
+                "reason": _claim_refusal_reason("store_error", diagnostic),
                 "failure_diagnostic": diagnostic,
             }
         if lease is None:
@@ -696,7 +704,7 @@ class QuickScanWorkLifecycle:
             )
             return {
                 "claimed": False,
-                "reason": f"attempt_intent_failed:{type(exc).__name__}",
+                "reason": _claim_refusal_reason("attempt_intent_failed", diagnostic),
                 "failure_diagnostic": diagnostic,
                 "work_item_id": work_item_id,
             }

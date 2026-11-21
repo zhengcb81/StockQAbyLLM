@@ -318,3 +318,15 @@ def test_bad_operator_outbox_still_exposes_original_in_owner_inbox(tmp_path, mon
     assert (
         execution_feedback.read_execution(row, os.environ)["diagnostic"]["root_type"] == "OSError"
     )
+
+
+def test_budget_owner_publishes_only_its_own_rule_code():
+    from src.utils.quick_scan_work_store import BudgetAdmissionError
+
+    for error, expected in [
+        (BudgetAdmissionError.for_rule("budget_request_limit"), "budget_request_limit"),
+        (BudgetAdmissionError("private_external_code"), None),
+    ]:
+        proof = diagnostics.build_failure_diagnostic(error, stage="question.prepare_intent")
+        assert proof["chain"][0].get("code") == expected
+        assert "private_external_code" not in json.dumps(proof)

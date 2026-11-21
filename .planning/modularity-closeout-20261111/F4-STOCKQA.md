@@ -30,6 +30,8 @@
 python -B -X utf8 -m pytest -q -o addopts= -p no:cacheprovider tests/unit/test_execution_failure_diagnostics.py tests/unit/test_execution_feedback_intake.py tests/unit/test_quick_scan_feedback_owner.py tests/unit/test_quick_scan_feedback_observation.py tests/unit/test_qa_question_pack.py
 ```
 
+25efa17d 经独立复验，单题和组包的真实未派发各产生一项观察，回写异常未覆盖原始失败，普通 CLI 的 stderr 和文件均无合成私密标记。按已有 Q09 兼容测试保留本仓预算规则判定的具体代码，包装的任意异常文字仍不投射。最终费用与输入组合 48 项通过。另一在途工作线已将正式基线更新至 a91a164，集成在本仓隔离目录进行；活跃工作区有并行未提交内容，运行版本分别报告。
+
 中微当时的原作业只留下 prepared 和外层错误名，无法补造发送前根因。上述测试使用全新隔离夹具并禁止网络，旧账按字节比对。总控正式宿主摄取、独审回告及发布分支版本分别登记，未发生的公司重跑或真实收费不得记作验证。启动前的强制杀进程或整个状态卷不可写，需要由宿主保留独立观测。
 
 

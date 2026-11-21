@@ -102,6 +102,14 @@ def build_failure_diagnostic(error, *, stage, references=None):
                 }
             )
             traceback = traceback.tb_next
+        if (
+            kind.__module__ == "src.utils.quick_scan_work_store"
+            and kind.__name__ == "BudgetAdmissionError"
+        ):
+            fields = BaseException.__dict__["__dict__"].__get__(current)
+            code = fields.get("public_code")
+            if type(code) is str and re.fullmatch(r"[a-z][a-z0-9_]*", code):
+                node["code"] = code
         # Bypass user-defined __getattribute__ and descriptors, and only consult
         # native instance data for the two owner-approved diagnostic vocabularies.
         if isinstance(current, sqlite3.Error) or (
