@@ -1,3 +1,7 @@
+## 2026-11-21 已发布并通过原任务零API冷恢复
+
+两组根修已发布并推送`ca7900d249b8a5f1d9b5fa891b92028c773a9a9d`。IQS原run第4次launch显式seal实际exit0：10个原paid及原work/package绑定不变，API/model/new_attempt/new_generation均0、dispatch_started=false，16实体pending；挂牌原预览can_start=true、0API。完整剩余18题和新快照/UI仍待主控，不能把冷恢复当全扫。IQS正在收口全paid普通preview/start/resume要求新收费配置的相邻问题，QA本组无新增门禁。F4/其他harness源码WIP保留且未纳发布。
+
 ## 2026-11-21 原已付恢复与账本就绪职责已分离
 
 `f69913c`完成的是未发送归还与收费检查去重，不代表真实混合状态恢复已经通过。原中微run第3次launch于15:24:29启动、15:26:15退出：原已付并已入库的IQS_03被`resume_original_work_delivery_or_reconciliation_required`挡住，余题未派发。原10份回答/ACK均在，本实体范围无新增模型请求。另一个原security范围启动报409 `refresh_admission_ledger_invalid`，报价可用、两项pending，未启动模型；原日志未留深层原因，不将其补写为坏库、锁或预算不足。

@@ -1,3 +1,7 @@
+## 2026-11-21 发布与真实恢复读回
+
+源码/本模块PWF12文件提交`ca7900d249b8a5f1d9b5fa891b92028c773a9a9d`已正常原钩子提交、原origin同SHA核对；首次isort仅调整测试导入顺序，重提全通过，无skip。仅本组干净组合3 passed/81.83秒，临时发布树已删除，canonical其他WIP跨接收逐文件字节不变。原中微public seal第4次launch exit0，10个原paid及原work/package绑定保留，0 API/model/newattempt/newgeneration、16pending；security预览200/can_start=true、API0。主控实物摘要在IQS runs/amec-rescore-20261121/gate-paid-recovery-summary.json及gate-after-fix-readiness-summary.json；剩余18题非本次冷恢复完成。
+
 ## 2026-11-21 真实接续反例已补录，未作完整交付
 
 - 原run `run-5305efa0a466482fa2a187ed2b37699e`第3次launch在15:24:29—15:26:15失败于第一道原paid题IQS_03；错误`resume_original_work_delivery_or_reconciliation_required`，原10题/ACK未丢，16实体pending未变，本范围0新增模型派发。独立合法合成ACK→reload反例确认today plan/reuse/deferred与原paid读取耦合；该夹具不是StockWiki生产golden。

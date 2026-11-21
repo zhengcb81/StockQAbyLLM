@@ -1,3 +1,7 @@
+## 2026-11-21 新实物原因不可倒推历史失败
+
+原run第4次冷恢复已真实通过，0收费新请求、原10包绑定不变，说明原paid读取不需新计划授权。第一次受限shell复验的CLI错误已安全定位为eager导入创建默认日志的PermissionError，经fallback误显成权限；正确授权环境原seal通过。这是本次操作环境证据，不是原13:09历史cause，也不能作为删除原paid/输入校验的理由。日志副作用和完整错误揭示交F4另一harness，本线程不扩改。
+
 ## 2026-11-21 根因：把不同职责放进同一个前置检查
 
 已付答案读取与新扫描调度是两种操作。原paid记录、context、subject receipt和binding齐全时，新plan提出ttl_expired/新work不能使旧答案失去读取资格。原生产launch3和合法合成ACK隔离反例已共同暴露此问题；修复应删除读取对deferred/reuse的依赖，today anchor/plan仅约束真正reactivated的新派发。
