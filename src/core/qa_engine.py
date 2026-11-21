@@ -739,33 +739,17 @@ class QAEngine:
                 for index, question, handle in members:
                     failed(index, question, handle, error)
                 return
+            stage_named_failure = False
             if stage is not None and stage not in {"complete", "partial", "rejected"}:
                 # Missing IDs in an unparsed/unverified/transport failure are
                 # membership diagnostics, not proof of a deterministic miss.
-                reason = (
-                    stage
-                    if stage in {"search_unverified", "transport_failed", "unavailable"}
-                    else "question_pack_response_unverified"
-                )
+                stage_named_failure = stage in {
+                    "search_unverified",
+                    "transport_failed",
+                    "unavailable",
+                }
+                reason = stage if stage_named_failure else "question_pack_response_unverified"
                 for index, question, handle in members:
-                    failed(
-                        index,
-                        question,
-                        handle,
-                        ValueError(reason),
-                        response.execution_metadata,
-                        reason,
-                        transport_metadata=failure_transport_metadata,
-                    )
-                return
-            for index, question, handle in members:
-                search_result = by_id.get(question.question_id)
-                if search_result is None:
-                    reason = (
-                        "missing_question"
-                        if question.question_id in missing
-                        else "invalid_question"
-                    )
                     finalized = (
                         failed(
                             index,
@@ -778,40 +762,83 @@ class QAEngine:
                         )
                         and finalized
                     )
-                    member_failures[cast(str, question.question_id)] = reason
-                    continue
-                try:
-                    answer = self.answer_generator.generate_answer(question, [search_result])
-                    if answer.status == "error":
+                    if stage_named_failure:
+                        member_failures[cast(str, question.question_id)] = reason
+                if not stage_named_failure:
+                    # An unrecognized stage has no deterministic member
+                    # classification; it stays recoverable and blocks later
+                    # paid packs until the original owner reconciles it.
+                    return
+                # The verified-search terminal proof below structurally
+                # cannot apply here: its receipt predicate requires
+                # search_status "executed", which an unverified pack never
+                # has. The store's own guarded terminal-fail above (2xx
+                # response_available pack, settled budget, live lease, no
+                # checkpoint) IS the durable evidence. Clear the cascade so
+                # later, separately admitted pending packs may continue.
+                if finalized and safe_member_failure and member_failures:
+                    stopped_reason = None
+                    for index, question, _ in members:
+                        if question.question_id in member_failures:
+                            output[index].metadata[
+                                "question_pack_continued_after_terminal_failure"
+                            ] = True
+                return
+            else:
+                for index, question, handle in members:
+                    search_result = by_id.get(question.question_id)
+                    if search_result is None:
+                        reason = (
+                            "missing_question"
+                            if question.question_id in missing
+                            else "invalid_question"
+                        )
                         finalized = (
                             failed(
                                 index,
                                 question,
                                 handle,
-                                ValueError("answer_generator_rejected_member"),
+                                ValueError(reason),
                                 response.execution_metadata,
-                                "answer_generator_rejected_member",
+                                reason,
                                 transport_metadata=failure_transport_metadata,
                             )
                             and finalized
                         )
-                        member_failures[cast(str, question.question_id)] = (
-                            "answer_generator_rejected_member"
-                        )
+                        member_failures[cast(str, question.question_id)] = reason
                         continue
-                    result = QAResult(question=question, answer=answer)
-                    lifecycle.after_question(handle, result)
-                    output[index] = result
-                except Exception as error:
-                    safe_member_failure = False
-                    failed(
-                        index,
-                        question,
-                        handle,
-                        error,
-                        response.execution_metadata,
-                        transport_metadata=failure_transport_metadata,
-                    )
+                    try:
+                        answer = self.answer_generator.generate_answer(question, [search_result])
+                        if answer.status == "error":
+                            finalized = (
+                                failed(
+                                    index,
+                                    question,
+                                    handle,
+                                    ValueError("answer_generator_rejected_member"),
+                                    response.execution_metadata,
+                                    "answer_generator_rejected_member",
+                                    transport_metadata=failure_transport_metadata,
+                                )
+                                and finalized
+                            )
+                            member_failures[cast(str, question.question_id)] = (
+                                "answer_generator_rejected_member"
+                            )
+                            continue
+                        result = QAResult(question=question, answer=answer)
+                        lifecycle.after_question(handle, result)
+                        output[index] = result
+                    except Exception as error:
+                        safe_member_failure = False
+                        failed(
+                            index,
+                            question,
+                            handle,
+                            error,
+                            response.execution_metadata,
+                            transport_metadata=failure_transport_metadata,
+                        )
 
             # Opt-in native proof only: a received parse failure is not a
             # request to retry it. Keep its error/partial result; only later,

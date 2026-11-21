@@ -659,16 +659,29 @@ def terminal_received_failure(con, item, attempt, reason):
         return False
     reasons = {
         "missing_question_answer": {"missing_question"},
-        "answer_validation_rejected": {"invalid_question", "answer_generator_rejected_member"},
+        "answer_validation_rejected": {
+            "invalid_question",
+            "answer_generator_rejected_member",
+        },
         "known_response_no_accepted_answer": {
             "missing_question",
             "invalid_question",
             "answer_generator_rejected_member",
+            # Named transport-stage outcomes: a 2xx arrived but the response
+            # carried no verifiable search receipt, so no accepted answer
+            # exists. Same coarse class — a settled paid attempt with no
+            # usable answer.
+            "search_unverified",
+            "transport_failed",
+            "unavailable",
         },
         "output_length": {
             "missing_question",
             "invalid_question",
             "answer_generator_rejected_member",
+            "search_unverified",
+            "transport_failed",
+            "unavailable",
         },
     }.get(reason, set())
     event = con.execute(

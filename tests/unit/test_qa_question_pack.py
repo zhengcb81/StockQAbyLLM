@@ -563,10 +563,14 @@ def test_actual_lifecycle_client_group_store_and_checkpoints_only_valid_members(
         batch = QAEngine(
             provider, progress_reporter=Mock(), work_item_lifecycle=lc
         ).process_questions(questions, question_pack_size=2)
-    assert session.post.call_count == 1, observed_errors
-    assert [r["question_id"] for r in owner_requests] == qids[:2]
-    assert len({r["execution_attempt_id"] for r in owner_requests}) == 1
-    assert len({r["work_attempt_id"] for r in owner_requests}) == 2
+    # search_unverified terminal-fails its members under their live lease, so
+    # the later independent pack (qids[2]) still dispatches instead of being
+    # cascade-blocked behind an unresolvable leftover lease.
+    continues = partial == "unverified_pending"
+    assert session.post.call_count == (2 if continues else 1), observed_errors
+    assert [r["question_id"] for r in owner_requests] == (qids if continues else qids[:2])
+    assert len({r["execution_attempt_id"] for r in owner_requests}) == (2 if continues else 1)
+    assert len({r["work_attempt_id"] for r in owner_requests}) == (3 if continues else 2)
     rows = store.find_work_items(entity_id=identity["entity_id"], question_ids=qids)
     persisted = {qid: store.get_item(rows[qid][0]["work_item_id"]) for qid in qids}
     assert {qid: persisted[qid]["routing_fingerprint"] for qid in qids} == expected_routing
@@ -583,9 +587,7 @@ def test_actual_lifecycle_client_group_store_and_checkpoints_only_valid_members(
                 for index in range(2)
             )
         else:
-            assert all(
-                persisted[qid]["status"] not in {"failed", "result_ready"} for qid in qids[:2]
-            )
+            assert all(persisted[qid]["status"] == "failed" for qid in qids[:2])
             assert all(
                 batch.results[index].metadata["question_pack_error"] == "search_unverified"
                 for index in range(2)
@@ -603,10 +605,19 @@ def test_actual_lifecycle_client_group_store_and_checkpoints_only_valid_members(
             ["scored", "error"] if partial else ["scored", "scored"]
         )
     if has_pending:
-        assert persisted[qids[2]]["status"] == "pending" and checkpoints[2] is None
-        assert store.list_attempts(persisted[qids[2]]["work_item_id"]) == []
-        assert batch.results[2].metadata["question_pack_not_dispatched"]
-    assert store.get_quick_scan_budget_status("pack-transport")["requests"] == 1
+        if continues:
+            # The follow-up pack dispatched and (same fixture strips search)
+            # also terminal-failed as a named search_unverified member.
+            assert persisted[qids[2]]["status"] == "failed" and checkpoints[2] is None
+            assert store.list_attempts(persisted[qids[2]]["work_item_id"])
+            assert batch.results[2].metadata["question_pack_error"] == "search_unverified"
+        else:
+            assert persisted[qids[2]]["status"] == "pending" and checkpoints[2] is None
+            assert store.list_attempts(persisted[qids[2]]["work_item_id"]) == []
+            assert batch.results[2].metadata["question_pack_not_dispatched"]
+    assert store.get_quick_scan_budget_status("pack-transport")["requests"] == (
+        2 if continues else 1
+    )
     assert "private synthetic reasoning" not in repr(checkpoints)
     if checkpoints[0] is not None:
         assert (
@@ -640,7 +651,7 @@ def test_actual_lifecycle_client_group_store_and_checkpoints_only_valid_members(
         assert answer["source_urls"] == [] and receipt["source_urls"] == []
         assert answer["check_level"] == "unverified_model_output"
         assert checkpoints[index] is None
-    if has_pending:
+    if has_pending and not continues:
         pending_receipt = public["execution_receipts"][qids[2]]
         assert pending_receipt["search_status"] == "not_attempted"
         assert pending_receipt["response_id"] is None
@@ -699,7 +710,7 @@ def test_actual_lifecycle_client_group_store_and_checkpoints_only_valid_members(
         QAEngine(provider, progress_reporter=Mock(), work_item_lifecycle=lc).process_questions(
             questions, question_pack_size=2
         )
-    assert session.post.call_count == 1, observed_errors
+    assert session.post.call_count == (2 if continues else 1), observed_errors
     assert [
         store.get_answer_checkpoint(rows[qid][0]["work_item_id"]) for qid in qids
     ] == before_checkpoints
@@ -711,8 +722,14 @@ def test_actual_lifecycle_client_group_store_and_checkpoints_only_valid_members(
         qid: store.list_attempts(rows[qid][0]["work_item_id"]) for qid in qids
     } == before_attempts
     if has_pending:
-        assert store.get_item(persisted[qids[2]]["work_item_id"])["status"] == "pending"
-        assert store.list_attempts(persisted[qids[2]]["work_item_id"]) == []
+        # For continues, the follow-up member terminal-failed in run one and
+        # re-entry must not recreate attempts for closed failed work.
+        assert store.get_item(persisted[qids[2]]["work_item_id"])["status"] == (
+            "failed" if continues else "pending"
+        )
+        assert store.list_attempts(persisted[qids[2]]["work_item_id"]) == (
+            before_attempts[qids[2]] if continues else []
+        )
 
 
 def test_composed_approved_owner_session_keeps_native_context_and_outer_admission_guard(
@@ -813,16 +830,21 @@ def test_unsaved_pack_stops_later_claims_without_losing_pending_questions(kind):
     elif kind == "invalid":
         p.reply = QuestionPackSearchResult((result(q(2)),), (), ("CORE_01", "CORE_03"), {})
     elif kind in {"unverified", "truncated"}:
-        p.reply = QuestionPackSearchResult(
-            (),
-            ("CORE_01", "CORE_02", "CORE_03"),
-            (),
-            {
-                "question_pack": {"status": "search_unverified"},
-                "search_status": "unverified",
-                "response_status": "incomplete" if kind == "truncated" else "completed",
-            },
-        )
+        # Membership must match whichever pack asks; later independent packs
+        # keep dispatching after the named terminal failure.
+        stage_meta = {
+            "question_pack": {"status": "search_unverified"},
+            "search_status": "unverified",
+            "response_status": "incomplete" if kind == "truncated" else "completed",
+        }
+
+        def dynamic_pack(questions, **options):
+            p.calls.append((tuple(x.question_id for x in questions), options))
+            return QuestionPackSearchResult(
+                (), tuple(x.question_id for x in questions), (), stage_meta
+            )
+
+        p.search_question_pack = dynamic_pack
     elif kind == "transport":
         p.error = QuickScanWorkUncertainError(
             "physical-uncertain", {"request_id": "original-request"}
@@ -830,22 +852,38 @@ def test_unsaved_pack_stops_later_claims_without_losing_pending_questions(kind):
     else:
         p.reply = QuestionPackSearchResult((result(q(99)),), (), (), {})
     batch = e.process_questions([q(i) for i in range(1, 9)], question_pack_size=3)
-    assert [call[0] for call in p.calls] == [("CORE_01", "CORE_02", "CORE_03")]
-    assert [event[1] for event in lc.events if event[0] == "claim"] == [
-        "CORE_01",
-        "CORE_02",
-        "CORE_03",
-    ]
+    # Named transport-stage failures terminal-fail their members and clear
+    # the cascade: later independent packs still claim and dispatch instead
+    # of stalling behind an unresolvable leftover lease.
+    continues = kind in {"unverified", "truncated"}
+    if continues:
+        assert [call[0] for call in p.calls] == [
+            ("CORE_01", "CORE_02", "CORE_03"),
+            ("CORE_04", "CORE_05", "CORE_06"),
+            ("CORE_07", "CORE_08"),
+        ]
+        assert [event[1] for event in lc.events if event[0] == "claim"] == [
+            f"CORE_{i:02}" for i in range(1, 9)
+        ]
+        assert [reason for _, reason in lc.failed] == ["search_unverified"] * 8
+    else:
+        assert [call[0] for call in p.calls] == [("CORE_01", "CORE_02", "CORE_03")]
+        assert [event[1] for event in lc.events if event[0] == "claim"] == [
+            "CORE_01",
+            "CORE_02",
+            "CORE_03",
+        ]
     assert [item.question.question_id for item in batch.results] == [
         f"CORE_{i:02}" for i in range(1, 9)
     ]
     for item in batch.results[3:]:
         assert item.answer.status == "error" and item.answer.score is None
-        assert item.metadata["question_pack_not_dispatched"] is True
-        assert not item.metadata.get("answer_checkpoint")
-        assert item.answer.metadata.get("execution") is None
-    if kind in {"unverified", "truncated"}:
-        assert [reason for _, reason in lc.failed] == ["search_unverified"] * 3
+        if continues:
+            assert item.metadata["question_pack_error"] == "search_unverified"
+        else:
+            assert item.metadata["question_pack_not_dispatched"] is True
+            assert not item.metadata.get("answer_checkpoint")
+            assert item.answer.metadata.get("execution") is None
     if kind == "transport":
         for item in batch.results[:3]:
             assert item.answer.metadata["execution"]["attempt_id"] == "physical-uncertain"
@@ -902,16 +940,27 @@ def test_failure_hook_exception_preserves_all_received_members_and_stops_further
     assert "private finalization" not in repr(batch)
 
 
-def test_search_or_transport_stage_is_not_reclassified_as_deterministic_missing():
+def test_search_or_transport_stage_is_a_named_terminal_and_later_packs_continue():
     for stage in ("search_unverified", "transport_failed", "unavailable"):
         e, p, lc = engine()
-        p.reply = QuestionPackSearchResult(
-            (), ("CORE_01", "CORE_02"), (), {"question_pack": {"status": stage}}
-        )
+
+        def dynamic_pack(questions, **options):
+            p.calls.append((tuple(x.question_id for x in questions), options))
+            return QuestionPackSearchResult(
+                (),
+                tuple(x.question_id for x in questions),
+                (),
+                {"question_pack": {"status": stage}},
+            )
+
+        p.search_question_pack = dynamic_pack
         batch = e.process_questions([q(1), q(2), q(3)], question_pack_size=2)
-        assert len(p.calls) == 1 and not lc.saved
-        assert lc.failed == [("CORE_01", stage), ("CORE_02", stage)]
-        assert batch.results[2].metadata["question_pack_not_dispatched"]
+        # The stage keeps its own named reason (never relabeled as a
+        # deterministic miss) and terminal-fails its members; the follow-up
+        # pack still dispatches instead of being cascade-blocked.
+        assert len(p.calls) == 2 and not lc.saved
+        assert lc.failed == [("CORE_01", stage), ("CORE_02", stage), ("CORE_03", stage)]
+        assert batch.results[2].metadata["question_pack_error"] == stage
 
 
 @pytest.mark.parametrize("with_fake_proof", [False, True])

@@ -3933,6 +3933,9 @@ class QuickScanWorkStore:
             "missing_question",
             "invalid_question",
             "answer_generator_rejected_member",
+            "search_unverified",
+            "transport_failed",
+            "unavailable",
         }:
             raise ValueError("received_without_answer_reason_invalid")
         event_type = "received_without_answer:" + reason_code
@@ -6734,6 +6737,10 @@ class QuickScanWorkStore:
                         "generation": row["generation"],
                         "status": row["status"],
                     }
+                    if row["status"] == "leased":
+                        # Lets callers distinguish a LIVE paid lease from an
+                        # expired leftover the executor recovers on startup.
+                        result[qid]["lease_expires_at"] = row["lease_expires_at"]
                     if (
                         include_owner_decisions
                         and connection.execute("PRAGMA user_version").fetchone()[0] >= 19

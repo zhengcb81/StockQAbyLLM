@@ -503,9 +503,14 @@ def delivery_scope_projection(path: Path, request: dict) -> dict:
             )
         ):
             raise ValueError("original_registered_work_mismatch")
-        work_items.append(
-            {key: work[key] for key in ("question_id", "work_item_id", "status", "generation")}
-        )
+        work_item_row = {
+            key: work[key] for key in ("question_id", "work_item_id", "status", "generation")
+        }
+        if work["status"] == "leased":
+            # Lets consumers distinguish a LIVE paid lease from an expired
+            # leftover the original executor recovers on its own startup.
+            work_item_row["lease_expires_at"] = work["lease_expires_at"]
+        work_items.append(work_item_row)
         if request.get("read_only_scope"):
             continue
         row = store.get_result_delivery(work_id)

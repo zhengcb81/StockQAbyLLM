@@ -1179,7 +1179,14 @@ class QuickScanWorkLifecycle:
         self, handles: List[Dict[str, Any]], failures: Dict[str, str]
     ) -> bool:
         """Validate a durable pack through the WorkStore's public operation."""
-        allowed = {"invalid_question", "missing_question", "answer_generator_rejected_member"}
+        allowed = {
+            "invalid_question",
+            "missing_question",
+            "answer_generator_rejected_member",
+            "search_unverified",
+            "transport_failed",
+            "unavailable",
+        }
         if (
             not isinstance(self._c06_authority, dict)
             or self._c06_authority.get("schema_version") not in {"2.0.0", "3.0.0"}
@@ -1499,10 +1506,16 @@ class QuickScanWorkLifecycle:
             # Only deterministic pack-member parse failures finish logical
             # work. Generic processing/DB/timeout errors remain recoverable;
             # the existence of a 2xx alone never declares the answer invalid.
+            # A named transport-stage failure (2xx received, but the response
+            # carried no verifiable search receipt) is equally deterministic:
+            # the paid response exists and cannot be re-asked into an answer.
             if isinstance(error_message, str) and error_message in {
                 "missing_question",
                 "invalid_question",
                 "answer_generator_rejected_member",
+                "search_unverified",
+                "transport_failed",
+                "unavailable",
             }:
                 from src.utils.quick_scan_work_store import (
                     LeaseFencedError,
