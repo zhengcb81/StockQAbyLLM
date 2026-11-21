@@ -2,6 +2,16 @@
 
 从已发布 f69913c5 独立构建，继承未发恢复和 26→3 次检查的既有修复。旧 14 项、额外 6 项执行诊断和普通 CLI 反例均已在基线上重现。本仓通过原子 .jsonl/.ready 将观察交总控，新进程从证据引用读回原始诊断或原付费账本。发布、独审、总控导入的最新证据统一记在 [F4-STOCKQA.md](F4-STOCKQA.md)。
 
+## 2026-11-21 发布与真实恢复读回
+
+源码/本模块PWF12文件提交`ca7900d249b8a5f1d9b5fa891b92028c773a9a9d`已正常原钩子提交、原origin同SHA核对；首次isort仅调整测试导入顺序，重提全通过，无skip。仅本组干净组合3 passed/81.83秒，临时发布树已删除，canonical其他WIP跨接收逐文件字节不变。原中微public seal第4次launch exit0，10个原paid及原work/package绑定保留，0 API/model/newattempt/newgeneration、16pending；security预览200/can_start=true、API0。主控实物摘要在IQS runs/amec-rescore-20261121/gate-paid-recovery-summary.json及gate-after-fix-readiness-summary.json；剩余18题非本次冷恢复完成。
+
+## 2026-11-21 真实接续反例已补录，未作完整交付
+
+- 原run `run-5305efa0a466482fa2a187ed2b37699e`第3次launch在15:24:29—15:26:15失败于第一道原paid题IQS_03；错误`resume_original_work_delivery_or_reconciliation_required`，原10题/ACK未丢，16实体pending未变，本范围0新增模型派发。独立合法合成ACK→reload反例确认today plan/reuse/deferred与原paid读取耦合；该夹具不是StockWiki生产golden。
+- security原2题启动另报409 `refresh_admission_ledger_invalid`；无模型进程，原短码不足以确定历史底层cause。源库只读backup后，同一临时快照schema27结构检查0.005秒通过、全历史审计91.037秒也通过；未复现持久坏行或busy。生产库未写，快照临时根已清。
+- 两组根修分别处理paid读取职责、current-schema/准入结构检查。具体发送的live权限、工作绑定、原子额度、真实ACK防重保留。paid作者新4+旧3最终7 passed/110.94秒，其他相关29项已绿；readiness首轮81绿、6个原helper25秒超时仅临时等待60秒重跑6绿，合计87不重复用例（新14含其中）。非作者一次组合12 passed/113.42秒，ACCEPT，计数不相加。14新例已进原日常CI，登记断言先RED后1 passed/1.57秒；自有测试TEMP已清。F4另线不实施、不阻塞。
+- 更早13:09的IQS_13/14真实发送前失败、原异常链丢失、零API封存/归还及10/10入库ACK已记录在IQS集中报告。已完成软件节点不覆盖这些后续实际反例。
 
 ## 2026-11-21 本节点最终验证
 

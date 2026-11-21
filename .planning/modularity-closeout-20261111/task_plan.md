@@ -2,6 +2,23 @@
 
 此前门禁简化已并入本仓发布线 f69913c5。F4 续作在本仓实施，公开入口、原生本地 outbox、ROOT 导入与独立验收分开跟踪。本节点的测试、发生定位和交接入口见 [F4-STOCKQA.md](F4-STOCKQA.md)。只有代码合入发布分支、独审和总控消费被实际复验后才分别登记相应状态。
 
+## 2026-11-21 已发布并通过原任务零API冷恢复
+
+两组根修已发布并推送`ca7900d249b8a5f1d9b5fa891b92028c773a9a9d`。IQS原run第4次launch显式seal实际exit0：10个原paid及原work/package绑定不变，API/model/new_attempt/new_generation均0、dispatch_started=false，16实体pending；挂牌原预览can_start=true、0API。完整剩余18题和新快照/UI仍待主控，不能把冷恢复当全扫。IQS正在收口全paid普通preview/start/resume要求新收费配置的相邻问题，QA本组无新增门禁。F4/其他harness源码WIP保留且未纳发布。
+
+## 2026-11-21 原已付恢复与账本就绪职责已分离
+
+`f69913c`完成的是未发送归还与收费检查去重，不代表真实混合状态恢复已经通过。原中微run第3次launch于15:24:29启动、15:26:15退出：原已付并已入库的IQS_03被`resume_original_work_delivery_or_reconciliation_required`挡住，余题未派发。原10份回答/ACK均在，本实体范围无新增模型请求。另一个原security范围启动报409 `refresh_admission_ledger_invalid`，报价可用、两项pending，未启动模型；原日志未留深层原因，不将其补写为坏库、锁或预算不足。
+
+当前只根修两项职责混淆，F4由另一harness负责，不是前置：
+
+|工作|完成条件|当前状态|
+|---|---|---|
+|原paid混合恢复|原checkpoint、context、主体回执和绑定正确即可读回；今天的新plan、reuse标签或anchor不得否决旧答案；pending新费用仍核真实授权|实现完成；ready/ACK后重载及新generation混合恢复通过，非作者ACCEPT|
+|普通账本就绪|current-schema打开及启动仅做结构校验；当前work/lease/额度/ACK各由原事务校验；显式深审计和旧schema迁移保留|只读同快照结构0.005秒通过、深审计91.037秒亦通过；根修完成；14新行为例纳入原日常CI，作者相关87不重复用例通过|
+|独立验证与原任务复验|一次非作者审查后回原任务，不重问原10题，不拿软件测试替真实扫描交付|非作者12项/113.42秒通过；真实原任务重开及完整扫描仍待验实|
+
+集中故障事实和操作证据在IQS `docs/implementation/reviews/PRESEND-SIMPLIFY-20261121/report.md`。下方已完成节点为阶段历史；不新增审批、协议、版本或日志门禁。
 
 ## 2026-11-21 门禁简化与统一未发送恢复已独审通过
 

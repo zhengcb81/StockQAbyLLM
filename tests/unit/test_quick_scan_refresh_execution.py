@@ -224,6 +224,7 @@ def state_session(store, work_id, *, projected_work_id=None, recovery_only=False
         recovery_only=recovery_only,
     )
     session.check = lambda: None  # Pure state tests, not a native permission proof.
+    session.validate_session = lambda: None
     return session
 
 
@@ -468,14 +469,16 @@ def test_reactivated_epoch_resumes_exact_original_binding_without_rewrite(tmp_pa
     assert binding == before["binding"] and binding["anchor_version"] == 2
     assert session.plan["anchor_version"] == session.native.current["anchor_version"] == 4
     assert store.get_owner_refresh_binding(row["work_item_id"]) == before
-    session.service.bridge.inspect.assert_called_once_with(
-        session.proof["confirmation"]["confirmation_id"], mode="current_permissions"
-    )
+    session.service.bridge.inspect.assert_not_called()
     assert store.list_attempts(row["work_item_id"]) == []
     handle = lifecycle.before_question(question)
     assert handle["claimed"] is True
     assert store.get_owner_refresh_binding(row["work_item_id"]) == before
     assert store.list_attempts(row["work_item_id"]) == []
+    session.check()  # The current-permission check belongs at native send intent.
+    session.service.bridge.inspect.assert_called_once_with(
+        session.proof["confirmation"]["confirmation_id"], mode="current_permissions"
+    )
 
 
 @pytest.mark.parametrize(
@@ -499,7 +502,9 @@ def test_reactivated_epoch_resumes_exact_original_binding_without_rewrite(tmp_pa
         "no_permission",
     ],
 )
-def test_epoch_resume_requires_current_exact_registered_action_and_native_context(tmp_path, fault):
+def test_epoch_resume_requires_current_exact_registered_action_and_native_context(
+    tmp_path, monkeypatch, fault
+):
     from unittest.mock import Mock
 
     from src.utils.quick_scan_work_store import QuickScanWorkStore
@@ -538,9 +543,23 @@ def test_epoch_resume_requires_current_exact_registered_action_and_native_contex
     else:
         session.service.bridge.inspect = Mock(side_effect=ValueError("synthetic revoked"))
     result = lifecycle.before_question(question)
-    assert result["claimed"] is False
+    assert result["claimed"] is (fault == "no_permission")
+    if fault == "no_permission":
+        from src.utils.http_client import http_client_manager
+
+        post = Mock(side_effect=AssertionError("revoked permission cannot reach HTTP"))
+        monkeypatch.setattr(http_client_manager, "get_sync_session", post)
+        session.service.bridge.inspect.assert_not_called()
+        with pytest.raises(ValueError, match="synthetic revoked"):
+            session.check()
+        session.service.bridge.inspect.assert_called_once_with(
+            session.proof["confirmation"]["confirmation_id"], mode="current_permissions"
+        )
+        post.assert_not_called()
     assert store.get_owner_refresh_binding(row["work_item_id"]) == before
-    assert store.get_item(row["work_item_id"])["status"] == "pending"
+    assert store.get_item(row["work_item_id"])["status"] == (
+        "leased" if fault == "no_permission" else "pending"
+    )
     assert store.list_attempts(row["work_item_id"]) == []
 
 
