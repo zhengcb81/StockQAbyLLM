@@ -1280,9 +1280,10 @@ class QuickScanWorkStore:
     def _validate_current_snapshot(cls, connection: sqlite3.Connection) -> bool:
         """Validate a current database without reserving its sole writer slot.
 
-        Read the version again inside the same read snapshot as all schema/data
-        checks. Migrations still acquire the writer lock and re-read the version.
-        Restore connection state even when strict validation rejects corruption.
+        Read the version and layout in one snapshot. Operations validate their
+        current records; explicit audits and migrations still check history.
+        Migrations acquire the writer lock and re-read the version. Always
+        restore the connection state when validation rejects the layout.
         """
         if connection.in_transaction:
             raise sqlite3.OperationalError("cannot start a transaction within a transaction")
@@ -1292,7 +1293,7 @@ class QuickScanWorkStore:
             connection.execute("BEGIN")
             if connection.execute("PRAGMA user_version").fetchone()[0] != SCHEMA_VERSION:
                 return False
-            cls._validate_schema(connection, schema_version=SCHEMA_VERSION)
+            cls._validate_schema(connection, schema_version=SCHEMA_VERSION, audit_records=False)
             return True
         finally:
             if connection.in_transaction:

@@ -1,3 +1,11 @@
+## 2026-11-21 根因：把不同职责放进同一个前置检查
+
+已付答案读取与新扫描调度是两种操作。原paid记录、context、subject receipt和binding齐全时，新plan提出ttl_expired/新work不能使旧答案失去读取资格。原生产launch3和合法合成ACK隔离反例已共同暴露此问题；修复应删除读取对deferred/reuse的依赖，today anchor/plan仅约束真正reactivated的新派发。
+
+账本普通打开/就绪与维护深审计也应分离。当前schema27临时只读快照结构检查0.005秒、完整历史审计91.037秒均通过，不能把全历史扫描作为每次启动的必要门禁。收敛在store current-schema构造和admission这两个实际入口，保留旧迁移及显式deep audit；当前操作依然读取并验证本操作所需的原生记录。不按公司、题号或异常文本添加特例。
+
+`refresh_admission_ledger_invalid`原历史底层原因仍未知；结构无效与SQLite/IO暂不可读应分别报告，不将不可读账本放行收费。F4细节由另一harness推进，原失败的时间/阶段/影响和未知已在本模块及IQS PWF留档。两组实现已通过作者针对性测试与非作者12项实际组合（ACCEPT）；没有抬协议/版本，也没有新增审批门禁。软件结果不代替原中微完整28题/实际UI验收。
+
 ## 2026-11-21 设计收敛结果
 
 原状态owner已有完整原子证明，transport复制证明且依赖prepared对象返回反而漏清理；现只委托原public release_unsent。收费授权只在intent前一次fresh，不以新许可阻已付保存/复用。跨层丢支付未知并非缺一个异常名，而是各层复制只看cause的规则；现既有interfaces提供同一有界cause/context遍历。新local验证是可选能力，不改变旧1.3 required协议。

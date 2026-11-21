@@ -1,9 +1,11 @@
 """Synthetic owner/SQLite boundaries; all owner CLI and HTTP calls are replaced."""
 
 import copy
+import json
 import sqlite3
 from collections import Counter
 from contextlib import contextmanager
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -24,6 +26,7 @@ from src.utils.quick_scan_work_store import (
     QuickScanWorkStore,
     quick_scan_receipt_sha256,
 )
+from tests.unit.test_provided_answer_sources import _sealed_provided_input, provided
 from tests.unit.test_quick_scan_question_pack_transport import (
     MANIFEST,
     _begin,
@@ -254,6 +257,321 @@ def test_two_question_pack_uses_two_registrations_and_one_live_check(session):
         handle.consume_for_post()
     assert session.counts == Counter(current_permissions=1, register=2)
     assert session.counts == before_consume
+
+
+def _mixed_paid_session(f, tmp_path, monkeypatch, *, delivered, superseded=False):
+    """Reload an original v2 response/outbox, alongside its registered pending work."""
+    from src.utils.quick_scan_delivery_seal import seal_result_delivery
+    from src.utils.quick_scan_question_manifest import load_question_manifest
+    from src.utils.quick_scan_refresh_execution import registered_scope
+    from tests.unit.test_quick_scan_c06_complete_seal import _ack
+
+    authority, identity, _ = _sealed_provided_input(f, tmp_path)
+    original = f.store.get_item(f.work_id)
+    identity = {**identity, "entity_id": original["entity_id"]}
+    binding = f.store.get_owner_refresh_binding(f.work_id)["binding"]
+    specs, items = [], []
+    for qid in ("IQS_01", "IQS_02"):
+        row = f.context["questions"][qid]
+        selected = dict(binding, question_id=qid)
+        if qid != "IQS_01":
+            selected["request_identity_key"] = "original-request-" + qid
+        spec = dict(
+            **identity,
+            question_id=qid,
+            generation=1,
+            scope="entity",
+            scope_id=identity["entity_id"],
+            question_fingerprint=row["work_prompt_sha256"],
+            routing_fingerprint=canonical_sha256(
+                dict(
+                    subject_key=selected["subject_key"],
+                    request_identity_key=selected["request_identity_key"],
+                )
+            ),
+            owner_refresh_binding=selected,
+        )
+        specs.append(spec)
+        items.append(
+            f.store.create_or_attach(
+                **spec, run_id=row["metadata"]["run_id"], scan_id=row["metadata"]["scan_id"]
+            )
+        )
+    assert items[0]["work_item_id"] == f.work_id
+    assert seal_result_delivery(f.store, f.work_id, authority=authority)["action"] == "sealed"
+    consumer = dict(component="StockWiki", namespace="quick_scan", store_id="mixed-paid-store")
+    f.store.bind_result_delivery_consumer(f.work_id, consumer, source_ref="fixture:mixed-paid")
+    if delivered:
+        delivery = f.store.begin_result_delivery(f.work_id)
+        ack = _ack(delivery, ack_id="ack_mixed_paid")
+        ack.update(consumer=consumer, received_at="2027-01-15T08:05:00Z")
+        f.store.apply_result_delivery_ack(f.work_id, ack)
+    if superseded:
+        newer = copy.deepcopy(specs[0])
+        newer.update(generation=2)
+        newer["owner_refresh_binding"].update(target_generation=2, request_identity_key="later")
+        newer["routing_fingerprint"] = canonical_sha256(
+            dict(subject_key=binding["subject_key"], request_identity_key="later")
+        )
+        f.store.create_or_attach(**newer, run_id="LATER", scan_id="LATER")
+    store = QuickScanWorkStore(f.store.path, clock=lambda: 1800000000.0)
+    manifest = load_question_manifest(
+        Path(__file__).parents[1] / "fixtures" / "quick_scan_c06_manifest_v2_fixture.json"
+    )
+    questions = {
+        qid: Question(
+            f.context["questions"][qid]["subject_binding"]["question_contract"]["prompt"],
+            question_id=qid,
+        )
+        for qid in ("IQS_01", "IQS_02")
+    }
+    bundle = dict(identity=identity, manifest=manifest, questions=questions, authority=authority)
+    preview = [
+        dict(
+            question_id=item["question_id"],
+            field_id=f.context["questions"][item["question_id"]]["metadata"]["field_id"],
+            subject_ref=f.subject,
+            generation=1,
+            decision="resume_existing_work",
+            reuse_observation_id=None,
+            existing_work_status=item["status"],
+        )
+        for item in items
+    ]
+    confirmation = "rc2_" + "f" * 64
+    record = dict(
+        inputs=dict(action=dict(confirmation_id=confirmation), specifications=specs, references=[]),
+        receipt=dict(items=items),
+    )
+    proof = dict(
+        confirmation=dict(confirmation_id=confirmation),
+        request=dict(
+            protocol="iqs.refresh_request/1.1.0",
+            source_query=dict(payload=dict(information_cutoff=binding["information_cutoff"])),
+        ),
+        preview=dict(items=preview, provider="mimo", model=binding["model"], scope_sha256="a" * 64),
+        owner_policy=dict(provider="mimo", model=binding["model"]),
+    )
+    scopes = {qid: dict(scope="entity", scope_id=identity["entity_id"]) for qid in questions}
+    current = dict(
+        anchor_version=2,
+        expected_decision_id=binding["decision_id"],
+        snapshot=dict(subject_binding=dict(subject=f.subject)),
+    )
+    native = OwnerRefreshSession(
+        SimpleNamespace(config={}, _environment={}, assert_current=Mock()),
+        current,
+        dict(
+            binding,
+            anchor_version=2,
+            fields=[
+                dict(
+                    field_id=qid,
+                    decision="dispatch_new_work",
+                    generation=3,
+                    reasons=["ttl_expired"],
+                )
+                for qid in questions
+            ],
+            reused_observations={},
+        ),
+        scopes,
+        store.owner_refresh_projection(
+            entity_id=identity["entity_id"], question_ids=list(questions), scope_bindings=scopes
+        ),
+        identity,
+        store,
+        observation_context=f.context,
+    )
+    counts = Counter()
+
+    def inspect(_confirmation, *, mode):
+        counts[mode] += 1
+        return copy.deepcopy(proof)
+
+    def register(_config, _current, request, **_kwargs):
+        counts["register"] += 1
+        return _owner_receipt(request, 1800000000.0)
+
+    monkeypatch.setattr(quick_scan_subject_owner, "register", register)
+    service = SimpleNamespace(
+        store=store,
+        budget=_policy(),
+        _record=lambda _confirmation: copy.deepcopy(record),
+        bridge=SimpleNamespace(inspect=inspect),
+    )
+    owner = ApprovedRefreshSession(
+        service,
+        proof,
+        {},
+        bundle,
+        record,
+        registered_scope(preview, bundle, record, information_cutoff=binding["information_cutoff"]),
+        native,
+        {},
+        {},
+    )
+    lifecycle = QuickScanWorkLifecycle(
+        store,
+        entity_id=identity["entity_id"],
+        identity=identity,
+        run_id="RESUMED",
+        scan_id="RESUMED",
+        transport_managed=True,
+        owner_refresh_session=owner,
+        observation_context=f.context,
+        scope_by_question=scopes,
+        route_id="pack-route",
+        provider_name="mimo-fixture",
+        model_requested=binding["model"],
+        budget_policy=_policy(),
+        budget_route=_policy()["routes"][0],
+    )
+    return SimpleNamespace(
+        store=store,
+        owner=owner,
+        lifecycle=lifecycle,
+        questions=questions,
+        counts=counts,
+    )
+
+
+def _paid_snapshot(f, session):
+    store, wid = session.store, f.work_id
+    checkpoint = store.get_answer_checkpoint(wid)
+    attempt_id = checkpoint["attempt_id"]
+    return dict(
+        work=store.get_item(wid),
+        checkpoint=checkpoint,
+        attempts=store.list_attempts(wid),
+        response=store.get_attempt_response(attempt_id),
+        subject_receipt=store.get_subject_dispatch_receipt(attempt_id),
+        context=store.get_observation_context(wid),
+        standard=store.get_standard_answer(wid),
+        delivery=store.get_result_delivery(wid),
+    )
+
+
+@pytest.mark.parametrize("delivered", [False, True], ids=["ready", "acknowledged"])
+def test_mixed_original_paid_checkpoint_and_pending_resume(
+    provided, tmp_path, monkeypatch, delivered
+):
+    from src.providers.llm_provider import LLMProvider
+    from src.utils.http_client import http_client_manager
+    from tests.unit.test_llm_client import _b01_thinking_response
+    from tests.unit.test_quick_scan_observation_context import content
+
+    f = provided
+    session = _mixed_paid_session(f, tmp_path, monkeypatch, delivered=delivered)
+    before = _paid_snapshot(f, session)
+    assert before["subject_receipt"] is not None
+    body = content()
+    body["question_id"] = "IQS_02"
+    body["evidence"][0]["url"] = "https://example.org/source"
+    final = dict(
+        answers=[
+            dict(
+                entity_id=before["work"]["entity_id"],
+                company_name="Synthetic Co",
+                question_id="IQS_02",
+                status="scored",
+                score=8,
+                description=json.dumps(body),
+                information_as_of="2026-09-01",
+            )
+        ]
+    )
+    wire = Mock()
+
+    def post(*_args, **kwargs):
+        f.sent.append(copy.deepcopy(kwargs["json"]))
+        return _b01_thinking_response(
+            "mimo_chat_completions", "mimo-v2.6-flash", final=json.dumps(final)
+        )
+
+    wire.post.side_effect = post
+    monkeypatch.setattr(http_client_manager, "get_sync_session", lambda: wire)
+    config = tmp_path / "llm_apis.json"
+    config.write_text(
+        json.dumps(
+            dict(
+                default_provider="mimo-fixture",
+                providers={
+                    "mimo-fixture": dict(
+                        enabled=True,
+                        api_key="",
+                        model="mimo-v2.6-flash",
+                        base_url="https://api.xiaomimimo.com/v1",
+                        format_repair_budget=0,
+                    )
+                },
+            )
+        ),
+        encoding="utf-8",
+    )
+    provider = LLMProvider(
+        api_key="synthetic-only",
+        provider_name="mimo-fixture",
+        config_file=str(config),
+        require_search=True,
+        company_name="Synthetic Co",
+        entity_id=before["work"]["entity_id"],
+    )
+    with transport.bind_quick_scan_budget(session.store, _policy()):
+        batch = QAEngine(
+            provider, progress_reporter=Mock(), work_item_lifecycle=session.lifecycle
+        ).process_questions(
+            list(session.questions.values()),
+            question_pack_size=2,
+        )
+    assert [result.answer.score for result in batch.results] == [8, 8]
+    assert (
+        batch.results[0].metadata["answer_checkpoint"]["attempt_id"]
+        == before["checkpoint"]["attempt_id"]
+    )
+    assert len(f.sent) == 2  # Original paid POST plus only the previously pending question.
+    assert session.counts == Counter(current_permissions=1, register=1)
+    assert _paid_snapshot(f, session) == before
+
+
+@pytest.mark.parametrize("delivered", [False, True], ids=["ready", "acknowledged"])
+def test_original_paid_reads_ignore_new_dispatch_projection_and_permission(
+    provided,
+    tmp_path,
+    monkeypatch,
+    delivered,
+):
+    f = provided
+    session = _mixed_paid_session(
+        f, tmp_path, monkeypatch, delivered=delivered, superseded=delivered
+    )
+    before = _paid_snapshot(f, session)
+    if delivered:
+        assert session.owner.deferred["IQS_01"] == "registered_work_superseded"
+    session.owner.plan.update(
+        anchor_version=9, decision_id="route_" + "0" * 64, information_cutoff="2027-02-01"
+    )
+    session.owner.service.bridge.inspect = Mock(
+        side_effect=AssertionError("paid reads cannot authorize new work")
+    )
+    question = session.questions["IQS_01"]
+    restored = session.owner.restore_registered_checkpoint(question, store=session.store)
+    assert restored["payload"] == before["checkpoint"]["payload"]
+    session.owner.assert_received_checkpoint_recovery(
+        f.work_id,
+        before["checkpoint"]["attempt_id"],
+        store=session.store,
+    )
+    report = session.owner.recovery_report()
+    assert f.work_id in [row["work_item_id"] for row in report["delivery_references"]]
+    assert "IQS_01" not in [row["question_id"] for row in report["deferred_work"]]
+    assert session.lifecycle.before_question(question)["claimed"] is False
+    pending_id = session.owner.entries["IQS_02"]["work_item_id"]
+    assert session.lifecycle.before_question(session.questions["IQS_02"])["claimed"] is False
+    assert session.store.get_item(pending_id)["status"] == "pending"
+    assert session.store.list_attempts(pending_id) == []
+    assert _paid_snapshot(f, session) == before and len(f.sent) == 1
+    assert session.counts == Counter()
 
 
 def test_revocation_before_intent_releases_unsent_without_budget_or_unknown(session, monkeypatch):

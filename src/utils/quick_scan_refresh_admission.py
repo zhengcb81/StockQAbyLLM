@@ -206,8 +206,14 @@ class RefreshAdmissionService:
                 connection.execute("BEGIN")
                 if connection.execute("PRAGMA user_version").fetchone()[0] != SCHEMA_VERSION:
                     raise AdmissionRejected("refresh_admission_explicit_setup_required")
-                self.store.validate_schema(connection, schema_version=SCHEMA_VERSION)
-        except (sqlite3.Error, ValueError) as error:
+                # Operations validate their current scope, work and budget;
+                # readiness does not re-audit unrelated historical payloads.
+                self.store.validate_schema(
+                    connection, schema_version=SCHEMA_VERSION, audit_records=False
+                )
+        except (OSError, sqlite3.Error) as error:
+            raise AdmissionRejected("refresh_admission_ledger_unavailable") from error
+        except ValueError as error:
             if isinstance(error, AdmissionRejected):
                 raise
             raise AdmissionRejected("refresh_admission_ledger_invalid") from error

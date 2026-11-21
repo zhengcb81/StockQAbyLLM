@@ -351,21 +351,6 @@ class ApprovedRefreshSession:
                             owner_control=copy.deepcopy(binding["owner_control"]),
                             request_identity_key=binding["request_identity_key"],
                         )
-                if item["status"] == "delivered" and field["decision"] != "defer":
-                    delivery = self.service.store.get_result_delivery(item["work_item_id"])
-                    original = self.plan.get("reused_observations", {}).get(
-                        field.get("reuse_observation_id")
-                    )
-                    if (
-                        self.native.fields[qid]["decision"] == "reuse"
-                        and delivery
-                        and original
-                        and delivery.get("observation_id") == original["observation_id"]
-                        and delivery.get("payload_sha256") == original["payload_sha256"]
-                    ):
-                        field = copy.deepcopy(self.native.fields[qid])
-                    else:
-                        self.deferred[qid] = "original_delivery_historical_or_refresh_required"
             self.fields[qid] = field
 
     @property
@@ -470,12 +455,7 @@ class ApprovedRefreshSession:
                 raise AdmissionRejected("paid_recovery_original_response_required")
 
     def _assert_original_registered_binding(self, qid, original_work, original_binding, *, store):
-        """Additional pure resume fence within the original loaded registration.
-
-        It does not authenticate a caller or replace native send-intent checks. Only
-        the actual current registered journal may bridge a monotonic activation
-        epoch to its unchanged original work binding; nothing is rewritten.
-        """
+        """Validate the immutable original registration, independently of new dispatch."""
 
         def reject():
             raise AdmissionRejected("refresh_execution_original_anchor_context_required")
@@ -517,8 +497,19 @@ class ApprovedRefreshSession:
             )
         ):
             reject()
+
+    def assert_reactivated_original_binding(self, qid, original_work, original_binding, *, store):
+        """Validate today's dispatch context before resuming an original pending item."""
+        self._assert_original_registered_binding(qid, original_work, original_binding, store=store)
+
+        def reject():
+            raise AdmissionRejected("refresh_execution_original_anchor_context_required")
+
+        if original_binding["anchor_version"] >= self.plan["anchor_version"]:
+            reject()
         if getattr(self, "recovery_only", False):
-            return  # The exact immutable original binding above owns this saved result.
+            return
+        cutoff = self.proof["request"]["source_query"]["payload"]["information_cutoff"]
         old, current = original_binding["anchor_version"], self.plan["anchor_version"]
         if (
             type(old) is not int
@@ -559,11 +550,6 @@ class ApprovedRefreshSession:
         ):
             reject()
 
-    def assert_reactivated_original_binding(self, qid, original_work, original_binding, *, store):
-        self._assert_original_registered_binding(qid, original_work, original_binding, store=store)
-        if original_binding["anchor_version"] >= self.plan["anchor_version"]:
-            raise AdmissionRejected("refresh_execution_original_anchor_context_required")
-
     def assert_received_checkpoint_recovery(self, work_item_id, attempt_id, *, store):
         """Prove original paid scope without authenticating another request."""
         if store is not self.service.store:
@@ -579,8 +565,6 @@ class ApprovedRefreshSession:
         if entry is None:
             raise AdmissionRejected("received_checkpoint_registered_work_required")
         qid = entry["item"]["question_id"]
-        if qid in self.deferred:
-            raise AdmissionRejected("received_checkpoint_registered_work_superseded")
         # This operation only reads an existing attempt and its original
         # registration. It cannot claim work, reserve budget or POST.
         self.validate_session()
@@ -931,13 +915,7 @@ class ApprovedRefreshSession:
         """
         qid = question.question_id
         entry = self.entries.get(qid)
-        if (
-            store is not self.service.store
-            or entry is None
-            or entry["kind"] != "work"
-            or qid in self.deferred
-            or self.fields[qid]["decision"] != "resume_existing_work"
-        ):
+        if store is not self.service.store or entry is None or entry["kind"] != "work":
             return None
         work = self.existing_work(qid)
         if work["status"] not in {"result_ready", "delivered"}:
@@ -1499,16 +1477,6 @@ class ApprovedRefreshSession:
                 )
                 continue
             delivery = self.service.store.get_result_delivery(item["work_item_id"])
-            if qid in self.deferred:
-                deferred.append(
-                    dict(
-                        question_id=qid,
-                        work_item_id=item["work_item_id"],
-                        status=item["status"],
-                        reason=self.deferred[qid],
-                    )
-                )
-                continue  # Never seal superseded work under the old action.
             if (
                 not getattr(self, "recovery_only", False)
                 and item["status"] == "result_ready"
@@ -1538,8 +1506,7 @@ class ApprovedRefreshSession:
                     }
                 )
             if (
-                qid in self.deferred
-                or item["status"] not in {"result_ready", "delivered"}
+                item["status"] not in {"result_ready", "delivered"}
                 or delivery is None
                 or delivery.get("package") is None
             ):

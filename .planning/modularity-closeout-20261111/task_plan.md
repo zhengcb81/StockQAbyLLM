@@ -1,3 +1,17 @@
+## 2026-11-21 原已付恢复与账本就绪职责已分离
+
+`f69913c`完成的是未发送归还与收费检查去重，不代表真实混合状态恢复已经通过。原中微run第3次launch于15:24:29启动、15:26:15退出：原已付并已入库的IQS_03被`resume_original_work_delivery_or_reconciliation_required`挡住，余题未派发。原10份回答/ACK均在，本实体范围无新增模型请求。另一个原security范围启动报409 `refresh_admission_ledger_invalid`，报价可用、两项pending，未启动模型；原日志未留深层原因，不将其补写为坏库、锁或预算不足。
+
+当前只根修两项职责混淆，F4由另一harness负责，不是前置：
+
+|工作|完成条件|当前状态|
+|---|---|---|
+|原paid混合恢复|原checkpoint、context、主体回执和绑定正确即可读回；今天的新plan、reuse标签或anchor不得否决旧答案；pending新费用仍核真实授权|实现完成；ready/ACK后重载及新generation混合恢复通过，非作者ACCEPT|
+|普通账本就绪|current-schema打开及启动仅做结构校验；当前work/lease/额度/ACK各由原事务校验；显式深审计和旧schema迁移保留|只读同快照结构0.005秒通过、深审计91.037秒亦通过；根修完成；14新行为例纳入原日常CI，作者相关87不重复用例通过|
+|独立验证与原任务复验|一次非作者审查后回原任务，不重问原10题，不拿软件测试替真实扫描交付|非作者12项/113.42秒通过；真实原任务重开及完整扫描仍待验实|
+
+集中故障事实和操作证据在IQS `docs/implementation/reviews/PRESEND-SIMPLIFY-20261121/report.md`。下方已完成节点为阶段历史；不新增审批、协议、版本或日志门禁。
+
 ## 2026-11-21 门禁简化与统一未发送恢复已独审通过
 
 本节点完成：原正常两题包26次外部owner调用降为3次（2登记+1收费intent前权限）；固定绑定本地验证、已付复用不重新审批。未发送清理只用原binding在同一事务委托public release_unsent，删除transport约70行重复证明，覆盖prepare提交前/提交后未返回、入口校验、provider渲染失败。真实已发/已响应/未知由原native账本阻止误放，不新增schema/协议/授权。
