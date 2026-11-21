@@ -36,7 +36,8 @@ def test_single_prompt_restricts_perimeter_without_changing_question_text():
         "ISSUER_LEGAL_ONLY" in scoped
         and "NOT verification of a consolidated reporting perimeter" in scoped
     )
-    assert "insufficient_evidence with score=null" in scoped and question in scoped
+    assert "provisional qualitative judgment" in scoped and question in scoped
+    assert "return insufficient_evidence with score=null for the affected question" not in scoped
     assert (
         scoped != legacy
         and hashlib.sha256(scoped.encode()).hexdigest()

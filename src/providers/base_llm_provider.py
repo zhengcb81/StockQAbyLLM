@@ -42,6 +42,27 @@ _PROVISIONAL_SCORE_RULE = (
     "Fact questions remain unscored and may assert only supported facts.\n"
 )
 
+_QUICK_SCAN_RESEARCH_RULE = (
+    "\nLIGHTWEIGHT QUICK SCAN: this is initial company screening, using model knowledge and available public web information. "
+    "Treat knowledge-based conclusions as judgments, not as independently verified financial measurements. "
+    "Question evidence focus points are research leads, not mandatory acquisition checklists. "
+    "Do not require a filing download, report-document possession, exhaustive financial reconstruction, "
+    "parent-only accounts or normally unpublished product/customer cost detail before giving a useful judgment. "
+    "Preserve the question's meaning and anchors; use the available business facts to judge that question, "
+    "including a provisional score with low confidence when appropriate. "
+    "Do not replace a specific measure with a group metric or invent missing numerical inputs. "
+    "Give a concise basis and the strongest relevant qualification rather than a due-diligence task list. "
+    "For missing_fields, list only judgment-critical unknowns that could materially change the score or conclusion; "
+    "missing_fields may be [] and usually needs no more than one or two useful items. "
+    "This is guidance, not a new output limit: do not list every unverified detail, an unopened report, "
+    "or a generally unavailable granular disclosure just to fill the array. "
+    "Use confidence and a short coverage explanation for ordinary uncertainty, without repeating a warning "
+    "for each unavailable input or lowering the company-quality score merely because research is incomplete. "
+    "A coverage of complete_for_scope means adequate for the stated quick judgment, not completion of an audit. "
+    "Only assert numerical facts, publication dates and citations that are actually supported; "
+    "unsupported measurements remain absent even when a qualitative score is possible.\n"
+)
+
 # Same stable evidence/metric contract for single-question and pack prompts.
 # This guides future requests; it never repairs or authorizes an old response.
 _QUESTION_EVIDENCE_QUALITY_RULE = (
@@ -145,9 +166,12 @@ def analysis_subject_scope(subject: Dict[str, Any]) -> Iterator[None]:
             "Research boundary: ISSUER_LEGAL_ONLY (standalone_issuer). This is a choice of the legal issuer as the research subject, "
             "NOT a claim that it has no subsidiaries, and NOT verification of a consolidated reporting perimeter.\n"
             "Do not attribute a consolidated group's, subsidiary's or another security's financial or operating numbers to this legal issuer. "
-            "Use evidence only when its perimeter matches this subject. When only group figures are available or scope is unclear, "
-            "return insufficient_evidence with score=null for the affected question, explain the scope mismatch and retain its question_id. "
-            "Do not silently switch to group scope, omit the question or fill an unknown with a middle score.\n"
+            "Keep the perimeter of each numerical measurement explicit; omit a measurement whose attribution is unverified. "
+            "Clearly labeled group context may inform a provisional qualitative judgment about this issuer's business, "
+            "without being asserted as a parent-company measurement. Do not require parent-only accounts "
+            "or make the absence of a verified consolidated perimeter an automatic null-score condition. "
+            "Keep the original question_id and state any judgment-critical scope uncertainty briefly. "
+            "Do not silently switch the research subject or fill an unknown with a middle score.\n"
         )
     token = _ANALYSIS_SUBJECT_SCOPE.set(
         {"entity_id": subject["primary_issuer_id"], "rule": rule} if rule else None
@@ -378,7 +402,7 @@ Requirements:
   "score": {score_example},
   "information_as_of": "<YYYY-MM-DD latest verified cited fact/publication date (not today's date); null when unknown>",
   "description": "<reasoning and evidence>"
-}}{standard_answer_rule}\n{_QUESTION_EVIDENCE_QUALITY_RULE}"""
+}}{standard_answer_rule}\n{_QUESTION_EVIDENCE_QUALITY_RULE}{_QUICK_SCAN_RESEARCH_RULE if standard_answer_transport_enabled() else ''}"""
 
     def _build_question_pack_prompt(self, questions: List[Question]) -> str:
         """Keep original question data while defining exactly one multi-answer root."""
@@ -495,6 +519,7 @@ Requirements:
             "do not copy its null score when the available partial facts support a judgment:\n"
             + _QUESTION_EVIDENCE_QUALITY_RULE
             + json.dumps(example, ensure_ascii=False, separators=(",", ":"))
+            + (_QUICK_SCAN_RESEARCH_RULE if direct_standard_objects else "")
         )
 
     def _build_format_repair_prompt(
