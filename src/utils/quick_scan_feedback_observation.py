@@ -21,6 +21,7 @@ native work item so a reviewer can re-read the same question.
 import json
 import os
 import sqlite3
+import sys
 from pathlib import Path
 
 SCHEMA_VERSION = "feedback-observation/1"
@@ -682,13 +683,31 @@ def write_observations(path, rows):
         stream.write("".join(payload))
 
 
+def _tracking_incomplete():
+    try:
+        print("feedback tracking incomplete", file=sys.stderr)
+    except Exception:
+        pass
+
+
+def emit_execution_observation(diagnostic, *, context=None, environ=None):
+    from src.utils.execution_feedback import publish
+
+    return publish(
+        diagnostic, context or {}, os.environ if environ is None else environ, write_observations
+    )
+
+
 def emit_refresh_observation(result, request, ledger_path, *, environ=None):
     """Export one invocation's observations; never raises into the business path."""
     environment = os.environ if environ is None else environ
     out = environment.get(ENV_OUT)
-    if not out:
-        return []
     try:
+        from src.utils.execution_feedback import DEFAULT_INBOX, inbox, publish_native
+        from src.utils.quick_scan_feedback_registry import (
+            bind_feedback_ledger,
+            separate_feedback_state,
+        )
         from src.utils.quick_scan_refresh_inspect import ReadOnlyWorkView
 
         view = ReadOnlyWorkView(ledger_path)
@@ -699,16 +718,40 @@ def emit_refresh_observation(result, request, ledger_path, *, environ=None):
             run_id=environment.get(ENV_RUN_ID),
             attempt_id=environment.get(ENV_ATTEMPT_ID),
         )
-        state = environment.get(ENV_STATE)
-        if state:
-            from src.utils.quick_scan_feedback_registry import bind_feedback_ledger
-
+        directory = inbox(environment)
+        native = [
+            row
+            for row in rows
+            if row["disposition"] != "expected"
+            or row["actual"] in {"failed_settled", "send_uncertain"}
+        ]
+        if native:
+            state = environment.get(ENV_STATE)
+            for registry in dict.fromkeys(
+                [directory / "bindings.sqlite", *([Path(state)] if state else [])]
+            ):
+                try:
+                    bind_feedback_ledger(registry, Path(ledger_path), native)
+                except (OSError, ValueError, sqlite3.Error):
+                    _tracking_incomplete()
+                    if registry == directory / "bindings.sqlite" and directory != DEFAULT_INBOX:
+                        try:
+                            bind_feedback_ledger(
+                                DEFAULT_INBOX / "bindings.sqlite", Path(ledger_path), native
+                            )
+                        except (OSError, ValueError, sqlite3.Error):
+                            _tracking_incomplete()
             try:
-                bind_feedback_ledger(Path(state), Path(ledger_path), rows)
-            except (OSError, ValueError, sqlite3.Error):
-                # Emit the observation even when its native locator cannot be retained.
-                pass
-        write_observations(out, rows)
+                for row in native:
+                    publish_native(directory, row)
+            except OSError:
+                _tracking_incomplete()
+        if out:
+            separate_feedback_state(Path(out), Path(ledger_path))
+            write_observations(out, rows)
+        else:
+            return native
         return rows
     except Exception:  # diagnostics are optional; the native contract is not
+        _tracking_incomplete()
         return []

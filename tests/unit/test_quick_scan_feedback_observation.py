@@ -523,14 +523,30 @@ def test_stable_identity_is_reused_for_repeated_export(tmp_path):
     assert unattempted[0]["attempt_id"] == "inspect-g1a0"
 
 
-def test_emit_without_environment_writes_nothing(tmp_path):
-    store, item, attempt = _settled_without_answer(tmp_path)
+def test_unhosted_inspection_keeps_original_ledger_and_paid_status(tmp_path, monkeypatch):
+    from src.utils import execution_feedback
+    from src.utils.quick_scan_feedback_registry import feedback_ledger
+
+    inbox = tmp_path / "observations"
+    monkeypatch.setattr(execution_feedback, "DEFAULT_INBOX", inbox)
+    store, item, attempt, _ = _unknown_send(tmp_path)
     policy = _policy()
     request = _request(store, item, policy)
     result = inspect_refresh(store.path, request, policy=policy)
-    before = sorted(path.name for path in tmp_path.iterdir())
-    assert emit_refresh_observation(result, request, store.path, environ={}) == []
-    assert sorted(path.name for path in tmp_path.iterdir()) == before
+    before = store.path.read_bytes()
+    rows = emit_refresh_observation(result, request, store.path, environ={})
+    assert store.path.read_bytes() == before and result["API_requests"] == 0
+    captured = [
+        json.loads(marker.with_suffix(".jsonl").read_bytes())
+        for marker in inbox.glob("feedback-*.ready")
+    ]
+    assert sorted(rows, key=str) == sorted(captured, key=str)
+    row = next(row for row in captured if row["actual"] == "send_uncertain")
+    assert row["disposition"] == "expected" and row["attempt_id"] == attempt["attempt_id"]
+    assert (
+        feedback_ledger(inbox / "bindings.sqlite", row["evidence_ref"], row["attempt_id"])
+        == store.path
+    )
 
 
 def test_emit_writes_jsonl_beside_the_public_result(tmp_path):
@@ -636,7 +652,7 @@ def _invoke(ledger, policy_file, request_file, env_extra):
     )
 
 
-def test_cli_rejection_writes_no_observation_and_keeps_error_envelope(tmp_path):
+def test_cli_rejection_reports_call_failure_without_inventing_a_settlement(tmp_path):
     store, item, attempt = _settled_without_answer(tmp_path)
     policy = _policy()
     request = _request(store, item, policy)
@@ -654,7 +670,8 @@ def test_cli_rejection_writes_no_observation_and_keeps_error_envelope(tmp_path):
     )
     assert response.returncode == 2
     assert json.loads(response.stdout)["error_code"] == "refresh_executor_inspection_rejected"
-    assert not out.exists()
+    (row,) = [json.loads(line) for line in out.read_bytes().splitlines()]
+    assert (row["check_id"], row["disposition"]) == ("execution-outcome", "deviation")
 
 
 def test_cli_emits_observation_without_changing_stdout_or_ledger(tmp_path):

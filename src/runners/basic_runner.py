@@ -13,7 +13,12 @@ from src.core.exceptions import StockQAError
 from src.core.qa_engine import QAEngine
 from src.services.answer_generator import AnswerGenerator
 from src.services.search_service import SearchService
-from src.utils.logger import get_logger
+from src.utils.logger import (
+    get_logger,
+    observe_arguments,
+    observed_command,
+    record_execution_failure,
+)
 
 
 class BasicRunner:
@@ -75,21 +80,25 @@ class BasicRunner:
             return 0
 
         except StockQAError as e:
-            self.logger.error("系统错误: %s", e)
-            print(f"\n错误: {e}", file=sys.stderr)
+            record_execution_failure(None, e, stage="basic.run")
+            self.logger.error("系统错误: %s", type(e).__name__)
+            print(f"\n错误: {type(e).__name__}", file=sys.stderr)
             return 1
 
-        except KeyboardInterrupt:
+        except KeyboardInterrupt as error:
+            record_execution_failure(None, error, stage="cli.cancelled")
             self.logger.info("用户中断执行")
             print("\n\n操作已取消", file=sys.stderr)
             return 130  # 标准的 Unix 退出码 128 + SIGINT(2)
 
         except RuntimeError as e:
-            self.logger.error(f"未预期的错误: {e}", exc_info=True)
-            print(f"\n未预期的错误: {e}", file=sys.stderr)
+            record_execution_failure(None, e, stage="basic.run")
+            self.logger.error("未预期的错误: %s", type(e).__name__)
+            print(f"\n未预期的错误: {type(e).__name__}", file=sys.stderr)
             return 1
 
 
+@observed_command
 def main() -> int:
     """基础运行器命令行入口。
 
@@ -111,6 +120,7 @@ def main() -> int:
     parser.add_argument("--output", help="输出文件路径（可选，默认输出到控制台）")
     parser.add_argument("--verbose", "-v", action="store_true", help="启用详细日志输出")
 
+    observe_arguments(parser)
     args = parser.parse_args()
 
     runner = BasicRunner(verbose=args.verbose)

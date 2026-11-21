@@ -14,6 +14,10 @@ from datetime import date
 from typing import Any, Dict, Optional, Tuple
 
 from src.core.models import REUSABLE_ANSWER_STATUSES
+from src.interfaces.json_fields import DuplicateJSONKeyError as _DuplicateJSONKeyError
+from src.interfaces.json_fields import (
+    reject_duplicate_json_keys as _reject_duplicate_json_keys,
+)
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -34,25 +38,6 @@ def _record_parse_diagnostic(code: str, pointer: str = "") -> None:
         entry["question_id"] = context["question_id"]
     if len(context["items"]) < 64 and entry not in context["items"]:
         context["items"].append(entry)
-
-
-class _DuplicateJSONKeyError(ValueError):
-    """Raised when a response object contains an ambiguous repeated key."""
-
-
-def _reject_duplicate_json_keys(pairs):
-    result: Dict[str, Any] = {}
-    for key, value in pairs:
-        if key in result:
-            # Identical repeated wire fields add no competing claim. Compare
-            # canonical JSON, not Python equality (True must not equal 1).
-            if json.dumps(result[key], sort_keys=True, allow_nan=False) != json.dumps(
-                value, sort_keys=True, allow_nan=False
-            ):
-                raise _DuplicateJSONKeyError("冲突JSON字段")
-        else:
-            result[key] = value
-    return result
 
 
 FINAL_PRIVATE_FIELDS = frozenset(

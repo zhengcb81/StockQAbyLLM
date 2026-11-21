@@ -16,6 +16,11 @@ from pathlib import Path
 from typing import Any
 
 from src.utils._quick_scan_owner_io import deny_network, read_request
+from src.utils.logger import (
+    observe_arguments,
+    observed_command,
+    record_execution_failure,
+)
 
 REQUEST_PROTOCOL = "stockqa.delivery_scope_request/1.0.0"
 RESPONSE_PROTOCOL = "stockqa.delivery_scope_response/1.0.0"
@@ -55,9 +60,11 @@ def _read_scope() -> tuple[str, dict[str, Any]]:
     return operation, scope
 
 
+@observed_command
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument("--ledger", type=Path, required=True)
+    observe_arguments(parser, argv)
     args = parser.parse_args(argv)
     try:
         with redirect_stdout(sys.stderr):
@@ -77,7 +84,8 @@ def main(argv: list[str] | None = None) -> int:
         }
         print(json.dumps(response, ensure_ascii=False, allow_nan=False))
         return 0
-    except (ValueError, TypeError, KeyError, OSError, RuntimeError, sqlite3.Error):
+    except (ValueError, TypeError, KeyError, OSError, RuntimeError, sqlite3.Error) as error:
+        record_execution_failure(None, error, stage="owner.local.delivery_scope")
         print(
             json.dumps(
                 {

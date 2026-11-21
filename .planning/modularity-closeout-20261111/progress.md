@@ -1,3 +1,8 @@
+## 2026-11-21 StockQA 普通入口 F4 接续
+
+从已发布 f69913c5 独立构建，继承未发恢复和 26→3 次检查的既有修复。旧 14 项、额外 6 项执行诊断和普通 CLI 反例均已在基线上重现。本仓通过原子 .jsonl/.ready 将观察交总控，新进程从证据引用读回原始诊断或原付费账本。发布、独审、总控导入的最新证据统一记在 [F4-STOCKQA.md](F4-STOCKQA.md)。
+
+
 ## 2026-11-21 本节点最终验证
 
 原生状态owner统一release和收费边界去重完成。3项prepare未返回/坏payload RED已转GREEN；provider begin前失败、不可读可选诊断、真正typed unknown、旧legacy收尾、成员失败整组rollback均覆盖。统一causal遍历补掉隐式context误释放，不因from None丢支付未知事实；1.3新增验证能力改optional避免抬接口门槛。

@@ -5,12 +5,19 @@ import json
 import sqlite3
 from pathlib import Path
 
+from src.utils.logger import (
+    observe_arguments,
+    observed_command,
+    record_execution_failure,
+)
+
 from .quick_scan_owner_refresh import OwnerRefreshRejected
 from .quick_scan_refresh_consent import OwnerConsentEndpoint
 from .quick_scan_work_decision_authority import StockWikiWorkDecisionAuthority
 from .quick_scan_work_store import Lease, QuickScanWorkStore
 
 
+@observed_command
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--ledger", type=Path, required=True)
@@ -25,6 +32,7 @@ def main(argv=None):
         "--refresh-schema-version",
         help="Optional exact pin on the inspected owner policy dialect.",
     )
+    observe_arguments(parser, argv)
     args = parser.parse_args(argv)
     try:
         config = dict(
@@ -105,7 +113,8 @@ def main(argv=None):
         sqlite3.Error,
         RuntimeError,
         OwnerRefreshRejected,
-    ):
+    ) as error:
+        record_execution_failure(None, error, stage="owner.local.work_decision_apply")
         print(
             json.dumps(
                 dict(

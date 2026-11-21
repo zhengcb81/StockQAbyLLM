@@ -10,9 +10,15 @@ import argparse
 import sys
 
 from src.config.settings import DEFAULT_CONFIG_FILE
-from src.utils.logger import get_logger
+from src.utils.logger import (
+    get_logger,
+    observe_arguments,
+    observed_command,
+    record_execution_failure,
+)
 
 
+@observed_command
 def main() -> int:
     """主入口函数。
 
@@ -77,6 +83,7 @@ def main() -> int:
         help="指定配置文件格式（json 或 txt，默认：json），仅LLM模式有效",
     )
 
+    observe_arguments(parser)
     args = parser.parse_args()
 
     # 初始化日志系统
@@ -126,14 +133,16 @@ def main() -> int:
         logger.error("未知模式: %s", args.mode)
         return 1
 
-    except KeyboardInterrupt:
+    except KeyboardInterrupt as error:
+        record_execution_failure(None, error, stage="cli.cancelled")
         logger.info("用户中断执行")
         print("\n\n操作已取消", file=sys.stderr)
         return 130  # 标准的 Unix 退出码 128 + SIGINT(2)
 
     except Exception as e:  # pylint: disable=broad-exception-caught
-        logger.error("未预期的错误: %s", e, exc_info=True)
-        print(f"\n未预期的错误: {e}", file=sys.stderr)
+        record_execution_failure(None, e, stage="cli.run")
+        logger.error("未预期的错误: %s", type(e).__name__)
+        print(f"\n未预期的错误: {type(e).__name__}", file=sys.stderr)
         return 1
 
 

@@ -25,7 +25,12 @@ from src.cli.batch_processor import (
 )
 
 # pylint: disable=wrong-import-position
-from src.utils.logger import get_logger
+from src.utils.logger import (
+    get_logger,
+    observe_arguments,
+    observed_command,
+    record_execution_failure,
+)
 
 logger = get_logger(__name__)
 
@@ -177,6 +182,7 @@ def log_final_results(results: Dict[str, Any], start_time: float, output_dir: st
     logger.info("\n输出文件位置: %s", output_dir)
 
 
+@observed_command
 def main():
     """主函数（兼容性包装器）。"""
     # 解析命令行参数
@@ -381,6 +387,7 @@ def main():
         default=None,
         help="可选共享公司引擎配置；复用原准入、客户端和预算，不回退重问",
     )
+    observe_arguments(parser)
     args = parser.parse_args()
 
     # 验证参数互斥性
@@ -447,7 +454,8 @@ def main():
             ),
         )
     except Exception as e:  # pylint: disable=broad-exception-caught
-        logger.error("运行失败: %s", e, exc_info=True)
+        record_execution_failure(None, e, stage="cli.run")
+        logger.error("运行失败: %s", type(e).__name__)
         return 1
 
 
