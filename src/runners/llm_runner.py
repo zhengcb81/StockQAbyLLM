@@ -33,11 +33,16 @@ from src.core.exceptions import ProcessingError
 from src.core.models import REUSABLE_ANSWER_STATUSES, Question
 from src.core.qa_engine import QAEngine
 from src.interfaces.search_provider import SearchProvider
+from src.interfaces.transport_outcome import (
+    UncertainTransportOutcome,
+    iter_exception_chain,
+)
 from src.providers.llm_provider import LLMProvider
 from src.services.answer_generator import AnswerGenerator
 from src.utils.llm_integration import OrderedSearchProviderCascade
 from src.utils.logger import get_logger
 from src.utils.quick_scan_cost_resolver import QuickScanCostResolver
+from src.utils.quick_scan_owner_refresh_api import validate_owner_refresh_session
 from src.utils.quick_scan_provider_health import QuickScanProviderHealth
 from src.utils.quick_scan_work_store import QuickScanWorkStore
 from src.utils.quick_scan_work_transport import bind_quick_scan_budget
@@ -448,7 +453,9 @@ class QuickScanWorkLifecycle:
             return None, None, None
         session = self._owner_refresh
         snapshot = session.snapshot()
-        session.check()
+        # This method selects existing local work; it never obtains a POST
+        # permit. Current authority is checked by native send admission.
+        validate_owner_refresh_session(session)
         action = snapshot.fields[question_id]["decision"]
         if action in {"dispatch_new_work", "dispatch_new_generation"}:
             return None, session.binding(question_id), None
@@ -834,7 +841,9 @@ class QuickScanWorkLifecycle:
             if self._owner_refresh is not None:
                 from src.utils.quick_scan_work_transport import bind_owner_refresh_guard
 
-                self._owner_refresh.check()
+                # Context binding does not consume a physical permit. Models,
+                # external search and MCP still authenticate at native intent.
+                validate_owner_refresh_session(self._owner_refresh)
                 context.enter_context(bind_owner_refresh_guard(self._owner_refresh))
                 context.enter_context(_owner_analysis_scope(self._owner_refresh))
             context.enter_context(
@@ -916,8 +925,9 @@ class QuickScanWorkLifecycle:
             or self._external_retrieval is not None
         ):
             raise ValueError("question_pack_native_owner_transport_required")
-        # Keep outer approved-action scope/input/permission checks, not only native freshness.
-        owner.check()
+        # Readiness validates frozen scope and question identity only. The
+        # transport authenticates current permission before its atomic intent.
+        validate_owner_refresh_session(owner)
         for question in questions:
             self.question_pack_group_key(question)
 
@@ -1039,7 +1049,9 @@ class QuickScanWorkLifecycle:
                     handle["lease"],
                     cast(Dict[str, Any], self._work_observation_context(handle["work_item_id"])),
                 )
-            owner_refresh.check()
+            # Binding context does not reserve or send a request. Every actual
+            # model permit still checks current permission before send intent.
+            validate_owner_refresh_session(owner_refresh)
             context.enter_context(bind_owner_refresh_guard(owner_refresh))
             context.enter_context(_owner_analysis_scope(owner_refresh))
             context.enter_context(
@@ -1479,12 +1491,15 @@ class QuickScanWorkLifecycle:
         except Exception as exc:  # noqa: BLE001 - 记录失败交由 store 对账兜底
             logger.error("record_attempt_outcome 失败（%s）", exc)
 
-    def after_question_failed(self, handle: Dict[str, Any], error_message: str) -> None:
+    def after_question_failed(self, handle: Dict[str, Any], error_message: Any) -> None:
         if self._transport_managed:
+            for current in iter_exception_chain(error_message):
+                if isinstance(current, UncertainTransportOutcome):
+                    return  # Retain explicit original transport evidence, even before DB receipt.
             # Only deterministic pack-member parse failures finish logical
             # work. Generic processing/DB/timeout errors remain recoverable;
             # the existence of a 2xx alone never declares the answer invalid.
-            if error_message in {
+            if isinstance(error_message, str) and error_message in {
                 "missing_question",
                 "invalid_question",
                 "answer_generator_rejected_member",
@@ -1507,6 +1522,14 @@ class QuickScanWorkLifecycle:
                         logger.warning(
                             "Received member could not finish under its current lease; native recovery remains required"
                         )
+                return
+            try:
+                # A renderer/provider may fail before begin creates an attempt.
+                # The original owner alone proves whether this exact live lease
+                # is unsent; real send/response/unknown evidence rejects release.
+                self._store.release_unsent(handle["work_item_id"], handle["lease"])
+            except Exception:
+                pass  # Preserve the original native state and failure for recovery.
             return
         try:
             # P0-3: confirmed_failure requires a recognized provider refusal
@@ -2914,7 +2937,9 @@ class LLMRunner:
                         approved_session.assert_provider_model(
                             refresh_provider, primary_route["model"]
                         )
-                        approved_session.check()
+                        # Loading selects the frozen approved route. Each paid
+                        # dispatch performs its own current permission check.
+                        validate_owner_refresh_session(approved_session)
                         owner_session = approved_session
                     else:
                         owner_session = adapt_owner_refresh(

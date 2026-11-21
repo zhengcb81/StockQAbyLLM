@@ -179,6 +179,11 @@ class RefreshConsentClient:
         # owns serialization of the original request, preview and owner state.
         record = {field: original[field] for field in ("request", "preview", "owner_state")}
         raw = canonical_bytes(record)
+        # Only the immutable serializer result is reusable within this client.
+        # inspect() still invokes the native current-permission CLI every time.
+        digest = hashlib.sha256(raw).hexdigest()
+        if getattr(self, "_validated_frozen_record_sha256", None) == digest:
+            return
         root = Path(self.owner.config["iqs_code_root"])
         reply = self._run_read(
             [
@@ -201,7 +206,7 @@ class RefreshConsentClient:
             reply.get("protocol") != "iqs.refresh_validation/1.0.0"
             or reply.get("status") != "validated"
             or reply.get("operation") != "frozen-record"
-            or reply.get("input_sha256") != hashlib.sha256(raw).hexdigest()
+            or reply.get("input_sha256") != digest
             or any(
                 type(reply.get(field)) is not int or reply[field] != 0
                 for field in ("API_requests", "database_writes")
@@ -209,6 +214,7 @@ class RefreshConsentClient:
             or reply.get("permission_authenticated") is not False
         ):
             raise ValueError("original refresh contract read mismatch")
+        self._validated_frozen_record_sha256 = digest
 
     def _validate(self, result, confirmation_id, mode):
         delegated = confirmation_id.startswith("rc2_")

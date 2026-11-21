@@ -391,18 +391,26 @@ class ApprovedRefreshSession:
             for qid, item in getattr(self, "work", {}).items()
         )
 
-    def check(self):
+    def validate_session(self):
+        """Check the original local registration without authorizing another POST.
+
+        Input bytes, identity and question contracts were authenticated when this
+        session was loaded. Getters and paid persistence retain that frozen scope.
+        """
+        record = self.service._record(self.proof["confirmation"]["confirmation_id"])
+        if (
+            record is None
+            or canonical_bytes(record["inputs"]) != canonical_bytes(self.record["inputs"])
+            or canonical_bytes(record["receipt"]) != canonical_bytes(self.record["receipt"])
+        ):
+            raise AdmissionRejected("refresh_execution_original_action_changed")
         if getattr(self, "recovery_only", False):
-            # This operation cannot dispatch. Original immutable journal/response
-            # identity is sufficient; today's permission, budget and actor are not.
-            record = self.service._record(self.proof["confirmation"]["confirmation_id"])
-            if (
-                record is None
-                or canonical_bytes(record["inputs"]) != canonical_bytes(self.record["inputs"])
-                or canonical_bytes(record["receipt"]) != canonical_bytes(self.record["receipt"])
-            ):
-                raise AdmissionRejected("refresh_execution_original_action_changed")
             self._assert_paid_responses()
+
+    def check(self):
+        """Authenticate current permission at the original native send-intent boundary."""
+        self.validate_session()
+        if getattr(self, "recovery_only", False):
             return
         if (
             self.proof["request"]["protocol"]
@@ -413,34 +421,17 @@ class ApprovedRefreshSession:
             if not isinstance(controls, dict):
                 raise AdmissionRejected("refresh_execution_approved_controls_required")
             self.assert_execution_controls(**controls)
-        self.service._inputs_unchanged(self.bundles)
-        if any(
-            _snapshot(path)[1] != self.input_raw[name] for name, path in self.input_paths.items()
-        ):
-            raise AdmissionRejected("refresh_execution_invocation_changed")
         current = self.service.bridge.inspect(
             self.proof["confirmation"]["confirmation_id"],
-            mode=(
-                "paid_response_recovery"
-                if getattr(self, "recovery_only", False)
-                else "current_permissions"
-            ),
+            mode="current_permissions",
         )
         if any(
             canonical_bytes(current[key]) != canonical_bytes(self.proof[key])
             for key in ("confirmation", "preview", "owner_policy")
         ):
             raise AdmissionRejected("refresh_execution_current_permission_changed")
-        record = self.service._record(self.proof["confirmation"]["confirmation_id"])
-        if record is None or canonical_bytes(record["inputs"]) != canonical_bytes(
-            self.record["inputs"]
-        ):
-            raise AdmissionRejected("refresh_execution_original_action_changed")
         if self._policy_check is not None:
             self._policy_check()
-        self.native.check()
-        if getattr(self, "recovery_only", False):
-            self._assert_paid_responses()
 
     def _assert_paid_responses(self):
         if not getattr(self, "recovery_work_item_ids", None):
@@ -479,9 +470,9 @@ class ApprovedRefreshSession:
                 raise AdmissionRejected("paid_recovery_original_response_required")
 
     def _assert_original_registered_binding(self, qid, original_work, original_binding, *, store):
-        """Additional pure resume fence after the runner's fresh ``check()``.
+        """Additional pure resume fence within the original loaded registration.
 
-        It does not authenticate a caller or replace check/POST rechecks. Only
+        It does not authenticate a caller or replace native send-intent checks. Only
         the actual current registered journal may bridge a monotonic activation
         epoch to its unchanged original work binding; nothing is rewritten.
         """
@@ -574,7 +565,7 @@ class ApprovedRefreshSession:
             raise AdmissionRejected("refresh_execution_original_anchor_context_required")
 
     def assert_received_checkpoint_recovery(self, work_item_id, attempt_id, *, store):
-        """Current original owner scope, never permission from a saved body."""
+        """Prove original paid scope without authenticating another request."""
         if store is not self.service.store:
             raise AdmissionRejected("received_checkpoint_original_store_required")
         entry = next(
@@ -590,7 +581,9 @@ class ApprovedRefreshSession:
         qid = entry["item"]["question_id"]
         if qid in self.deferred:
             raise AdmissionRejected("received_checkpoint_registered_work_superseded")
-        self.check()
+        # This operation only reads an existing attempt and its original
+        # registration. It cannot claim work, reserve budget or POST.
+        self.validate_session()
         work = store.get_item(work_item_id)
         original = store.get_owner_refresh_binding(work_item_id)
         if original is None or not any(
@@ -621,7 +614,9 @@ class ApprovedRefreshSession:
         from .quick_scan_work_store import Lease, LeaseFencedError, WorkConflictError
 
         directory = None if capture_policy is None else capture_policy.get("directory")
-        self.check()
+        # No HTTP, claim or reservation exists in this method: it only replays
+        # an original paid response into checkpoints and local delivery state.
+        self.validate_session()
         store = self.service.store
         wanted = {e["work_item_id"]: qid for qid, e in self.entries.items() if e["kind"] == "work"}
         packs = {}
@@ -672,7 +667,7 @@ class ApprovedRefreshSession:
                     "received_checkpoint_"
                 ):
                     raise
-                self.check()
+                self.validate_session()
                 recovery_errors.append(dict(work_item_ids=[work_id], reason=str(error)))
         recovered = []
 
@@ -761,7 +756,7 @@ class ApprovedRefreshSession:
             if parsed is None:
                 raise AdmissionRejected("received_checkpoint_original_body_invalid")
             answers = {a.question_id: a for a in parsed.answers}
-            self.check()
+            self.validate_session()
             for member in pack["members"]:
                 try:
                     with store.transaction():
@@ -837,7 +832,7 @@ class ApprovedRefreshSession:
                         )
                         if replay_path is not None and _snapshot(replay_path)[1] != raw:
                             raise AdmissionRejected("received_checkpoint_original_body_changed")
-                        self.check()
+                        self.validate_session()
                     # Publish progress only after this member transaction commits.
                     if item["status"] in {"failed", "leased"}:
                         recovered.append(wid)
@@ -846,13 +841,13 @@ class ApprovedRefreshSession:
                         "received_checkpoint_"
                     ):
                         raise
-                    self.check()
+                    self.validate_session()
                     recovery_errors.append(
                         dict(work_item_ids=[member["work_item_id"]], reason=str(error))
                     )
 
         for pack in packs.values():
-            self.check()
+            self.validate_session()
             try:
                 recover_pack(pack)
             except (AdmissionRejected, WorkConflictError, LeaseFencedError) as error:
@@ -863,7 +858,7 @@ class ApprovedRefreshSession:
                     "received_checkpoint_"
                 ):
                     raise
-                self.check()
+                self.validate_session()
                 recovery_errors.append(
                     dict(
                         pack_id=pack["pack_id"],
@@ -877,11 +872,11 @@ class ApprovedRefreshSession:
         delivery_pending = []
         ambiguous_delivery = set()
         for wid in dict.fromkeys(recovered + attached):
-            self.check()
+            self.validate_session()
             try:
                 delivery = seal_result_delivery(store, wid, authority=self.bundle["authority"])
             except (WorkConflictError, LeaseFencedError) as error:
-                self.check()
+                self.validate_session()
                 recovery_errors.append(
                     dict(stage="delivery", work_item_ids=[wid], reason=str(error))
                 )
@@ -947,7 +942,10 @@ class ApprovedRefreshSession:
         work = self.existing_work(qid)
         if work["status"] not in {"result_ready", "delivered"}:
             return None
-        self.check()
+        # The existing paid checkpoint is never authority for another send.
+        # Its exact registration, native response and standard inputs are
+        # independently verified below, without current send permission.
+        self.validate_session()
         original = store.get_owner_refresh_binding(work["work_item_id"])
         if original is None:
             raise AdmissionRejected("refresh_checkpoint_original_binding_required")
@@ -1029,7 +1027,7 @@ class ApprovedRefreshSession:
         if response is None:
             raise AdmissionRejected("refresh_checkpoint_original_response_required")
         delivery = store.get_result_delivery(work["work_item_id"])
-        self.check()
+        self.validate_session()
         return {
             **checkpoint,
             "original_standard_answer": standard,
@@ -1064,7 +1062,7 @@ class ApprovedRefreshSession:
         lease_seconds,
         dispatch_deadline=None,
     ):
-        """One fresh owner check for one exact native atomic claim action.
+        """One exact local registration check for one native atomic claim action.
 
         This does not bind or memoize permission for transport. Every subsequent
         SDK POST retains its separate original current-owner/budget checks.
@@ -1105,7 +1103,9 @@ class ApprovedRefreshSession:
             for qid in question_ids
         ):
             raise AdmissionRejected("refresh_batch_original_entry_changed")
-        self.check()
+        # Claiming this approved local work does not reserve or send an HTTP.
+        # Current permission remains mandatory at the physical intent boundary.
+        self.validate_session()
         result = self.service.store.claim_refresh_action_batch(
             confirmation_id=self.proof["confirmation"]["confirmation_id"],
             expected_input_sha256=canonical_sha256(self.record["inputs"]),
@@ -1400,7 +1400,9 @@ class ApprovedRefreshSession:
             raise AdmissionRejected("refresh_execution_question_not_approved")
         if self.fields[qid]["decision"] != "reuse":
             return None
-        self.check()
+        # Reuse only reads the frozen, source-bound observation. Native
+        # reference validation retains its original hashes and freshness rules.
+        self.validate_session()
         return self.native.reference(question)
 
     def register_subject_dispatch(self, request):
@@ -1414,7 +1416,10 @@ class ApprovedRefreshSession:
             != canonical_bytes(self.entries[qid]["item"]["subject_ref"])
         ):
             raise AdmissionRejected("refresh_execution_dispatch_scope_not_approved")
-        self.check()
+        # Subject registration records the original identity, not paid dispatch.
+        # Its native CLI remains mandatory; transport checks current send
+        # permission separately before it can commit a physical send intent.
+        self.validate_session()
         return self.native.register_subject_dispatch(request)
 
     def _recovery_scope_metadata(self):
@@ -1466,7 +1471,9 @@ class ApprovedRefreshSession:
 
     def recovery_report(self):
         """Only original references or selected original delivery/reconciliation."""
-        self.check()
+        # This report can only read/re-seal already persisted paid answers; it
+        # cannot claim, reserve, or issue a model/search request.
+        self.validate_session()
         observations, deliveries, deferred = {}, [], []
         from .quick_scan_delivery_seal import seal_result_delivery
 
@@ -1507,7 +1514,7 @@ class ApprovedRefreshSession:
                 and item["status"] == "result_ready"
                 and (delivery is None or delivery.get("package") is None)
             ):
-                self.check()
+                self.validate_session()
                 seal_result_delivery(
                     self.service.store,
                     item["work_item_id"],
@@ -1546,7 +1553,7 @@ class ApprovedRefreshSession:
                         ),
                     )
                 )
-        self.check()
+        self.validate_session()
         return dict(
             protocol="stockqa.refresh_execution/1.0.0",
             mode="original_references_and_recovery",

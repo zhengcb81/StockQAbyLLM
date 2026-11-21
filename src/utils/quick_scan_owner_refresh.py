@@ -610,7 +610,14 @@ class OwnerRefreshSession:
         self.observation_context = copy.deepcopy(observation_context)
         self.ordered_route_targets = copy.deepcopy(ordered_route_targets)
 
+    def validate_session(self) -> None:
+        """Validate the loaded session locally; no current send permission is implied."""
+        if not self.recovery_only and not isinstance(self.current, dict):
+            raise OwnerRefreshRejected("owner_refresh_current_invalid")
+
     def check(self) -> None:
+        """Read current authority once immediately before native send intent."""
+        self.validate_session()
         if self.recovery_only:
             return  # Immutable registered history is checked by the original paid session.
         from datetime import datetime, timezone
@@ -624,14 +631,13 @@ class OwnerRefreshSession:
             raise OwnerRefreshRejected("paid_recovery_cannot_dispatch")
         from src.utils.quick_scan_subject_owner import register
 
-        self.check()
+        self.validate_session()
         receipt = register(
             self.client.config,
             cast(dict, self.current),
             request,
             process_env=self.client._environment,
         )
-        self.check()
         return receipt
 
     def binding(self, qid: str, *, owner_control: dict | None = None) -> dict | None:
@@ -733,7 +739,7 @@ class OwnerRefreshSession:
         row = self.fields[qid]
         if row["decision"] != "reuse":
             return None
-        self.check()
+        self.validate_session()
         original = self.plan.get("reused_observations", {}).get(row["reuse_observation_id"])
         if (
             not isinstance(original, dict)

@@ -1,3 +1,20 @@
+## 2026-11-21 本节点最终验证
+
+原生状态owner统一release和收费边界去重完成。3项prepare未返回/坏payload RED已转GREEN；provider begin前失败、不可读可选诊断、真正typed unknown、旧legacy收尾、成员失败整组rollback均覆盖。统一causal遍历补掉隐式context误释放，不因from None丢支付未知事实；1.3新增验证能力改optional避免抬接口门槛。
+
+作者直接相关181 passed/108.84秒；最终尾改48 passed/30.54秒，其中两新daily文件43项已登记既有scripts/checks.py，另compat2和CIplan3。非作者独验17 passed/19.90秒、最后10 passed/5.48秒及public API三合法对照通过，最终ACCEPT。计数有重叠不相加，未重跑203全组；所有自有短TEMP清理成功，0API/生产库测试。F4已按用户指令隔离，不在活跃源码/本节点前置。
+
+## 2026-11-21 最新范围与失败留档
+
+用户将F4交其他harness，本线程已停止日志实施并归档F4-only补丁/测试/开放P2；活跃源码保留门禁/未发接续层。QA core的拆分SHA与原作者独立重构一致，F4补丁apply-check通过。最近真实失败的时间、run/pack、native状态、0HTTP/费用、seal/release与入库ACK已写IQS docs/implementation/reviews/PRESEND-SIMPLIFY-20261121/report.md。当前只收口26→3收费检查、paid本地复用及public release统一未发送判断，不以F4完工作为前置。
+
+## 2026-11-21 真实未发送故障与F4缺口
+
+- 主控核实中微IQS_13/14原pack停在prepared，无send intent/预算attempt/response；实际失败13:09 UTC，仅存QuickScanWorkPersistenceError。原公开seal零API恢复10题，随后原release_unsent原子释放两题，10个checkpoint哈希不变。
+- 通用未发送修复先RED13例，作者65 passed/112.92秒；非作者独立另一个63项组合passed/167.14秒并ACCEPT。两组不相加，临时目录清理成功、无API/生产库测试。其他通用日志及去重变化待同一次组合终审后再发布。
+- 同一两题包以真实ApprovedRefreshSession/lifecycle/native SQLite和owner CLI/HTTP替身重现26次外部调用：10 current_permissions、14 anchor、2必要register。当前收敛目标为2 register+1真实收费前permission；外搜/MCP同理在各自intent前检查，不在已获得permit后再次审批。
+- F4原实现79b0800已在当前发布线，既有198项/宿主强退恢复证据只适用于结算投影。普通模型异常无producer、core只存type，通用完整诊断仍有缺口。正在原logger/core/组合根补齐，旁路写失败不得改变结果；不重新建设F4平台。
+
 # MC-QA 进度记录
 
 ## 2026-11-20 新请求保留暂定分

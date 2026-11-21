@@ -35,6 +35,12 @@ def supports_runtime_projection(value) -> bool:
     return callable(getattr(value, "runtime_projection", None))
 
 
+def validate_owner_refresh_session(owner_port) -> None:
+    """Use optional local validation; older public ports retain their check."""
+    operation = getattr(owner_port, "validate_session", None)
+    (operation if callable(operation) else owner_port.check)()
+
+
 def _runtime_projection_from_snapshot(
     snapshot: OwnerRefreshSnapshot,
 ) -> OwnerRefreshRuntimeProjection:
@@ -145,6 +151,7 @@ __all__ = [
     "QuickScanOwnerRefreshPort",
     "adapt_owner_refresh",
     "is_owner_refresh_port",
+    "validate_owner_refresh_session",
     "supports_runtime_projection",
     "runtime_projection",
     "build_refresh_result",

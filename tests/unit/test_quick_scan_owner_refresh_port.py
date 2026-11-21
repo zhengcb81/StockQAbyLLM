@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
@@ -14,6 +15,35 @@ from src.utils.quick_scan_owner_refresh_api import (
     is_owner_refresh_port,
 )
 from src.utils.quick_scan_refresh_execution import ApprovedRefreshSession
+
+
+def test_original_1_3_structural_port_does_not_require_local_validation():
+    from src.interfaces.quick_scan_owner_refresh import QuickScanOwnerRefreshPort
+
+    # Frozen original 1.3 method surface, deliberately without the additive local capability.
+    names = (
+        "snapshot check is_bound_to is_bound_to_path assert_work_item_scope assert_budget_policy "
+        "routing_fingerprints assert_provider_model execution_routes binding existing_work reference "
+        "register_subject_dispatch claim_registered_question_batch assert_reactivated_original_binding "
+        "assert_received_checkpoint_recovery assert_execution_controls assert_executor_policy "
+        "restore_registered_checkpoint recover_received_checkpoints dispatch_scope_report recovery_report "
+        "subject_dispatch_setup analysis_subject identity_payload native_input_references original_semantic_resources"
+    ).split()
+    legacy = SimpleNamespace(**{name: Mock() for name in names})
+    assert not hasattr(legacy, "validate_session")
+    assert isinstance(legacy, QuickScanOwnerRefreshPort)
+
+
+def test_local_validation_capability_falls_back_to_original_check():
+    from src.utils.quick_scan_owner_refresh_api import validate_owner_refresh_session
+
+    legacy = SimpleNamespace(check=Mock())
+    validate_owner_refresh_session(legacy)
+    legacy.check.assert_called_once_with()
+    current = SimpleNamespace(check=Mock(), validate_session=Mock())
+    validate_owner_refresh_session(current)
+    current.validate_session.assert_called_once_with()
+    current.check.assert_not_called()
 
 
 def _approved_owner(store):

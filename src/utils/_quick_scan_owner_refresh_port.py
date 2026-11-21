@@ -214,6 +214,9 @@ class _OwnerRefreshPort:
             ),
         )
 
+    def validate_session(self) -> None:
+        _owner_for(self).validate_session()
+
     def check(self) -> None:
         _owner_for(self).check()
 

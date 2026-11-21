@@ -12,6 +12,7 @@ import contextvars
 import copy
 import hashlib
 import json
+import sqlite3
 import threading
 import time
 import uuid
@@ -19,7 +20,10 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterator, Optional
 
-from src.interfaces.transport_outcome import UncertainTransportOutcome
+from src.interfaces.transport_outcome import (
+    UncertainTransportOutcome,
+    iter_exception_chain,
+)
 from src.utils.quick_scan_work_store import (
     BudgetAdmissionError,
     Lease,
@@ -39,8 +43,9 @@ from src.utils.quick_scan_work_store import (
 class QuickScanWorkPersistenceError(RuntimeError):
     """Durable work state could not be written; no fallback dispatch is allowed."""
 
-    def __init__(self, message: str, attempt_receipt: Any = None):
+    def __init__(self, message: str, attempt_receipt: Any = None, *, diagnostic=None):
         self.attempt_receipt = sanitize_transport_receipt(attempt_receipt)
+        self.diagnostic = dict(diagnostic or {})
         super().__init__(message)
 
 
@@ -55,8 +60,9 @@ class QuickScanWorkUncertainError(UncertainTransportOutcome):
 class QuickScanBudgetDeferredError(RuntimeError):
     """A durable budget or concurrency gate denied this dispatch."""
 
-    def __init__(self, reason: str):
+    def __init__(self, reason: str, *, diagnostic=None):
         self.reason = reason
+        self.diagnostic = dict(diagnostic or {})
         super().__init__(reason)
 
 
@@ -124,9 +130,12 @@ class QuickScanSendAttempt:
         with self._lock:
             if self._consumed:
                 raise QuickScanWorkPersistenceError("send permit already consumed")
-            # Every HTTP send, including external search and MCP controls, must
-            # revalidate an active company owner at the last dispatch boundary.
-            _check_owner_refresh_guard()
+            # Model permits already passed current authority immediately before
+            # their durable intent. External/MCP intent is committed below instead.
+            if self.external_operation_id is not None or self.mcp_stage_id is not None:
+                _check_owner_refresh_guard()
+            else:
+                _validate_owner_refresh_guard()
             if self.question_pack_binding is not None:
                 _check_question_pack_environment()
                 if (
@@ -922,15 +931,30 @@ def frozen_quick_scan_model_resolution(model_resolution: Any = None) -> dict:
 
 
 def _check_owner_refresh_guard() -> None:
-    """Check the current owner anchor again after any capacity wait."""
+    """Check current permission immediately before the native send intent."""
+    _run_owner_refresh_guard(current_permissions=True)
+
+
+def _validate_owner_refresh_guard() -> None:
+    """Keep the exact local scope without another owner subprocess."""
+    _run_owner_refresh_guard(current_permissions=False)
+
+
+def _run_owner_refresh_guard(*, current_permissions) -> None:
     owner_guard = _OWNER_REFRESH_GUARD.get()
     if owner_guard is not None:
         try:
-            from .quick_scan_owner_refresh_api import is_owner_refresh_port
+            from .quick_scan_owner_refresh_api import (
+                is_owner_refresh_port,
+                validate_owner_refresh_session,
+            )
 
             if not is_owner_refresh_port(owner_guard):
                 raise ValueError("owner_refresh_port_required")
-            owner_guard.check()
+            if current_permissions:
+                owner_guard.check()
+            else:
+                validate_owner_refresh_session(owner_guard)
             _assert_owner_refresh_guard_scope(owner_guard)
         except ValueError as error:
             raise QuickScanWorkPersistenceError("owner_refresh_guard_rejected") from error
@@ -1320,6 +1344,118 @@ def validate_question_pack_standard_answers(execution_metadata: dict, answers: l
     return invalid
 
 
+def _release_unsent_binding(binding):
+    """Let the original state owner prove/release the exact leases atomically."""
+    if binding is None:
+        return False, "release_check_failed"
+    members = (
+        binding.members
+        if isinstance(binding, QuickScanQuestionPackBinding)
+        else ((binding.work_item_id, binding.lease),)
+    )
+    try:
+        with binding.store.transaction():
+            for work_id, lease in members:
+                binding.store.release_unsent(work_id, lease)
+        return True, "released_unsent"
+    except Exception:
+        # Native release rejects sent/received/unknown work and stale leases.
+        # A later member's rejection also rolls back every preceding release.
+        return False, "release_check_failed"
+
+
+def _question_pack_failure_diagnostic(error, stage, released, release_reason):
+    """Use fixed codes only; exception messages and type names are untrusted."""
+    chain = list(iter_exception_chain(error))
+    source = next((e for e in chain if isinstance(e, sqlite3.Error)), chain[-1])
+    name = type(source).__name__
+    source_type = (
+        name
+        if name
+        in {
+            "OperationalError",
+            "IntegrityError",
+            "DatabaseError",
+            "InterfaceError",
+            "ProgrammingError",
+            "NotSupportedError",
+            "DataError",
+            "LeaseFencedError",
+            "WorkConflictError",
+            "BudgetAdmissionError",
+            "QuickScanWorkPersistenceError",
+            "QuickScanWorkUncertainError",
+            "ValueError",
+            "TypeError",
+            "RuntimeError",
+            "TimeoutError",
+            "OSError",
+            "KeyError",
+            "PermissionError",
+        }
+        else "Exception"
+    )
+    code = getattr(source, "sqlite_errorcode", None) if isinstance(source, sqlite3.Error) else None
+    sql_name = getattr(source, "sqlite_errorname", None)
+    if (
+        type(code) is not int
+        or not isinstance(sql_name, str)
+        or not sql_name.startswith("SQLITE_")
+        or getattr(sqlite3, sql_name, None) != code
+    ):
+        code, sql_name = None, None
+    if any(isinstance(e, UncertainTransportOutcome) for e in chain):
+        reason = "transport_outcome_uncertain"
+    elif sql_name is not None and sql_name.startswith("SQLITE_BUSY"):
+        reason = "sqlite_busy"
+    elif sql_name is not None and sql_name.startswith("SQLITE_LOCKED"):
+        reason = "sqlite_locked"
+    elif isinstance(source, sqlite3.Error):
+        reason = "sqlite_error"
+    elif isinstance(source, LeaseFencedError):
+        reason = "lease_fenced"
+    elif isinstance(source, BudgetAdmissionError):
+        reason = "budget_admission_denied"
+    elif source_type == "WorkConflictError":
+        reason = "work_conflict"
+    elif stage == "owner_guard":
+        reason = "owner_guard_rejected"
+    else:
+        reason = "admission_failed"
+    return dict(
+        stage=stage,
+        reason=reason,
+        source_type=source_type,
+        sqlite_errorcode=code,
+        sqlite_errorname=sql_name,
+        released_unsent=released,
+        release_reason=release_reason,
+    )
+
+
+def _admission_failure_diagnostic(error, binding):
+    if any(isinstance(e, UncertainTransportOutcome) for e in iter_exception_chain(error)):
+        released, release_reason = False, "transport_outcome_uncertain"
+    else:
+        released, release_reason = _release_unsent_binding(binding)
+    # Optional diagnostic properties must not prevent the native release above.
+    try:
+        previous = getattr(error, "diagnostic", None)
+        stage = previous.get("stage") if isinstance(previous, dict) else None
+        if stage not in {
+            "validation",
+            "prepare",
+            "subject_dispatch",
+            "owner_guard",
+            "send_intent",
+            "permit",
+        }:
+            stage = "validation"
+    except Exception:
+        stage = "validation"
+    return _question_pack_failure_diagnostic(error, stage, released, release_reason)
+
+
 def _begin_question_pack_send(
     binding,
     prompt,
@@ -1332,6 +1468,8 @@ def _begin_question_pack_send(
     provider_actual,
     request_payload_sha256,
 ) -> QuickScanSendAttempt:
+    pack = None
+    stage = "validation"
     try:
         _check_question_pack_environment()
         if budget is None or budget.store.path.resolve() != binding.store.path.resolve():
@@ -1358,6 +1496,7 @@ def _begin_question_pack_send(
         }:
             raise ValueError("question pack requires the actual native payload and provider")
         rows = _question_pack_bound_rows(binding)
+        stage = "prepare"
         pack = binding.store.prepare_question_pack(
             [{"work_item_id": work_id, "lease": lease} for work_id, lease in binding.members],
             route_id=route.route_id,
@@ -1373,6 +1512,7 @@ def _begin_question_pack_send(
             search_mode="native_search",
         )
         _check_pack_members(pack, binding)
+        stage = "subject_dispatch"
         registrar = _SUBJECT_DISPATCH_REGISTRAR.get()
         if registrar is None:
             raise ValueError("subject_dispatch_registrar_missing")
@@ -1401,8 +1541,10 @@ def _begin_question_pack_send(
             )
         deadline = time.monotonic() + _CAPACITY_WAIT_SECONDS
         while True:
+            stage = "owner_guard"
             _check_owner_refresh_guard()
             try:
+                stage = "send_intent"
                 intent = binding.store.mark_question_pack_send_intent(
                     pack["pack_id"],
                     budget_policy=budget.policy,
@@ -1419,6 +1561,7 @@ def _begin_question_pack_send(
                 if error.reason not in _CAPACITY_FULL_REASONS or time.monotonic() >= deadline:
                     raise
                 time.sleep(_CAPACITY_POLL_SECONDS)
+        stage = "permit"
         physical_id = intent["budget_attempt_id"]
         return QuickScanSendAttempt(
             None,
@@ -1430,13 +1573,16 @@ def _begin_question_pack_send(
             question_pack_binding=binding,
             question_pack_id=pack["pack_id"],
         )
-    except BudgetAdmissionError as error:
-        raise QuickScanBudgetDeferredError(error.reason) from error
-    except QuickScanWorkPersistenceError:
-        raise
     except Exception as error:
+        # Preserve the exact failure stage; the public boundary owns cleanup.
+        diagnostic = _question_pack_failure_diagnostic(error, stage, False, "release_check_failed")
+        if isinstance(error, BudgetAdmissionError):
+            raise QuickScanBudgetDeferredError(error.reason, diagnostic=diagnostic) from error
+        if isinstance(error, QuickScanWorkPersistenceError):
+            error.diagnostic = diagnostic
+            raise
         raise QuickScanWorkPersistenceError(
-            "question pack durable send admission failed"
+            "question pack durable send admission failed", diagnostic=diagnostic
         ) from error
 
 
@@ -1483,6 +1629,40 @@ def begin_quick_scan_send(
     provider_actual: Any = None,
     request_payload_sha256: Optional[str] = None,
 ) -> Optional[QuickScanSendAttempt]:
+    """One failure cleanup boundary for validation, preparation and admission."""
+    binding = _QUESTION_PACK_BINDING.get() or _WORK_BINDING.get()
+    try:
+        return _begin_quick_scan_send(
+            prompt,
+            system_prompt,
+            model_requested=model_requested,
+            model_resolution=model_resolution,
+            execution_attempt_id=execution_attempt_id,
+            provider_actual=provider_actual,
+            request_payload_sha256=request_payload_sha256,
+        )
+    except Exception as error:
+        if binding is None:
+            raise  # Legacy/unscoped sends have no original work lease to release.
+        diagnostic = _admission_failure_diagnostic(error, binding)
+        if isinstance(error, (QuickScanWorkPersistenceError, QuickScanBudgetDeferredError)):
+            error.diagnostic = diagnostic
+            raise
+        raise QuickScanWorkPersistenceError(
+            "quick-scan durable send admission failed", diagnostic=diagnostic
+        ) from error
+
+
+def _begin_quick_scan_send(
+    prompt: str,
+    system_prompt: str,
+    *,
+    model_requested: Any = None,
+    model_resolution: Any = None,
+    execution_attempt_id: Any = None,
+    provider_actual: Any = None,
+    request_payload_sha256: Optional[str] = None,
+) -> Optional[QuickScanSendAttempt]:
     """Commit intent; explicit generation controls bind the actual payload hash."""
     if request_payload_sha256 is not None and (
         not isinstance(request_payload_sha256, str)
@@ -1490,7 +1670,7 @@ def begin_quick_scan_send(
         or any(character not in "0123456789abcdef" for character in request_payload_sha256)
     ):
         raise ValueError("invalid request_payload_sha256")
-    _check_owner_refresh_guard()
+    _validate_owner_refresh_guard()
     from src.providers.model_resolution import (
         model_resolution_sha256,
         normalize_model_resolution,
@@ -1558,6 +1738,7 @@ def begin_quick_scan_send(
 
     prompt_sha256 = hashlib.sha256((system_prompt + "\0" + prompt).encode("utf-8")).hexdigest()
     prepared = None
+    stage = "prepare"
     try:
         if work is not None:
             request_identity = json.dumps(
@@ -1605,6 +1786,7 @@ def begin_quick_scan_send(
                     else {}
                 ),
             )
+            stage = "subject_dispatch"
             if external is not None:
                 work.store.record_external_context_use_intent(
                     work.work_item_id,
@@ -1666,8 +1848,10 @@ def begin_quick_scan_send(
                 raise RuntimeError("begin_quick_scan_send: prepared attempt is missing")
             deadline = time.monotonic() + _CAPACITY_WAIT_SECONDS
             while True:
+                stage = "owner_guard"
                 _check_owner_refresh_guard()
                 try:
+                    stage = "send_intent"
                     permit = work.store.mark_send_intent(
                         work.work_item_id,
                         work.lease,
@@ -1683,6 +1867,7 @@ def begin_quick_scan_send(
                     if error.reason not in _CAPACITY_FULL_REASONS or time.monotonic() >= deadline:
                         raise
                     time.sleep(_CAPACITY_POLL_SECONDS)
+            stage = "permit"
             return QuickScanSendAttempt(
                 work,
                 prepared["attempt_id"],
@@ -1696,8 +1881,10 @@ def begin_quick_scan_send(
         budget_attempt_id = "DISPATCH_" + uuid.uuid4().hex
         deadline = time.monotonic() + _CAPACITY_WAIT_SECONDS
         while True:
+            stage = "owner_guard"
             _check_owner_refresh_guard()
             try:
+                stage = "send_intent"
                 budget.store.reserve_budget_attempt(
                     budget.policy,
                     budget_attempt_id=budget_attempt_id,
@@ -1722,12 +1909,17 @@ def begin_quick_scan_send(
             budget_binding=budget,
             budget_attempt_id=budget_attempt_id,
         )
-    except BudgetAdmissionError as error:
-        raise QuickScanBudgetDeferredError(error.reason) from error
-    except QuickScanWorkPersistenceError:
-        raise
     except Exception as error:
-        raise QuickScanWorkPersistenceError("quick-scan durable send admission failed") from error
+        # Preserve the exact failure stage; the public boundary owns cleanup.
+        diagnostic = _question_pack_failure_diagnostic(error, stage, False, "release_check_failed")
+        if isinstance(error, BudgetAdmissionError):
+            raise QuickScanBudgetDeferredError(error.reason, diagnostic=diagnostic) from error
+        if isinstance(error, QuickScanWorkPersistenceError):
+            error.diagnostic = diagnostic
+            raise
+        raise QuickScanWorkPersistenceError(
+            "quick-scan durable send admission failed", diagnostic=diagnostic
+        ) from error
 
 
 def current_quick_scan_budget_binding():
