@@ -2,6 +2,9 @@
 
 正式发布提交 `e96b2fa5e223be93480a42f3cb44a9e7394350e7` 已快进到 `origin/codex/qa-content-filter-resolution-01`。独立审查者从该最终提交重复了单题/题包拒绝零发送、单题回写双错误、stderr/日志脱敏，以及只允许预算 owner 稳定码的离线反例，全部通过。合并后复测的 42 项覆盖新工作线收费前置、旧账只读恢复和 F4 日常入口。总控可在本仓隔离工作树 `.worktrees/f4-diagnostics` 直接运行已验版本。主工作区在 a91a164 上有另一个项目持有的未提交改动，默认工作目录还须由其合流后实际切换。总控 F4 对账单独验收。
 
+
+
+通过定点代码与现有资料分离验证。实际 IQS 配置有 68 个执行包，`stockqa_root` 指向主要工作目录，`runtime_dir`、`model_policy_path` 与各包的 `admission_config.work_store` 独立指定。同一已验 StockQA 代码对原 `invest-quick-scan/runs/u25-live/work.sqlite` 走公开只读 inspect，读回 33 个工作项。第二次缺输入返回原 rc2 并产生一条 F4 失败。本次 API=0、未创建 reservation，43,581,440 字节原账 SHA 和同目录账本文件集合前后一致，新增业务库 0。固定三例总控探针均在同一版本产生 deviation，另六项原账正控均通过。主工作目录直接执行与 IQS 当前既有配置仍读取外部在途版本，独立代码根验证完成；实际切换由 IQS owner 通过其公开 setup 或等活跃 StockQA 项目并线。仓内无替换现有解释器和账本的业务 console_script。
 ## 2026-11-21 普通执行失败与结算反馈
 
 当前基线 f69913c5 保留原作业登记、已付恢复和未发送释放的所属接口。中微 IQS_13/14 只有 prepared 状态和外层类型，发送前的底层原因不能从旧记录恢复。
