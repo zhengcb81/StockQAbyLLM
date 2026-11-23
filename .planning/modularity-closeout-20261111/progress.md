@@ -1,3 +1,7 @@
+## 2026-11-23 跨仓收口状态同步
+
+IQS b845b1f两文件源码已推送核对：原17整域失败按4共因修复，作者34 passed/23.59秒、同一非作者9 passed/9.72秒并ACCEPT；已绿158项未重跑、计数不相加。11-23实际原公开start仅附着原run，future模型控制与缺失future spend文件不再阻旧引用，0新进程，原launch和任务数不变。本QA源码未改，原ca7900d及11-21原10题零API冷恢复证据保留；F4不纳入本组。
+
 ## 2026-11-21 发布与真实恢复读回
 
 源码/本模块PWF12文件提交`ca7900d249b8a5f1d9b5fa891b92028c773a9a9d`已正常原钩子提交、原origin同SHA核对；首次isort仅调整测试导入顺序，重提全通过，无skip。仅本组干净组合3 passed/81.83秒，临时发布树已删除，canonical其他WIP跨接收逐文件字节不变。原中微public seal第4次launch exit0，10个原paid及原work/package绑定保留，0 API/model/newattempt/newgeneration、16pending；security预览200/can_start=true、API0。主控实物摘要在IQS runs/amec-rescore-20261121/gate-paid-recovery-summary.json及gate-after-fix-readiness-summary.json；剩余18题非本次冷恢复完成。
