@@ -75,3 +75,10 @@ python -B -X utf8 -m pytest -q tests/unit/test_quick_scan_feedback_owner.py test
 - 组合用实际 company-wiki LocalHost 以正式 `--state` 参数启动。1 个偏差 verified，分诊、补发、复验、回告各一条。修复和回告在本仓数据库提交后强行退出而无 stdout，宿主两次均按原动作读回。再次处理状态相同。业务账本逐字节一致，新增 API、尝试、代际和费用均为零。组合临时目录已清。
 - 加载已发布 IQS 的公开 Python 合同后扩展本仓回归，198 项通过。既有父子保护夹具需使用仓内 `tests/fixtures/delegated_guard/sitecustomize.py`、UTF-8、独占 `IQS_C06_OWN` 及临时 cwd 启动，避免旧默认 logger 写候选仓。按合同重跑单项通过，保留原先全部保护断言，未改旧测试。最终新增 4 项均通过。Ruff、Black、isort、mypy 检查通过。
 - 交 ROOT 独审与分仓部署。从既有已验证发布线更新，原 `master` 分歧按原作业计划处理。本次仅提交隔离候选。
+
+
+### 2026-11-23 测试反馈隔离
+
+测试子进程 `_invoke` 自行构建环境，遗漏 pytest 已配置的原生反馈目录。临时代码根中留下 3 条 `rejected-run` 和 5 条合成 `ENT_BYD/IQS_05` 结算观察。已按 `evidence_ref + attempt` 只读追到 4 个 pytest 临时工作账本，再逐一核对 8 个完整 token，只清理隔离工作树中的这 19 个文件及 4 条临时引用。正式 StockQA 根没有这些记录，保留反馈库和其他文件。
+
+修复为子进程指定与测试请求同目录的 `feedback-observations`。在一次性旧版源码快照里，两项测试均 RED，快照的错误默认位置出现 3 条记录。修复后两个基准与其复用者共 31 项通过；真实及候选默认 outbox 的新记录均为零。正常直启、显式 OUT、坏 OUT 的业务行为沿用正式实现。执行命令为 `python -B -X utf8 -m pytest -q tests/unit/test_quick_scan_feedback_observation.py tests/unit/test_quick_scan_feedback_owner.py`。

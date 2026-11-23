@@ -626,6 +626,8 @@ def _invoke(ledger, policy_file, request_file, env_extra):
         for key, value in os.environ.items()
         if key.upper() in {"SYSTEMROOT", "WINDIR", "PATH", "USERPROFILE", "TEMP", "TMP"}
     }
+    # This child rebuilds its environment and cannot inherit pytest's in-process fixture.
+    env["RESEARCH_FEEDBACK_DIR"] = str(Path(request_file).parent / "feedback-observations")
     env.update(env_extra)
     return subprocess.run(
         [
@@ -669,6 +671,8 @@ def test_cli_rejection_reports_call_failure_without_inventing_a_settlement(tmp_p
         {"RESEARCH_FEEDBACK_OUT": str(out), "RESEARCH_FEEDBACK_RUN_ID": "rejected-run"},
     )
     assert response.returncode == 2
+    (marker,) = (tmp_path / "feedback-observations").glob("*.ready")
+    assert json.loads(marker.read_bytes())["run_id"] == "rejected-run"
     assert json.loads(response.stdout)["error_code"] == "refresh_executor_inspection_rejected"
     (row,) = [json.loads(line) for line in out.read_bytes().splitlines()]
     assert (row["check_id"], row["disposition"]) == ("execution-outcome", "deviation")
@@ -694,6 +698,12 @@ def test_cli_emits_observation_without_changing_stdout_or_ledger(tmp_path):
     )
     assert observed.returncode == 0, observed.stderr
     assert observed.stdout == plain.stdout
+    native = [
+        json.loads(marker.read_bytes())
+        for marker in (tmp_path / "feedback-observations").glob("*.ready")
+    ]
+    assert len(native) == 2 and any(row["run_id"] == "cli-run" for row in native)
+    assert all(row["step_id"] == "ENT_BYD/question-IQS_05-inspect" for row in native)
     assert store.path.read_bytes() == before
     rows = [json.loads(line) for line in out.read_text(encoding="utf-8").splitlines()]
     assert rows and all(row["run_id"] == "cli-run" for row in rows)
