@@ -5,6 +5,12 @@ import json
 import sqlite3
 from pathlib import Path
 
+from src.utils.logger import (
+    observe_arguments,
+    observed_command,
+    record_execution_failure,
+)
+
 from .quick_scan_refresh_inspect_cli import read
 from .quick_scan_work_decision_inspect import (
     derive_work_decision,
@@ -13,6 +19,7 @@ from .quick_scan_work_decision_inspect import (
 from .quick_scan_work_store import WorkConflictError
 
 
+@observed_command
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--ledger", type=Path, required=True)
@@ -24,6 +31,7 @@ def main(argv=None):
     parser.add_argument("--comparison-target", type=Path)
     parser.add_argument("--saved-research-task", type=Path)
     parser.add_argument("--saved-research-deployment", type=Path)
+    observe_arguments(parser, argv)
     args = parser.parse_args(argv)
     try:
         if args.owner_controls:
@@ -87,7 +95,8 @@ def main(argv=None):
         sqlite3.Error,
         RuntimeError,
         WorkConflictError,
-    ):
+    ) as error:
+        record_execution_failure(None, error, stage="owner.local.work_decision_inspect")
         print(
             json.dumps(
                 dict(

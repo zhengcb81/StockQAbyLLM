@@ -387,7 +387,7 @@ def assert_no_unknown_scope(connection: "sqlite3.Connection", context: dict) -> 
             record.get("quota_accounting") is None
             and (terminal is None or terminal[0] == "unknown")
         ):
-            raise BudgetAdmissionError("mcp_control_unresolved")
+            raise BudgetAdmissionError.for_rule("mcp_control_unresolved")
 
 
 def begin(
@@ -426,9 +426,9 @@ def begin(
                 or record["result"] is None
                 or record["result"]["receipt"]["outcome"] == "unknown"
             ):
-                raise BudgetAdmissionError("mcp_control_unresolved")
+                raise BudgetAdmissionError.for_rule("mcp_control_unresolved")
             if now >= record["result"]["recorded_at"] + record["plan"]["ttl_seconds"]:
-                raise BudgetAdmissionError("mcp_control_stale_generation_required")
+                raise BudgetAdmissionError.for_rule("mcp_control_stale_generation_required")
             return {**record, "send_required": False}
         parent = None
         index = STAGES.index(stage)
@@ -440,7 +440,7 @@ def begin(
             if parent_row is not None:
                 parent = read_record(connection, parent_row)
             if parent is None or not _ready(parent, now):
-                raise BudgetAdmissionError("mcp_parent_not_ready")
+                raise BudgetAdmissionError.for_rule("mcp_parent_not_ready")
         assert_scope_resolved(connection, context)
         normalized = store.ensure_budget_policy_tx(connection, normalized, now=now)
         stage_id = "MCP_" + digest_external_json({"sequence_key": sequence_key, "stage": stage})
@@ -633,7 +633,7 @@ def _binding(connection: "sqlite3.Connection", sequence_key: str, *, now: float)
         ).fetchone()
         record = None if row is None else read_record(connection, row)
         if record is None or not _ready(record, now):
-            raise BudgetAdmissionError("mcp_parent_not_ready")
+            raise BudgetAdmissionError.for_rule("mcp_parent_not_ready")
         records.append(record)
     initial, _, discovery = records
     return {

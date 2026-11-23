@@ -81,14 +81,14 @@ def canonical_sha256(value: object) -> str:
 def strict_json_loads(text: str) -> Any:
     """RFC 8259 strict load: unique keys at EVERY level, finite numbers only.
 
-    Reuses the response parser's duplicate-key hook (one shared capability,
+    Shares the duplicate-key hook with the response parser (one shared capability,
     never a second omission-prone copy) and refuses ``NaN`` / ``Infinity``
     tokens AND numerically overflowing literals (``1e400`` silently becomes
     ``inf`` under plain ``json.loads``) at every nesting level. Callers at the
     authority-loader and standard-answer-body entries must never silently take
     the last value of an ambiguous key or a non-finite number.
     """
-    from src.providers.llm_response_parser import reject_duplicate_json_keys
+    from src.interfaces.json_fields import reject_duplicate_json_keys
 
     def _reject_constant(value: str) -> None:
         raise ValueError(f"non-finite JSON number is not allowed: {value}")

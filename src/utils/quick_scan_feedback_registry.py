@@ -18,7 +18,7 @@ def bind_feedback_ledger(state: Path, ledger: Path, rows: list[dict]) -> None:
     bindings = {
         (row["evidence_ref"], row["details_ref"], str(ledger.resolve()))
         for row in rows
-        if row["disposition"] in {"deviation", "unknown"} and row.get("details_ref")
+        if row.get("details_ref")
     }
     if not bindings:
         return

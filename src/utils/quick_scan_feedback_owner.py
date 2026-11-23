@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import sqlite3
 import sys
@@ -24,7 +25,6 @@ from src.utils.quick_scan_feedback_registry import (
     feedback_ledger,
     separate_feedback_state,
 )
-from src.utils.quick_scan_refresh_inspect import ReadOnlyWorkView
 from src.utils.quick_scan_result_outbox import canonical_bytes, strict_json_loads
 
 _KINDS = ("triage", "repair", "replay", "report", "reconcile")
@@ -89,6 +89,8 @@ def _case(row: dict) -> SettlementRef | None:
 
 
 def _read(ledger: Path, case: SettlementRef) -> dict | None:
+    from src.utils.quick_scan_refresh_inspect import ReadOnlyWorkView
+
     try:
         return read_feedback_attempt(
             ReadOnlyWorkView(ledger), case.work_item_id, case.generation, case.attempt_id
@@ -121,9 +123,43 @@ def _version(proof: dict) -> str:
 
 def _read_action(ledger: Path | None, state: Path, kind: str, payload: dict) -> dict:
     def native_path(ref: SettlementRef) -> Path | None:
-        return ledger or feedback_ledger(state, ref.evidence, ref.attempt_id)
+        from src.utils.execution_feedback import DEFAULT_INBOX, inbox
+
+        return (
+            ledger
+            or feedback_ledger(state, ref.evidence, ref.attempt_id)
+            or feedback_ledger(inbox(os.environ) / "bindings.sqlite", ref.evidence, ref.attempt_id)
+            or feedback_ledger(DEFAULT_INBOX / "bindings.sqlite", ref.evidence, ref.attempt_id)
+        )
 
     row = payload.get("observation", {})
+    if kind in {"triage", "reconcile"} and isinstance(row, dict):
+        from src.utils.execution_feedback import read_execution
+
+        failure = read_execution(row, os.environ)
+        if failure is not None:
+            native = failure["observation"]
+            if kind == "triage":
+                result = {
+                    "decision": "needs_evidence",
+                    "issue_ref": native["evidence_ref"],
+                    "evidence_ref": native["evidence_ref"],
+                    "diagnostic": failure["diagnostic"],
+                }
+                if "refusal_code" in native:
+                    result["gate_review"] = {
+                        "decision": "needs_evidence",
+                        "reason": "Check the original refusal against a valid input before editing.",
+                        "evidence_ref": native["evidence_ref"],
+                    }
+                return result
+            cost = failure["cost_state"]
+            return {
+                "status": "known" if cost == "not_applicable" else "cost_unknown",
+                "job_status": failure["job_status"],
+                "cost_state": cost,
+                "evidence_ref": native["evidence_ref"],
+            }
     if kind == "reconcile":
         case = SettlementRef.from_observation(row)
         path = native_path(case) if case else None

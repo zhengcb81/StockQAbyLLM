@@ -614,17 +614,17 @@ def _reusable(record: dict, now: float) -> None:
     from src.utils.quick_scan_work_store import BudgetAdmissionError
 
     if not accounted(record) or record["result"] is None:
-        raise BudgetAdmissionError("external_search_unresolved")
+        raise BudgetAdmissionError.for_rule("external_search_unresolved")
     result = record["result"]
     receipt = result["receipt"]
     if receipt.get("usage_status") == "exceeds_verified_bound":
-        raise BudgetAdmissionError("external_pricing_bound_exceeded")
+        raise BudgetAdmissionError.for_rule("external_pricing_bound_exceeded")
     if receipt["outcome"] != "response_available":
-        raise BudgetAdmissionError("external_search_failed")
+        raise BudgetAdmissionError.for_rule("external_search_failed")
     if receipt["parse_status"] != "ok" or not receipt["entries"]:
-        raise BudgetAdmissionError("external_evidence_insufficient")
+        raise BudgetAdmissionError.for_rule("external_evidence_insufficient")
     if now >= result["recorded_at"] + record["plan"]["ttl_seconds"]:
-        raise BudgetAdmissionError("external_search_stale_generation_required")
+        raise BudgetAdmissionError.for_rule("external_search_stale_generation_required")
 
 
 def _request_context(
@@ -759,7 +759,7 @@ def _assert_no_unknown_scope(connection: "sqlite3.Connection", context: dict) ->
             from src.utils.quick_scan_external_continuation import may_exclude
 
             if not may_exclude(connection, context, old["budget_attempt_id"]):
-                raise BudgetAdmissionError("external_search_unresolved")
+                raise BudgetAdmissionError.for_rule("external_search_unresolved")
         # Changing only the scan generation/query cannot make an observed
         # under-declared price bound trustworthy. A changed, admitted pricing
         # policy gets a different shared budget version; historical fees stay.
@@ -768,7 +768,7 @@ def _assert_no_unknown_scope(connection: "sqlite3.Connection", context: dict) ->
             and old["result"]["receipt"].get("usage_status") == "exceeds_verified_bound"
             and old["context"]["budget"]["policy_version"] == context["budget"]["policy_version"]
         ):
-            raise BudgetAdmissionError("external_pricing_bound_exceeded")
+            raise BudgetAdmissionError.for_rule("external_pricing_bound_exceeded")
     # MCP control uncertainty must remain visible even when a caller changes
     # search route or budget identity. Both journals use this same Q09 owner.
     from src.utils.quick_scan_mcp_journal import (
@@ -922,7 +922,7 @@ def consume(store: "QuickScanWorkStore", operation_id: str, *, budget_attempt_id
             if last is not None and store.now() - last < 0.2:
                 from src.utils.quick_scan_work_store import BudgetAdmissionError
 
-                raise BudgetAdmissionError("deepseek_account_rate_wait")
+                raise BudgetAdmissionError.for_rule("deepseek_account_rate_wait")
         connection.execute(
             "INSERT INTO quick_scan_external_dispatch (operation_id,sent_at) VALUES (?,?)",
             (operation_id, store.now()),

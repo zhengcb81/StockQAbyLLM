@@ -65,3 +65,24 @@ def invalid_config_file(tmp_path):
     with open(config_file, "w", encoding="utf-8") as f:
         f.write("\n\n\n")
     return str(config_file)
+
+
+@pytest.fixture(scope="session")
+def _feedback_test_directory(tmp_path_factory):
+    return tmp_path_factory.mktemp("stockqa-observations")
+
+
+@pytest.fixture(autouse=True)
+def isolate_native_feedback(_feedback_test_directory, monkeypatch):
+    """Ordinary CLI tests publish only into their own disposable feedback inbox."""
+    from src.utils import execution_feedback
+
+    monkeypatch.setattr(execution_feedback, "DEFAULT_INBOX", _feedback_test_directory)
+    monkeypatch.setenv("RESEARCH_FEEDBACK_DIR", str(_feedback_test_directory))
+    for name in (
+        "RESEARCH_FEEDBACK_OUT",
+        "RESEARCH_FEEDBACK_RUN_ID",
+        "RESEARCH_FEEDBACK_ATTEMPT_ID",
+        "STOCKQA_FEEDBACK_STATE",
+    ):
+        monkeypatch.delenv(name, raising=False)

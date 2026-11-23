@@ -14,6 +14,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from src.utils._quick_scan_owner_io import deny_network, read_request
+from src.utils.logger import (
+    observe_arguments,
+    observed_command,
+    record_execution_failure,
+)
 
 if TYPE_CHECKING:
     from src.utils.quick_scan_work_store import QuickScanWorkStore
@@ -73,9 +78,11 @@ def _bind(store: "QuickScanWorkStore", mapping, target, source_ref) -> dict[str,
     return {"status": "bound", "items": rows}
 
 
+@observed_command
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument("--ledger", type=Path, required=True)
+    observe_arguments(parser, argv)
     args = parser.parse_args(argv)
     error_code = "delivery_control_request_invalid"
     try:
@@ -150,7 +157,8 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
         return 0
-    except (ValueError, TypeError, KeyError, OSError, RuntimeError, sqlite3.Error):
+    except (ValueError, TypeError, KeyError, OSError, RuntimeError, sqlite3.Error) as error:
+        record_execution_failure(None, error, stage="owner.local.delivery_control")
         print(
             json.dumps(
                 {

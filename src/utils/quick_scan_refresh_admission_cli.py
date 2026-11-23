@@ -5,7 +5,14 @@ import json
 import sys
 from contextlib import redirect_stdout
 
+from src.utils.logger import (
+    observe_arguments,
+    observed_command,
+    record_execution_failure,
+)
 
+
+@observed_command
 def main(argv=None):
     parser = argparse.ArgumentParser(allow_abbrev=False)
     parser.add_argument("--config", required=True)
@@ -16,6 +23,7 @@ def main(argv=None):
         action="store_true",
         help="Read subject refs from stdin and project their input paths",
     )
+    observe_arguments(parser, argv)
     args = parser.parse_args(argv)
     # Original JSONConfigManager initializes stdout log handlers at import.
     # Import AND execute under the stderr boundary; stdout is one JSON object.
@@ -48,6 +56,7 @@ def main(argv=None):
                 result = RefreshAdmissionService(args.config).admit(args.confirmation_id)
             code = 0
         except (AdmissionRejected, ValueError) as error:
+            record_execution_failure(None, error, stage="owner.local.refresh_admission")
             result = dict(
                 protocol="stockqa.refresh_admission/1.0.0",
                 status="rejected",

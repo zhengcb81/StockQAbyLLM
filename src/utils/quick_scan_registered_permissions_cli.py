@@ -8,15 +8,22 @@ from contextlib import redirect_stdout
 from pathlib import Path
 
 from src.utils._quick_scan_owner_io import deny_network, read_request
+from src.utils.logger import (
+    observe_arguments,
+    observed_command,
+    record_execution_failure,
+)
 
 REQUEST_PROTOCOL = "stockqa.registered_permissions_request/1.0.0"
 RESPONSE_PROTOCOL = "stockqa.registered_permissions_response/1.0.0"
 MODES = {"current_permissions", "paid_response_recovery"}
 
 
+@observed_command
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(allow_abbrev=False)
     parser.add_argument("--config", required=True, type=Path)
+    observe_arguments(parser, argv)
     args = parser.parse_args(argv)
     sys.addaudithook(deny_network)
     try:
@@ -52,6 +59,7 @@ def main(argv: list[str] | None = None) -> int:
         }
         code = 0
     except Exception as error:
+        record_execution_failure(None, error, stage="owner.local.registered_permissions")
         fallback = "owner_confirmation_permissions_rejected"
         reason = getattr(error, "reason", fallback)
         if not isinstance(reason, str) or not re.fullmatch(r"[a-z][a-z0-9_]{0,159}", reason):

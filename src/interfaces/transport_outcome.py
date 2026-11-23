@@ -16,7 +16,12 @@ def iter_exception_chain(error: object) -> Iterator[BaseException]:
             continue
         seen.add(id(current))
         yield current
-        pending.extend((current.__cause__, current.__context__))
+        pending.extend(
+            (
+                BaseException.__dict__["__cause__"].__get__(current),
+                BaseException.__dict__["__context__"].__get__(current),
+            )
+        )
 
 
 class UncertainTransportOutcome(RuntimeError):

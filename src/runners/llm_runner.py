@@ -40,7 +40,12 @@ from src.interfaces.transport_outcome import (
 from src.providers.llm_provider import LLMProvider
 from src.services.answer_generator import AnswerGenerator
 from src.utils.llm_integration import OrderedSearchProviderCascade
-from src.utils.logger import get_logger
+from src.utils.logger import (
+    get_logger,
+    observe_arguments,
+    observed_command,
+    record_execution_failure,
+)
 from src.utils.quick_scan_cost_resolver import QuickScanCostResolver
 from src.utils.quick_scan_owner_refresh_api import validate_owner_refresh_session
 from src.utils.quick_scan_provider_health import QuickScanProviderHealth
@@ -194,6 +199,14 @@ class RegisteredResearchWork:
         if len(matches) != 1:
             raise ValueError("approved_client_route_mismatch")
         return cast(str, matches[0])
+
+
+def _claim_refusal_reason(prefix, diagnostic):
+    reason = prefix + ":" + diagnostic["error_type"]
+    for node in diagnostic["chain"]:
+        if node.get("code"):
+            return reason + ":" + node["code"]
+    return reason
 
 
 class QuickScanWorkLifecycle:
@@ -608,10 +621,17 @@ class QuickScanWorkLifecycle:
                 self._store.recover_expired(work_item_id)
             lease = self._store.claim(work_item_id, lease_seconds=self._lease_seconds)
         except Exception as exc:  # noqa: BLE001 - store refusals degrade to skip
-            logger.warning("work claim 异常（%s: %s），本题不派发", type(exc).__name__, exc)
+            diagnostic = record_execution_failure(
+                logger,
+                exc,
+                stage="question.claim",
+                references={"question_id": question_id},
+                refusal_code="work_claim_refused",
+            )
             return {
                 "claimed": False,
-                "reason": f"store_error:{type(exc).__name__}:{exc}",
+                "reason": _claim_refusal_reason("store_error", diagnostic),
+                "failure_diagnostic": diagnostic,
             }
         if lease is None:
             logger.warning("work item %s 非 pending，本题不派发", work_item_id)
@@ -675,10 +695,17 @@ class QuickScanWorkLifecycle:
                 budget_route=self._budget_route,
             )
         except Exception as exc:  # noqa: BLE001
-            logger.warning("attempt prepare/intent 失败（%s），本题不派发", exc)
+            diagnostic = record_execution_failure(
+                logger,
+                exc,
+                stage="question.prepare_intent",
+                references={"question_id": question_id, "work_item_id": work_item_id},
+                refusal_code="attempt_intent_failed",
+            )
             return {
                 "claimed": False,
-                "reason": f"attempt_intent_failed:{type(exc).__name__}:{exc}",
+                "reason": _claim_refusal_reason("attempt_intent_failed", diagnostic),
+                "failure_diagnostic": diagnostic,
                 "work_item_id": work_item_id,
             }
         return {
@@ -2220,6 +2247,7 @@ class LLMRunner:
                 "--require-search 当前只支持单公司入口；批量接续由quick-scan运行器负责"
             )
         if require_search and not entity_id:
+            self.logger.error("--require-search 需要 --entity-id")
             raise ValueError("--require-search必须显式提供 --entity-id，不能从公司名称猜测")
         if identity_snapshot and not require_search:
             raise ValueError("--identity-snapshot 需要与 --require-search 同时使用")
@@ -2247,6 +2275,9 @@ class LLMRunner:
         if require_search and not approved_refresh:
             blocked = _spend_authorization_preflight(spend_authorization)
             if blocked is not None:
+                record_execution_failure(
+                    None, ValueError(), stage="spend.preflight", refusal_code=blocked
+                )
                 payload = {
                     "schema": "stockqa.spend_preflight/1.0.0",
                     "status": "needs_configuration",
@@ -2620,6 +2651,9 @@ class LLMRunner:
                     else _spend_authorization_preflight(spend_authorization)
                 )
                 if blocked is not None:
+                    record_execution_failure(
+                        None, ValueError(), stage="spend.preflight", refusal_code=blocked
+                    )
                     print(
                         json.dumps(
                             dict(
@@ -3204,7 +3238,8 @@ class LLMRunner:
             return 0
 
         except (ConnectionError, TimeoutError, OSError) as e:
-            self.logger.error(f"处理失败: {e}", exc_info=True)
+            record_execution_failure(None, e, stage="company.run")
+            self.logger.error("处理失败: %s", type(e).__name__)
             return 1
 
     def _recover_shared_company_answers(
@@ -3495,10 +3530,12 @@ class LLMRunner:
             return 1 if results["failed_count"] > 0 else 0
 
         except (ValueError, TypeError, OSError, ConnectionError, TimeoutError) as e:
-            self.logger.error(f"批量处理失败: {e}", exc_info=True)
+            record_execution_failure(None, e, stage="batch.run")
+            self.logger.error("批量处理失败: %s", type(e).__name__)
             return 1
 
 
+@observed_command
 def main() -> int:
     """LLM运行器命令行入口。
 
@@ -3588,6 +3625,7 @@ def main() -> int:
 
     parser.add_argument("--verbose", "-v", action="store_true", help="启用详细日志输出")
 
+    observe_arguments(parser)
     args = parser.parse_args()
 
     runner = LLMRunner(verbose=args.verbose)

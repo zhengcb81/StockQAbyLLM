@@ -219,7 +219,7 @@ def reserve_tx(connection, budget_id, context, category):
         (route["account_group"],),
     ).fetchone()[0]
     if spent + amount > maximum:
-        raise BudgetAdmissionError("prepaid_quota_limit")
+        raise BudgetAdmissionError.for_rule("prepaid_quota_limit")
     connection.execute(
         "INSERT INTO quick_scan_quota_reservation VALUES (?,?,?,?)",
         (budget_id, route["account_group"], category, amount),

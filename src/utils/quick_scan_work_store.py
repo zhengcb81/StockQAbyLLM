@@ -116,7 +116,15 @@ class BudgetAdmissionError(RuntimeError):
 
     def __init__(self, reason: str):
         self.reason = reason
+        self.public_code: str | None = None
         super().__init__(reason)
+
+    @classmethod
+    def for_rule(cls, code: str):
+        """Local policy selected a named rule; external exceptions keep their text private."""
+        error = cls(code)
+        error.public_code = code
+        return error
 
 
 class BudgetPolicyConflict(ValueError):
@@ -2451,19 +2459,19 @@ class QuickScanWorkStore:
             "SELECT * FROM quick_scan_budget_policy WHERE policy_id=?", (policy_id,)
         ).fetchone()
         if current is None:
-            raise BudgetAdmissionError("budget_policy_not_configured")
+            raise BudgetAdmissionError.for_rule("budget_policy_not_configured")
         if (
             current["policy_version"] != normalized_policy["policy_version"]
             or current["policy_snapshot_sha256"] != normalized_policy["policy_snapshot_sha256"]
         ):
-            raise BudgetAdmissionError("budget_policy_version_stale")
+            raise BudgetAdmissionError.for_rule("budget_policy_version_stale")
         route_identity = normalized_policy["route_identity"].get(route_id)
         if route_identity != {
             "quota_group": quota_group,
             "provider_config_ref": provider,
             "model": model_requested,
         }:
-            raise BudgetAdmissionError("budget_route_not_in_policy")
+            raise BudgetAdmissionError.for_rule("budget_route_not_in_policy")
         from src.utils.quick_scan_uncertain_seal import (
             continuation_exclusion,
             normalize_independent_task,
@@ -2471,7 +2479,7 @@ class QuickScanWorkStore:
 
         task = normalize_independent_task(independent_task)
         if task is not None and work_attempt_id is not None:
-            raise BudgetAdmissionError("research_continuation_cannot_bind_owner_work")
+            raise BudgetAdmissionError.for_rule("research_continuation_cannot_bind_owner_work")
         exclusion = continuation_exclusion(connection, policy_id, task)
         from src.utils.quick_scan_owner_budget_continuation import reserve_projection
 
@@ -2494,7 +2502,7 @@ class QuickScanWorkStore:
         extra_params: tuple = ()
         if owner_projection is not None:
             if task is not None:
-                raise BudgetAdmissionError("owner_exposure_cannot_mix_research_task")
+                raise BudgetAdmissionError.for_rule("owner_exposure_cannot_mix_research_task")
             excluded = tuple(owner_projection["excluded_refs"])
             exclusion = "0"
             if excluded:
@@ -2516,7 +2524,7 @@ class QuickScanWorkStore:
             (policy_id, *extra_params),
         ).fetchone()[0]
         if unreconciled:
-            raise BudgetAdmissionError("budget_reconciliation_required")
+            raise BudgetAdmissionError.for_rule("budget_reconciliation_required")
         totals = connection.execute(
             "SELECT COALESCE(SUM(CASE WHEN status='settled' THEN actual_cost_micros ELSE 0 END),0) "
             "AS spent,COALESCE(SUM(CASE WHEN status!='settled' THEN reserved_cost_micros ELSE 0 END),0) "
@@ -2531,9 +2539,9 @@ class QuickScanWorkStore:
             + current["max_cost_per_attempt_micros"]
             > current["max_cost_micros"]
         ):
-            raise BudgetAdmissionError("budget_cost_limit")
+            raise BudgetAdmissionError.for_rule("budget_cost_limit")
         if totals["requests"] >= current["max_requests"]:
-            raise BudgetAdmissionError("budget_request_limit")
+            raise BudgetAdmissionError.for_rule("budget_request_limit")
 
         # Retained old unknowns keep their original in-flight capacity too.
         # Only the reconciliation pause is narrowly excepted by owner policy.
@@ -2544,11 +2552,11 @@ class QuickScanWorkStore:
             (policy_id,),
         ).fetchone()[0]
         if in_flight >= current["max_in_flight_total"]:
-            raise BudgetAdmissionError("dispatch_global_capacity_full")
+            raise BudgetAdmissionError.for_rule("dispatch_global_capacity_full")
         group_limits = json.loads(current["quota_group_limits_json"])
         route_limits = json.loads(current["route_limits_json"])
         if quota_group not in group_limits or route_id not in route_limits:
-            raise BudgetAdmissionError("budget_route_limit_missing")
+            raise BudgetAdmissionError.for_rule("budget_route_limit_missing")
         group_active = connection.execute(
             "SELECT COUNT(*) FROM quick_scan_budget_attempt WHERE policy_id=? "  # nosec B608
             "AND quota_group=? AND in_flight=1 "
@@ -2556,7 +2564,7 @@ class QuickScanWorkStore:
             (policy_id, quota_group),
         ).fetchone()[0]
         if group_active >= group_limits[quota_group]:
-            raise BudgetAdmissionError("dispatch_quota_group_capacity_full")
+            raise BudgetAdmissionError.for_rule("dispatch_quota_group_capacity_full")
         route_active = connection.execute(
             "SELECT COUNT(*) FROM quick_scan_budget_attempt WHERE policy_id=? "  # nosec B608
             "AND route_id=? AND in_flight=1 "
@@ -2564,7 +2572,7 @@ class QuickScanWorkStore:
             (policy_id, route_id),
         ).fetchone()[0]
         if route_active >= route_limits[route_id]:
-            raise BudgetAdmissionError("dispatch_route_capacity_full")
+            raise BudgetAdmissionError.for_rule("dispatch_route_capacity_full")
         connection.execute(
             "INSERT INTO quick_scan_budget_attempt (budget_attempt_id,work_attempt_id,policy_id,"
             "policy_version,route_id,provider,model_requested,quota_group,currency,pricing_basis,"
@@ -6612,7 +6620,7 @@ class QuickScanWorkStore:
             ):
                 raise ValueError("original_company_ordered_binding_required")
         if QuickScanWorkStore._company_request_count_tx(connection, work_ids) >= cap:
-            raise BudgetAdmissionError("shared_company_model_request_cap_reached")
+            raise BudgetAdmissionError.for_rule("shared_company_model_request_cap_reached")
 
     def company_scan_progress(self, work_item_ids):
         """Original native rows and physical request count; detached, read-only."""

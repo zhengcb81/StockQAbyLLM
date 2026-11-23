@@ -2,6 +2,12 @@
 
 IQS b845b1f两文件源码已推送核对：原17整域失败按4共因修复，作者34 passed/23.59秒、同一非作者9 passed/9.72秒并ACCEPT；已绿158项未重跑、计数不相加。11-23实际原公开start仅附着原run，future模型控制与缺失future spend文件不再阻旧引用，0新进程，原launch和任务数不变。本QA源码未改，原ca7900d及11-21原10题零API冷恢复证据保留；F4不纳入本组。
 
+## 2026-11-21 StockQA 普通入口 F4 接续
+
+本仓发布线已快进至 e96b2fa，最终外部独审和 42 项合并后复验通过。两个运行位置与总控摄取状态见 [F4-STOCKQA.md](F4-STOCKQA.md)。
+
+从已发布 f69913c5 独立构建，继承未发恢复和 26→3 次检查的既有修复。旧 14 项、额外 6 项执行诊断和普通 CLI 反例均已在基线上重现。本仓通过原子 .jsonl/.ready 将观察交总控，新进程从证据引用读回原始诊断或原付费账本。发布、独审、总控导入的最新证据统一记在 [F4-STOCKQA.md](F4-STOCKQA.md)。
+
 ## 2026-11-21 发布与真实恢复读回
 
 源码/本模块PWF12文件提交`ca7900d249b8a5f1d9b5fa891b92028c773a9a9d`已正常原钩子提交、原origin同SHA核对；首次isort仅调整测试导入顺序，重提全通过，无skip。仅本组干净组合3 passed/81.83秒，临时发布树已删除，canonical其他WIP跨接收逐文件字节不变。原中微public seal第4次launch exit0，10个原paid及原work/package绑定保留，0 API/model/newattempt/newgeneration、16pending；security预览200/can_start=true、API0。主控实物摘要在IQS runs/amec-rescore-20261121/gate-paid-recovery-summary.json及gate-after-fix-readiness-summary.json；剩余18题非本次冷恢复完成。

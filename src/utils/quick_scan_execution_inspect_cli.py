@@ -5,14 +5,21 @@ import json
 import sqlite3
 from pathlib import Path
 
+from src.utils.logger import (
+    observe_arguments,
+    observed_command,
+    record_execution_failure,
+)
 from src.utils.quick_scan_execution_inspect import inspect_executions
 from src.utils.quick_scan_result_outbox import strict_json_loads
 
 
+@observed_command
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--ledger", type=Path, required=True)
     parser.add_argument("--request", type=Path, required=True)
+    observe_arguments(parser, argv)
     args = parser.parse_args(argv)
     try:
         with args.request.open("rb") as stream:
@@ -32,6 +39,7 @@ def main(argv=None):
         RecursionError,
         sqlite3.Error,
     ) as error:
+        record_execution_failure(None, error, stage="owner.local.execution_inspect")
         message = str(error)
         code = (
             message

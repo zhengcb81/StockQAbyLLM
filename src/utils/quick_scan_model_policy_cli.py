@@ -9,6 +9,11 @@ from contextlib import redirect_stdout
 from pathlib import Path
 
 from src.utils._quick_scan_owner_io import deny_network, read_request
+from src.utils.logger import (
+    observe_arguments,
+    observed_command,
+    record_execution_failure,
+)
 
 REQUEST_PROTOCOL = "stockqa.model_policy_request/1.0.0"
 RESPONSE_PROTOCOL = "stockqa.model_policy_response/1.0.0"
@@ -64,9 +69,11 @@ def _policy_projection(path: Path, request: dict) -> dict:
     }
 
 
+@observed_command
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(allow_abbrev=False)
     parser.add_argument("--config", required=True, type=Path)
+    observe_arguments(parser, argv)
     args = parser.parse_args(argv)
     sys.addaudithook(deny_network)
     try:
@@ -84,6 +91,7 @@ def main(argv: list[str] | None = None) -> int:
         response = {"protocol": RESPONSE_PROTOCOL, "operation": operation, **result}
         code = 0
     except Exception as error:
+        record_execution_failure(None, error, stage="owner.local.model_policy")
         reason = "settings_changed" if str(error) == "settings_changed" else "owner_policy_rejected"
         response = {"protocol": RESPONSE_PROTOCOL, "error_code": reason}
         code = 2
