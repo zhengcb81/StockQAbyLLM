@@ -2,6 +2,7 @@
 
 import copy
 import hashlib
+import logging
 import re
 import subprocess  # nosec B404
 import sys
@@ -20,6 +21,11 @@ from .quick_scan_refresh_inspect import ReadOnlyWorkView
 from .quick_scan_result_outbox import canonical_bytes, canonical_sha256
 from .quick_scan_work_store import (
     api_work_store_budget_policy_projection as _budget_policy_projection,
+)
+
+_logger = logging.getLogger(__name__)
+_STDERR_REDACT_RE = re.compile(
+    r"(?i)(api[_-]?key|token|secret|authorization|password)(\s*[:=]\s*)([^\s,;\"']+)"
 )
 
 MAX_BYTES = 8 * 1024 * 1024
@@ -157,6 +163,17 @@ class StockWikiWorkDecisionAuthority(OwnerWorkDecisionAuthority):
         except (OSError, subprocess.TimeoutExpired) as error:
             raise OwnerRefreshRejected("owner_work_native_unavailable") from error
         if result.returncode != 0 or len(result.stdout) > MAX_BYTES:
+            raw_err = (result.stderr or b"")[-4096:]
+            text = (
+                raw_err.decode("utf-8", errors="replace").strip()
+                if isinstance(raw_err, bytes)
+                else str(raw_err).strip()
+            )
+            _logger.error(
+                "owner_work_native_rejected exit_code=%d stderr=%s",
+                result.returncode,
+                _STDERR_REDACT_RE.sub(r"\1\2[REDACTED]", text) or "<empty>",
+            )
             raise OwnerRefreshRejected("owner_work_native_rejected")
         try:
             value = _read(result.stdout)

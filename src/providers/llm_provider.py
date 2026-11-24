@@ -1021,7 +1021,10 @@ class LLMProvider(BaseLLMProvider):
                 if retry < num_retries - 1:
                     wait_time = self.retry_strategy.get_wait_time(retry)
                     logger.warning(
-                        "API请求失败（%s），%.1f 秒后重试...", type(e).__name__, wait_time
+                        "API请求失败（%s），%.1f 秒后重试...",
+                        type(e).__name__,
+                        wait_time,
+                        exc_info=True,
                     )
                     time.sleep(wait_time)
                 else:
@@ -1030,20 +1033,38 @@ class LLMProvider(BaseLLMProvider):
                         self.provider_name,
                         num_retries,
                         type(e).__name__,
+                        exc_info=True,
                     )
                     raise Exception(
                         f"API请求失败，已重试 {num_retries} 次（{type(e).__name__}）"
                     ) from e
 
+            except (TypeError, KeyError, AttributeError, NameError, SyntaxError, ImportError) as e:
+                logger.error(
+                    "%s 调用发生内部编程错误（%s），停止重试",
+                    self.provider_name,
+                    type(e).__name__,
+                    exc_info=True,
+                )
+                raise
+
             except Exception as e:
                 if retry < num_retries - 1:
                     wait_time = self.retry_strategy.get_wait_time(retry)
                     logger.warning(
-                        "发生未知错误（%s），%.1f 秒后重试...", type(e).__name__, wait_time
+                        "发生未知错误（%s），%.1f 秒后重试...",
+                        type(e).__name__,
+                        wait_time,
+                        exc_info=True,
                     )
                     time.sleep(wait_time)
                 else:
-                    logger.error("经过 %d 次尝试后仍发生错误（%s）", num_retries, type(e).__name__)
+                    logger.error(
+                        "经过 %d 次尝试后仍发生错误（%s）",
+                        num_retries,
+                        type(e).__name__,
+                        exc_info=True,
+                    )
                     return ParsedLLMAnswer(None, f"处理失败（{type(e).__name__}）", "error"), {}
 
         raise Exception("API调用失败：未知错误")

@@ -9,6 +9,8 @@ original services; absence is a refusal, never manufactured permission.
 from __future__ import annotations
 
 import copy
+import logging
+import re
 from collections.abc import Mapping
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
@@ -21,6 +23,11 @@ from src.utils.quick_scan_work_store import (
     budget_policy_projection,
     quick_scan_receipt_sha256,
     sanitize_transport_receipt,
+)
+
+_logger = logging.getLogger(__name__)
+_STDERR_REDACT_RE = re.compile(
+    r"(?i)(api[_-]?key|token|secret|authorization|password)(\s*[:=]\s*)([^\s,;\"']+)"
 )
 
 
@@ -452,19 +459,31 @@ class OwnerResearchServices:
                     TMP=temporary,
                 )
                 # File-backed output avoids unbounded capture into memory. Only
-                # the bounded public JSON is read; no stderr/body is propagated.
-                with (Path(temporary) / "capabilities.json").open("w+b") as output:
+                # the bounded public JSON is read; redacted stderr is logged locally on failure.
+                stderr_path = Path(temporary) / "capabilities.stderr.log"
+                with (Path(temporary) / "capabilities.json").open(
+                    "w+b"
+                ) as output, stderr_path.open("w+b") as err_stream:
                     completed = subprocess.run(  # nosec B603
                         command,
                         cwd=config["stockwiki_code_root"],
                         env=env,
                         stdout=output,
-                        stderr=subprocess.DEVNULL,
+                        stderr=err_stream,
                         timeout=240,
                         check=False,
                         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
                     )
                     if completed.returncode != 0:
+                        err_stream.flush()
+                        err_stream.seek(0)
+                        raw_err = err_stream.read(8192).decode("utf-8", errors="replace").strip()
+                        redacted_err = _STDERR_REDACT_RE.sub(r"\1\2[REDACTED]", raw_err)
+                        _logger.error(
+                            "subject_dispatch_capability_cli_failed exit_code=%d stderr=%s",
+                            completed.returncode,
+                            redacted_err or "<empty>",
+                        )
                         raise OwnerResearchRejected("subject_dispatch_capability_cli_failed")
                     output.flush()
                     if output.seek(0, 2) > maximum:

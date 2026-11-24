@@ -399,7 +399,10 @@ class AsyncLLMProvider(BaseLLMProvider):
                 if retry < self.max_retries - 1:
                     wait_time = self.retry_strategy.get_wait_time(retry)
                     logger.warning(
-                        "异步 API请求失败（%s），%.1f 秒后重试...", type(e).__name__, wait_time
+                        "异步 API请求失败（%s），%.1f 秒后重试...",
+                        type(e).__name__,
+                        wait_time,
+                        exc_info=True,
                     )
                     await asyncio.sleep(wait_time)
                 else:
@@ -408,16 +411,29 @@ class AsyncLLMProvider(BaseLLMProvider):
                         self.provider_name,
                         self.max_retries,
                         type(e).__name__,
+                        exc_info=True,
                     )
                     raise Exception(
                         f"异步 API请求失败，已重试 {self.max_retries} 次（{type(e).__name__}）"
                     ) from e
 
+            except (TypeError, KeyError, AttributeError, NameError, SyntaxError, ImportError) as e:
+                logger.error(
+                    "%s 异步调用发生内部编程错误（%s），停止重试",
+                    self.provider_name,
+                    type(e).__name__,
+                    exc_info=True,
+                )
+                raise
+
             except Exception as e:
                 if retry < self.max_retries - 1:
                     wait_time = self.retry_strategy.get_wait_time(retry)
                     logger.warning(
-                        "异步发生未知错误（%s），%.1f 秒后重试...", type(e).__name__, wait_time
+                        "异步发生未知错误（%s），%.1f 秒后重试...",
+                        type(e).__name__,
+                        wait_time,
+                        exc_info=True,
                     )
                     await asyncio.sleep(wait_time)
                 else:
@@ -425,6 +441,7 @@ class AsyncLLMProvider(BaseLLMProvider):
                         "经过 %d 次尝试后仍发生错误（%s）",
                         self.max_retries,
                         type(e).__name__,
+                        exc_info=True,
                     )
                     return ParsedLLMAnswer(None, f"处理失败（{type(e).__name__}）", "error"), {}
 
