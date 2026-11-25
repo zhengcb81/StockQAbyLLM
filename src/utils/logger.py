@@ -19,7 +19,7 @@ from contextvars import ContextVar
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 from uuid import uuid4
 
 from src.utils.execution_feedback import warn_feedback_unavailable
@@ -289,17 +289,29 @@ LOG_DIR = Path("logs")
 LOG_RECORD_MAX_CHARS = 2000
 
 # Q05（LLM-08）凭据类内容脱敏模式（落盘前应用）。
+_CREDENTIAL_VALUE = r"""(?:"[^"\r\n]*"?|'[^'\r\n]*'?|[^\s,;"'&]+)"""
 LOG_REDACTION_PATTERNS = (
-    (re.compile(r"\bsk-[A-Za-z0-9_\-]{6,}"), "sk-***"),
-    (re.compile(r"(?i)\bbearer[\s:=]+[A-Za-z0-9\.\-_]{6,}"), "Bearer ***"),
     (
         re.compile(
-            r"(?i)\b(api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|password)"
-            r"(\s*[=:]\s*)\S+"
+            r"""(?i)(\b(?:proxy[-_])?authorization["']?[ \t]*[:=][ \t]*)"""
+            r"(?:(?:bearer|basic)(?:[ \t]*\r?\n[ \t]+|[ \t]+))?" + _CREDENTIAL_VALUE
         ),
-        r"\1\2***",
+        r"\1***",
+    ),
+    (re.compile(r"\bsk-[A-Za-z0-9_\-]{6,}"), "sk-***"),
+    (re.compile(r"(?i)\bbearer[ \t:=]+[A-Za-z0-9._~+/\-=]{6,}"), "Bearer ***"),
+    (
+        re.compile(
+            r"""(?i)(\b(?:api[_-]?key|(?:access[_-]?|refresh[_-]?)?token|"""
+            r"""(?:client[_-]?)?secret|password)["']?[ \t]*[=:][ \t]*)""" + _CREDENTIAL_VALUE
+        ),
+        r"\1***",
     ),
 )
+
+_SUBPROCESS_STDERR_WINDOW = 8192
+# Leave space for the logging prefix without losing the exception at the end.
+_SUBPROCESS_STDERR_CHARS = LOG_RECORD_MAX_CHARS - 256
 
 
 def sanitize_log_text(text: str, *, truncate: bool = True) -> str:
@@ -309,6 +321,43 @@ def sanitize_log_text(text: str, *, truncate: bool = True) -> str:
     if truncate and len(text) > LOG_RECORD_MAX_CHARS:
         text = text[:LOG_RECORD_MAX_CHARS] + "...[truncated]"
     return text
+
+
+class _StderrStream(Protocol):
+    def seek(self, offset: int, whence: int = 0, /) -> int: ...
+
+    def read(self, size: int = -1, /) -> bytes: ...
+
+
+def subprocess_stderr_excerpt(stderr: bytes | str | _StderrStream | None) -> str:
+    """Return a short, redacted stderr tail from an owner subprocess."""
+    if stderr is None:
+        return "<empty>"
+    if isinstance(stderr, (bytes, str)):
+        cropped = len(stderr) > _SUBPROCESS_STDERR_WINDOW
+        raw = stderr[-_SUBPROCESS_STDERR_WINDOW:]
+    else:
+        try:
+            size = stderr.seek(0, 2)
+            cropped = size > _SUBPROCESS_STDERR_WINDOW
+            stderr.seek(max(0, size - _SUBPROCESS_STDERR_WINDOW))
+            raw = stderr.read(_SUBPROCESS_STDERR_WINDOW)
+        except (OSError, ValueError):
+            return "<unavailable>"
+
+    text = raw.decode("utf-8", errors="replace") if isinstance(raw, bytes) else raw
+    if cropped:
+        # A window may start inside a credential or its folded continuation.
+        # Skip that partial line and any leading continuation lines.
+        text = text.partition("\n")[2]
+        lines = text.splitlines(keepends=True)
+        first_complete = next(
+            (index for index, line in enumerate(lines) if line.strip() and not line[0].isspace()),
+            len(lines),
+        )
+        text = "".join(lines[first_complete:])
+    safe = sanitize_log_text(text, truncate=False).strip()
+    return safe[-_SUBPROCESS_STDERR_CHARS:] or "<empty>"
 
 
 class ContentBoundaryFormatter(logging.Formatter):

@@ -1,3 +1,7 @@
+## 2026-11-25 S5 StockQA 诊断与进程环境
+
+[本仓 S5-01 回执](S5-STOCKQA-native-diagnostics.md) 记录真实本地 RED、公开进程环境及日常测试选择。现场切换待总控核对，原活跃工作区仍由原线维护。
+
 ## 2026-11-25 StockQA 原处置权限查询
 
 [处置权限查询收敛](S4-STOCKQA-one-owner-decision.md) 已在独立工作树完成两条调用路径的 RED/GREEN 与旧回执验证。

@@ -6,7 +6,6 @@ import copy
 import importlib
 import inspect
 import json
-import os
 import weakref
 from pathlib import Path
 from types import MappingProxyType
@@ -16,6 +15,8 @@ from src.interfaces.quick_scan_owner_refresh import (
     OwnerRefreshRuntimeProjection,
     OwnerRefreshSnapshot,
 )
+
+from .quick_scan_owner_process_env import system_subprocess_env
 
 _PORTS: weakref.WeakKeyDictionary[Any, Any] = weakref.WeakKeyDictionary()
 
@@ -384,7 +385,7 @@ class _OwnerRefreshPort:
         native = owner.native if _is_approved(owner) else owner
         client = getattr(native, "client", None)
         config = getattr(client, "config", None)
-        if not isinstance(config, dict):
+        if client is None or not isinstance(config, dict):
             raise ValueError("owner_refresh_subject_dispatch_config_unavailable")
         path_keys = (
             "iqs_code_root",
@@ -395,28 +396,7 @@ class _OwnerRefreshPort:
         paths = {key: config[key] for key in path_keys if isinstance(config.get(key), str)}
         if len(paths) != len(path_keys):
             raise ValueError("owner_refresh_subject_dispatch_config_incomplete")
-        source_env = getattr(client, "_environment", None)
-        if source_env is None:
-            source_env = os.environ
-        if not isinstance(source_env, dict):
-            source_env = dict(source_env)
-        allowed = {
-            "SYSTEMROOT",
-            "WINDIR",
-            "PATH",
-            "PATHEXT",
-            "COMSPEC",
-            "USERPROFILE",
-            "APPDATA",
-            "LOCALAPPDATA",
-            "SYSTEMDRIVE",
-        }
-        safe_env = {
-            key: value
-            for key, value in source_env.items()
-            if isinstance(key, str) and key.upper() in allowed and isinstance(value, str)
-        }
-        paths["environment"] = safe_env
+        paths["environment"] = system_subprocess_env(client.subprocess_env())
         return paths
 
     def analysis_subject(self):

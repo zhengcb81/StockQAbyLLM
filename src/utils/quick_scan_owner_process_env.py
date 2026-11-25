@@ -24,13 +24,18 @@ _PYTHON_DEFAULTS = {
 }
 
 
-def _copy_os_env(source: Mapping[str, str]) -> dict[str, str]:
-    return {key: value for key, value in source.items() if key.upper() in _OS_KEYS}
+def system_subprocess_env(source: Mapping[str, str]) -> dict[str, str]:
+    """Build the OS-only environment used for read-only native subprocesses."""
+    return {
+        key: value
+        for key, value in source.items()
+        if isinstance(key, str) and key.upper() in _OS_KEYS and isinstance(value, str)
+    }
 
 
 def route_subprocess_env(code_root: str, process_env: Mapping[str, str] | None) -> dict[str, str]:
     """Accept a trusted route override or inherit only the ambient OS keys."""
-    env = _copy_os_env(os.environ) if process_env is None else dict(process_env)
+    env = system_subprocess_env(os.environ) if process_env is None else dict(process_env)
     env.update(_PYTHON_DEFAULTS)
     env["PYTHONPATH"] = os.pathsep.join((code_root, env.get("PYTHONPATH", "")))
     return env
@@ -43,7 +48,7 @@ def consent_subprocess_env(
 ) -> dict[str, str]:
     """Keep read-only consent subprocesses independent of caller credentials."""
     source = os.environ if process_env is None else process_env
-    env = _copy_os_env(source)
+    env = system_subprocess_env(source)
     env.update(_PYTHON_DEFAULTS)
     env["PYTHONPATH"] = python_path or code_root
     if source.get("IQS_C06_RUN_INTEGRATION") == "1":

@@ -31,6 +31,7 @@ DAILY_UNIT_FILES = (
     "tests/unit/test_basic_runner.py",
     "tests/unit/test_main_with_llm.py",
     "tests/unit/test_q07_checkpoint.py",
+    "tests/unit/test_s1_p0_provider_and_subprocess_logging.py",
     "tests/unit/test_quick_scan_budget.py",
     "tests/unit/test_owner_refresh_charge_boundaries.py",
     "tests/unit/test_question_pack_presend_recovery.py",

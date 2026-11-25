@@ -259,7 +259,7 @@ def readiness(tmp_path, monkeypatch):
     native = object.__new__(OwnerRefreshSession)
     native.client = SimpleNamespace(
         config=config,
-        _environment={
+        subprocess_env=lambda: {
             "PATH": os.environ.get("PATH", ""),
             "DEEPSEEK_API_KEY": "NEVER-IN-CHILD",
         },

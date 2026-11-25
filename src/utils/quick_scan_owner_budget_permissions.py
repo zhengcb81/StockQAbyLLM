@@ -7,7 +7,6 @@ can be substituted for that native permission-only read.
 
 import copy
 import logging
-import re
 import subprocess  # nosec B404 - fixed first-party OS CLI, no shell
 import sys
 from pathlib import Path
@@ -15,6 +14,7 @@ from pathlib import Path
 from jsonschema import Draft202012Validator, FormatChecker
 from referencing import Registry, Resource
 
+from .logger import subprocess_stderr_excerpt
 from .quick_scan_owner_budget_continuation import accepted_control, canonical, digest
 from .quick_scan_owner_refresh import api_owner_refresh_read as _read
 from .quick_scan_refresh_admission import (
@@ -33,18 +33,10 @@ from .quick_scan_refresh_consent import (
 )
 
 _logger = logging.getLogger(__name__)
-_STDERR_REDACT_RE = re.compile(
-    r"(?i)(api[_-]?key|token|secret|authorization|password)(\s*[:=]\s*)([^\s,;\"']+)"
-)
 
 
 def _log_subprocess_stderr(label: str, returncode: int, stderr: bytes | str | None) -> None:
-    if isinstance(stderr, bytes):
-        text = stderr[-4096:].decode("utf-8", errors="replace").strip()
-    else:
-        text = (stderr or "")[-4096:].strip()
-    redacted = _STDERR_REDACT_RE.sub(r"\1\2[REDACTED]", text)
-    _logger.error("%s exit_code=%d stderr=%s", label, returncode, redacted or "<empty>")
+    _logger.error("%s exit_code=%d stderr=%s", label, returncode, subprocess_stderr_excerpt(stderr))
 
 
 def current_policy(config_path, request, *, ledger_path, budget_policy_file, process_env=None):

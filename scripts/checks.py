@@ -104,6 +104,7 @@ DAILY_TEST_TARGETS: Tuple[str, ...] = (
     "tests/unit/test_basic_runner.py",
     "tests/unit/test_main_with_llm.py",
     "tests/unit/test_q07_checkpoint.py",
+    "tests/unit/test_s1_p0_provider_and_subprocess_logging.py",
     "tests/unit/test_quick_scan_module_boundaries.py",
     "tests/unit/test_quick_scan_work_values.py",
     "tests/unit/test_quick_scan_public_api_contracts.py",

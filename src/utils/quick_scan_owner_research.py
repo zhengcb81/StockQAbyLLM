@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import copy
 import logging
-import re
 from collections.abc import Mapping
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
@@ -23,12 +22,10 @@ from src.interfaces.quick_scan_work_values import (
     sanitize_transport_receipt,
 )
 from src.providers.llm_client import LLMClient
+from src.utils.logger import subprocess_stderr_excerpt
 from src.utils.quick_scan_result_outbox import canonical_sha256
 
 _logger = logging.getLogger(__name__)
-_STDERR_REDACT_RE = re.compile(
-    r"(?i)(api[_-]?key|token|secret|authorization|password)(\s*[:=]\s*)([^\s,;\"']+)"
-)
 
 
 class OwnerResearchRejected(ValueError):
@@ -404,7 +401,7 @@ class OwnerResearchServices:
         import subprocess  # nosec B404
         import sys
         from pathlib import Path
-        from tempfile import TemporaryDirectory
+        from tempfile import TemporaryDirectory, TemporaryFile
 
         from jsonschema import (
             Draft202012Validator,
@@ -460,10 +457,9 @@ class OwnerResearchServices:
                 )
                 # File-backed output avoids unbounded capture into memory. Only
                 # the bounded public JSON is read; redacted stderr is logged locally on failure.
-                stderr_path = Path(temporary) / "capabilities.stderr.log"
-                with (Path(temporary) / "capabilities.json").open(
-                    "w+b"
-                ) as output, stderr_path.open("w+b") as err_stream:
+                with (Path(temporary) / "capabilities.json").open("w+b") as output, TemporaryFile(
+                    mode="w+b", dir=temporary
+                ) as err_stream:
                     completed = subprocess.run(  # nosec B603
                         command,
                         cwd=config["stockwiki_code_root"],
@@ -476,13 +472,10 @@ class OwnerResearchServices:
                     )
                     if completed.returncode != 0:
                         err_stream.flush()
-                        err_stream.seek(0)
-                        raw_err = err_stream.read(8192).decode("utf-8", errors="replace").strip()
-                        redacted_err = _STDERR_REDACT_RE.sub(r"\1\2[REDACTED]", raw_err)
                         _logger.error(
                             "subject_dispatch_capability_cli_failed exit_code=%d stderr=%s",
                             completed.returncode,
-                            redacted_err or "<empty>",
+                            subprocess_stderr_excerpt(err_stream),
                         )
                         raise OwnerResearchRejected("subject_dispatch_capability_cli_failed")
                     output.flush()
