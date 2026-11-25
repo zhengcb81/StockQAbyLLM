@@ -17,3 +17,11 @@
 独立非作者回读 merge parents、保留的生产结案语义与测试冲突。ACCEPT。提交成功后验证精确远端主线与 CI。
 
 保留的历史反馈缺口包括 `src/interfaces/transport_outcome.py` 中只遍历 16 个 cause/context 的限制。相关号和日志结论仍可能漏掉深层不确定发送。后续要保留对象身份去环、现有结构脱敏和可信 exception slot 读取，增补超过 16 节时既不漏出真实 typed uncertainty，也不重复重投或错误判定费用。此次并线不修改该逻辑。
+
+## 主线 CI 根因与回归
+
+并线 `0893643` 的 [远端 CI](https://github.com/zhengcb81/StockQAbyLLM/actions/runs/45577897460) 未通过。以工作树里的同一默认入口定位两个独立原因。Bandit 遇到最末端诊断异常的静默处理与固定 Git 元数据查询。pytest 另有历史替身仍接旧储存读取和登记内部方法。快速提交钩子覆盖格式、类型、文件完整性和密钥扫描，因此无法证明默认 CI 的 Bandit、业务行为与烟测。保持轻量钩子，涉及公开接口与并线时以默认 CI 入口验收。
+
+- 未发送清理失败时，以原 work/attempt ID 写入本模块已有 F4 原生收据。合成 SQLite 冷读验证原始工作状态留存，清理故障独立可追踪且没有费用变化。原异常结果保持；最末端诊断写入失败仅用已有脱敏告警。固定本地 Git 元数据调用明确指定 host Git、固定参数及 `shell=False`，保留日常 Bandit，注解只限这一处调用及其 import。
+- 旧测试替身改用实际公开 `read_registration` 和 `register_subject_dispatch`，保留登记顺序、第二次登记后撤权、实际 SQLite 发送状态、已付复用和预算断言。合成原件均位于独立测试临时根，零真实付费请求。
+- 两个此前失败测试模块、公开 owner 端口和 F4 冷读定向合计 83 通过、8 个既有条件跳过。原样 `python -B scripts/checks.py` 本机 109.57 秒通过（Black/isort/mypy/Bandit、404 pytest、smoke）。独立审查 ACCEPT（规范化源码与测试指纹 `874bfa41b87803d6fa1857f8143f6bf0c04660929b74f4323b5f2aeb10ce8397`）。

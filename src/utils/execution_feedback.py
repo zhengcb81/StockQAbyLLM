@@ -4,9 +4,11 @@ import hashlib
 import json
 import os
 import re
-import subprocess
+import shutil
+import subprocess  # nosec B404
 import sys
 import tempfile
+from contextlib import suppress
 from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
@@ -16,23 +18,34 @@ OWNER = "stockqa"
 DEFAULT_INBOX = Path(__file__).resolve().parents[2] / "logs" / ".feedback" / "observations"
 
 
+def warn_feedback_unavailable(message: str) -> None:
+    """Report an unavailable diagnostic sink at the last local output boundary."""
+    # If stderr is also unavailable, the caller's original outcome still owns
+    # the exit status. There is no further sink to recurse into here.
+    with suppress(Exception):
+        print(message, file=sys.stderr)
+
+
 @lru_cache(maxsize=1)
 def _version():
     root = Path(__file__).resolve().parents[2]
-    if (root / ".git").exists():
-        try:
-            revision = subprocess.check_output(
-                ["git", "-C", str(root), "rev-parse", "--verify", "HEAD"],
-                stderr=subprocess.DEVNULL,
-                timeout=3,
-                text=True,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-            ).strip()
-            if re.fullmatch("[a-f0-9]{40,64}", revision):
-                return revision
-        except (OSError, subprocess.SubprocessError):
-            pass
-    return "unversioned"
+    git = shutil.which("git")
+    if git is None or not (root / ".git").exists():
+        return "unversioned"
+    try:
+        # This argv contains only the resolved executable, this repository's
+        # own root and fixed Git arguments, with no shell interpolation.
+        revision = subprocess.check_output(  # nosec B603
+            [str(Path(git).absolute()), "-C", str(root), "rev-parse", "--verify", "HEAD"],
+            stderr=subprocess.DEVNULL,
+            timeout=3,
+            text=True,
+            shell=False,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        ).strip()
+    except (OSError, subprocess.SubprocessError):
+        return "unversioned"
+    return revision if re.fullmatch("[a-f0-9]{40,64}", revision) else "unversioned"
 
 
 def _bytes(value):
@@ -72,12 +85,7 @@ def publish_native(directory, row, *, token=None, receipt=None):
         except OSError:
             if destination == DEFAULT_INBOX:
                 raise
-            try:
-                print(
-                    "StockQA feedback destination unavailable, using owner inbox", file=sys.stderr
-                )
-            except (OSError, ValueError):
-                pass
+            warn_feedback_unavailable("StockQA feedback destination unavailable, using owner inbox")
 
 
 def _write_native(directory, row, token, receipt):

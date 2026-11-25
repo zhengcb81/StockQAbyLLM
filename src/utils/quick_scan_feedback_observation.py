@@ -21,11 +21,13 @@ native work item so a reviewer can re-read the same question.
 import json
 import os
 import sqlite3
-import sys
 from pathlib import Path
 
 from src.utils.execution_feedback import (
     emit_execution_observation as emit_execution_observation,
+)
+from src.utils.execution_feedback import (
+    warn_feedback_unavailable,
 )
 from src.utils.execution_feedback import write_observations as write_observations
 
@@ -675,10 +677,7 @@ def read_feedback_attempt(view, work_item_id, generation, attempt_id) -> dict | 
 
 
 def _tracking_incomplete():
-    try:
-        print("feedback tracking incomplete", file=sys.stderr)
-    except Exception:
-        pass
+    warn_feedback_unavailable("feedback tracking incomplete")
 
 
 def emit_refresh_observation(result, request, ledger_path, *, environ=None):

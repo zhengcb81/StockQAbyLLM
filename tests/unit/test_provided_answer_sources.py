@@ -734,7 +734,7 @@ def test_original_approved_owner_restores_provided_only_checkpoint_without_new_s
     session.service = SimpleNamespace(
         store=f.store,
         _inputs_unchanged=Mock(),
-        _record=Mock(return_value=copy.deepcopy(record)),
+        read_registration=Mock(return_value=copy.deepcopy(record)),
         bridge=SimpleNamespace(inspect=Mock(return_value=copy.deepcopy(proof))),
     )
     before = f.store.path.read_bytes()

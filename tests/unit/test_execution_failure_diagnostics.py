@@ -340,3 +340,123 @@ def test_failure_log_publishes_receipts_without_loading_business_inspection(monk
     assert receipt["diagnostic"] == diagnostic
     assert diagnostic["root_type"] == "NewFailure"
     assert SECRET not in json.dumps(receipt)
+
+
+def test_failed_unsent_release_keeps_original_work_and_cold_diagnostic(tmp_path, monkeypatch):
+    import subprocess
+
+    from src.runners.llm_runner import QuickScanWorkLifecycle
+    from tests.unit.test_execution_feedback_intake import _offline_env
+    from tests.unit.test_quick_scan_feedback_owner import _action
+    from tests.unit.test_quick_scan_work_transport import _create_claimed_item
+
+    store, work_id, lease = _create_claimed_item(tmp_path)
+    store_before = store.path.read_bytes()
+    inbox = tmp_path / "inbox"
+    cleanup_failure = sqlite3.OperationalError(SECRET)
+    release = Mock(side_effect=cleanup_failure)
+    monkeypatch.setattr(store, "release_unsent", release)
+    lifecycle = QuickScanWorkLifecycle(
+        store,
+        entity_id="ENT_FIXTURE_CO",
+        run_id="fixture-run",
+        scan_id="fixture-scan",
+        identity={},
+        transport_managed=True,
+    )
+    primary_error = RuntimeError("synthetic-primary-failure")
+    lifecycle.after_question_failed(dict(work_item_id=work_id, lease=lease), primary_error)
+    release.assert_called_once_with(work_id, lease)
+    assert store.path.read_bytes() == store_before
+    assert primary_error.args == ("synthetic-primary-failure",)
+
+    (marker,) = inbox.glob("*.ready")
+    raw_receipt = marker.with_suffix(".cause.json").read_text(encoding="utf-8")
+    observation = json.loads(marker.with_suffix(".jsonl").read_text(encoding="utf-8"))
+    diagnostic = json.loads(raw_receipt)["diagnostic"]
+    assert diagnostic["stage"] == "owner.local.unsent.release"
+    assert diagnostic["root_type"] == "OperationalError"
+    assert diagnostic["references"]["work_item_id"] == work_id
+    assert SECRET not in raw_receipt
+
+    state = tmp_path / "actions.sqlite"
+    request = _action("reconcile", {"occurrence_id": "cleanup-fixture", "observation": observation})
+    cold = subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            "-X",
+            "utf8",
+            "-m",
+            "src.utils.quick_scan_feedback_owner",
+            "--state",
+            str(state),
+            "reconcile",
+        ],
+        cwd=tmp_path,
+        env={**_offline_env(tmp_path), "RESEARCH_FEEDBACK_DIR": str(inbox)},
+        input=json.dumps(request).encode("ascii"),
+        capture_output=True,
+        timeout=30,
+        check=True,
+    )
+    assert json.loads(cold.stdout) == {
+        "state": "done",
+        "result": {
+            "status": "known",
+            "job_status": "failed",
+            "cost_state": "not_applicable",
+            "evidence_ref": observation["evidence_ref"],
+        },
+    }
+    assert not state.exists()
+    assert store.path.read_bytes() == store_before
+
+
+def test_missing_output_reference_keeps_observable_invocation_without_path_text(tmp_path, capsys):
+    class InvalidOutput:
+        def __fspath__(self):
+            raise ValueError(SECRET)
+
+    token = diagnostic_log.configure_failure_diagnostics(output=InvalidOutput())
+    try:
+        diagnostic_log.record_execution_failure(None, nested_failure(), stage="fixture.output")
+    finally:
+        diagnostic_log.reset_failure_diagnostics(token)
+
+    (marker,) = (tmp_path / "inbox").glob("*.ready")
+    row = json.loads(marker.read_bytes())
+    assert row["run_id"].startswith("cli-run-")
+    assert row["attempt_id"].startswith("cli-invocation-")
+    stderr = capsys.readouterr().err
+    assert "execution invocation output reference unavailable" in stderr
+    assert SECRET not in stderr
+
+
+def test_feedback_version_resolves_local_git_and_uses_fixed_no_shell_argv(tmp_path, monkeypatch):
+    fake_executable = tmp_path / "bin" / "git"
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+    monkeypatch.setattr(
+        execution_feedback, "__file__", str(root / "src/utils/execution_feedback.py")
+    )
+    resolver = Mock(return_value=str(fake_executable))
+    process = Mock(return_value="a" * 40)
+    monkeypatch.setattr(execution_feedback.shutil, "which", resolver)
+    monkeypatch.setattr(execution_feedback.subprocess, "check_output", process)
+    execution_feedback._version.cache_clear()
+    try:
+        assert execution_feedback._version() == "a" * 40
+        resolver.assert_called_once_with("git")
+        assert process.call_args.args[0] == [
+            str(fake_executable),
+            "-C",
+            str(root),
+            "rev-parse",
+            "--verify",
+            "HEAD",
+        ]
+        assert process.call_args.kwargs["shell"] is False
+        assert process.call_args.kwargs["timeout"] > 0
+    finally:
+        execution_feedback._version.cache_clear()

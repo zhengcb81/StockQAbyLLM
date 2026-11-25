@@ -1555,8 +1555,19 @@ class QuickScanWorkLifecycle:
                 # The original owner alone proves whether this exact live lease
                 # is unsent; real send/response/unknown evidence rejects release.
                 self._store.release_unsent(handle["work_item_id"], handle["lease"])
-            except Exception:
-                pass  # Preserve the original native state and failure for recovery.
+            except Exception as cleanup_error:
+                # Record the local failure separately. The owner retains the
+                # original lease and any physical outcome for recovery.
+                record_execution_failure(
+                    logger,
+                    cleanup_error,
+                    stage="owner.local.unsent.release",
+                    references={
+                        "work_item_id": handle.get("work_item_id"),
+                        "work_attempt_id": handle.get("attempt_id"),
+                    },
+                    explains_invocation=False,
+                )
             return
         try:
             # P0-3: confirmed_failure requires a recognized provider refusal

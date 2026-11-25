@@ -14,7 +14,6 @@ import pytest
 from src.core.models import Question
 from src.core.qa_engine import QAEngine
 from src.runners.llm_runner import QuickScanWorkLifecycle
-from src.utils import quick_scan_subject_owner
 from src.utils import quick_scan_work_transport as transport
 from src.utils.quick_scan_owner_refresh import OwnerRefreshRejected, OwnerRefreshSession
 from src.utils.quick_scan_refresh_consent import RefreshConsentClient
@@ -38,7 +37,7 @@ from tests.unit.test_quick_scan_question_pack_transport import (
 
 
 @pytest.fixture
-def session(tmp_path, monkeypatch):
+def session(tmp_path):
     clock = [1800000000.0]
     store = QuickScanWorkStore(tmp_path / "isolated.sqlite", clock=lambda: clock[0])
     context = _v2_context()
@@ -61,7 +60,7 @@ def session(tmp_path, monkeypatch):
     )
     scopes = {qid: dict(scope="entity", scope_id=identity["entity_id"]) for qid in qids}
     counts = Counter()
-    state = {"revoked": False}
+    state = {"revoked": False, "revoke_after_registrations": None}
     current = {
         "anchor_version": 1,
         "expected_decision_id": "route_" + "a" * 64,
@@ -77,8 +76,14 @@ def session(tmp_path, monkeypatch):
         if state["revoked"]:
             raise OwnerRefreshRejected("fixture_revoked")
 
+    def register(_current, request):
+        counts["register"] += 1
+        if counts["register"] == state["revoke_after_registrations"]:
+            state["revoked"] = True
+        return _owner_receipt(request, clock[0])
+
     native = OwnerRefreshSession(
-        SimpleNamespace(config={}, _environment={}, assert_current=anchor),
+        SimpleNamespace(config={}, assert_current=anchor, register_subject_dispatch=register),
         current,
         dict(
             fields=[
@@ -159,7 +164,7 @@ def session(tmp_path, monkeypatch):
         store=store,
         budget=_policy(),
         bridge=SimpleNamespace(inspect=inspect),
-        _record=lambda _confirmation: copy.deepcopy(record),
+        read_registration=lambda _confirmation: copy.deepcopy(record),
         _inputs_unchanged=Mock(),
     )
     bundle = dict(manifest=MANIFEST, identity=identity, questions=questions, authority={})
@@ -175,11 +180,6 @@ def session(tmp_path, monkeypatch):
         {},
     )
 
-    def register(_config, _current, request, **_kwargs):
-        counts["register"] += 1
-        return _owner_receipt(request, clock[0])
-
-    monkeypatch.setattr(quick_scan_subject_owner, "register", register)
     lifecycle = QuickScanWorkLifecycle(
         store,
         entity_id=identity["entity_id"],
@@ -259,7 +259,7 @@ def test_two_question_pack_uses_two_registrations_and_one_live_check(session):
     assert session.counts == before_consume
 
 
-def _mixed_paid_session(f, tmp_path, monkeypatch, *, delivered, superseded=False):
+def _mixed_paid_session(f, tmp_path, *, delivered, superseded=False):
     """Reload an original v2 response/outbox, alongside its registered pending work."""
     from src.utils.quick_scan_delivery_seal import seal_result_delivery
     from src.utils.quick_scan_question_manifest import load_question_manifest
@@ -358,8 +358,14 @@ def _mixed_paid_session(f, tmp_path, monkeypatch, *, delivered, superseded=False
         expected_decision_id=binding["decision_id"],
         snapshot=dict(subject_binding=dict(subject=f.subject)),
     )
+    counts = Counter()
+
+    def register(_current, request):
+        counts["register"] += 1
+        return _owner_receipt(request, 1800000000.0)
+
     native = OwnerRefreshSession(
-        SimpleNamespace(config={}, _environment={}, assert_current=Mock()),
+        SimpleNamespace(config={}, assert_current=Mock(), register_subject_dispatch=register),
         current,
         dict(
             binding,
@@ -383,21 +389,15 @@ def _mixed_paid_session(f, tmp_path, monkeypatch, *, delivered, superseded=False
         store,
         observation_context=f.context,
     )
-    counts = Counter()
 
     def inspect(_confirmation, *, mode):
         counts[mode] += 1
         return copy.deepcopy(proof)
 
-    def register(_config, _current, request, **_kwargs):
-        counts["register"] += 1
-        return _owner_receipt(request, 1800000000.0)
-
-    monkeypatch.setattr(quick_scan_subject_owner, "register", register)
     service = SimpleNamespace(
         store=store,
         budget=_policy(),
-        _record=lambda _confirmation: copy.deepcopy(record),
+        read_registration=lambda _confirmation: copy.deepcopy(record),
         bridge=SimpleNamespace(inspect=inspect),
     )
     owner = ApprovedRefreshSession(
@@ -462,7 +462,7 @@ def test_mixed_original_paid_checkpoint_and_pending_resume(
     from tests.unit.test_quick_scan_observation_context import content
 
     f = provided
-    session = _mixed_paid_session(f, tmp_path, monkeypatch, delivered=delivered)
+    session = _mixed_paid_session(f, tmp_path, delivered=delivered)
     before = _paid_snapshot(f, session)
     assert before["subject_receipt"] is not None
     body = content()
@@ -538,13 +538,10 @@ def test_mixed_original_paid_checkpoint_and_pending_resume(
 def test_original_paid_reads_ignore_new_dispatch_projection_and_permission(
     provided,
     tmp_path,
-    monkeypatch,
     delivered,
 ):
     f = provided
-    session = _mixed_paid_session(
-        f, tmp_path, monkeypatch, delivered=delivered, superseded=delivered
-    )
+    session = _mixed_paid_session(f, tmp_path, delivered=delivered, superseded=delivered)
     before = _paid_snapshot(f, session)
     if delivered:
         assert session.owner.deferred["IQS_01"] == "registered_work_superseded"
@@ -574,16 +571,8 @@ def test_original_paid_reads_ignore_new_dispatch_projection_and_permission(
     assert session.counts == Counter()
 
 
-def test_revocation_before_intent_releases_unsent_without_budget_or_unknown(session, monkeypatch):
-    original = quick_scan_subject_owner.register
-
-    def revoke(*args, **kwargs):
-        value = original(*args, **kwargs)
-        if session.counts["register"] == 2:
-            session.state["revoked"] = True
-        return value
-
-    monkeypatch.setattr(quick_scan_subject_owner, "register", revoke)
+def test_revocation_before_intent_releases_unsent_without_budget_or_unknown(session):
+    session.state["revoke_after_registrations"] = 2
     with pytest.raises(transport.QuickScanWorkPersistenceError) as caught:
         with _start(session, ("IQS_01", "IQS_02")):
             pytest.fail("revoked owner cannot obtain a send permit")

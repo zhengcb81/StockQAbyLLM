@@ -22,6 +22,8 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from src.utils.execution_feedback import warn_feedback_unavailable
+
 _FAILURE_CONTEXT: ContextVar[dict[str, Any]] = ContextVar("stockqa_failure_context", default={})
 _REFERENCE_FIELDS = frozenset(
     {
@@ -61,7 +63,9 @@ def configure_failure_diagnostics(*, output):
                 "cli-output-" + hashlib.sha256(str(path).encode("utf8")).hexdigest()[:24]
             )
     except Exception:
-        pass  # Output validation still belongs to the normal runner.
+        # Output validation still belongs to the normal runner. Keep this
+        # invocation observable under its independent ID.
+        warn_feedback_unavailable("execution invocation output reference unavailable")
     return _FAILURE_CONTEXT.set(context)
 
 
@@ -155,10 +159,7 @@ def build_failure_diagnostic(error, *, stage, references=None):
 
 
 def _tracking_incomplete():
-    try:
-        print("execution failure tracking incomplete", file=sys.stderr)
-    except Exception:
-        pass
+    warn_feedback_unavailable("execution failure tracking incomplete")
 
 
 def record_execution_failure(
@@ -380,10 +381,7 @@ def get_logger(
             logger.addHandler(file_handler)
         except (OSError, ValueError):
             file_unavailable = True
-            try:
-                print("logging tracking incomplete", file=sys.stderr)
-            except Exception:
-                pass
+            warn_feedback_unavailable("logging tracking incomplete")
 
     # 添加控制台处理器
     if log_to_console or file_unavailable:
