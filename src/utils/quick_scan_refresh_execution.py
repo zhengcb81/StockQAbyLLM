@@ -10,6 +10,7 @@ import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .logger import record_execution_failure
 from .quick_scan_owner_refresh import OwnerRefreshRejected, public_observation_reference
 from .quick_scan_refresh_admission import (
     AdmissionRejected,
@@ -590,10 +591,7 @@ class ApprovedRefreshSession:
             get_matching_sealed_delivery,
             seal_result_delivery,
         )
-        from .quick_scan_observation_context import (
-            bind_question_context,
-            parse_standard_answer,
-        )
+        from .quick_scan_observation_context import bind_question_context
         from .quick_scan_result_outbox import strict_json_loads
         from .quick_scan_work_store import Lease, LeaseFencedError, WorkConflictError
 
@@ -742,6 +740,7 @@ class ApprovedRefreshSession:
             answers = {a.question_id: a for a in parsed.answers}
             self.validate_session()
             for member in pack["members"]:
+                decode_error = None
                 try:
                     with store.transaction():
                         if replay_path is not None and _snapshot(replay_path)[1] != raw:
@@ -789,7 +788,8 @@ class ApprovedRefreshSession:
                                 context=frozen["context"]["questions"][qid],
                                 source_urls=list(receipt.get("source_urls") or []),
                             )
-                        except (ValueError, KeyError, TypeError):
+                        except (ValueError, KeyError, TypeError) as error:
+                            decode_error = error
                             remaining.append(wid)
                             recovery_errors.append(
                                 dict(
@@ -829,6 +829,21 @@ class ApprovedRefreshSession:
                     recovery_errors.append(
                         dict(work_item_ids=[member["work_item_id"]], reason=str(error))
                     )
+                finally:
+                    if decode_error is not None:
+                        # Publish outside the member transaction. This local
+                        # diagnostic does not explain a subsequent CLI failure.
+                        record_execution_failure(
+                            None,
+                            decode_error,
+                            stage="owner.local.received_checkpoint.member_decode",
+                            references={
+                                "work_item_id": member["work_item_id"],
+                                "question_id": member["question_id"],
+                                "work_attempt_id": member["attempt_id"],
+                            },
+                            explains_invocation=False,
+                        )
 
         for pack in packs.values():
             self.validate_session()

@@ -161,7 +161,9 @@ def _tracking_incomplete():
         pass
 
 
-def record_execution_failure(logger, error, *, stage, references=None, refusal_code=None):
+def record_execution_failure(
+    logger, error, *, stage, references=None, refusal_code=None, explains_invocation=True
+):
     """A defective observer cannot replace the business outcome or its cleanup."""
     try:
         if error is None:
@@ -203,7 +205,7 @@ def record_execution_failure(logger, error, *, stage, references=None, refusal_c
         from src.utils.quick_scan_feedback_observation import emit_execution_observation
 
         context = _FAILURE_CONTEXT.get()
-        if context:
+        if context and explains_invocation:
             context["has_failure"] = True
         emit_execution_observation(diagnostic, context=context)
     except Exception:

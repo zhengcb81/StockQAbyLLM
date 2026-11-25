@@ -80,6 +80,42 @@ def test_suppressed_original_and_unreadable_attributes_do_not_skip_failed_finali
     assert "private-sentinel" not in json.dumps(trace)
 
 
+@pytest.mark.parametrize(
+    ("ending", "terminal_stage"), [("return", "cli.return"), ("raise", "cli.run")]
+)
+def test_local_step_diagnostic_does_not_explain_independent_invocation_failure(
+    tmp_path, monkeypatch, ending, terminal_stage
+):
+    outbox = tmp_path / "feedback"
+    monkeypatch.setenv("RESEARCH_FEEDBACK_DIR", str(outbox))
+
+    @diagnostics.observed_command
+    def run():
+        diagnostics.record_execution_failure(
+            None,
+            ValueError("synthetic private decode message"),
+            stage="owner.local.received_checkpoint.member_decode",
+            explains_invocation=False,
+        )
+        if ending == "raise":
+            raise RuntimeError("synthetic independent exit message")
+        return 7
+
+    if ending == "raise":
+        with pytest.raises(RuntimeError):
+            run()
+    else:
+        assert run() == 7
+    results = [json.loads(path.read_bytes()) for path in outbox.glob("feedback-*.cause.json")]
+    assert {r["diagnostic"]["stage"] for r in results} == {
+        "owner.local.received_checkpoint.member_decode",
+        terminal_stage,
+    }
+    assert len({r["observation"]["run_id"] for r in results}) == 1
+    assert len({r["observation"]["step_id"] for r in results}) == 2
+    assert "synthetic private" not in json.dumps(results)
+
+
 def test_diagnostic_constructor_failure_preserves_original_pack_cleanup(tmp_path, monkeypatch):
     monkeypatch.setenv("RESEARCH_FEEDBACK_DIR", str(tmp_path / "inbox"))
     monkeypatch.setattr(
