@@ -1,3 +1,7 @@
+## 2026-11-25 StockQA 原处置权限查询
+
+[处置权限查询收敛](S4-STOCKQA-one-owner-decision.md) 已在独立工作树完成两条调用路径的 RED/GREEN 与旧回执验证。
+
 ## 2026-11-25 S4 StockQA 测试收口
 
 已修订六项历史构造器断言和一项独立工作树环境夹具。[账本校验与测试夹具](S4-STOCKQA-verified-reads.md) 记录测试和独立审查。

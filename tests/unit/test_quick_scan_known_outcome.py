@@ -50,7 +50,7 @@ def authority(*, bad=False, revoke=False):
 
         def authorize(self, request):
             self.calls += 1
-            if revoke and self.calls > 1:
+            if revoke:
                 raise PermissionError("synthetic revoked decision")
             return OwnerWorkDecisionGrant(
                 owner_store_id="synthetic-owner",

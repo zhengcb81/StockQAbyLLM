@@ -15,7 +15,7 @@ from tests.unit.test_quick_scan_known_outcome import (
 
 @pytest.mark.parametrize("kind", ["resolution", "retry"])
 @pytest.mark.parametrize("clock_delta", [60, -30])
-def test_commit_clock_after_authority_recheck_controls_durable_time_and_cooldown(
+def test_commit_clock_after_owner_authorization_controls_durable_time_and_cooldown(
     tmp_path, kind, clock_delta
 ):
     store, clock, members, pack, receipt, _, _ = fixture(tmp_path)
@@ -28,8 +28,7 @@ def test_commit_clock_after_authority_recheck_controls_durable_time_and_cooldown
     class DelayedAuthority(type(authority())):
         def authorize(self, request):
             grant = super().authorize(request)
-            if self.calls == 2:
-                clock[0] += clock_delta
+            clock[0] += clock_delta
             return grant
 
     permission = DelayedAuthority()
@@ -61,6 +60,7 @@ def test_commit_clock_after_authority_recheck_controls_durable_time_and_cooldown
             assert stamp(result["next_retry_at"]) == started + clock_delta + 90
         else:
             assert store.list_events(work_id)[-1]["occurred_at"] == started + clock_delta
+    assert permission.calls == 1
     assert immutable(store) == physical
 
 

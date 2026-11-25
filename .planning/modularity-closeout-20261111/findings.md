@@ -1,3 +1,7 @@
+## 2026-11-25 StockQA 原处置权限查询根因
+
+resolve/retry 在一个 SQLite 事务内对同一动作发起两次完整授权。[这项修复](S4-STOCKQA-one-owner-decision.md) 保留一次真实 owner 授权、原生不同读模式、有效期和状态绑定。重试计划和实际付费派发保持分离。
+
 ## 2026-11-25 S4 StockQA 快开与深审
 
 原 SQLite Q10 六组篡改均在冷读与显式深审被拒，快开仍通过。观测资源测试由随包资料副本复现兼容行为，保留真实旧 IQS 编译上下文和归属负例。详见 [定向账本校验](S4-STOCKQA-verified-reads.md)。

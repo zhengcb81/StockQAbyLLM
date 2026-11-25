@@ -61,9 +61,9 @@ class OwnerWorkDecisionAuthority(ABC):
     """Trusted deployment adapter, never constructed from model/request JSON.
 
     It must independently read the original owner principal, confirmation,
-    subject/current anchor, field permission, request action and policy. The
-    same request is re-authorized before commit to detect permission changes.
-    An implementation must not call a paid provider or mutate an owner DB.
+    subject/current anchor, field permission, request action and policy once
+    before commit, including for replay. An implementation must not call a
+    paid provider or mutate an owner DB.
     """
 
     @abstractmethod
@@ -805,8 +805,6 @@ def resolve(
         )
         old = _existing(store, con, work_item_id, idempotency_key, request)
         grant = _authorize(owner_authority, request, now)
-        if _authorize(owner_authority, request, store.now()) != grant:
-            raise PermissionError("owner_work_authority_changed")
         commit_now = store.now()
         if not math.isfinite(commit_now) or commit_now < now:
             raise ValueError("owner_work_commit_clock_invalid")
@@ -996,8 +994,6 @@ def retry(
         )
         old = _existing(store, con, work_item_id, idempotency_key, request)
         grant = _authorize(owner_authority, request, now)
-        if _authorize(owner_authority, request, store.now()) != grant:
-            raise PermissionError("owner_work_authority_changed")
         commit_now = store.now()
         if not math.isfinite(commit_now) or commit_now < now:
             raise ValueError("owner_work_commit_clock_invalid")
