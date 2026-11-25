@@ -845,17 +845,16 @@ def test_visible_explanation_extensions_never_hide_semantic_conflicts(fault):
 
 
 def test_current_additive_answer_resources_are_provenance_not_a_static_hash_allowlist():
-    iqs = Path(__file__).resolve().parents[3] / "invest-quick-scan"
-    context = copy.deepcopy(CONTEXT)
-    answer_schema = json.loads(
-        (iqs / "schemas/answer-content.schema.json").read_text(encoding="utf8")
-    )
-    metrics = json.loads((iqs / "questions/metric-registry.json").read_text(encoding="utf8"))
+    answer_schema, metrics = copy.deepcopy(api._resources()[1:3])
+    answer_schema["properties"]["additional_fixture_note"] = {"type": "string"}
     metrics["metrics"]["new.unrelated_metric"] = {"unit": "ratio"}
+    context = copy.deepcopy(CONTEXT)
     context.update(
         answer_schema_sha256=canonical_sha256(answer_schema),
         metric_registry_sha256=canonical_sha256(metrics),
     )
+    assert context["answer_schema_sha256"] != CONTEXT["answer_schema_sha256"]
+    assert context["metric_registry_sha256"] != CONTEXT["metric_registry_sha256"]
     before = copy.deepcopy(context)
     assert (
         api.validate_context_document(context, expected_sha256=canonical_sha256(context)) == before

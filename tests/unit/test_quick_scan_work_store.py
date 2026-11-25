@@ -806,7 +806,7 @@ def test_q10_changed_checkpoint_receipt_rolls_back_without_partial_answer(tmp_pa
         ("response_id", "forged-response"),
     ],
 )
-def test_q10_durable_response_summary_tamper_fails_closed_on_restart(tmp_path, column, value):
+def test_q10_durable_response_tamper_is_rejected_by_cold_read_and_audit(tmp_path, column, value):
     store = _store(tmp_path, [1_800_000_000.0])
     item = _created(store)
     _, attempt, _ = _successful_search_attempt(store, item["work_item_id"])
@@ -820,8 +820,12 @@ def test_q10_durable_response_summary_tamper_fails_closed_on_restart(tmp_path, c
             (value, attempt["attempt_id"]),
         )
         connection.execute(guard)
+    reopened = _store(tmp_path, [1_800_000_000.0])
     with pytest.raises(ValueError, match="durable response"):
-        _store(tmp_path, [1_800_000_000.0])
+        reopened.get_attempt_response(attempt["attempt_id"])
+    with closing(reopened.connect()) as connection:
+        with pytest.raises(ValueError, match="durable response"):
+            reopened.validate_schema(connection)
 
 
 def test_q10_attempt_response_and_frozen_permission_are_sql_immutable(tmp_path):
@@ -1007,8 +1011,12 @@ def test_q10_new_exact_checkpoint_cannot_strip_durable_marker(tmp_path):
         connection.execute(original_guard)
     with pytest.raises(ValueError, match="historical checkpoint"):
         store.get_answer_checkpoint(item["work_item_id"])
+    reopened = _store(tmp_path, [1_800_000_000.0])
     with pytest.raises(ValueError, match="historical checkpoint"):
-        _store(tmp_path, [1_800_000_000.0])
+        reopened.get_answer_checkpoint(item["work_item_id"])
+    with closing(reopened.connect()) as connection:
+        with pytest.raises(ValueError, match="historical checkpoint"):
+            reopened.validate_schema(connection)
 
 
 def _q10_repair_attempt(store, item, lease, *, actual_model="mimo-v2.6-flash"):
@@ -1194,8 +1202,12 @@ def test_q10_checkpoint_read_cannot_rebind_to_intermediate_attempt(tmp_path):
         connection.execute(guard)
     with pytest.raises((ValueError, WorkConflictError), match="final attempt"):
         store.get_answer_checkpoint(work_id)
+    reopened = _store(tmp_path, [1_800_000_000.0])
     with pytest.raises((ValueError, WorkConflictError), match="final attempt"):
-        _store(tmp_path, [1_800_000_000.0])
+        reopened.get_answer_checkpoint(work_id)
+    with closing(reopened.connect()) as connection:
+        with pytest.raises((ValueError, WorkConflictError), match="final attempt"):
+            reopened.validate_schema(connection)
 
 
 def test_q10_latest_registered_repair_response_can_checkpoint(tmp_path):
