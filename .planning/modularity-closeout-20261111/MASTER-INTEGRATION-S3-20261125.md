@@ -25,3 +25,11 @@
 - 未发送清理失败时，以原 work/attempt ID 写入本模块已有 F4 原生收据。合成 SQLite 冷读验证原始工作状态留存，清理故障独立可追踪且没有费用变化。原异常结果保持；最末端诊断写入失败仅用已有脱敏告警。固定本地 Git 元数据调用明确指定 host Git、固定参数及 `shell=False`，保留日常 Bandit，注解只限这一处调用及其 import。
 - 旧测试替身改用实际公开 `read_registration` 和 `register_subject_dispatch`，保留登记顺序、第二次登记后撤权、实际 SQLite 发送状态、已付复用和预算断言。合成原件均位于独立测试临时根，零真实付费请求。
 - 两个此前失败测试模块、公开 owner 端口和 F4 冷读定向合计 83 通过、8 个既有条件跳过。原样 `python -B scripts/checks.py` 本机 109.57 秒通过（Black/isort/mypy/Bandit、404 pytest、smoke）。独立审查 ACCEPT（规范化源码与测试指纹 `874bfa41b87803d6fa1857f8143f6bf0c04660929b74f4323b5f2aeb10ce8397`）。
+
+## Ubuntu 复验与冻结材料
+
+[远端 CI](https://github.com/zhengcb81/StockQAbyLLM/actions/runs/45580917509) 的默认工作流在 Ubuntu/Python 3.10 仍失败。用该提交建立独立 Ubuntu 环境复现，四个已付恢复用例同因失败。此测试材料的历史原始 manifest 是 449,049 字节，SHA-256 为 `a7e80a5bcaf2cb2499fa24f091b129d7e1a2ebbf6e91a5666359c5e91c90270c`，与冻结 authority 和原交付记录一致。Git 之前把入库的 CRLF 转成了 LF。Windows 工作区碰巧还原了原始字节，Linux 默认 checkout 则保留了已改写的 LF。
+
+在 Git 中原样保存这一个冻结 JSON，行尾格式修复仅排除此材料。干净 Linux 检出与 Git archive 均重现原 SHA。回归沿真实 manifest 和 authority 读取，证明原始记录通过、同语义但换行被篡改的字节仍拒绝。生产读取及哈希比较沿用原接口。
+
+Windows 原件与历史已付回归 27 项通过。Ubuntu Python 3.10.20 用 CI 原入口通过 Black、isort、mypy、Bandit、pytest（401 项通过、3 项依赖条件跳过）及 smoke，耗时 130.82 秒，源字节篡改回归另 1 项通过。独立审查 ACCEPT，源与测试复验树 `a4b4b1c660b528141583e7dd019922162d2a662c`。实测仅使用隔离合成收据，临时根完成后清理。

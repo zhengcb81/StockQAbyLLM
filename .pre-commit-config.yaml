@@ -25,6 +25,8 @@ repos:
       - id: debug-statements
       - id: mixed-line-ending
         args: ['--fix=lf']
+        # This frozen source above is matched by its original SHA-256.
+        exclude: ^tests/fixtures/quick_scan_c06_manifest_v2_fixture\.json$
 
   # Python code formatting with black（版本与 requirements-lock.txt 同步）
   - repo: https://github.com/psf/black

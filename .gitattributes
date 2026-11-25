@@ -1,0 +1,2 @@
+# The historical C06 authority hashes this source fixture's exact original bytes.
+tests/fixtures/quick_scan_c06_manifest_v2_fixture.json -text whitespace=cr-at-eol

@@ -75,6 +75,27 @@ def test_pure_metadata_v2_authority_still_loads_unchanged(tmp_path):
     assert loaded["observation_context_sha256"] == AUTHORITY["observation_context_sha256"]
 
 
+def test_frozen_manifest_binds_exact_source_bytes_across_checkouts(tmp_path):
+    authority = FIXTURES / "quick_scan_c06_authority_v2_fixture.json"
+    identity = CONTEXT["identity_snapshot_sha256"]
+    loaded = load_c06_authority(authority, manifest=MANIFEST, identity_snapshot_sha256=identity)
+    assert loaded["observation_context"]["manifest_file_sha256"] == MANIFEST["manifest_sha256"]
+
+    original = (FIXTURES / "quick_scan_c06_manifest_v2_fixture.json").read_bytes()
+    changed = original.replace(b"\r\n", b"\n")
+    assert changed != original and json.loads(changed) == json.loads(original)
+    tampered = tmp_path / "normalized.json"
+    tampered.write_bytes(changed)
+    with pytest.raises(
+        AuthorityUnavailable, match="manifest hashes do not match the manifest file"
+    ):
+        load_c06_authority(
+            authority,
+            manifest=load_question_manifest(tampered),
+            identity_snapshot_sha256=identity,
+        )
+
+
 def test_v1_authority_keeps_its_historical_load_path(tmp_path):
     loaded = load_c06_authority(_write(tmp_path, dict(V1_AUTHORITY)))
     assert loaded["schema_version"] == "1.0.0"
