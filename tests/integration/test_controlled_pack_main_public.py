@@ -16,6 +16,7 @@ from src.config.llm_config import LLMConfig
 from tests.integration.test_c06_subject_public_e2e import actual, utc
 from tests.integration.test_controlled_refresh_public import controlled_public_fixture
 from tests.unit.test_llm_config import _quick_scan_policy
+from tests.unit.test_q09_budget_concurrency import hide_lifecycle_field
 from tests.unit.test_quick_scan_observation_context import content
 from tests.unit.test_quick_scan_work_transport import _http_response
 
@@ -180,8 +181,11 @@ def run_public_main_pack3(actual, tmp_path, monkeypatch, capsys, *, target_model
         "--spend-authorization",
         str(spend),
     ]
+    private_reads = hide_lifecycle_field(monkeypatch, "_owner_refresh")
     monkeypatch.setattr(sys, "argv", argv)
-    assert main_with_llm.main() == 0, capsys.readouterr().out
+    code = main_with_llm.main()
+    assert private_reads == []
+    assert code == 0, capsys.readouterr().out
     assert len(sent) == 1 and store.get_item(ready["work_id"])["status"] == "result_ready"
     pack_id = store.list_attempts(ready["work_id"])[0]["attempt_id"]
     with store._connect() as connection:
@@ -198,6 +202,7 @@ def run_public_main_pack3(actual, tmp_path, monkeypatch, capsys, *, target_model
     monkeypatch.setattr(sys, "argv", argv[:cutoff])
     assert main_with_llm.main() == 0, capsys.readouterr().out
     assert len(sent) == 1 and json.loads(output.read_bytes())["API_requests"] == 0
+    assert private_reads == []
     if target_model:
         assert (
             store.get_owner_refresh_binding(ready["work_id"])["binding"]["owner_control"][

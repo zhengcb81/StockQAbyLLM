@@ -19,6 +19,8 @@ import threading
 import time
 from pathlib import Path
 
+import pytest
+
 from src.core.models import Question
 from src.utils.quick_scan_work_store import QuickScanWorkStore
 
@@ -577,7 +579,34 @@ print(json.dumps({{"worker": worker, "admitted": admitted, "refused": refused}})
     assert sent_with_budget >= len(admitted_qids) - 1
 
 
-def test_runner_glue_reserves_before_dispatch(tmp_path: Path, monkeypatch) -> None:
+def hide_lifecycle_field(monkeypatch, field):
+    """Observe private-field reads and isolate one production stage in each variant."""
+    from src.runners import llm_runner
+
+    constructor = llm_runner.QuickScanWorkLifecycle
+    private_reads = []
+
+    def create_lifecycle(*args, **kwargs):
+        original = constructor(*args, **kwargs)
+
+        class PublicLifecycle:
+            def __getattr__(self, name):
+                if name.startswith("_"):
+                    private_reads.append(name)
+                if name == field:
+                    raise AttributeError(name)
+                return getattr(original, name)
+
+        return PublicLifecycle()
+
+    monkeypatch.setattr(llm_runner, "QuickScanWorkLifecycle", create_lifecycle)
+    return private_reads
+
+
+@pytest.mark.parametrize("unavailable_private_field", ["_lease_seconds", "_store"])
+def test_runner_glue_reserves_before_dispatch(
+    tmp_path: Path, monkeypatch, capsys, unavailable_private_field
+) -> None:
     """Q09 runner glue (the real r1 gap): with an identity snapshot AND a
     configured policy the ACTIVATED lifecycle reserves BEFORE dispatch —
     the budget ledger gains a row from the public CLI path itself."""
@@ -589,6 +618,20 @@ def test_runner_glue_reserves_before_dispatch(tmp_path: Path, monkeypatch) -> No
     harness = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(harness)
+
+    from src.core.qa_engine import QAEngine
+    from src.interfaces.quick_scan_result_proof import QuickScanResultProofPort
+
+    private_reads = hide_lifecycle_field(monkeypatch, unavailable_private_field)
+    projections = []
+
+    native_output = QAEngine.output_results
+
+    def output_with_proof(batch, output, **kwargs):
+        projections.append(kwargs["quick_scan_context"])
+        native_output(batch, output, **kwargs)
+
+    monkeypatch.setattr(QAEngine, "output_results", staticmethod(output_with_proof))
 
     snapshot = tmp_path / "snapshot.json"
     snapshot.write_bytes(
@@ -640,12 +683,20 @@ def test_runner_glue_reserves_before_dispatch(tmp_path: Path, monkeypatch) -> No
         entity_id=UUID_ENTITY,
         provider_name="primary",
         provider_configs=provider_configs,
-        extra_argv=["--identity-snapshot", str(snapshot)],
+        extra_argv=["--identity-snapshot", str(snapshot), "--work-lease-seconds", "61"],
         model_policy=policy,
         responses=[harness._response(content=answer)],
     )
     # This provisional identity/model-mismatch fixture must report failure;
     # actual transport still has exactly one prior budget admission.
+    assert private_reads == []
+    assert (
+        "work_lease_seconds=61; scope=new_claims_only; existing_lease_extension=false"
+        in capsys.readouterr().out
+    )
+    (projection,) = projections
+    assert "work_store" not in projection
+    assert isinstance(projection["result_proof_port"], QuickScanResultProofPort)
     assert exit_code == 1, exit_code
     answer = _json.loads(out.read_text(encoding="utf-8"))["answers"]["IQS_05"]
     assert answer["status"] == "error" and answer["score"] is None

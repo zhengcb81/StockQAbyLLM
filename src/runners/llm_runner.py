@@ -49,11 +49,13 @@ from src.utils.logger import (
 from src.utils.quick_scan_cost_resolver import QuickScanCostResolver
 from src.utils.quick_scan_owner_refresh_api import validate_owner_refresh_session
 from src.utils.quick_scan_provider_health import QuickScanProviderHealth
+from src.utils.quick_scan_result_proof import result_proof_port_for_store
 from src.utils.quick_scan_work_store import QuickScanWorkStore
 from src.utils.quick_scan_work_transport import bind_quick_scan_budget
 
 if TYPE_CHECKING:
     from src.interfaces.quick_scan_owner_refresh import QuickScanOwnerRefreshPort
+    from src.interfaces.quick_scan_result_proof import QuickScanResultProofPort
     from src.utils.quick_scan_company_context import CompanyScanTaskPort
 
 
@@ -2858,6 +2860,8 @@ class LLMRunner:
 
             answer_generator = AnswerGenerator()
             work_lifecycle = None
+            owner_session: Optional["QuickScanOwnerRefreshPort"] = None
+            result_proof: Optional["QuickScanResultProofPort"] = None
             if identity_payload is not None:
                 if not entity_id:
                     raise ValueError("--identity-snapshot 需要 --entity-id")
@@ -2869,6 +2873,7 @@ class LLMRunner:
                 work_store = budget_store or QuickScanWorkStore(
                     llm_config.config_file.parent / "quick_scan_work.sqlite"
                 )
+                result_proof = result_proof_port_for_store(work_store)
                 # Q13: the incremental plan over the frozen manifest is a
                 # read-only receipt printed BEFORE dispatch; its per-question
                 # scope/generation bindings are the only authority the
@@ -2942,7 +2947,6 @@ class LLMRunner:
                     lifecycle_model = quick_scan_policy["routes"][0]["model"]
                 else:
                     lifecycle_model = None
-                owner_session = None
                 if owner_refresh_config is not None:
                     from datetime import datetime, timezone
 
@@ -3063,7 +3067,8 @@ class LLMRunner:
                 )
             if work_lifecycle is not None:
                 print(
-                    f"[EXECUTION] work_lease_seconds={work_lifecycle._lease_seconds:g}; scope=new_claims_only; existing_lease_extension=false"
+                    f"[EXECUTION] work_lease_seconds={work_lease_seconds:g}; "
+                    "scope=new_claims_only; existing_lease_extension=false"
                 )
             if question_pack_size > 1:
                 if work_lifecycle is None:
@@ -3179,15 +3184,9 @@ class LLMRunner:
                         # per-question receipt names the route that answered.
                         "provider_name": quick_scan_policy["routes"][0]["provider_config_ref"],
                         "requested_model": quick_scan_policy["routes"][0]["model"],
-                        "work_store": (
-                            work_lifecycle._store if work_lifecycle is not None else None
-                        ),
+                        "result_proof_port": result_proof,
                     },
-                    **(
-                        {"owner_refresh_session": work_lifecycle._owner_refresh}
-                        if owner_refresh_config is not None and work_lifecycle is not None
-                        else {}
-                    ),
+                    owner_refresh_session=owner_session,
                 )
                 if approved_scope_report is not None:
                     destination = Path(output)
@@ -3429,7 +3428,7 @@ class LLMRunner:
                 company_name=company,
                 provider_name=registration.proof["owner_policy"]["qa"]["provider_config_ref"],
                 requested_model=registration.plan["model"],
-                work_store=store,
+                result_proof_port=result_proof_port_for_store(store),
             ),
             owner_refresh_session=session,
         )
