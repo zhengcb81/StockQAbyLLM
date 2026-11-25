@@ -111,8 +111,16 @@ def test_capacity_retry_rechecks_owner_before_reservation(tmp_path, monkeypatch,
     assert len(anchor_reads) >= 2 and anchor_reads[-1] == current[0]
     if owner_changes:
         with closing(sqlite3.connect(store.path)) as con:
-            assert con.execute("SELECT COUNT(*) FROM quick_scan_budget_attempt").fetchone()[0] == 1
-        assert [a["phase"] for a in store.list_attempts(row["work_item_id"])] == ["prepared"]
+            attempts = con.execute(
+                "SELECT budget_attempt_id, actual_cost_micros FROM quick_scan_budget_attempt"
+            ).fetchall()
+        assert attempts == [("DISPATCH_busy", 0)]
+        work_id = row["work_item_id"]
+        item = store.get_item(work_id)
+        assert item["status"] == "pending" and item["lease_token"] is None
+        (attempt,) = store.list_attempts(work_id)
+        assert attempt["phase"] == "abandoned_unsent"
+        assert attempt["send_intent_at"] is None
     else:
         assert store.get_quick_scan_budget_status(policy["policy_id"])["requests"] == 2
 
