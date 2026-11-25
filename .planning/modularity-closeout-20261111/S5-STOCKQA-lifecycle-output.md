@@ -24,6 +24,10 @@
 
 本仓正式每日 pytest 面板用原清单通过 424 项，用时 209.29 秒。改动增加一个关键路径反例，沿用原有预算、费用和执行检查。
 
+## 独审补齐已付冷读回归
+
+独审确认旧回归用 SimpleNamespace 代替工作账本，新装配会拒绝这一测试替身。实际来源是 owner 公开登记后的同一工作账本，恢复带外部来源的结果仍要凭真实账本验证原证明。合成测试现在通过公开账本操作保存原 HTTP 收据、原费用和答案 checkpoint，再从原文件重新打开。验证原 request、response、模型、时点、来源和分母，且模型配置、预算初始化及 HTTP 都未运行。历史账本字节保持一致。该回归加入日常离线责任包。
+
 ## C06 独立夹具
 
 在 StockQA 专用临时根准备物理 `qa`、`sw`、`iqs` 和 `guard`。QA 测试进程及子级只读检视的代码根共用同一物理 `qa` 目录，分别与新旧候选运行。StockWiki 仅取 `d09e2be` 的代码、配置、框架、合成身份种子及市场注册表，IQS 取 `2d803a9` 的源码、模板、schemas 和历史 producer。Windows 下使用既有 baseline 校验所要求的原字节。使用 `tests/fixtures/delegated_guard/sitecustomize.py` 拒绝网络和隔离根外状态写入。`IQS_C06_RUN_INTEGRATION=1`、`IQS_C06_OWN` 指向本次独占根，以 `qa` 为工作目录跑现有 `tests/integration/test_controlled_pack_main_public.py`。原部署、生产状态和正式结算独立。

@@ -6,6 +6,7 @@ import os
 import shutil
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -443,6 +444,89 @@ def test_native_feedback_and_log_setup_never_write_stdout_when_stderr_is_absent(
     proof = execution_feedback.read_execution(event, {})
     assert proof["diagnostic"]["root_type"] == "OSError"
     assert blocked.read_bytes() == b"unchanged"
+
+
+def test_native_log_rotation_preserves_business_and_both_writers(tmp_path):
+    inbox = tmp_path / "inbox"
+    env = {**_offline_env(tmp_path), "RESEARCH_FEEDBACK_DIR": str(inbox)}
+    secret = "synthetic-log-value"
+    command = [*PYTHON, str(ROOT / "main.py"), "--config", str(tmp_path / f"api_key={secret}")]
+
+    def invoke():
+        return subprocess.run(command, cwd=tmp_path, env=env, capture_output=True, timeout=30)
+
+    first = invoke()
+    assert first.returncode == 1 and b"ProjectFileNotFoundError" in first.stderr
+    (active,) = (tmp_path / "logs").glob("stock_qa_*.log")
+    past = active.read_bytes() + b"x" * (2 * 1024 * 1024) + b"\n"
+    active.write_bytes(past)
+
+    with ThreadPoolExecutor(max_workers=2) as workers:
+        concurrent = [workers.submit(invoke) for _ in range(2)]
+        results = [future.result() for future in concurrent]
+    assert all(
+        (result.returncode, result.stdout, result.stderr)
+        == (first.returncode, first.stdout, first.stderr)
+        for result in results
+    )
+    archived = active.with_suffix(".log.1")
+    assert archived.is_file(), f"active log grew to {active.stat().st_size} bytes"
+    assert archived.read_bytes() == past
+    body = active.read_text(encoding="utf-8")
+    assert body.count("系统错误: ProjectFileNotFoundError") == 2
+    assert secret not in body and secret.encode() not in past + first.stdout + first.stderr
+    assert len(list(inbox.glob("*.ready"))) == 3
+    assert all(
+        json.loads(marker.with_suffix(".cause.json").read_bytes())["diagnostic"]["root_type"]
+        == "ProjectFileNotFoundError"
+        for marker in inbox.glob("*.ready")
+    )
+
+
+def test_log_rotation_keeps_open_reader_and_existing_history(tmp_path, monkeypatch):
+    monkeypatch.setattr(diagnostics, "LOG_DIR", tmp_path)
+    logger = diagnostics.get_logger("stockqa-test-held-log", log_to_console=False)
+    try:
+        (active,) = tmp_path.glob("stock_qa_*.log")
+        archive = active.with_suffix(".log.1")
+        older_record = b"previous archive\n"
+        archive.write_bytes(older_record)
+        current_record = b"last recording\n" + b"x" * (2 * 1024 * 1024) + b"\n"
+        active.write_bytes(current_record)
+
+        with active.open("rb") as outside_reader:
+            logger.error("live message during open past file")
+            assert outside_reader.read(len(current_record)) == current_record
+            if os.name == "nt":
+                assert archive.read_bytes() == older_record
+                assert active.read_bytes().startswith(current_record)
+            else:
+                assert archive.read_bytes() == current_record
+        assert active.read_bytes().count(b"live message during open past file") == 1
+
+        logger.info("write after open reader closed")
+        assert b"write after open reader closed" in active.read_bytes()
+        if os.name == "nt":
+            assert archive.read_bytes().startswith(current_record)
+            assert b"live message during open past file" in archive.read_bytes()
+    finally:
+        diagnostics.close_logger(logger)
+
+
+def test_runtime_log_sink_failure_is_safe_and_preserves_machine_stdout(
+    tmp_path, monkeypatch, capsys
+):
+    monkeypatch.setattr(diagnostics, "LOG_DIR", tmp_path)
+    logger = diagnostics.get_logger("stockqa-test-runtime-sink", log_to_console=False)
+    try:
+        (active,) = tmp_path.glob("stock_qa_*.log")
+        active.unlink()
+        active.mkdir()
+        logger.error("api_key=%s", "synthetic-log-value")
+        print('{"state":"done"}')
+    finally:
+        diagnostics.close_logger(logger)
+    assert capsys.readouterr() == ('{"state":"done"}\n', "logging tracking incomplete\n")
 
 
 def test_budget_owner_publishes_only_its_own_rule_code():

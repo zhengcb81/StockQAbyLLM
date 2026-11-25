@@ -1,6 +1,5 @@
 """Read-only answer hydration must not initialize search or model services."""
 
-import copy
 from types import SimpleNamespace
 
 import pytest
@@ -45,67 +44,85 @@ def test_output_can_be_called_without_an_engine_or_provider(tmp_path):
 def test_paid_runner_uses_original_receipt_metadata_without_today_model_or_budget(
     tmp_path, monkeypatch
 ):
+    import json
+
+    import requests
+
     import src.runners.llm_runner as runner
     from src.interfaces.quick_scan_owner_refresh import OwnerRefreshSnapshot
+    from src.interfaces.quick_scan_result_proof import QuickScanResultProofPort
+    from src.providers.llm_client import LLMClient
     from src.utils import quick_scan_owner_refresh_api as owner_api
     from src.utils import quick_scan_shared_routes as shared
+    from src.utils import quick_scan_work_store as ledger
+    from tests.unit import test_quick_scan_work_store as ledger_fixture
+    from tests.unit.test_q07_checkpoint import UUID_ENTITY
 
-    q = [Question("first", question_id="Q1"), Question("second", question_id="Q2")]
-    route = dict(
-        id="original-account-route",
-        provider_config_ref="original-account",
-        model="original-model",
-        quota_group=None,
+    questions = [Question("first", question_id="Q1"), Question("second", question_id="Q2")]
+    route_id, account, model = "original-account-route", "original-account", "original-model"
+    store = ledger.QuickScanWorkStore(tmp_path / "original.sqlite")
+    works = {
+        question.question_id: ledger_fixture._created(
+            store,
+            entity_id=UUID_ENTITY,
+            scope_id=UUID_ENTITY,
+            question_id=question.question_id,
+            run_id="ORIGINAL",
+            scan_id="ORIGINAL",
+        )["work_item_id"]
+        for question in questions
+    }
+    paid_id = works["Q1"]
+    lease = store.claim(paid_id, lease_seconds=60)
+    attempt_id = ledger_fixture._prepared(
+        store, paid_id, lease, provider=account, model=model, route_id=route_id
+    )["attempt_id"]
+    store.mark_send_intent(paid_id, lease, attempt_id)
+    receipt = ledger_fixture._synthetic_search_receipt(provider="mimo", model=model)
+    store.record_attempt_outcome(
+        paid_id,
+        lease,
+        attempt_id,
+        outcome="response_available",
+        http_status_code=200,
+        request_id=receipt["request_id"],
+        receipt_sha256=ledger.quick_scan_receipt_sha256(receipt),
+        execution_receipt=receipt,
+        actual_cost=0.25,
+        cost_source_ref="fixture-original-invoice",
     )
-    store = SimpleNamespace(
-        list_attempts=lambda wid: [
-            dict(
-                attempt_id="A1",
-                phase="response_available",
-                route_id=route["id"],
-                provider=route["provider_config_ref"],
-                model_requested=route["model"],
-            )
-        ],
-        get_attempt_response=lambda aid: dict(receipt=dict(provider="mimo")),
+    store.save_answer_checkpoint(
+        paid_id,
+        lease,
+        attempt_id,
+        answer={
+            "entity_id": UUID_ENTITY,
+            "question_id": "Q1",
+            "status": "scored",
+            "score": 7,
+            "description": "original",
+        },
+        execution_receipt=receipt,
     )
-    owner = SimpleNamespace(
+    store = ledger.QuickScanWorkStore.for_existing_ledger(store.path)
+    ledger_before = store.path.read_bytes()
+
+    # Model only the registered owner port. The composition uses the same
+    # concrete existing ledger and public proof adapter as the native runner.
+    snapshot = OwnerRefreshSnapshot(
+        kind="approved",
+        entries={qid: {"kind": "work", "work_item_id": work} for qid, work in works.items()},
         record={"inputs": {"run_id": "ORIGINAL", "scan_id": "ORIGINAL"}},
-        service=SimpleNamespace(store=store),
-        plan=dict(provider="mimo", model="original-model"),
+        plan={"model": model},
         proof={
             "request": {"protocol": "iqs.refresh_request/1.1.0"},
             "owner_policy": {
                 "provider": "mimo",
-                "model": route["model"],
-                "qa": {
-                    "provider_config_ref": route["provider_config_ref"],
-                    "route_id": route["id"],
-                },
+                "model": model,
+                "qa": {"provider_config_ref": account, "route_id": route_id},
             },
         },
-        entries={
-            "Q1": {"kind": "work", "work_item_id": "W1"},
-            "Q2": {"kind": "work", "work_item_id": "W2"},
-        },
-        requested_question_ids=["Q1", "Q2"],
-        scope_bindings={},
         bundle={"authority": {"schema_version": "3.0.0"}},
-        native=SimpleNamespace(observation_context={}),
-        execution_routes=lambda policy: [route],
-        existing_work=lambda qid: dict(generation=1),
-        dispatch_scope_report=lambda batch: dict(original_question_count=2),
-    )
-    # The runner consumes the owner-refresh port's detached snapshot; the
-    # work store is wired in explicitly by the composition, never reached
-    # through the opaque port.
-    owner.snapshot = lambda: OwnerRefreshSnapshot(
-        kind="approved",
-        entries=dict(owner.entries),
-        record=copy.deepcopy(owner.record),
-        plan=dict(owner.plan),
-        proof=dict(owner.proof),
-        bundle=dict(owner.bundle),
         observation_context={},
         scope_bindings={},
         fields={},
@@ -114,60 +131,76 @@ def test_paid_runner_uses_original_receipt_metadata_without_today_model_or_budge
         ordered_route_targets=None,
         needs_new_dispatch=False,
         recovery_only=True,
-        requested_question_ids=tuple(owner.requested_question_ids),
-        recovery_work_item_ids=("W1", "W2"),
-        remaining_work_item_ids=(),
+        requested_question_ids=("Q1", "Q2"),
+        recovery_work_item_ids=(paid_id,),
+        remaining_work_item_ids=(works["Q2"],),
+    )
+    owner = SimpleNamespace(
+        snapshot=lambda: snapshot,
+        existing_work=lambda qid: store.get_item(works[qid]),
+        dispatch_scope_report=lambda batch: {"original_question_count": batch.total_questions},
     )
     monkeypatch.setattr(owner_api, "is_owner_refresh_port", lambda candidate: candidate is owner)
-    cp = dict(
-        payload=dict(
-            answer=dict(status="scored", score=7, description="original"),
-            provenance=dict(response_completed_at="2026-10-01T00:00:00Z"),
-        ),
-        work_item_id="W1",
-        attempt_id="A1",
+    lifecycle_view = SimpleNamespace(
+        hydrate_question=lambda question: store.get_answer_checkpoint(works[question.question_id])
     )
-    life = SimpleNamespace(
-        reference_question=lambda q: None,
-        hydrate_question=lambda question: cp if question.question_id == "Q1" else None,
-    )
-    calls = []
 
-    def no_fresh(*a, **k):
-        raise AssertionError("paid save must not initialize today's configuration")
+    def no_fresh(*args, **kwargs):
+        pytest.fail("paid readback initialized configuration, budget, or a new request")
 
-    monkeypatch.setattr(runner, "LLMConfig", no_fresh)
-    monkeypatch.setattr(runner, "QuickScanCostResolver", no_fresh)
-    monkeypatch.setattr(runner, "QuickScanWorkLifecycle", lambda *a, **k: life)
+    for module, name in (
+        (runner, "LLMConfig"),
+        (runner, "QuickScanCostResolver"),
+        (LLMClient, "send_search_request"),
+        (requests.Session, "request"),
+    ):
+        monkeypatch.setattr(module, name, no_fresh)
+    monkeypatch.setattr(runner, "QuickScanWorkLifecycle", lambda *args, **kwargs: lifecycle_view)
+    replayed = []
 
-    def replay(lifecycle, pairs, **kw):
-        assert kw["recovery_only"] is True
-        assert pairs[0][1].api_key == "" and pairs[0][1].base_url == ""
-        assert pairs[0][1].model == "original-model" and pairs[0][1].provider_name == "mimo"
-        return dict(
-            status="partial",
-            saved_question_ids=["Q1"],
-            remaining_question_ids=["Q2"],
-            API_requests=0,
+    def replay(lifecycle, pairs, **kwargs):
+        assert lifecycle is lifecycle_view and kwargs["recovery_only"] is True
+        ((route, client),) = pairs
+        assert route["id"] == route_id and route["provider_config_ref"] == account
+        assert (client.api_key, client.base_url, client.model, client.provider_name) == (
+            "",
+            "",
+            model,
+            receipt["provider"],
         )
+        replayed.append(route_id)
+
+    def export(batch, candidate, context):
+        assert candidate is owner
+        assert isinstance(context["result_proof_port"], QuickScanResultProofPort)
+        assert batch.total_questions == 2 and batch.processed_count == 1
+        return batch.to_quick_scan_dict(**context)
 
     monkeypatch.setattr(shared, "run_ordered_company_scan", replay)
-    monkeypatch.setattr(QAEngine, "output_results", lambda batch, *a, **k: calls.append(batch))
-    code = runner.LLMRunner()._recover_shared_company_answers(
+    monkeypatch.setattr(owner_api, "build_refresh_result", export)
+    output = tmp_path / "result.json"
+    status = runner.LLMRunner()._recover_shared_company_answers(
         owner,
         {},
-        q,
+        questions,
         store=store,
         identity={},
         company="Synthetic",
-        entity_id="ENT_TEST",
-        output=str(tmp_path / "result.json"),
+        entity_id=UUID_ENTITY,
+        output=str(output),
     )
-    assert code == 0 and calls[0].total_questions == 2 and calls[0].processed_count == 1
-    import json
-
-    scope = json.loads((tmp_path / "result.json.scope.json").read_text(encoding="utf8"))
+    assert status == 0 and replayed == [route_id]
+    result = json.loads(output.read_bytes())
+    assert list(result["answers"]) == ["Q1"] and result["answers"]["Q1"]["score"] == 7
+    original = result["execution_receipts"]["Q1"]
+    for key in ("request_id", "response_id", "actual_model", "provider", "search_receipt_id"):
+        assert original[key] == receipt[key]
+    assert original["answered_at"] == receipt["completed_at"]
+    scope = json.loads(output.with_suffix(".json.scope.json").read_bytes())
     assert scope["status"] == "partial" and scope["remaining_question_ids"] == ["Q2"]
+    assert scope["original_question_count"] == 2 and scope["restored_question_count"] == 1
+    assert scope["API_requests"] == 0 and scope["dispatch_started"] is False
+    assert store.path.read_bytes() == ledger_before
 
 
 @pytest.mark.parametrize("control", ["disabled", "missing"])

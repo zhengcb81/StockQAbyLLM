@@ -1,13 +1,13 @@
 """Failure provenance without exception text, live providers or production state."""
 
 import builtins
-import importlib
 import io
 import json
 import logging
 import sqlite3
 import sys
 from contextlib import closing
+from datetime import datetime
 from unittest.mock import Mock
 from uuid import uuid4
 
@@ -285,26 +285,25 @@ def test_broken_sidecar_does_not_change_original_success_or_failure(monkeypatch,
 
 @pytest.mark.parametrize("where", ["directory", "file"])
 def test_optional_log_io_cannot_block_import_logger_or_successful_answer(
-    monkeypatch, capsys, where
+    tmp_path, monkeypatch, capsys, where
 ):
-    from pathlib import Path
-
     from src.core import qa_engine
 
-    with monkeypatch.context() as patch:
-        if where == "directory":
-            patch.setattr(Path, "mkdir", Mock(side_effect=PermissionError(SECRET)))
-        else:
-            patch.setattr(logging, "FileHandler", Mock(side_effect=PermissionError(SECRET)))
-        importlib.reload(diagnostic_log)
-        logger = diagnostic_log.get_logger("isolated-unwritable-log-" + uuid4().hex)
-        patch.setattr(qa_engine, "logger", logger)
-        try:
-            e, _, _ = engine()
-            result = e.process_questions([q(1)], question_pack_size=2)
-            assert result.results[0].answer.score == 8
-        finally:
-            diagnostic_log.close_logger(logger)
+    folder = tmp_path / "logs"
+    if where == "directory":
+        folder.write_text("occupied", encoding="ascii")
+    else:
+        folder.mkdir()
+        (folder / f"stock_qa_{datetime.now():%Y%m%d}.log").mkdir()
+    monkeypatch.setattr(diagnostic_log, "LOG_DIR", folder)
+    logger = diagnostic_log.get_logger("isolated-unwritable-log-" + uuid4().hex)
+    monkeypatch.setattr(qa_engine, "logger", logger)
+    try:
+        e, _, _ = engine()
+        result = e.process_questions([q(1)], question_pack_size=2)
+        assert result.results[0].answer.score == 8
+    finally:
+        diagnostic_log.close_logger(logger)
     captured = capsys.readouterr()
     assert "logging tracking incomplete" in captured.err
     assert SECRET not in captured.err

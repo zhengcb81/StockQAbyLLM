@@ -8,13 +8,19 @@ Q05（LLM-08）内容边界：所有处理器经过 :class:`ContentBoundaryForma
 结构化字段与短依据（问题/答案文本按既有约定截断）。
 """
 
+import errno
 import hashlib
 import json
 import logging
+import os
 import re
 import sqlite3
+import stat
 import sys
+import time
 from collections import deque
+from collections.abc import Iterator
+from contextlib import contextmanager, suppress
 from contextvars import ContextVar
 from datetime import datetime
 from functools import wraps
@@ -284,6 +290,7 @@ def observed_command(function):
 
 # 日志目录
 LOG_DIR = Path("logs")
+_DAILY_LOG_MAX_BYTES = 2 * 1024 * 1024
 
 # Q05（LLM-08）单条日志记录最大长度（含 traceback），超出即截断。
 LOG_RECORD_MAX_CHARS = 2000
@@ -378,6 +385,67 @@ class ContentBoundaryFormatter(logging.Formatter):
         )
 
 
+@contextmanager
+def _log_writer_lock(path: Path) -> Iterator[None]:
+    """Serialize size, rotation and append across all writers of a daily file."""
+    with path.open("a+b") as handle:
+        handle.seek(0)
+        deadline = time.monotonic() + 2
+        while True:
+            try:
+                if sys.platform == "win32":
+                    import msvcrt
+
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+                else:
+                    import fcntl
+
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError as error:
+                if error.errno not in (errno.EACCES, errno.EAGAIN) or time.monotonic() >= deadline:
+                    raise
+                time.sleep(0.02)
+        # Closing the descriptor releases the lock, including on process exit.
+        yield
+
+
+class _DailyFileHandler(logging.Handler):
+    """Keep the active log and one recent segment for each existing log date."""
+
+    def __init__(self, path: Path) -> None:
+        super().__init__()
+        self._active = path.absolute()
+        self._archive = self._active.with_suffix(".log.1")
+        self._lock = self._active.with_suffix(".log.lock")
+        # Detect an unavailable sink at setup so get_logger keeps its console fallback.
+        with _log_writer_lock(self._lock), self._active.open("ab"):
+            pass
+
+    def _rotate(self, incoming_bytes: int) -> None:
+        # An external reader or an unavailable archive can prevent the
+        # atomic replace. Keep both files, append if possible, and retry.
+        with suppress(OSError):
+            current = self._active.lstat()
+            if (
+                stat.S_ISREG(current.st_mode)
+                and current.st_size
+                and current.st_size + incoming_bytes > _DAILY_LOG_MAX_BYTES
+            ):
+                self._active.replace(self._archive)
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            body = (self.format(record) + "\n").replace("\n", os.linesep).encode("utf-8")
+            with _log_writer_lock(self._lock):
+                self._rotate(len(body))
+                with self._active.open("ab") as sink:
+                    sink.write(body)
+        except Exception:
+            # Logging's default error handler can echo the original, unredacted record.
+            warn_feedback_unavailable("logging tracking incomplete")
+
+
 def get_logger(
     name: str,
     level: int = logging.INFO,
@@ -432,7 +500,7 @@ def get_logger(
         try:
             LOG_DIR.mkdir(parents=True, exist_ok=True)
             log_file = LOG_DIR / f"stock_qa_{datetime.now().strftime('%Y%m%d')}.log"
-            file_handler = logging.FileHandler(log_file, encoding="utf-8")
+            file_handler = _DailyFileHandler(log_file)
             file_handler.setLevel(level)
             file_handler.setFormatter(file_formatter)
             logger.addHandler(file_handler)
