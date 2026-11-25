@@ -63,11 +63,15 @@ class _OwnerRefreshPort:
             observation_context=copy.deepcopy(getattr(native, "observation_context", None)),
             ordered_route_targets=(None if ordered is None else tuple(copy.deepcopy(ordered))),
             requested_question_ids=requested,
-            needs_new_dispatch=any(
-                isinstance(item, dict)
-                and item.get("status") == "pending"
-                and question_id not in deferred
-                for question_id, item in work.items()
+            needs_new_dispatch=(
+                owner.needs_new_dispatch
+                if approved
+                else any(
+                    isinstance(item, dict)
+                    and item.get("status") == "pending"
+                    and question_id not in deferred
+                    for question_id, item in work.items()
+                )
             ),
             recovery_only=bool(getattr(owner, "recovery_only", False)),
             recovery_work_item_ids=tuple(
@@ -209,6 +213,9 @@ class _OwnerRefreshPort:
                 if isinstance(value, str)
             ),
         )
+
+    def validate_session(self) -> None:
+        _owner_for(self).validate_session()
 
     def check(self) -> None:
         _owner_for(self).check()
@@ -499,9 +506,11 @@ class _OwnerRefreshPort:
             api_origin = Path(inspect.getfile(api)).resolve()
             if api_origin != api_path:
                 raise ValueError("original_semantic_api_origin_mismatch")
-            if getattr(
-                api, "API_PROTOCOL", None
-            ) != "iqs.answer-validation-api/1.1.0" or "project_original_semantic_resources" not in getattr(
+            from src.utils.quick_scan_company_api import supports_public_api
+
+            if not supports_public_api(
+                getattr(api, "API_PROTOCOL", None), "iqs.answer-validation-api", (1, 1, 0)
+            ) or "project_original_semantic_resources" not in getattr(
                 api, "PUBLIC_API_EXPORTS", frozenset()
             ):
                 raise ValueError("original_semantic_api_version_unsupported")

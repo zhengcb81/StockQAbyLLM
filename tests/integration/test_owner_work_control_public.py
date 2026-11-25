@@ -9,6 +9,7 @@ import hashlib
 import json
 import os
 import sqlite3
+import subprocess
 import sys
 import uuid
 from contextlib import closing
@@ -29,12 +30,19 @@ from tests.unit.test_quick_scan_budget import _policy
 from tests.unit.test_quick_scan_question_pack_store import _prepare, _receipt
 
 
-def resolved_public_fixture(actual, tmp_path, *, policy=None, ledger_path=None):
+def resolved_public_fixture(
+    actual, tmp_path, *, policy=None, ledger_path=None, refresh_version="1.1.0"
+):
     if policy is None:
         policy = _policy(model="fixture-model")
         policy["budget"]["currency"] = "CNY"
     prepared = setup_admission(
-        actual, tmp_path, policy=policy, ledger_path=ledger_path, refresh_version="1.1.0"
+        actual,
+        tmp_path,
+        policy=policy,
+        ledger_path=ledger_path,
+        refresh_version=refresh_version,
+        provider="mimo" if refresh_version == "1.6.0" else "openai",
     )
     routes, current, config, authority, manifest, identity_file = actual
     store = prepared["ledger"]
@@ -189,7 +197,7 @@ def resolved_public_fixture(actual, tmp_path, *, policy=None, ledger_path=None):
         "--confirmation-id",
         confirmation["confirmation_id"],
         "--refresh-schema-version",
-        "1.1.0",
+        refresh_version,
     ]
 
     def physical():
@@ -217,8 +225,21 @@ def resolved_public_fixture(actual, tmp_path, *, policy=None, ledger_path=None):
     )
     assert store.get_item(item["work_item_id"])["status"] == "failed"
     assert physical() == before
-    replay = invoke(command, tmp_path, "control-apply-replay", timeout=180)
+    replay = invoke(command[:-2], tmp_path, "control-apply-replay", timeout=180)
     assert replay["decision"] == first["decision"] and physical() == before
+    if refresh_version == "1.6.0":
+        wrong_pin = subprocess.run(
+            command[:-1] + ["1.6.99"],
+            capture_output=True,
+            check=False,
+            timeout=80,
+        )
+        assert wrong_pin.returncode == 2 and physical() == before
+        refusal = json.loads(wrong_pin.stdout)
+        assert (
+            refusal["status"] == "rejected" and refusal["error_code"] == "owner_work_apply_rejected"
+        )
+        assert refusal["API_requests"] == 0 and refusal["dispatch_started"] is False
     assert store.get_answer_checkpoint(item["work_item_id"]) is None
     with closing(sqlite3.connect(store.path)) as con:
         assert con.execute("SELECT COUNT(*) FROM quick_scan_owner_work_decision").fetchone()[0] == 1
@@ -238,5 +259,10 @@ def resolved_public_fixture(actual, tmp_path, *, policy=None, ledger_path=None):
 
 
 @pytest.mark.parametrize("actual", ["1.2.0"], indirect=True)
-def test_public_native_resolution_apply_and_exact_replay_preserve_physical_ledger(actual, tmp_path):
-    resolved_public_fixture(actual, tmp_path)
+@pytest.mark.parametrize("refresh_version", ["1.1.0", "1.6.0"])
+def test_public_native_resolution_apply_and_exact_replay_preserve_physical_ledger(
+    actual,
+    tmp_path,
+    refresh_version,
+):
+    resolved_public_fixture(actual, tmp_path, refresh_version=refresh_version)

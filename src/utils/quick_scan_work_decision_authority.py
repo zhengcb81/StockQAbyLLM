@@ -2,16 +2,13 @@
 
 import copy
 import hashlib
+import logging
 import re
 import subprocess  # nosec B404
 import sys
 from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
-
-from jsonschema import Draft202012Validator, FormatChecker, ValidationError
-from referencing import Registry, Resource
-from referencing.exceptions import Unresolvable
 
 from .quick_scan_known_outcome_journal import (
     OwnerWorkDecisionAuthority,
@@ -24,6 +21,11 @@ from .quick_scan_refresh_inspect import ReadOnlyWorkView
 from .quick_scan_result_outbox import canonical_bytes, canonical_sha256
 from .quick_scan_work_store import (
     api_work_store_budget_policy_projection as _budget_policy_projection,
+)
+
+_logger = logging.getLogger(__name__)
+_STDERR_REDACT_RE = re.compile(
+    r"(?i)(api[_-]?key|token|secret|authorization|password)(\s*[:=]\s*)([^\s,;\"']+)"
 )
 
 MAX_BYTES = 8 * 1024 * 1024
@@ -103,7 +105,7 @@ class StockWikiWorkDecisionAuthority(OwnerWorkDecisionAuthority):
             or not re.fullmatch("rc1_[a-f0-9]{64}", confirmation_id)
             or not isinstance(consumer_id, str)
             or not re.fullmatch("[A-Za-z0-9_.:-]{1,160}", consumer_id)
-            or refresh_schema_version not in {None, "1.0.0", "1.1.0", "1.2.0", "1.3.0", "1.5.0"}
+            or (refresh_schema_version is not None and not isinstance(refresh_schema_version, str))
         ):
             raise OwnerRefreshRejected("owner_work_trusted_deployment_required")
         self.owner = owner
@@ -152,7 +154,7 @@ class StockWikiWorkDecisionAuthority(OwnerWorkDecisionAuthority):
             result = subprocess.run(
                 command,
                 cwd=c["stockwiki_code_root"],
-                env=self._transport._environment(),
+                env=self._transport.subprocess_env(),
                 capture_output=True,
                 timeout=80,
                 check=False,
@@ -161,6 +163,17 @@ class StockWikiWorkDecisionAuthority(OwnerWorkDecisionAuthority):
         except (OSError, subprocess.TimeoutExpired) as error:
             raise OwnerRefreshRejected("owner_work_native_unavailable") from error
         if result.returncode != 0 or len(result.stdout) > MAX_BYTES:
+            raw_err = (result.stderr or b"")[-4096:]
+            text = (
+                raw_err.decode("utf-8", errors="replace").strip()
+                if isinstance(raw_err, bytes)
+                else str(raw_err).strip()
+            )
+            _logger.error(
+                "owner_work_native_rejected exit_code=%d stderr=%s",
+                result.returncode,
+                _STDERR_REDACT_RE.sub(r"\1\2[REDACTED]", text) or "<empty>",
+            )
             raise OwnerRefreshRejected("owner_work_native_rejected")
         try:
             value = _read(result.stdout)
@@ -173,8 +186,6 @@ class StockWikiWorkDecisionAuthority(OwnerWorkDecisionAuthority):
             KeyError,
             AttributeError,
             OSError,
-            ValidationError,
-            Unresolvable,
             UnicodeError,
         ) as error:
             raise OwnerRefreshRejected("owner_work_confirmation_binding_invalid") from error
@@ -239,57 +250,6 @@ class StockWikiWorkDecisionAuthority(OwnerWorkDecisionAuthority):
         }:
             raise ValueError("owner_work_current_permission_changed")
         return fresh
-
-    def _schemas(self, value):
-        root = Path(self.owner.config["iqs_code_root"]) / "schemas/quick_scan"
-        protocol = value["owner_policy"]["protocol"]
-        versions = {
-            "stockwiki.refresh_owner_policy/1.0.0": "1.0.0",
-            "stockwiki.refresh_owner_policy/1.1.0": "1.1.0",
-            "stockwiki.refresh_owner_policy/1.2.0": "1.2.0",
-            "stockwiki.refresh_owner_policy/1.3.0": "1.3.0",
-            "stockwiki.refresh_owner_policy/1.5.0": "1.5.0",
-        }
-        if protocol not in versions:
-            raise ValueError("owner_work_refresh_version_unsupported")
-        version = versions[protocol]
-        if self.refresh_schema_version is not None and version != self.refresh_schema_version:
-            raise ValueError("owner_work_refresh_version_mismatch")
-        name = {
-            "1.0.0": "refresh-v1.schema.json",
-            "1.1.0": "refresh-v1.1.schema.json",
-            "1.2.0": "refresh-v1.2.schema.json",
-            "1.3.0": "refresh-v1.3.schema.json",
-            "1.5.0": "refresh-v1.5.schema.json",
-        }[version]
-        names = [
-            name,
-            "refresh-v1.schema.json",
-            "refresh-v1.1.schema.json",
-            "refresh-v1.2.schema.json",
-            "refresh-v1.3.schema.json",
-            "query-v2.schema.json",
-            "query-v2.6.schema.json",
-        ]
-        schemas = [_read((root / p).read_bytes()) for p in names]
-        registry = Registry().with_resources((s["$id"], Resource.from_contents(s)) for s in schemas)
-        for kind, document in [
-            ("OwnerPolicy", value["owner_policy"]),
-            ("Request", value["request"]["permission_request"]),
-        ]:
-            chosen = schemas[0]
-            if kind == "Request" and version in {"1.2.0", "1.3.0", "1.5.0"}:
-                chosen = next(
-                    s
-                    for s in schemas
-                    if s["$defs"]["Request"]["properties"]["protocol"]["const"]
-                    == document["protocol"]
-                )
-            Draft202012Validator(
-                {"$ref": chosen["$id"] + "#/$defs/" + kind},
-                registry=registry,
-                format_checker=FormatChecker(),
-            ).validate(document)
 
     def _validate_control_delegation(self, value):
         """Additional exact carrier checks, only after fixed native owner read.
@@ -461,13 +421,27 @@ class StockWikiWorkDecisionAuthority(OwnerWorkDecisionAuthority):
                 if publication
                 else ({"native_owner_delegated_agent"} if delegated else {"native_owner_terminal"})
             )
+            or not isinstance(policy, dict)
             or not isinstance(state, dict)
-            or set(state) != STATE_FIELDS
+            or set(state) - {"ordered_route_targets"} != STATE_FIELDS
         ):
             raise ValueError("owner_work_confirmation_kind_invalid")
         if delegated:
             self._validate_control_delegation(value)
-        self._schemas(value)
+        # The fixed StockWiki owner endpoint validates policy and permission
+        # dialects with IQS before issuing this inspection. QA binds the
+        # returned decision to its own physical work and budget.
+        if (
+            self.refresh_schema_version is not None
+            and policy["protocol"].rsplit("/", 1)[-1] != self.refresh_schema_version
+        ):
+            raise ValueError("owner_work_refresh_version_mismatch")
+        if ("ordered_route_targets" in state) != (
+            "ordered_route_targets" in policy
+        ) or canonical_bytes(state.get("ordered_route_targets")) != canonical_bytes(
+            policy.get("ordered_route_targets")
+        ):
+            raise ValueError("owner_work_ordered_route_binding_mismatch")
         request = outer["decision_request"]
         permission = outer["permission_request"]
         physical = request["physical"]

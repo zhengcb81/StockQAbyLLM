@@ -33,11 +33,21 @@ from src.core.exceptions import ProcessingError
 from src.core.models import REUSABLE_ANSWER_STATUSES, Question
 from src.core.qa_engine import QAEngine
 from src.interfaces.search_provider import SearchProvider
+from src.interfaces.transport_outcome import (
+    UncertainTransportOutcome,
+    iter_exception_chain,
+)
 from src.providers.llm_provider import LLMProvider
 from src.services.answer_generator import AnswerGenerator
 from src.utils.llm_integration import OrderedSearchProviderCascade
-from src.utils.logger import get_logger
+from src.utils.logger import (
+    get_logger,
+    observe_arguments,
+    observed_command,
+    record_execution_failure,
+)
 from src.utils.quick_scan_cost_resolver import QuickScanCostResolver
+from src.utils.quick_scan_owner_refresh_api import validate_owner_refresh_session
 from src.utils.quick_scan_provider_health import QuickScanProviderHealth
 from src.utils.quick_scan_work_store import QuickScanWorkStore
 from src.utils.quick_scan_work_transport import bind_quick_scan_budget
@@ -189,6 +199,14 @@ class RegisteredResearchWork:
         if len(matches) != 1:
             raise ValueError("approved_client_route_mismatch")
         return cast(str, matches[0])
+
+
+def _claim_refusal_reason(prefix, diagnostic):
+    reason = prefix + ":" + diagnostic["error_type"]
+    for node in diagnostic["chain"]:
+        if node.get("code"):
+            return reason + ":" + node["code"]
+    return reason
 
 
 class QuickScanWorkLifecycle:
@@ -448,7 +466,9 @@ class QuickScanWorkLifecycle:
             return None, None, None
         session = self._owner_refresh
         snapshot = session.snapshot()
-        session.check()
+        # This method selects existing local work; it never obtains a POST
+        # permit. Current authority is checked by native send admission.
+        validate_owner_refresh_session(session)
         action = snapshot.fields[question_id]["decision"]
         if action in {"dispatch_new_work", "dispatch_new_generation"}:
             return None, session.binding(question_id), None
@@ -601,10 +621,17 @@ class QuickScanWorkLifecycle:
                 self._store.recover_expired(work_item_id)
             lease = self._store.claim(work_item_id, lease_seconds=self._lease_seconds)
         except Exception as exc:  # noqa: BLE001 - store refusals degrade to skip
-            logger.warning("work claim 异常（%s: %s），本题不派发", type(exc).__name__, exc)
+            diagnostic = record_execution_failure(
+                logger,
+                exc,
+                stage="question.claim",
+                references={"question_id": question_id},
+                refusal_code="work_claim_refused",
+            )
             return {
                 "claimed": False,
-                "reason": f"store_error:{type(exc).__name__}:{exc}",
+                "reason": _claim_refusal_reason("store_error", diagnostic),
+                "failure_diagnostic": diagnostic,
             }
         if lease is None:
             logger.warning("work item %s 非 pending，本题不派发", work_item_id)
@@ -668,10 +695,17 @@ class QuickScanWorkLifecycle:
                 budget_route=self._budget_route,
             )
         except Exception as exc:  # noqa: BLE001
-            logger.warning("attempt prepare/intent 失败（%s），本题不派发", exc)
+            diagnostic = record_execution_failure(
+                logger,
+                exc,
+                stage="question.prepare_intent",
+                references={"question_id": question_id, "work_item_id": work_item_id},
+                refusal_code="attempt_intent_failed",
+            )
             return {
                 "claimed": False,
-                "reason": f"attempt_intent_failed:{type(exc).__name__}:{exc}",
+                "reason": _claim_refusal_reason("attempt_intent_failed", diagnostic),
+                "failure_diagnostic": diagnostic,
                 "work_item_id": work_item_id,
             }
         return {
@@ -834,7 +868,9 @@ class QuickScanWorkLifecycle:
             if self._owner_refresh is not None:
                 from src.utils.quick_scan_work_transport import bind_owner_refresh_guard
 
-                self._owner_refresh.check()
+                # Context binding does not consume a physical permit. Models,
+                # external search and MCP still authenticate at native intent.
+                validate_owner_refresh_session(self._owner_refresh)
                 context.enter_context(bind_owner_refresh_guard(self._owner_refresh))
                 context.enter_context(_owner_analysis_scope(self._owner_refresh))
             context.enter_context(
@@ -916,8 +952,9 @@ class QuickScanWorkLifecycle:
             or self._external_retrieval is not None
         ):
             raise ValueError("question_pack_native_owner_transport_required")
-        # Keep outer approved-action scope/input/permission checks, not only native freshness.
-        owner.check()
+        # Readiness validates frozen scope and question identity only. The
+        # transport authenticates current permission before its atomic intent.
+        validate_owner_refresh_session(owner)
         for question in questions:
             self.question_pack_group_key(question)
 
@@ -1039,7 +1076,9 @@ class QuickScanWorkLifecycle:
                     handle["lease"],
                     cast(Dict[str, Any], self._work_observation_context(handle["work_item_id"])),
                 )
-            owner_refresh.check()
+            # Binding context does not reserve or send a request. Every actual
+            # model permit still checks current permission before send intent.
+            validate_owner_refresh_session(owner_refresh)
             context.enter_context(bind_owner_refresh_guard(owner_refresh))
             context.enter_context(_owner_analysis_scope(owner_refresh))
             context.enter_context(
@@ -1479,12 +1518,15 @@ class QuickScanWorkLifecycle:
         except Exception as exc:  # noqa: BLE001 - 记录失败交由 store 对账兜底
             logger.error("record_attempt_outcome 失败（%s）", exc)
 
-    def after_question_failed(self, handle: Dict[str, Any], error_message: str) -> None:
+    def after_question_failed(self, handle: Dict[str, Any], error_message: Any) -> None:
         if self._transport_managed:
+            for current in iter_exception_chain(error_message):
+                if isinstance(current, UncertainTransportOutcome):
+                    return  # Retain explicit original transport evidence, even before DB receipt.
             # Only deterministic pack-member parse failures finish logical
             # work. Generic processing/DB/timeout errors remain recoverable;
             # the existence of a 2xx alone never declares the answer invalid.
-            if error_message in {
+            if isinstance(error_message, str) and error_message in {
                 "missing_question",
                 "invalid_question",
                 "answer_generator_rejected_member",
@@ -1507,6 +1549,14 @@ class QuickScanWorkLifecycle:
                         logger.warning(
                             "Received member could not finish under its current lease; native recovery remains required"
                         )
+                return
+            try:
+                # A renderer/provider may fail before begin creates an attempt.
+                # The original owner alone proves whether this exact live lease
+                # is unsent; real send/response/unknown evidence rejects release.
+                self._store.release_unsent(handle["work_item_id"], handle["lease"])
+            except Exception:
+                pass  # Preserve the original native state and failure for recovery.
             return
         try:
             # P0-3: confirmed_failure requires a recognized provider refusal
@@ -2197,6 +2247,7 @@ class LLMRunner:
                 "--require-search 当前只支持单公司入口；批量接续由quick-scan运行器负责"
             )
         if require_search and not entity_id:
+            self.logger.error("--require-search 需要 --entity-id")
             raise ValueError("--require-search必须显式提供 --entity-id，不能从公司名称猜测")
         if identity_snapshot and not require_search:
             raise ValueError("--identity-snapshot 需要与 --require-search 同时使用")
@@ -2224,6 +2275,9 @@ class LLMRunner:
         if require_search and not approved_refresh:
             blocked = _spend_authorization_preflight(spend_authorization)
             if blocked is not None:
+                record_execution_failure(
+                    None, ValueError(), stage="spend.preflight", refusal_code=blocked
+                )
                 payload = {
                     "schema": "stockqa.spend_preflight/1.0.0",
                     "status": "needs_configuration",
@@ -2490,6 +2544,21 @@ class LLMRunner:
                     output=output,
                 )
 
+            if readonly_recovery and approved_session is not None:
+                report = approved_session.recovery_report()
+                destination = Path(output)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.write_text(
+                    json.dumps(report, ensure_ascii=False, allow_nan=False, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+                destination.with_suffix(destination.suffix + ".scope.json").write_text(
+                    json.dumps(report, ensure_ascii=False, allow_nan=False, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+                print(json.dumps(report, ensure_ascii=False, allow_nan=False))
+                return 0
+
             # Q02: import and admit the versioned search policy BEFORE any
             # attempt. The IQS fillable template is refused as non-executable,
             # and an external mode with no admitted route fails closed instead
@@ -2576,26 +2645,15 @@ class LLMRunner:
                 questions = [
                     question for question in question_items if question.question_id in selected
                 ]
-                if readonly_recovery and not shared_company_recovery_only:
-                    report = approved_session.recovery_report()
-                    destination = Path(output)
-                    destination.parent.mkdir(parents=True, exist_ok=True)
-                    destination.write_text(
-                        json.dumps(report, ensure_ascii=False, allow_nan=False, indent=2) + "\n",
-                        encoding="utf-8",
-                    )
-                    destination.with_suffix(destination.suffix + ".scope.json").write_text(
-                        json.dumps(report, ensure_ascii=False, allow_nan=False, indent=2) + "\n",
-                        encoding="utf-8",
-                    )
-                    print(json.dumps(report, ensure_ascii=False, allow_nan=False))
-                    return 0
                 blocked = (
                     None
                     if shared_company_recovery_only
                     else _spend_authorization_preflight(spend_authorization)
                 )
                 if blocked is not None:
+                    record_execution_failure(
+                        None, ValueError(), stage="spend.preflight", refusal_code=blocked
+                    )
                     print(
                         json.dumps(
                             dict(
@@ -2913,7 +2971,9 @@ class LLMRunner:
                         approved_session.assert_provider_model(
                             refresh_provider, primary_route["model"]
                         )
-                        approved_session.check()
+                        # Loading selects the frozen approved route. Each paid
+                        # dispatch performs its own current permission check.
+                        validate_owner_refresh_session(approved_session)
                         owner_session = approved_session
                     else:
                         owner_session = adapt_owner_refresh(
@@ -3178,7 +3238,8 @@ class LLMRunner:
             return 0
 
         except (ConnectionError, TimeoutError, OSError) as e:
-            self.logger.error(f"处理失败: {e}", exc_info=True)
+            record_execution_failure(None, e, stage="company.run")
+            self.logger.error("处理失败: %s", type(e).__name__)
             return 1
 
     def _recover_shared_company_answers(
@@ -3469,10 +3530,12 @@ class LLMRunner:
             return 1 if results["failed_count"] > 0 else 0
 
         except (ValueError, TypeError, OSError, ConnectionError, TimeoutError) as e:
-            self.logger.error(f"批量处理失败: {e}", exc_info=True)
+            record_execution_failure(None, e, stage="batch.run")
+            self.logger.error("批量处理失败: %s", type(e).__name__)
             return 1
 
 
+@observed_command
 def main() -> int:
     """LLM运行器命令行入口。
 
@@ -3562,6 +3625,7 @@ def main() -> int:
 
     parser.add_argument("--verbose", "-v", action="store_true", help="启用详细日志输出")
 
+    observe_arguments(parser)
     args = parser.parse_args()
 
     runner = LLMRunner(verbose=args.verbose)

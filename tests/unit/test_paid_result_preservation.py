@@ -26,7 +26,7 @@ def test_received_recovery_uses_registered_action_when_current_control_bytes_cha
     record = {"inputs": {"action": service._action_binding(proof, {})}}
     service._ledger_ready = lambda: None
     service.allow_unknown_only = False
-    service._record = lambda identifier: record
+    service.read_registration = lambda identifier: record
     service.bridge = SimpleNamespace(inspect=lambda *args, **kwargs: copy.deepcopy(proof))
     service._proof_inputs = lambda original: {}
     service._assert_received_response_scope = lambda original, **_kwargs: ["W1"]

@@ -377,7 +377,7 @@ def test_middle_owner_registration_failure_creates_no_paid_intent(pack):
     assert len(seen) == 2
 
 
-def test_rechecks_owner_guard_and_all_member_leases_before_post(pack):
+def test_native_permit_rechecks_member_leases_without_another_owner_gate(pack):
     store, members, clock = pack
     guards = []
     owner_port = approved_owner_refresh_port(
@@ -394,7 +394,9 @@ def test_rechecks_owner_guard_and_all_member_leases_before_post(pack):
         clock[0] += 301
         with pytest.raises(transport.QuickScanWorkPersistenceError):
             handle.consume_for_post()
-        assert len(guards) > before
+        # Authority passed once before intent. Expired leases still fence POST
+        # locally; a second owner CLI must not strand this known-unsent permit.
+        assert len(guards) == before == 1
     assert _count(store, "quick_scan_budget_attempt") == 1
 
 

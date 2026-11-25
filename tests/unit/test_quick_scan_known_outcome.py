@@ -5,7 +5,6 @@ The existing store/subject dispatcher/budget APIs create every normal control.
 """
 
 import copy
-import dataclasses
 import hashlib
 import json
 import sqlite3
@@ -874,14 +873,21 @@ def received_recovery_fixture(tmp_path, monkeypatch, *, fault=None):
     raw = {
         "identity.json": json.dumps(dict(payload=dict(canonical_name="Synthetic fixture"))).encode()
     }
+    confirmation_id = "fixture"
+    record = {"inputs": {}, "receipt": {}}
     session = ApprovedRefreshSession(
-        service=SimpleNamespace(store=store),
-        proof={},
+        service=SimpleNamespace(
+            store=store,
+            read_registration=lambda identifier: (
+                copy.deepcopy(record) if identifier == confirmation_id else None
+            ),
+        ),
+        proof={"confirmation": {"confirmation_id": confirmation_id}},
         bundles={},
         bundle=dict(
             identity=dict(entity_id=bodies[0]["entity_id"]), manifest=manifest, authority={}
         ),
-        record={},
+        record=record,
         entries=entries,
         native=SimpleNamespace(
             store=store,
@@ -893,7 +899,6 @@ def received_recovery_fixture(tmp_path, monkeypatch, *, fault=None):
         raw=raw,
         recovery_only=True,
     )
-    session.check = lambda: None
     checks = []
     checkpoint_inserts = []
 
@@ -979,9 +984,10 @@ def test_received_original_pack_recovers_same_attempt_after_closed_failure_witho
         "wrong_members",
         "revoked",
         "revoked_before_commit",
+        "bad_second_body",
     ],
 )
-def test_received_original_pack_recovery_rejects_changed_body_scope_or_revocation_atomically(
+def test_received_original_pack_recovery_preserves_invalid_members_and_ledger(
     tmp_path, monkeypatch, fault
 ):
     store, clock, pack, receipt, policy, session, capture, checks = received_recovery_fixture(
@@ -993,19 +999,173 @@ def test_received_original_pack_recovery_rejects_changed_body_scope_or_revocatio
         phase = " after checkpoint insert" if fault == "revoked_before_commit" else ""
         with pytest.raises(PermissionError, match=f"current owner revoked{phase}$"):
             session.recover_received_checkpoints(capture_policy=capture)
+        assert immutable(store) == before
     else:
         result = session.recover_received_checkpoints(capture_policy=capture)
-        assert result["recovered_work_item_ids"] == []
-        assert set(result["remaining_work_item_ids"]) == {
-            m["work_item_id"] for m in pack["members"]
-        }
-        assert (
-            result["recovery_errors"][0]["reason"]
-            == "received_checkpoint_original_body_binding_mismatch"
-        )
-    assert (
-        immutable(store) == before and store.get_quick_scan_budget_status("pack-policy") == budget
+        assert result["API_requests"] == result["new_attempts"] == result["new_generations"] == 0
+        if fault == "bad_second_body":
+            invalid = pack["members"][1]["work_item_id"]
+            assert result["remaining_work_item_ids"] == [invalid]
+            assert set(result["recovered_work_item_ids"]) == {
+                member["work_item_id"]
+                for member in pack["members"]
+                if member["work_item_id"] != invalid
+            }
+            assert result["recovery_errors"] == [
+                {
+                    "work_item_ids": [invalid],
+                    "reason": "received_checkpoint_standard_member_invalid",
+                }
+            ]
+            assert store.get_answer_checkpoint(invalid) is None
+            assert store.get_item(invalid)["status"] == "failed"
+            after = immutable(store)
+            assert {key: value for key, value in after.items() if key != "answer_checkpoint"} == {
+                key: value for key, value in before.items() if key != "answer_checkpoint"
+            }
+        else:
+            assert result["recovered_work_item_ids"] == []
+            assert set(result["remaining_work_item_ids"]) == {
+                member["work_item_id"] for member in pack["members"]
+            }
+            assert {issue["reason"] for issue in result["recovery_errors"]} == {
+                "received_checkpoint_original_body_binding_mismatch",
+            }
+            assert immutable(store) == before
+    assert store.get_quick_scan_budget_status("pack-policy") == budget
+
+
+def test_received_member_decode_failure_reaches_original_f4_without_reasking(
+    tmp_path, monkeypatch, capsys
+):
+    import socket
+    import subprocess
+    import sys
+
+    from tests.unit.test_execution_feedback_intake import _offline_env
+    from tests.unit.test_quick_scan_feedback_owner import _action
+
+    monkeypatch.chdir(tmp_path)
+    outbox = tmp_path / "feedback"
+    monkeypatch.setenv("RESEARCH_FEEDBACK_DIR", str(outbox))
+    monkeypatch.setenv("RESEARCH_FEEDBACK_RUN_ID", "stockqa-s2-recovery")
+    monkeypatch.setenv("RESEARCH_FEEDBACK_ATTEMPT_ID", "original-local-replay")
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("local replay must not open a provider or socket")
+
+    monkeypatch.setattr(socket.socket, "connect", forbidden)
+    monkeypatch.setattr(socket, "getaddrinfo", forbidden)
+    store, _, pack, _, _, session, capture, _ = received_recovery_fixture(
+        tmp_path, monkeypatch, fault="bad_second_body"
     )
+    monkeypatch.setattr("src.providers.llm_provider.LLMProvider.__init__", forbidden)
+    monkeypatch.setattr(
+        "src.providers.llm_provider.final_answer_diagnostic_policy", lambda *a, **k: capture
+    )
+    monkeypatch.setattr(
+        "src.utils.quick_scan_refresh_execution.prepare_execution", lambda *a, **k: session
+    )
+    output = tmp_path / "result.json"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "main_with_llm.py",
+            "--recover-checkpoints",
+            "--seal-deliveries",
+            "--output",
+            str(output),
+            "--config",
+            "questions.json",
+            "--identity-snapshot",
+            "identity.json",
+            "--question-manifest",
+            "manifest.json",
+            "--c06-authority",
+            "authority.json",
+            "--quick-scan-owner-config",
+            "owner.json",
+            "--refresh-admission-config",
+            "admission.json",
+            "--refresh-confirmation-id",
+            "fixture",
+        ],
+    )
+    from main_with_llm import main
+
+    budget = store.get_quick_scan_budget_status("pack-policy")
+    before = immutable(store)
+    assert main() == 0
+    stdout, stderr = capsys.readouterr()
+    result = json.loads(stdout.splitlines()[-1])
+    assert result == json.loads(output.read_bytes())
+    bad_member = pack["members"][1]
+    assert result["status"] == "partial"
+    assert result["recovery_errors"] == [
+        {
+            "work_item_ids": [bad_member["work_item_id"]],
+            "reason": "received_checkpoint_standard_member_invalid",
+        }
+    ]
+    assert result["API_requests"] == result["model_calls"] == result["new_attempts"] == 0
+    assert result["new_generations"] == 0 and result["dispatch_started"] is False
+    assert store.get_answer_checkpoint(bad_member["work_item_id"]) is None
+    assert "not_a_valid_basis" not in stdout + stderr
+
+    (marker,) = outbox.glob("*.ready")
+    observation = json.loads(marker.with_suffix(".jsonl").read_bytes())
+    record = json.loads(marker.with_suffix(".cause.json").read_bytes())
+    diagnostic = record["diagnostic"]
+    assert observation["run_id"] == "stockqa-s2-recovery"
+    assert observation["attempt_id"] == "original-local-replay"
+    assert diagnostic["stage"] == "owner.local.received_checkpoint.member_decode"
+    assert diagnostic["references"]["work_item_id"] == bad_member["work_item_id"]
+    assert diagnostic["references"]["question_id"] == bad_member["question_id"]
+    assert diagnostic["references"]["work_attempt_id"] == bad_member["attempt_id"]
+    assert [item["type"] for item in diagnostic["chain"]] == ["ValueError", "ValidationError"]
+    assert "not_a_valid_basis" not in json.dumps(record)
+
+    payload = {"occurrence_id": "stockqa-s2-recovery", "observation": observation}
+    request = _action("reconcile", payload)
+    state = tmp_path / "feedback-actions.sqlite"
+    env = {**_offline_env(tmp_path), "RESEARCH_FEEDBACK_DIR": str(outbox)}
+    for _ in range(2):
+        cold = subprocess.run(
+            [
+                sys.executable,
+                "-B",
+                "-X",
+                "utf8",
+                "-m",
+                "src.utils.quick_scan_feedback_owner",
+                "--state",
+                str(state),
+                "reconcile",
+            ],
+            cwd=tmp_path,
+            env=env,
+            input=json.dumps(request).encode("ascii"),
+            capture_output=True,
+            timeout=30,
+            check=True,
+        )
+        assert json.loads(cold.stdout) == {
+            "state": "done",
+            "result": {
+                "status": "known",
+                "job_status": "failed",
+                "cost_state": "not_applicable",
+                "evidence_ref": observation["evidence_ref"],
+            },
+        }
+    assert not state.exists()
+    assert list(outbox.glob("*.ready")) == [marker]
+    assert store.get_quick_scan_budget_status("pack-policy") == budget
+    after = immutable(store)
+    assert {k: v for k, v in after.items() if k != "answer_checkpoint"} == {
+        k: v for k, v in before.items() if k != "answer_checkpoint"
+    }
 
 
 def test_received_recovery_keeps_valid_members_when_one_body_is_invalid(tmp_path, monkeypatch):
@@ -1074,26 +1234,29 @@ def test_received_recovery_rejects_later_generation_without_changing_prior_faile
         run_id="RUN_NEW",
         scan_id="SCAN_NEW",
     )
-    store.create_or_attach(**spec)
+    new = store.create_or_attach(**spec)
     before = immutable(store)
     budget = store.get_quick_scan_budget_status("pack-policy")
     result = session.recover_received_checkpoints(capture_policy=capture)
-    assert result["remaining_work_item_ids"] == [old["work_item_id"]]
+    assert result["API_requests"] == result["new_attempts"] == result["new_generations"] == 0
+    old_id = old["work_item_id"]
+    assert result["remaining_work_item_ids"] == [old_id]
     assert set(result["recovered_work_item_ids"]) == {
         member["work_item_id"] for member in pack["members"][1:]
     }
     assert result["recovery_errors"] == [
         {
+            "work_item_ids": [old_id],
             "reason": "received_checkpoint_later_generation_exists",
-            "work_item_ids": [old["work_item_id"]],
         }
     ]
-    assert store.get_item(old["work_item_id"]) == old
-    assert store.get_answer_checkpoint(old["work_item_id"]) is None
-    assert {key: rows for key, rows in immutable(store).items() if key != "answer_checkpoint"} == {
-        key: rows for key, rows in before.items() if key != "answer_checkpoint"
+    assert store.get_item(old_id) == old
+    assert store.get_answer_checkpoint(old_id) is None
+    assert store.get_answer_checkpoint(new["work_item_id"]) is None
+    after = immutable(store)
+    assert {key: value for key, value in after.items() if key != "answer_checkpoint"} == {
+        key: value for key, value in before.items() if key != "answer_checkpoint"
     }
-    assert result["API_requests"] == 0
     assert store.get_quick_scan_budget_status("pack-policy") == budget
 
 
@@ -1146,14 +1309,12 @@ def test_received_recovery_deduplicates_safe_same_content_copies_but_rejects_bod
         raw = json.dumps(doc).encode("utf8")
     (capture["directory"] / ("2" * 64 + ".final.json")).write_bytes(raw)
     before = immutable(store)
+    result = session.recover_received_checkpoints(capture_policy=capture)
     if different_body:
-        result = session.recover_received_checkpoints(capture_policy=capture)
         assert result["recovered_work_item_ids"] == []
-        assert (
-            result["recovery_errors"][0]["reason"]
-            == "received_checkpoint_unique_original_body_required"
-        )
+        assert {issue["reason"] for issue in result["recovery_errors"]} == {
+            "received_checkpoint_unique_original_body_required",
+        }
         assert immutable(store) == before
     else:
-        result = session.recover_received_checkpoints(capture_policy=capture)
         assert len(result["recovered_work_item_ids"]) == 3

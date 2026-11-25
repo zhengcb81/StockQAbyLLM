@@ -215,12 +215,13 @@ class QAResult:
         Returns:
             包含问题和答案（评分+描述）的字典
         """
-        return {
-            str(self.question): {
-                "score": self.answer.score,
-                "description": self.answer.text,
-            }
-        }
+        value: Dict[str, Any] = {"score": self.answer.score, "description": self.answer.text}
+        if self.answer.status == "error":
+            for key in ("failure_diagnostic", "finalization_diagnostic"):
+                diagnostic = self.metadata.get(key)
+                if isinstance(diagnostic, dict):
+                    value[key] = copy.deepcopy(diagnostic)
+        return {str(self.question): value}
 
     def __str__(self) -> str:
         """返回结果的字符串表示。"""
@@ -692,6 +693,11 @@ class QABatchResult:
             }
             if search_binding is not None:
                 execution_receipts[question_id]["search_binding"] = search_binding
+            if result.answer.status == "error":
+                for key in ("failure_diagnostic", "finalization_diagnostic"):
+                    diagnostic = result.metadata.get(key)
+                    if isinstance(diagnostic, dict):
+                        execution_receipts[question_id][key] = copy.deepcopy(diagnostic)
 
         completed_at = max(
             (

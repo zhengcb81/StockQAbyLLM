@@ -11,7 +11,6 @@ import base64
 import copy
 import hashlib
 import json
-import os
 
 # Fixed first-party CLI bridge; no shell or supplied executable.
 import subprocess  # nosec B404
@@ -20,6 +19,10 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import cast
 
+from src.utils.quick_scan_owner_process_env import (
+    consent_subprocess_env,
+    route_subprocess_env,
+)
 from src.utils.quick_scan_result_outbox import canonical_sha256, strict_json_loads
 from src.utils.quick_scan_work_store import QuickScanWorkStore
 
@@ -142,37 +145,23 @@ class OwnerRefreshClient:
             Path(config["stockwiki_code_root"]) / "stockwiki/quick_scan_routes_cli.py"
         ).is_file():
             raise OwnerRefreshRejected("owner_refresh_cli_unavailable")
-        self._environment = process_env
+        self._process_env = process_env
+
+    def subprocess_env(self) -> dict[str, str]:
+        return route_subprocess_env(self.config["stockwiki_code_root"], self._process_env)
+
+    def consent_subprocess_env(self, python_path: str | None = None) -> dict[str, str]:
+        return consent_subprocess_env(
+            self.config["stockwiki_code_root"], self._process_env, python_path
+        )
+
+    def register_subject_dispatch(self, current: dict, request: dict) -> dict:
+        from src.utils.quick_scan_subject_owner import register
+
+        return register(self.config, current, request, process_env=self._process_env)
 
     def _call(self, operation: str, extra: list[str]) -> dict:
         c = self.config
-        env = (
-            self._environment
-            if self._environment is not None
-            else {
-                k: v
-                for k, v in os.environ.items()
-                if k.upper()
-                in {
-                    "SYSTEMROOT",
-                    "WINDIR",
-                    "PATH",
-                    "PATHEXT",
-                    "COMSPEC",
-                    "USERPROFILE",
-                    "APPDATA",
-                    "LOCALAPPDATA",
-                    "SYSTEMDRIVE",
-                }
-            }
-        )
-        env = {
-            **env,
-            "PYTHONDONTWRITEBYTECODE": "1",
-            "PYTHONUTF8": "1",
-            "PYTHONIOENCODING": "utf-8",
-        }
-        env["PYTHONPATH"] = os.pathsep.join((c["stockwiki_code_root"], env.get("PYTHONPATH", "")))
         command = [
             sys.executable,
             "-B",
@@ -200,7 +189,7 @@ class OwnerRefreshClient:
             completed = subprocess.run(  # nosec B603
                 command,
                 cwd=c["stockwiki_code_root"],
-                env=env,
+                env=self.subprocess_env(),
                 capture_output=True,
                 timeout=120,
                 check=False,
@@ -610,7 +599,14 @@ class OwnerRefreshSession:
         self.observation_context = copy.deepcopy(observation_context)
         self.ordered_route_targets = copy.deepcopy(ordered_route_targets)
 
+    def validate_session(self) -> None:
+        """Validate the loaded session locally; no current send permission is implied."""
+        if not self.recovery_only and not isinstance(self.current, dict):
+            raise OwnerRefreshRejected("owner_refresh_current_invalid")
+
     def check(self) -> None:
+        """Read current authority once immediately before native send intent."""
+        self.validate_session()
         if self.recovery_only:
             return  # Immutable registered history is checked by the original paid session.
         from datetime import datetime, timezone
@@ -622,17 +618,8 @@ class OwnerRefreshSession:
     def register_subject_dispatch(self, request: dict) -> dict:
         if getattr(self, "recovery_only", False):
             raise OwnerRefreshRejected("paid_recovery_cannot_dispatch")
-        from src.utils.quick_scan_subject_owner import register
-
-        self.check()
-        receipt = register(
-            self.client.config,
-            cast(dict, self.current),
-            request,
-            process_env=self.client._environment,
-        )
-        self.check()
-        return receipt
+        self.validate_session()
+        return self.client.register_subject_dispatch(cast(dict, self.current), request)
 
     def binding(self, qid: str, *, owner_control: dict | None = None) -> dict | None:
         if getattr(self, "recovery_only", False):
@@ -733,7 +720,7 @@ class OwnerRefreshSession:
         row = self.fields[qid]
         if row["decision"] != "reuse":
             return None
-        self.check()
+        self.validate_session()
         original = self.plan.get("reused_observations", {}).get(row["reuse_observation_id"])
         if (
             not isinstance(original, dict)

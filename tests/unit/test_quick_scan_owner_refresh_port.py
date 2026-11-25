@@ -1,6 +1,8 @@
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
@@ -14,6 +16,35 @@ from src.utils.quick_scan_owner_refresh_api import (
     is_owner_refresh_port,
 )
 from src.utils.quick_scan_refresh_execution import ApprovedRefreshSession
+
+
+def test_original_1_3_structural_port_does_not_require_local_validation():
+    from src.interfaces.quick_scan_owner_refresh import QuickScanOwnerRefreshPort
+
+    # Frozen original 1.3 method surface, deliberately without the additive local capability.
+    names = (
+        "snapshot check is_bound_to is_bound_to_path assert_work_item_scope assert_budget_policy "
+        "routing_fingerprints assert_provider_model execution_routes binding existing_work reference "
+        "register_subject_dispatch claim_registered_question_batch assert_reactivated_original_binding "
+        "assert_received_checkpoint_recovery assert_execution_controls assert_executor_policy "
+        "restore_registered_checkpoint recover_received_checkpoints dispatch_scope_report recovery_report "
+        "subject_dispatch_setup analysis_subject identity_payload native_input_references original_semantic_resources"
+    ).split()
+    legacy = SimpleNamespace(**{name: Mock() for name in names})
+    assert not hasattr(legacy, "validate_session")
+    assert isinstance(legacy, QuickScanOwnerRefreshPort)
+
+
+def test_local_validation_capability_falls_back_to_original_check():
+    from src.utils.quick_scan_owner_refresh_api import validate_owner_refresh_session
+
+    legacy = SimpleNamespace(check=Mock())
+    validate_owner_refresh_session(legacy)
+    legacy.check.assert_called_once_with()
+    current = SimpleNamespace(check=Mock(), validate_session=Mock())
+    validate_owner_refresh_session(current)
+    current.validate_session.assert_called_once_with()
+    current.check.assert_not_called()
 
 
 def _approved_owner(store):
@@ -277,11 +308,14 @@ def _original_iqs_root_or_skip(monkeypatch):
     pytest.skip("original IQS scripts root not configured; set IQS_ORIGINAL_ROOT")
 
 
+@pytest.mark.parametrize("version", ["1.1.0", "1.1.1", "1.2.0"])
 def test_semantic_resources_are_resolved_from_owner_config_without_returning_paths(
-    monkeypatch, tmp_path
+    monkeypatch, tmp_path, version
 ):
     iqs_root = _original_iqs_root_or_skip(monkeypatch)
     import answer_validation
+
+    monkeypatch.setattr(answer_validation, "API_PROTOCOL", "iqs.answer-validation-api/" + version)
 
     release_root = tmp_path / "separate-owner-release"
     release_root.mkdir()
@@ -321,6 +355,28 @@ def test_semantic_resources_are_resolved_from_owner_config_without_returning_pat
         port.check()
     assert str(iqs_root) not in json.dumps(result)
     assert str(release_root) not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "protocol",
+    [
+        "other.answer-validation-api/1.1.0",
+        "iqs.answer-validation-api/2.0.0",
+        "iqs.answer-validation-api/1.0.0",
+        "iqs.answer-validation-api/unversioned",
+    ],
+)
+def test_original_semantic_resources_report_unsupported_api(monkeypatch, tmp_path, protocol):
+    iqs_root = _original_iqs_root_or_skip(monkeypatch)
+    import answer_validation
+
+    owner = _approved_owner(object())
+    context = {"schema": "context-v1", "questions": {"Q1": {"metadata": {}}}}
+    owner.native.observation_context = context
+    owner.native.client.config = {"iqs_code_root": str(iqs_root), "iqs_release_root": str(tmp_path)}
+    monkeypatch.setattr(answer_validation, "API_PROTOCOL", protocol)
+    with pytest.raises(ValueError, match="original_semantic_api_version_unsupported"):
+        adapt_owner_refresh(owner).original_semantic_resources(context)
 
 
 def test_semantic_resources_reject_context_from_another_owner(monkeypatch, tmp_path):
@@ -486,3 +542,64 @@ def test_owner_change_blocks_external_permit_before_network_consumption(tmp_path
 
     assert checks == ["approved", "changed"]
     assert attempt._consumed is False
+
+
+def test_subject_registration_uses_owner_operation_after_session_validation():
+    native = object.__new__(OwnerRefreshSession)
+    native.current = {"expected_decision_id": "fixture"}
+    request = {"question_id": "Q1"}
+    calls = []
+    receipt = {"dispatch_id": "fixture"}
+
+    def register(current, submitted):
+        calls.append((current, submitted))
+        return receipt
+
+    native.validate_session = lambda: calls.append("validate_session")
+    native.client = SimpleNamespace(register_subject_dispatch=register)
+
+    assert native.register_subject_dispatch(request) is receipt
+    assert calls == ["validate_session", (native.current, request)]
+
+
+def test_route_subprocess_env_keeps_explicit_import_path_and_filters_ambient(tmp_path, monkeypatch):
+    from src.utils.quick_scan_owner_refresh import OwnerRefreshClient
+
+    code_root = tmp_path / "sw"
+    cli = code_root / "stockwiki/quick_scan_routes_cli.py"
+    cli.parent.mkdir(parents=True)
+    cli.write_text("# synthetic owner fixture", encoding="utf-8")
+    config_path = tmp_path / "owner.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "protocol": "stockqa.owner_refresh_config/1.0.0",
+                "stockwiki_code_root": str(code_root),
+                "stockwiki_workspace_root": str(tmp_path / "owner"),
+                "iqs_code_root": str(tmp_path / "iqs"),
+                "iqs_release_root": str(tmp_path / "release"),
+                "subject_key": "fixture",
+                "scope": "entity",
+                "scope_id": "fixture",
+                "ttl_hours": 1,
+                "runs_dir": str(tmp_path / "runs"),
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("PYTHONPATH", "synthetic-ambient-import-root")
+    monkeypatch.setenv("ZAI_API_KEY", "synthetic-never-a-real-key")
+    ambient = OwnerRefreshClient(config_path).subprocess_env()
+    assert "ZAI_API_KEY" not in ambient
+    assert ambient["PYTHONPATH"] == os.pathsep.join([str(code_root), ""])
+
+    explicit = {"PYTHONPATH": "synthetic-explicit-import-root", "FIXTURE": "value"}
+    prepared = OwnerRefreshClient(config_path, process_env=explicit).subprocess_env()
+    assert prepared == {
+        "PYTHONPATH": os.pathsep.join([str(code_root), explicit["PYTHONPATH"]]),
+        "FIXTURE": "value",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONUTF8": "1",
+        "PYTHONIOENCODING": "utf-8",
+    }
+    assert explicit["PYTHONPATH"] == "synthetic-explicit-import-root"

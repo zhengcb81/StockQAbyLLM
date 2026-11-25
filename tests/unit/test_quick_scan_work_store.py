@@ -1619,7 +1619,7 @@ def test_checkpoint_receipt_hash_binds_source_and_completion_metadata_but_not_ra
     ) == quick_scan_receipt_sha256(without_usage)
 
 
-def test_checkpoint_payload_hash_corruption_fails_closed_on_reopen(tmp_path):
+def test_checkpoint_payload_hash_corruption_fails_closed_on_read_and_explicit_audit(tmp_path):
     store = _store(tmp_path, [1_800_000_000.0])
     item = _created(store)
     work_id = item["work_item_id"]
@@ -1642,8 +1642,12 @@ def test_checkpoint_payload_hash_corruption_fails_closed_on_reopen(tmp_path):
             "CREATE TRIGGER answer_checkpoint_no_update BEFORE UPDATE ON answer_checkpoint "
             "BEGIN SELECT RAISE(ABORT,'answer checkpoints are immutable'); END"
         )
+    reopened = _store(tmp_path, [1_800_000_000.0])
     with pytest.raises(ValueError, match="hash mismatch"):
-        _store(tmp_path, [1_800_000_000.0])
+        reopened.get_answer_checkpoint(work_id)
+    with closing(reopened.connect()) as connection:
+        with pytest.raises(ValueError, match="hash mismatch"):
+            QuickScanWorkStore.validate_schema(connection)
 
 
 def test_checkpoint_requires_verified_identity_and_current_lease(tmp_path):

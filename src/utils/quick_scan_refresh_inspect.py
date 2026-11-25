@@ -205,6 +205,7 @@ class _Borrowed:
 READ_ONLY_VIEW_API_METHODS = frozenset(
     {
         "assert_complete_observation_binding",
+        "checkpoint_record",
         "connect",
         "continuation_binding_snapshot",
         "current_time",
@@ -1039,7 +1040,7 @@ def _inspect_ordered_refresh(path, request, *, policy):
     return result
 
 
-READ_ONLY_VIEW_API_PROTOCOL = "stockqa.read-only-work-view/1.2.0"
+READ_ONLY_VIEW_API_PROTOCOL = "stockqa.read-only-work-view/1.3.0"
 MODULE_API_PROTOCOL = READ_ONLY_VIEW_API_PROTOCOL
 MODULE_API_EXPORTS = frozenset(
     {

@@ -6,6 +6,8 @@ can be substituted for that native permission-only read.
 """
 
 import copy
+import logging
+import re
 import subprocess  # nosec B404 - fixed first-party OS CLI, no shell
 import sys
 from pathlib import Path
@@ -29,6 +31,20 @@ from .quick_scan_refresh_consent import (
     OwnerConsentEndpoint,
     RefreshConsentClient,
 )
+
+_logger = logging.getLogger(__name__)
+_STDERR_REDACT_RE = re.compile(
+    r"(?i)(api[_-]?key|token|secret|authorization|password)(\s*[:=]\s*)([^\s,;\"']+)"
+)
+
+
+def _log_subprocess_stderr(label: str, returncode: int, stderr: bytes | str | None) -> None:
+    if isinstance(stderr, bytes):
+        text = stderr[-4096:].decode("utf-8", errors="replace").strip()
+    else:
+        text = (stderr or "")[-4096:].strip()
+    redacted = _STDERR_REDACT_RE.sub(r"\1\2[REDACTED]", text)
+    _logger.error("%s exit_code=%d stderr=%s", label, returncode, redacted or "<empty>")
 
 
 def current_policy(config_path, request, *, ledger_path, budget_policy_file, process_env=None):
@@ -74,7 +90,7 @@ def current_policy(config_path, request, *, ledger_path, budget_policy_file, pro
         done = subprocess.run(
             command,
             cwd=source["stockwiki_code_root"],
-            env=client._environment(),
+            env=client.subprocess_env(),
             input=canonical(request).encode("utf8"),
             capture_output=True,
             timeout=80,
@@ -83,6 +99,9 @@ def current_policy(config_path, request, *, ledger_path, budget_policy_file, pro
     except (OSError, subprocess.TimeoutExpired) as error:
         raise ValueError("owner_exposure_native_permissions_unavailable") from error
     if done.returncode != 0 or len(done.stdout) > MAX_BYTES:
+        _log_subprocess_stderr(
+            "owner_exposure_native_permissions_rejected", done.returncode, done.stderr
+        )
         raise ValueError("owner_exposure_native_permissions_rejected")
     result = _read(done.stdout)
     keys = {

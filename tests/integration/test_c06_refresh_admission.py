@@ -17,6 +17,7 @@ import pytest
 if os.environ.get("IQS_C06_RUN_INTEGRATION") != "1":
     pytest.skip("requires explicitly owned three-component runtime", allow_module_level=True)
 
+from stockwiki.quick_scan_membership_request import apply_membership_request
 from stockwiki.quick_scan_refresh_records import (
     RefreshConfirmationStore,
     RefreshRecordStore,
@@ -63,18 +64,18 @@ def setup_admission(
         metadata["metadata"]["field_id"],
     )
     routes.identity.create_universe("admit-pool", "Synthetic test only", soft_target_capacity=1)
-    routes.identity.save_member(
+    apply_membership_request(
+        routes.identity,
         dict(
+            action="add",
             universe_id="admit-pool",
             entity_id=ref["entity_id"],
-            membership_status="active",
-            manual_pin=False,
-            scan_enabled=True,
             priority=0,
-            added_at=utc(),
-            added_reason="synthetic",
-            version=1,
-        )
+            pin=False,
+            reason="synthetic",
+            idempotency_key="fixture-admit-member",
+        ),
+        at=utc(),
     )
     policy = policy or _policy(model="fixture-model")
     ledger = QuickScanWorkStore(ledger_path or tmp_path / "executor.sqlite")

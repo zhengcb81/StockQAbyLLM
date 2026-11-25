@@ -48,6 +48,7 @@ def approved_owner_refresh_session(
     owner.remaining_work_item_ids = list(work_item_ids)
     owner.input_raw = {"identity.json": b'{"payload":{"entity_id":"ENT_1"}}'}
     owner.check = check or (lambda: None)
+    owner.validate_session = lambda: None
     return owner
 
 

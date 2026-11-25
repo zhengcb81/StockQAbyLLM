@@ -97,6 +97,8 @@ def test_real_pack_send_path_uses_mode_specific_generated_prompt(
         result = provider.search_question_pack(questions)
     send.assert_called_once()
     assert send.call_args.args[0] == expected
+    assert "provisional integer score from 1 to 10" in send.call_args.args[0]
+    assert "status=scored and confidence=low" in send.call_args.args[0]
     for rule in (
         "show the original inputs for EACH period",
         "same-year operating cash flow minus cash paid to acquire long-term assets",
@@ -119,8 +121,11 @@ def test_full_standard_pack_self_check_keeps_every_original_member_complete(subj
     assert "For every original question_id, emit its own complete standard answer object" in prompt
     assert "Never merge answers or omit a requested question_id" in prompt
     assert (
-        "Evidence insufficient for one member still requires that member's independent status=insufficient_evidence answer with score=null"
+        "Partial evidence for one score question may support its own provisional status=scored judgment with confidence=low"
         in prompt
+    )
+    assert (
+        "only no meaningful judgment basis requires insufficient_evidence with score=null" in prompt
     )
     assert (
         "Keep every schema-required key, including coverage and missing_fields, even for insufficient_evidence, not_applicable or search_unavailable answers"

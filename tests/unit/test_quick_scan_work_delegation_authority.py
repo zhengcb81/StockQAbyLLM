@@ -123,7 +123,7 @@ def test_exact_delegated_known_control_and_unusable_retry_are_accepted(tmp_path)
         "agent",
         "authorization",
         "extra",
-        "comparison",
+        "comparison_with_original_binding",
         "retry_unknown",
     ],
 )
@@ -165,12 +165,16 @@ def test_modified_grant_even_resealed_does_not_authenticate_other_control(tmp_pa
         g["authorization_basis"] = "consumer_says_approved"
     elif fault == "extra":
         g["approved"] = True
+    elif fault == "comparison_with_original_binding":
+        # Comparison carriers may be issued by the native owner. The existing
+        # grant for a different action cannot authorize that comparison.
+        v["request"]["decision_request"].update(kind="retry_decision", purpose="comparison")
     else:
         v["request"]["decision_request"].update(
             kind="retry_decision",
-            purpose="comparison" if fault == "comparison" else "retry_unknown_answer",
+            purpose="retry_unknown_answer",
         )
-        b.update(kind="retry_decision", purpose=v["request"]["decision_request"]["purpose"])
+        b.update(kind="retry_decision", purpose="retry_unknown_answer")
     if fault != "hash":
         seal(g)
     with pytest.raises((ValueError, KeyError)):

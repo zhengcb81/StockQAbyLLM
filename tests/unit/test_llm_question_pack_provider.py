@@ -198,9 +198,7 @@ def test_question_pack_partial_missing_invalid_never_synthesizes_or_retries(pack
     provider._repair_invalid_answer.assert_not_called()
 
 
-@pytest.mark.parametrize(
-    "case", ["duplicate", "extra", "wrong_entity", "wrong_company", "prose", "extra_root"]
-)
+@pytest.mark.parametrize("case", ["duplicate", "extra", "wrong_entity", "wrong_company", "prose"])
 def test_question_pack_whole_rejection_is_not_repaired(pack_fixture, case):
     provider, questions, _asserted, _projector = pack_fixture
     answers = [_answer("CORE_01"), _answer("CORE_02"), _answer("CORE_03")]
@@ -215,8 +213,6 @@ def test_question_pack_whole_rejection_is_not_repaired(pack_fixture, case):
         answers[1]["company_name"] = "Other Co"
     elif case == "prose":
         raw = "lead-in" + json.dumps({"answers": answers})
-    elif case == "extra_root":
-        raw = json.dumps({"answers": answers, "accepted_ids": ["CORE_01"]})
     provider.client.send_search_request.return_value = _response(answers, raw=raw)
     reply = provider.search_question_pack(questions)
     assert reply.results == ()
@@ -224,6 +220,32 @@ def test_question_pack_whole_rejection_is_not_repaired(pack_fixture, case):
     assert reply.missing_question_ids == ()
     assert reply.execution_metadata["question_pack"]["answer_status"] == "unknown"
     provider.client.send_search_request.assert_called_once()
+    provider._repair_invalid_answer.assert_not_called()
+
+
+@pytest.mark.parametrize("self_accepted", [["CORE_01"], ["UNREQUESTED"], []])
+def test_extra_root_acceptance_claim_never_authorizes_or_discards_valid_answers(
+    pack_fixture, self_accepted
+):
+    provider, questions, asserted, projector = pack_fixture
+    answers = [_answer(q.question_id) for q in questions]
+    provider.client.send_search_request.return_value = _response(
+        answers, raw=json.dumps({"answers": answers, "accepted_ids": self_accepted})
+    )
+    reply = provider.search_question_pack(questions)
+    assert len(reply.results) == 3
+    assert reply.invalid_question_ids == reply.missing_question_ids == ()
+    asserted.assert_called_once_with(tuple(q.question_id for q in questions), "ENT_SYNTHETIC")
+    projector.assert_called_once()
+    for index, result in enumerate(reply.results):
+        binding = result.metadata["execution"]["question_pack_member"]
+        assert binding["work_item_id"] == f"work-{index}"
+        assert binding["work_attempt_id"] == f"logical-{index}"
+        assert binding["execution_attempt_id"] == "physical-http"
+        assert result.metadata["question_id"] == questions[index].question_id
+        assert result.score == 8
+    provider.client.send_search_request.assert_called_once()
+    provider.client.send_request.assert_not_called()
     provider._repair_invalid_answer.assert_not_called()
 
 

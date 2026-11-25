@@ -1,3 +1,35 @@
+## 2026-11-23 原引用与本次执行输入分责已落地
+
+IQS普通preview/resolver/start/resume已统一原引用；纯附着只读原记录，paid恢复只核原材料，pending新费用才验证当前controls/权限/本次执行快照。此为同一职责根修，无NaN特判、新协议或新审批；真实费用仍由StockQA原子intent/额度/防重负责。IQS b845b1f与真实0新进程附着均已核实；历史未知原因继续如实未知，不将日志或F4完成当扫描前置。
+
+## 2026-11-21 日常执行失败为何漏进 F4
+
+脚本输入失败能只留一个退出码或滚动日志。单题和组包错误又可能按最外层异常名压平，inspect 的结算观察依赖显式宿主输出路径。由错误发生层保全脱敏原因链、所属阶段和安全输入形状，以公开读取接口把一次失败和原账核对应起来。中微 IQS_13/14 的旧 prepared 记录只能证明当时未到 HTTP，旧深层异常已丢，不反推具体数据库错误。详见 [本仓 F4 子计划](F4-STOCKQA.md)。
+
+## 2026-11-21 新实物原因不可倒推历史失败
+
+原run第4次冷恢复已真实通过，0收费新请求、原10包绑定不变，说明原paid读取不需新计划授权。第一次受限shell复验的CLI错误已安全定位为eager导入创建默认日志的PermissionError，经fallback误显成权限；正确授权环境原seal通过。这是本次操作环境证据，不是原13:09历史cause，也不能作为删除原paid/输入校验的理由。日志副作用和完整错误揭示交F4另一harness，本线程不扩改。
+
+## 2026-11-21 根因：把不同职责放进同一个前置检查
+
+已付答案读取与新扫描调度是两种操作。原paid记录、context、subject receipt和binding齐全时，新plan提出ttl_expired/新work不能使旧答案失去读取资格。原生产launch3和合法合成ACK隔离反例已共同暴露此问题；修复应删除读取对deferred/reuse的依赖，today anchor/plan仅约束真正reactivated的新派发。
+
+账本普通打开/就绪与维护深审计也应分离。当前schema27临时只读快照结构检查0.005秒、完整历史审计91.037秒均通过，不能把全历史扫描作为每次启动的必要门禁。收敛在store current-schema构造和admission这两个实际入口，保留旧迁移及显式deep audit；当前操作依然读取并验证本操作所需的原生记录。不按公司、题号或异常文本添加特例。
+
+`refresh_admission_ledger_invalid`原历史底层原因仍未知；结构无效与SQLite/IO暂不可读应分别报告，不将不可读账本放行收费。F4细节由另一harness推进，原失败的时间/阶段/影响和未知已在本模块及IQS PWF留档。两组实现已通过作者针对性测试与非作者12项实际组合（ACCEPT）；没有抬协议/版本，也没有新增审批门禁。软件结果不代替原中微完整28题/实际UI验收。
+
+## 2026-11-21 设计收敛结果
+
+原状态owner已有完整原子证明，transport复制证明且依赖prepared对象返回反而漏清理；现只委托原public release_unsent。收费授权只在intent前一次fresh，不以新许可阻已付保存/复用。跨层丢支付未知并非缺一个异常名，而是各层复制只看cause的规则；现既有interfaces提供同一有界cause/context遍历。新local验证是可选能力，不改变旧1.3 required协议。
+
+上述统一设计与针对性测试、非作者对抗审查均通过；F4日志本身未在此实现或签收。最近13:09历史错误的深层cause已丢，仍不补造根因，原详细记录由IQS PWF保留。
+
+## 2026-11-21 日志与授权职责
+
+根源不是缺少一个反馈系统：已有F4只覆盖明确的settlement检查，而模型执行的原异常边界只输出type，cause未落盘；普通UI直接启动main_with_llm，配置host不等于自动采集异常。过度脱敏与粗catch共同让真实底层错误不可追溯。本轮保留脱敏错误码、原因链和代码位置，不导出message/args/locals/提示正文；日志和反馈是伴随诊断，绝非业务门禁。
+
+重复调用同一个.check并不会加强冻结身份/题义绑定，却会把外部owner核查扩散到组装、getter、保存、恢复。两题隔离实测26次CLI已构成可重放反例。固定绑定在加载时核实，实时权限紧邻原子发送intent一次；其后同一个一次性permit不再次授权，避免纯权限变化被误当成未知发送。下一次真实收费仍独立核查，原预算和lease保持原子事实。
+
 # MC-QA 发现记录
 
 ## 2026-11-16 回执物理结算与供应商标签
@@ -72,3 +104,8 @@
 - R2：`import src.utils.quick_scan_X` 后以全路径 `src.utils.X.attr` 访问不被
   F2 捕获（`import X as alias` + `alias.attr` 已捕获；grep 确认真实 src 无此形态）。
 - 相对导入别名注册（`from . import X as y`）未实现；真实使用不在 EXPORT_BOUND_OWNERS。
+
+
+## 2026-11-20 StockQA F4
+
+旧固定目录无法代表多个已使用布局，仓根 SQLite 本次只读探测为 schema 5。按实际 inspect 已知 ledger、原工作项、代际和原生 attempt 建索引，外层 attempt 覆盖无影响。仅原生终态和同次收费收据能确证历史；派生修复不会补猜费用。 [F4 端口](F4-STOCKQA.md)

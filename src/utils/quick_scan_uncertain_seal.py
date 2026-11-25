@@ -112,7 +112,7 @@ def continuation_exclusion(
         (policy_id, task["task_id"]),
     ).fetchone()
     if sealed_task:
-        raise BudgetAdmissionError("research_task_sealed_no_retry")
+        raise BudgetAdmissionError.for_rule("research_task_sealed_no_retry")
     return (
         "budget_attempt_id IN (SELECT s.budget_attempt_id FROM quick_scan_uncertain_seal s "
         "JOIN quick_scan_budget_attempt b USING(budget_attempt_id) "

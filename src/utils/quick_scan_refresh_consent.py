@@ -6,7 +6,7 @@ does not authenticate a new registration; the Q13 journal decides replay.
 """
 
 import copy
-import os
+import hashlib
 import re
 
 # The configured first-party OS CLI uses argv, never shell commands.
@@ -15,16 +15,13 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from jsonschema import Draft202012Validator, FormatChecker, ValidationError
-from referencing import Registry, Resource
-from referencing.exceptions import Unresolvable
-
+from .quick_scan_owner_process_env import consent_subprocess_env
 from .quick_scan_owner_refresh import (
     OwnerRefreshClient,
     OwnerRefreshRejected,
 )
 from .quick_scan_owner_refresh import api_owner_refresh_read as _read
-from .quick_scan_result_outbox import canonical_sha256
+from .quick_scan_result_outbox import canonical_bytes, canonical_sha256
 from .quick_scan_work_store import (
     api_work_store_budget_policy_projection as _budget_policy_projection,
 )
@@ -67,7 +64,12 @@ class OwnerConsentEndpoint:
         ):
             raise OwnerRefreshRejected("refresh_consent_deployment_required")
         self.config = copy.deepcopy(config)
-        self._environment = process_env
+        self._process_env = process_env
+
+    def consent_subprocess_env(self, python_path: str | None = None) -> dict[str, str]:
+        return consent_subprocess_env(
+            self.config["stockwiki_code_root"], self._process_env, python_path
+        )
 
 
 class RefreshConsentClient:
@@ -84,36 +86,8 @@ class RefreshConsentClient:
             lambda: datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         )
 
-    def _environment(self):
-        source = self.owner._environment if self.owner._environment is not None else os.environ
-        env = {
-            k: v
-            for k, v in source.items()
-            if k.upper()
-            in {
-                "SYSTEMROOT",
-                "WINDIR",
-                "PATH",
-                "PATHEXT",
-                "COMSPEC",
-                "USERPROFILE",
-                "APPDATA",
-                "LOCALAPPDATA",
-                "SYSTEMDRIVE",
-            }
-        }
-        env.update(PYTHONDONTWRITEBYTECODE="1", PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
-        env["PYTHONPATH"] = self.owner.config["stockwiki_code_root"]
-        if source.get("IQS_C06_RUN_INTEGRATION") == "1":
-            owned = Path(source["IQS_C06_OWN"]).resolve()
-            env.update(IQS_C06_RUN_INTEGRATION="1", IQS_C06_OWN=str(owned))
-            env["PYTHONPATH"] = os.pathsep.join([str(owned / "guard"), env["PYTHONPATH"]])
-            env.update(
-                TEMP=str(owned / "tmp"),
-                TMP=str(owned / "tmp"),
-                TMPDIR=str(owned / "tmp"),
-            )
-        return env
+    def subprocess_env(self, python_path: str | None = None) -> dict[str, str]:
+        return self.owner.consent_subprocess_env(python_path)
 
     def inspect(self, confirmation_id, *, mode):
         if (
@@ -145,35 +119,79 @@ class RefreshConsentClient:
             "--admission-inspection",
             mode,
         ]
+        result = self._run_read(
+            command,
+            cwd=c["stockwiki_code_root"],
+            python_path=c["stockwiki_code_root"],
+            operation="native",
+        )
         try:
-            # Fixed sys.executable/module; all paths and IDs are separate argv entries.
+            self._validate(result, confirmation_id, mode)
+        except OwnerRefreshRejected:
+            raise
+        except (ValueError, TypeError, KeyError, AttributeError, OSError) as error:
+            raise OwnerRefreshRejected("refresh_consent_binding_invalid") from error
+        return copy.deepcopy(result)
+
+    def _run_read(self, command, *, cwd, python_path, operation, input_bytes=None):
+        try:
             completed = subprocess.run(  # nosec B603
                 command,
-                cwd=c["stockwiki_code_root"],
-                env=self._environment(),
+                cwd=cwd,
+                env=self.subprocess_env(python_path),
+                input=input_bytes,
                 capture_output=True,
                 timeout=80,
                 check=False,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
         except (OSError, subprocess.TimeoutExpired) as error:
-            raise OwnerRefreshRejected("refresh_consent_native_unavailable") from error
+            raise OwnerRefreshRejected(f"refresh_consent_{operation}_unavailable") from error
         if completed.returncode != 0 or len(completed.stdout) > MAX_BYTES:
-            raise OwnerRefreshRejected("refresh_consent_native_rejected")
-        result = _read(completed.stdout)
-        try:
-            self._validate(result, confirmation_id, mode)
-        except (
-            ValueError,
-            TypeError,
-            KeyError,
-            AttributeError,
-            OSError,
-            ValidationError,
-            Unresolvable,
-        ) as error:
-            raise OwnerRefreshRejected("refresh_consent_binding_invalid") from error
-        return copy.deepcopy(result)
+            raise OwnerRefreshRejected(f"refresh_consent_{operation}_rejected")
+        return _read(completed.stdout)
+
+    def _validate_frozen_record(self, original):
+        # StockWiki owns the authenticated record and current permissions. IQS
+        # owns serialization of the original request, preview and owner state.
+        record = {field: original[field] for field in ("request", "preview", "owner_state")}
+        raw = canonical_bytes(record)
+        # Only the immutable serializer result is reusable within this client.
+        # inspect() still invokes the native current-permission CLI every time.
+        digest = hashlib.sha256(raw).hexdigest()
+        if getattr(self, "_validated_frozen_record_sha256", None) == digest:
+            return
+        root = Path(self.owner.config["iqs_code_root"])
+        reply = self._run_read(
+            [
+                sys.executable,
+                "-B",
+                "-X",
+                "utf8",
+                str(root / "scripts/refresh_contract_cli.py"),
+                "--operation",
+                "frozen-record",
+                "--input",
+                "-",
+            ],
+            cwd=str(root),
+            python_path=str(root / "scripts"),
+            operation="frozen_contract",
+            input_bytes=raw,
+        )
+        if (
+            reply.get("protocol") != "iqs.refresh_validation/1.0.0"
+            or reply.get("status") != "validated"
+            or reply.get("operation") != "frozen-record"
+            or reply.get("input_sha256") != digest
+            or any(
+                type(reply.get(field)) is not int or reply[field] != 0
+                for field in ("API_requests", "database_writes")
+            )
+            or reply.get("permission_authenticated") is not False
+        ):
+            raise ValueError("original refresh contract read mismatch")
+        self._validated_frozen_record_sha256 = digest
 
     def _validate(self, result, confirmation_id, mode):
         delegated = confirmation_id.startswith("rc2_")
@@ -191,54 +209,8 @@ class RefreshConsentClient:
             or result["registered_with_executor"] is not False
         ):
             raise ValueError("native read receipt invalid")
-        root = Path(self.owner.config["iqs_code_root"]) / "schemas/quick_scan"
-        dialect = result["request"].get("protocol")
-        refresh_name = {
-            "iqs.refresh_request/1.0.0": "refresh-v1.schema.json",
-            "iqs.refresh_request/1.1.0": "refresh-v1.1.schema.json",
-            "iqs.refresh_request/1.2.0": "refresh-v1.2.schema.json",
-            "iqs.refresh_request/1.3.0": "refresh-v1.3.schema.json",
-            "iqs.refresh_request/1.4.0": "refresh-v1.4.schema.json",
-            "iqs.refresh_request/1.5.0": "refresh-v1.5.schema.json",
-            "iqs.refresh_request/1.6.0": "refresh-v1.6.schema.json",
-        }.get(dialect)
-        if refresh_name is None:
-            raise ValueError("unsupported explicit refresh dialect")
-        names = (refresh_name, "query-v2.schema.json", "query-v2.6.schema.json")
-        schemas = [_read((root / name).read_bytes()) for name in names]
-        policy_schema = schemas[0]
-        if mode == "paid_response_recovery":
-            policy_protocol = result["owner_policy"].get("protocol", "")
-            policy_dialect = policy_protocol.removeprefix("stockwiki.refresh_owner_policy/")
-            policy_name = {
-                "1.0.0": "refresh-v1.schema.json",
-                "1.1.0": "refresh-v1.1.schema.json",
-                "1.2.0": "refresh-v1.2.schema.json",
-                "1.3.0": "refresh-v1.3.schema.json",
-                "1.4.0": "refresh-v1.4.schema.json",
-                "1.5.0": "refresh-v1.5.schema.json",
-                "1.6.0": "refresh-v1.6.schema.json",
-            }.get(policy_dialect)
-            if policy_name is None:
-                raise ValueError("unsupported current owner policy dialect")
-            policy_schema = _read((root / policy_name).read_bytes())
-            schemas.append(policy_schema)
-        registry = Registry().with_resources((s["$id"], Resource.from_contents(s)) for s in schemas)
-        for field, kind in [
-            ("request", "Request"),
-            ("preview", "Preview"),
-            ("owner_state", "OwnerState"),
-            ("owner_policy", "OwnerPolicy"),
-        ]:
-            Draft202012Validator(
-                {
-                    "$ref": (policy_schema if field == "owner_policy" else schemas[0])["$id"]
-                    + "#/$defs/"
-                    + kind
-                },
-                registry=registry,
-                format_checker=FormatChecker(),
-            ).validate(result[field])
+        self._validate_frozen_record(result)
+        dialect = result["request"]["protocol"]
         receipt = result["confirmation"]
         preview = result["preview"]
         policy = result["owner_policy"]
@@ -258,10 +230,6 @@ class RefreshConsentClient:
             or mode != "paid_response_recovery"
             and self.consumer_id not in policy["allowed_consumer_ids"]
             or receipt["preview_id"] != preview["preview_id"]
-            or preview["preview_id"]
-            != "rv1_" + canonical_sha256({k: v for k, v in preview.items() if k != "preview_id"})
-            or preview["request_sha256"] != canonical_sha256(result["request"])
-            or preview["owner_state_sha256"] != canonical_sha256(state)
             or (
                 mode != "paid_response_recovery"
                 and preview["policy_sha256"] != canonical_sha256(policy)

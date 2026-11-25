@@ -9,6 +9,7 @@ import json
 import os
 import re
 import sqlite3
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import Mock
@@ -69,7 +70,9 @@ def test_public_main_only_dispatches_registered_scope_and_recovers_without_crede
         if ledger_layout == "default"
         else tmp_path / "approved-workspace" / "work.sqlite"
     )
-    prepared = setup_admission(actual, tmp_path, policy=normalized, ledger_path=ledger_path)
+    prepared = setup_admission(
+        actual, tmp_path, policy=normalized, ledger_path=ledger_path, refresh_version="1.1.0"
+    )
     accepted = RefreshAdmissionService(
         prepared["deployment_file"], process_env=dict(os.environ)
     ).admit(prepared["consent"]["confirmation_id"])
@@ -162,13 +165,27 @@ def test_public_main_only_dispatches_registered_scope_and_recovers_without_crede
         prepared["consent"]["confirmation_id"],
     ]
     monkeypatch.setattr(sys, "argv", argv + ["--spend-authorization", str(spend)])
+    initial_budget_path = Path(prepared["owner_policy"]["qa"]["budget_policy_file"])
+    original_budget = initial_budget_path.read_bytes()
+    initial_budget_path.unlink()
+    assert main_with_llm.main() != 0
+    capsys.readouterr()
+    assert not sent and store.list_attempts(work_id) == []
+    initial_budget_path.write_bytes(original_budget)
     assert main_with_llm.main() == 0, capsys.readouterr().out
     assert sent == [qid] and store.get_item(work_id)["status"] == "result_ready"
     with sqlite3.connect(store.path) as connection:
         assert connection.execute("SELECT COUNT(*) FROM work_item").fetchone()[0] == 1
-        assert (
-            connection.execute("SELECT COUNT(*) FROM quick_scan_budget_attempt").fetchone()[0] == 1
-        )
+        budget_attempts = connection.execute(
+            "SELECT budget_attempt_id, status FROM quick_scan_budget_attempt"
+        ).fetchall()
+    assert len(budget_attempts) == 1 and budget_attempts[0][1] == "response_unpriced"
+    store.reconcile_budget_attempt(
+        budget_attempts[0][0],
+        resolved_outcome="completed",
+        actual_cost=0.25,
+        cost_source_ref="synthetic-invoice-original-request",
+    )
     report = json.loads(output.with_suffix(".json.scope.json").read_bytes())
     assert report["requested_question_ids"] == [qid]
     assert report["requested_scope_answered"] is True
@@ -177,8 +194,90 @@ def test_public_main_only_dispatches_registered_scope_and_recovers_without_crede
     package_before = copy.deepcopy(store.get_result_delivery(work_id))
     llm_file.unlink()  # Original pending delivery requires no model credentials.
     spend.unlink()
+    # Resume from the original paid response across a legitimate owner upgrade.
+    confirmation = prepared["consent"]["confirmation_id"]
+    permission_command = [
+        sys.executable,
+        "-B",
+        "-m",
+        "src.utils.quick_scan_registered_permissions_cli",
+        "--config",
+        str(prepared["deployment_file"]),
+    ]
+
+    def permissions(mode):
+        completed = subprocess.run(
+            permission_command,
+            input=json.dumps(
+                dict(
+                    protocol="stockqa.registered_permissions_request/1.0.0",
+                    confirmation_id=confirmation,
+                    mode=mode,
+                )
+            ).encode(),
+            capture_output=True,
+            check=False,
+            timeout=100,
+        )
+        return completed.returncode, json.loads(completed.stdout)
+
+    recovery = RefreshAdmissionService(
+        prepared["deployment_file"],
+        process_env=dict(os.environ),
+        recovery_only=True,
+    )
+    original, _, journal = recovery.read_registered(confirmation, recovery_only=True)
+    attempts = store.list_attempts(work_id)
+    budget_before = store.get_quick_scan_budget_status(normalized["policy_id"])
+    assert len(attempts) == 1 and budget_before["requests"] == 1
+    assert budget_before["spent_micros"] == 250_000 and budget_before["reserved_micros"] == 0
+    current_policy = copy.deepcopy(prepared["owner_policy"])
+    current_policy.update(
+        protocol="stockwiki.refresh_owner_policy/1.6.0",
+        policy_version=current_policy["policy_version"] + 1,
+        model="new-fixture-model",
+        ttl_hours=24,
+    )
+    budget_file = Path(current_policy["qa"]["budget_policy_file"])
+    saved_budget = budget_file.read_bytes()
+    current_policy["qa"].update(
+        budget_policy_file=str(tmp_path / "different-budget.json"), quote_schema_version="1.6.0"
+    )
+    current_policy["ordered_route_targets"] = [
+        dict(
+            provider=current_policy["provider"],
+            model=current_policy["model"],
+            route_id=current_policy["qa"]["route_id"],
+            provider_config_ref=current_policy["qa"]["provider_config_ref"],
+            quota_group="primary",
+        )
+    ]
+    prepared["policy_file"].write_text(json.dumps(current_policy), encoding="utf-8")
+    code, denied = permissions("current_permissions")
+    assert code == 2 and denied["error_code"] == "refresh_consent_native_rejected"
+    budget_file.unlink()
+    code, receipt = permissions("paid_response_recovery")
+    assert code == 0, receipt
+    assert receipt["received_response_scope_verified"] is True
+    assert receipt["confirmation_id"] == confirmation
+    assert receipt["API_requests"] == receipt["network_calls"] == 0
+    proof, _, reopened = recovery.read_registered(confirmation, recovery_only=True)
+    assert proof["owner_policy"] == current_policy
+    for field in ("confirmation", "request", "preview", "owner_state"):
+        assert proof[field] == original[field]
+    assert reopened == journal
+
+    # Check the public main after the native paid read, with the new configuration live.
     monkeypatch.setattr(sys, "argv", argv)
     assert main_with_llm.main() == 0, capsys.readouterr().out
+    assert main_with_llm.main() == 0, capsys.readouterr().out
+    assert store.list_attempts(work_id) == attempts
+    assert store.get_quick_scan_budget_status(normalized["policy_id"]) == budget_before
+    revoked = {**current_policy, "allowed_consumer_ids": ["another-consumer"]}
+    prepared["policy_file"].write_text(json.dumps(revoked), encoding="utf-8")
+    assert permissions("paid_response_recovery")[0] == 2
+    prepared["policy_file"].write_text(json.dumps(prepared["owner_policy"]), encoding="utf-8")
+    budget_file.write_bytes(saved_budget)
     recovered = json.loads(output.read_bytes())
     assert recovered["mode"] == "original_references_and_recovery"
     assert recovered["model_dispatch_started"] is False and recovered["API_requests"] == 0
@@ -212,6 +311,7 @@ def test_public_main_only_dispatches_registered_scope_and_recovers_without_crede
     # An old durable action is not enduring permission: revoke through owner
     # policy and require the PUBLIC original main to refuse with zero sends.
     prepared["owner_policy"]["policy_version"] += 1
+    prepared["owner_policy"]["allowed_consumer_ids"] = ["another-consumer"]
     prepared["policy_file"].write_text(json.dumps(prepared["owner_policy"]), encoding="utf-8")
     assert main_with_llm.main() != 0
     assert sent == [qid] and session.post.call_count == 1

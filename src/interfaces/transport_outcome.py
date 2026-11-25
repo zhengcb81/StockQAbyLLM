@@ -3,7 +3,25 @@
 from __future__ import annotations
 
 import copy
-from typing import Any, Dict
+from typing import Any, Dict, Iterator
+
+
+def iter_exception_chain(error: object) -> Iterator[BaseException]:
+    """Visit up to sixteen distinct cause/context facts, including suppressed context."""
+    pending = [error]
+    seen: set[int] = set()
+    while pending and len(seen) < 16:
+        current = pending.pop(0)
+        if not isinstance(current, BaseException) or id(current) in seen:
+            continue
+        seen.add(id(current))
+        yield current
+        pending.extend(
+            (
+                BaseException.__dict__["__cause__"].__get__(current),
+                BaseException.__dict__["__context__"].__get__(current),
+            )
+        )
 
 
 class UncertainTransportOutcome(RuntimeError):
@@ -28,4 +46,4 @@ class UncertainTransportOutcome(RuntimeError):
         return copy.deepcopy(self._sanitized_attempt_receipt)
 
 
-__all__ = ["UncertainTransportOutcome"]
+__all__ = ["UncertainTransportOutcome", "iter_exception_chain"]

@@ -496,7 +496,7 @@ class LLMProvider(BaseLLMProvider):
                 "information_as_of and every evidence.published_at must be on or before the information cutoff; unknown dates stay null. "
                 "A forecast window is not an information or source publication date."
                 "\nFULL-STANDARD SELF-CHECK: For every original question_id, emit its own complete standard answer object. "
-                "Never merge answers or omit a requested question_id. Evidence insufficient for one member still requires that member's independent status=insufficient_evidence answer with score=null. "
+                "Never merge answers or omit a requested question_id. Partial evidence for one score question may support its own provisional status=scored judgment with confidence=low, explicit missing_fields and coverage.status=partial; only no meaningful judgment basis requires insufficient_evidence with score=null. "
                 "Use status=not_applicable only when the question is genuinely inapplicable; "
                 "use status=search_unavailable only when search is actually unavailable; both also require score=null. "
                 "Unknown means missing knowledge, never a permitted answer status: never emit status=unknown. "
@@ -1021,7 +1021,10 @@ class LLMProvider(BaseLLMProvider):
                 if retry < num_retries - 1:
                     wait_time = self.retry_strategy.get_wait_time(retry)
                     logger.warning(
-                        "API请求失败（%s），%.1f 秒后重试...", type(e).__name__, wait_time
+                        "API请求失败（%s），%.1f 秒后重试...",
+                        type(e).__name__,
+                        wait_time,
+                        exc_info=True,
                     )
                     time.sleep(wait_time)
                 else:
@@ -1030,20 +1033,38 @@ class LLMProvider(BaseLLMProvider):
                         self.provider_name,
                         num_retries,
                         type(e).__name__,
+                        exc_info=True,
                     )
                     raise Exception(
                         f"API请求失败，已重试 {num_retries} 次（{type(e).__name__}）"
                     ) from e
 
+            except (TypeError, KeyError, AttributeError, NameError, SyntaxError, ImportError) as e:
+                logger.error(
+                    "%s 调用发生内部编程错误（%s），停止重试",
+                    self.provider_name,
+                    type(e).__name__,
+                    exc_info=True,
+                )
+                raise
+
             except Exception as e:
                 if retry < num_retries - 1:
                     wait_time = self.retry_strategy.get_wait_time(retry)
                     logger.warning(
-                        "发生未知错误（%s），%.1f 秒后重试...", type(e).__name__, wait_time
+                        "发生未知错误（%s），%.1f 秒后重试...",
+                        type(e).__name__,
+                        wait_time,
+                        exc_info=True,
                     )
                     time.sleep(wait_time)
                 else:
-                    logger.error("经过 %d 次尝试后仍发生错误（%s）", num_retries, type(e).__name__)
+                    logger.error(
+                        "经过 %d 次尝试后仍发生错误（%s）",
+                        num_retries,
+                        type(e).__name__,
+                        exc_info=True,
+                    )
                     return ParsedLLMAnswer(None, f"处理失败（{type(e).__name__}）", "error"), {}
 
         raise Exception("API调用失败：未知错误")

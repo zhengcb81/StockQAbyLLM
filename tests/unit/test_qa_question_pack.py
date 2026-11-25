@@ -84,7 +84,12 @@ class Lifecycle:
         self.saved.append((handle["work_item_id"], res))
 
     def after_question_failed(self, handle, error):
-        self.failed.append((handle["work_item_id"], error))
+        self.failed.append(
+            (
+                handle["work_item_id"],
+                type(error).__name__ if isinstance(error, BaseException) else error,
+            )
+        )
 
 
 class Provider:
@@ -746,10 +751,16 @@ def test_composed_approved_owner_session_keeps_native_context_and_outer_admissio
     # authority/consent construction is deliberately not claimed by this test.
     approved = object.__new__(ApprovedRefreshSession)
     approved.native = native
-    approved.service = SimpleNamespace(store=store)
+    original_record = {"inputs": {"original": True}, "receipt": {"original": True}}
+    approved.record = copy.deepcopy(original_record)
+    approved.proof = {"confirmation": {"confirmation_id": "fixture-confirmation"}}
+    approved.service = SimpleNamespace(
+        store=store, read_registration=Mock(return_value=original_record)
+    )
     approved.plan = native.plan
     approved.fields = native.fields
     approved.scope_bindings = scopes
+    approved.recovery_only = False
     approved.check = Mock()
     lc = QuickScanWorkLifecycle(
         store,
@@ -763,15 +774,18 @@ def test_composed_approved_owner_session_keeps_native_context_and_outer_admissio
         scope_by_question=scopes,
     )
     lc.assert_question_pack_ready([question])
-    approved.check.assert_called_once()
-    approved.check = Mock(side_effect=ValueError("synthetic admission revoked"))
-    with pytest.raises(ValueError, match="admission revoked"):
+    approved.service.read_registration.assert_called_once()
+    approved.check.assert_not_called()  # Readiness cannot authorize a paid send.
+    approved.service.read_registration.return_value = {"inputs": {"changed": True}, "receipt": {}}
+    with pytest.raises(ValueError, match="original_action_changed"):
         lc.assert_question_pack_ready([question])
-    approved.check = Mock()
+    approved.service.read_registration.return_value = original_record
+    approved.service.read_registration.reset_mock()
     approved.service.store = QuickScanWorkStore(tmp_path / "foreign-wrapper.sqlite")
     with pytest.raises(ValueError):
         lc.assert_question_pack_ready([question])
     approved.check.assert_not_called()
+    approved.service.read_registration.assert_not_called()
 
 
 def test_explicit_member_rejection_carries_typed_reason_but_storage_error_does_not():

@@ -162,6 +162,7 @@ def test_read_only_view_refuses_inherited_mutation_and_writer_factory_methods(tm
     view = ReadOnlyWorkView(ledger.path)
     assert callable(view.response_for_checkpoint)
     assert callable(view.response_record)
+    assert callable(view.checkpoint_record)
     for name in ("claim", "create_or_attach", "record_event", "transaction", "for_existing_ledger"):
         with pytest.raises(AttributeError, match="refresh_inspection_is_read_only"):
             getattr(view, name)

@@ -669,11 +669,11 @@ def _ordinary_successor_case(tmp_path, monkeypatch, *, fault=None):
     if fault == "unsealed":
         validated["package"] = None
     if fault != "missing_outbox":
-        original_row = QuickScanWorkStore._delivery_row
-        original_reader = QuickScanWorkStore._result_delivery_record.__func__
+        original_row = QuickScanWorkStore.delivery_row
+        original_reader = QuickScanWorkStore.result_delivery_record.__func__
         monkeypatch.setattr(
             QuickScanWorkStore,
-            "_delivery_row",
+            "delivery_row",
             staticmethod(
                 lambda con, wid: (
                     {"unit_boundary": wid}
@@ -684,7 +684,7 @@ def _ordinary_successor_case(tmp_path, monkeypatch, *, fault=None):
         )
         monkeypatch.setattr(
             QuickScanWorkStore,
-            "_result_delivery_record",
+            "result_delivery_record",
             classmethod(
                 lambda cls, row, **kw: (
                     copy.deepcopy(validated)
@@ -910,11 +910,11 @@ def test_exact_received_failure_retry_chain_ordinary_requires_descendant_exact_d
         validated[
             {"no_ack": "ack", "unbound_consumer": "consumer_binding", "unsealed": "package"}[fault]
         ] = None
-    original_row = QuickScanWorkStore._delivery_row
-    original_reader = QuickScanWorkStore._result_delivery_record.__func__
+    original_row = QuickScanWorkStore.delivery_row
+    original_reader = QuickScanWorkStore.result_delivery_record.__func__
     monkeypatch.setattr(
         QuickScanWorkStore,
-        "_delivery_row",
+        "delivery_row",
         staticmethod(
             lambda con, wid: (
                 {"unit_boundary": wid} if wid == target["work_item_id"] else original_row(con, wid)
@@ -923,7 +923,7 @@ def test_exact_received_failure_retry_chain_ordinary_requires_descendant_exact_d
     )
     monkeypatch.setattr(
         QuickScanWorkStore,
-        "_result_delivery_record",
+        "result_delivery_record",
         classmethod(
             lambda cls, row, **kw: (
                 copy.deepcopy(validated)

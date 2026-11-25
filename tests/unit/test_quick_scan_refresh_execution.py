@@ -145,13 +145,43 @@ def test_registered_scope_rejects_resealed_wrong_work_or_binding(fault):
 
 
 def report_session():
+    from types import SimpleNamespace
+
     session = ApprovedRefreshSession.__new__(ApprovedRefreshSession)
+    session.record = {"inputs": {"specifications": []}, "receipt": {"items": []}}
+    session.service = SimpleNamespace(
+        read_registration=lambda confirmation_id: copy.deepcopy(session.record)
+    )
     session.entries = {"IQS_05": {}}
     session.bundle = {"manifest": {"questions": [{"id": "IQS_05"}, {"id": "IQS_10"}]}}
     session.proof = dict(
         confirmation={"confirmation_id": "synthetic-only"}, preview={"scope_sha256": "a" * 64}
     )
     return session
+
+
+@pytest.mark.parametrize("change", ["unchanged", "removed", "inputs", "receipt"])
+def test_validate_session_requires_the_public_original_registration(change):
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    session = report_session()
+    session.record = {"inputs": {"specifications": []}, "receipt": {"items": []}}
+    read_back = copy.deepcopy(session.record)
+    if change == "removed":
+        read_back = None
+    elif change != "unchanged":
+        read_back[change] = {"changed": True}
+    reread = Mock(return_value=read_back)
+    session.service = SimpleNamespace(read_registration=reread)
+
+    if change == "unchanged":
+        session.validate_session()
+    else:
+        with pytest.raises(AdmissionRejected, match="refresh_execution_original_action_changed"):
+            session.validate_session()
+
+    reread.assert_called_once_with("synthetic-only")
 
 
 @pytest.mark.parametrize(
@@ -224,6 +254,7 @@ def state_session(store, work_id, *, projected_work_id=None, recovery_only=False
         recovery_only=recovery_only,
     )
     session.check = lambda: None  # Pure state tests, not a native permission proof.
+    session.validate_session = lambda: None
     return session
 
 
@@ -292,7 +323,6 @@ def test_recovery_reference_keeps_original_public_descriptor_and_time():
         qualification_status="historical_original",
     )
     session = report_session()
-    session.check = lambda: None
     session.fields = {"IQS_05": {"decision": "reuse"}}
     session.bundle["questions"] = {"IQS_05": NS(question_id="IQS_05")}
     session.reference = lambda q: NS(answer=NS(metadata={"owner_observation_reference": original}))
@@ -445,7 +475,7 @@ def reactivated_session(tmp_path):
     session.service = NS(
         store=store,
         _inputs_unchanged=Mock(),
-        _record=Mock(return_value=copy.deepcopy(record)),
+        read_registration=Mock(return_value=copy.deepcopy(record)),
         bridge=NS(inspect=Mock(return_value=copy.deepcopy(proof))),
     )
     lifecycle = QuickScanWorkLifecycle(
@@ -468,14 +498,16 @@ def test_reactivated_epoch_resumes_exact_original_binding_without_rewrite(tmp_pa
     assert binding == before["binding"] and binding["anchor_version"] == 2
     assert session.plan["anchor_version"] == session.native.current["anchor_version"] == 4
     assert store.get_owner_refresh_binding(row["work_item_id"]) == before
-    session.service.bridge.inspect.assert_called_once_with(
-        session.proof["confirmation"]["confirmation_id"], mode="current_permissions"
-    )
+    session.service.bridge.inspect.assert_not_called()
     assert store.list_attempts(row["work_item_id"]) == []
     handle = lifecycle.before_question(question)
     assert handle["claimed"] is True
     assert store.get_owner_refresh_binding(row["work_item_id"]) == before
     assert store.list_attempts(row["work_item_id"]) == []
+    session.check()  # The current-permission check belongs at native send intent.
+    session.service.bridge.inspect.assert_called_once_with(
+        session.proof["confirmation"]["confirmation_id"], mode="current_permissions"
+    )
 
 
 @pytest.mark.parametrize(
@@ -499,7 +531,9 @@ def test_reactivated_epoch_resumes_exact_original_binding_without_rewrite(tmp_pa
         "no_permission",
     ],
 )
-def test_epoch_resume_requires_current_exact_registered_action_and_native_context(tmp_path, fault):
+def test_epoch_resume_requires_current_exact_registered_action_and_native_context(
+    tmp_path, monkeypatch, fault
+):
     from unittest.mock import Mock
 
     from src.utils.quick_scan_work_store import QuickScanWorkStore
@@ -508,7 +542,7 @@ def test_epoch_resume_requires_current_exact_registered_action_and_native_contex
     before = store.get_owner_refresh_binding(row["work_item_id"])
     qid = question.question_id
     if fault == "missing_action":
-        session.service._record.return_value = None
+        session.service.read_registration.return_value = None
     elif fault == "entry_binding":
         session.entries[qid]["specification"]["owner_refresh_binding"][
             "request_identity_key"
@@ -538,9 +572,23 @@ def test_epoch_resume_requires_current_exact_registered_action_and_native_contex
     else:
         session.service.bridge.inspect = Mock(side_effect=ValueError("synthetic revoked"))
     result = lifecycle.before_question(question)
-    assert result["claimed"] is False
+    assert result["claimed"] is (fault == "no_permission")
+    if fault == "no_permission":
+        from src.utils.http_client import http_client_manager
+
+        post = Mock(side_effect=AssertionError("revoked permission cannot reach HTTP"))
+        monkeypatch.setattr(http_client_manager, "get_sync_session", post)
+        session.service.bridge.inspect.assert_not_called()
+        with pytest.raises(ValueError, match="synthetic revoked"):
+            session.check()
+        session.service.bridge.inspect.assert_called_once_with(
+            session.proof["confirmation"]["confirmation_id"], mode="current_permissions"
+        )
+        post.assert_not_called()
     assert store.get_owner_refresh_binding(row["work_item_id"]) == before
-    assert store.get_item(row["work_item_id"])["status"] == "pending"
+    assert store.get_item(row["work_item_id"])["status"] == (
+        "leased" if fault == "no_permission" else "pending"
+    )
     assert store.list_attempts(row["work_item_id"]) == []
 
 
@@ -733,7 +781,7 @@ def original_ready_session(tmp_path, monkeypatch):
     session.service = NS(
         store=store,
         _inputs_unchanged=Mock(),
-        _record=Mock(return_value=copy.deepcopy(record)),
+        read_registration=Mock(return_value=copy.deepcopy(record)),
         bridge=NS(inspect=Mock(return_value=copy.deepcopy(proof))),
     )
     lifecycle = QuickScanWorkLifecycle(
@@ -1096,3 +1144,49 @@ def test_paid_prepare_keeps_original_mixed_scope_but_materializes_work_only(tmp_
     assert report["recovered_work_question_count"] == 1
     assert report["whole_manifest_answered"] is False
     assert report["original_cached_references_retained"] is True
+
+
+def test_paid_snapshot_and_report_keep_mixed_work_read_only(monkeypatch):
+    from types import SimpleNamespace
+
+    from src.utils.quick_scan_owner_refresh_api import adapt_owner_refresh
+
+    def unexpected_seal(*args, **kwargs):
+        pytest.fail("a diagnostic replay wrote a delivery to the ledger")
+
+    monkeypatch.setattr("src.utils.quick_scan_delivery_seal.seal_result_delivery", unexpected_seal)
+    session = report_session()
+    session.recovery_only = True
+    session.recovery_work_item_ids = ["W_PAID"]
+    session.remaining_work_item_ids = ["W_UNSENT"]
+    session.entries = {
+        "IQS_05": {"kind": "work", "work_item_id": "W_PAID"},
+        "IQS_10": {"kind": "work", "work_item_id": "W_UNSENT"},
+    }
+    session.fields = {qid: {"decision": "resume_existing_work"} for qid in session.entries}
+    session.work = {
+        "IQS_05": {"work_item_id": "W_PAID", "status": "result_ready"},
+        "IQS_10": {"work_item_id": "W_UNSENT", "status": "pending"},
+    }
+    by_id = {item["work_item_id"]: item for item in session.work.values()}
+    session.deferred = {}
+    session.service.store = SimpleNamespace(
+        get_item=by_id.__getitem__,
+        list_attempts=lambda work_id: (
+            [{"attempt_id": "A_PAID", "phase": "response_available"}] if work_id == "W_PAID" else []
+        ),
+        get_attempt_response=lambda attempt_id: (
+            {"receipt": "fixture"} if attempt_id == "A_PAID" else None
+        ),
+        get_result_delivery=lambda work_id: None,
+    )
+    handle = adapt_owner_refresh(session)
+    assert handle.snapshot().needs_new_dispatch is False
+    report = handle.recovery_report()
+    assert report["API_requests"] == 0 and report["model_dispatch_started"] is False
+    assert report["remaining_work_item_ids"] == ["W_UNSENT"]
+    assert report["delivery_references"] == []
+    assert [(row["work_item_id"], row["status"]) for row in report["deferred_work"]] == [
+        ("W_PAID", "result_ready"),
+        ("W_UNSENT", "pending"),
+    ]

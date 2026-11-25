@@ -5,6 +5,12 @@ import json
 import sqlite3
 from pathlib import Path
 
+from src.utils.logger import (
+    observe_arguments,
+    observed_command,
+    record_execution_failure,
+)
+from src.utils.quick_scan_feedback_observation import emit_refresh_observation
 from src.utils.quick_scan_refresh_inspect import inspect_refresh
 from src.utils.quick_scan_result_outbox import strict_json_loads
 
@@ -17,6 +23,7 @@ def read(path):
     return strict_json_loads(raw.decode("utf-8-sig"))
 
 
+@observed_command
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--ledger", type=Path, required=True)
@@ -32,16 +39,22 @@ def main(argv=None):
         type=Path,
         help="Fixed owner deployment reference supplied by native owner policy1.4 only",
     )
+    observe_arguments(parser, argv)
     args = parser.parse_args(argv)
     try:
+        request = read(args.request)
+        policy = read(args.policy)
         result = inspect_refresh(
             args.ledger,
-            read(args.request),
-            policy=read(args.policy),
+            request,
+            policy=policy,
             schema_version=args.schema_version,
             admission_config=args.admission_config,
             budget_policy_file=args.policy,
         )
+        # Optional per-question settlement sidecar. It never raises, never
+        # touches the ledger and never changes the envelope printed below.
+        emit_refresh_observation(result, request, args.ledger)
         print(json.dumps(result, ensure_ascii=False, allow_nan=False))
         return 0
     except (
@@ -52,7 +65,8 @@ def main(argv=None):
         UnicodeError,
         RecursionError,
         sqlite3.Error,
-    ):
+    ) as error:
+        record_execution_failure(None, error, stage="inspect.request")
         print(
             json.dumps(
                 dict(

@@ -3,6 +3,7 @@
 该模块是系统的核心，负责协调问题处理的整个流程。
 """
 
+import sqlite3
 from contextlib import nullcontext
 from datetime import datetime
 from typing import Any, Dict, List, Optional, cast
@@ -13,12 +14,42 @@ from src.core.models import Answer, QABatchResult, QAResult, Question
 from src.interfaces.progress_reporter import ProgressReporter
 from src.interfaces.quick_scan_lifecycle import QuickScanWorkLifecyclePort
 from src.interfaces.search_provider import SearchProvider
-from src.interfaces.transport_outcome import UncertainTransportOutcome
+from src.interfaces.transport_outcome import (
+    UncertainTransportOutcome,
+    iter_exception_chain,
+)
 from src.services.answer_generator import AnswerGenerator
 from src.utils.console_reporter import ConsoleReporter
-from src.utils.logger import get_logger
+from src.utils.logger import get_logger, record_execution_failure
 
 logger = get_logger(__name__)
+
+
+def _failure_diagnostic(error, stage, question=None, handle=None, refusal_code=None):
+    refs = dict(handle) if isinstance(handle, dict) else {}
+    if isinstance(question, Question) and question.question_id:
+        refs["question_id"] = question.question_id
+    return record_execution_failure(
+        logger, error, stage=stage, references=refs, refusal_code=refusal_code
+    )
+
+
+def _claim_refusal(question, handle, *, original_terminal=False):
+    # Real store failures keep their already-recorded exception. A returned
+    # denial carries its public status rather than a fabricated traceback.
+    if isinstance(handle, dict) and isinstance(handle.get("failure_diagnostic"), dict):
+        return handle["failure_diagnostic"]
+    stage = "question.original_terminal" if original_terminal else "question.claim"
+    reason = handle.get("reason") if isinstance(handle, dict) else None
+    # The lifecycle contract names the disposition; a third-party reason may
+    # also include a path or message. Only a machine code can leave this layer.
+    code = reason.partition(":")[0] if type(reason) is str else ""
+    code = (
+        code
+        if code and code.isascii() and code.islower() and code.replace("_", "").isalnum()
+        else "work_claim_refused"
+    )
+    return _failure_diagnostic(None, stage, question, handle, refusal_code=code)
 
 
 def _checkpoint_created_at(provenance: Dict[str, Any]) -> Optional[datetime]:
@@ -71,12 +102,7 @@ def _provenance_metadata(provenance: Dict[str, Any]) -> Dict[str, Any]:
 
 def _uncertain_transport_metadata(error: BaseException) -> Dict[str, Any]:
     """Retain an original uncertain receipt, without making a checkpoint answer."""
-    seen: set[int] = set()
-    current: Optional[BaseException] = error
-    for _ in range(16):
-        if current is None or id(current) in seen:
-            break
-        seen.add(id(current))
+    for current in iter_exception_chain(error):
         if isinstance(current, UncertainTransportOutcome):
             attempt_id = current.attempt_id
             if not isinstance(attempt_id, str) or not attempt_id or len(attempt_id) > 160:
@@ -103,7 +129,99 @@ def _uncertain_transport_metadata(error: BaseException) -> Dict[str, Any]:
                 },
                 "attempts": [{**receipt, "attempt_id": attempt_id}],
             }
-        current = current.__cause__
+    return {}
+
+
+def _safe_quick_scan_diagnostic(error: BaseException) -> Dict[str, Any]:
+    """Read bounded failure codes without importing a storage/provider adapter."""
+    try:
+        return _project_quick_scan_diagnostic(error)
+    except Exception:
+        return {}  # Optional diagnostic properties cannot block lifecycle cleanup.
+
+
+def _project_quick_scan_diagnostic(error: BaseException) -> Dict[str, Any]:
+    for current in iter_exception_chain(error):
+        value = getattr(current, "diagnostic", None)
+        if (
+            isinstance(value, dict)
+            and isinstance(value.get("stage"), str)
+            and value["stage"]
+            in {
+                "validation",
+                "prepare",
+                "subject_dispatch",
+                "owner_guard",
+                "send_intent",
+                "permit",
+            }
+            and isinstance(value.get("reason"), str)
+            and value["reason"]
+            in {
+                "sqlite_busy",
+                "sqlite_locked",
+                "sqlite_error",
+                "lease_fenced",
+                "work_conflict",
+                "budget_admission_denied",
+                "owner_guard_rejected",
+                "admission_failed",
+                "transport_outcome_uncertain",
+            }
+            and type(value.get("released_unsent")) is bool
+        ):
+            source = value.get("source_type")
+            if not isinstance(source, str) or source not in {
+                "OperationalError",
+                "IntegrityError",
+                "DatabaseError",
+                "InterfaceError",
+                "ProgrammingError",
+                "NotSupportedError",
+                "DataError",
+                "LeaseFencedError",
+                "WorkConflictError",
+                "BudgetAdmissionError",
+                "QuickScanWorkPersistenceError",
+                "QuickScanWorkUncertainError",
+                "ValueError",
+                "TypeError",
+                "RuntimeError",
+                "TimeoutError",
+                "OSError",
+                "KeyError",
+                "PermissionError",
+                "Exception",
+            }:
+                source = "Exception"
+            release_reason = value.get("release_reason")
+            if not isinstance(release_reason, str) or release_reason not in {
+                "pack_not_created",
+                "original_pack_not_prepared",
+                "member_or_lease_changed",
+                "durable_evidence_present",
+                "released_unsent",
+                "release_check_failed",
+                "transport_outcome_uncertain",
+            }:
+                release_reason = "release_check_failed"
+            code, name = value.get("sqlite_errorcode"), value.get("sqlite_errorname")
+            if (
+                type(code) is not int
+                or not isinstance(name, str)
+                or not name.startswith("SQLITE_")
+                or getattr(sqlite3, name, None) != code
+            ):
+                code, name = None, None
+            return dict(
+                stage=value["stage"],
+                reason=value["reason"],
+                source_type=source,
+                sqlite_errorcode=code,
+                sqlite_errorname=name,
+                released_unsent=value["released_unsent"],
+                release_reason=release_reason,
+            )
     return {}
 
 
@@ -339,6 +457,7 @@ class QAEngine:
                         metadata={
                             "work_claim_refused": True,
                             "work_claim_reason": reason,
+                            "failure_diagnostic": _claim_refusal(refuse_question, lifecycle_handle),
                             **(
                                 {"work_item_id": lifecycle_handle["work_item_id"]}
                                 if lifecycle_handle and lifecycle_handle.get("work_item_id")
@@ -371,9 +490,23 @@ class QAEngine:
                 self.progress_reporter.update_progress(i, len(question_texts), done_msg)
 
             except (ValidationError, ProcessingError) as e:
-                logger.error("[%d/%d] 处理失败: %s", i, len(question_texts), e)
+                diagnostic = _failure_diagnostic(
+                    e, "question.dispatch", question_text, lifecycle_handle
+                )
+                finalization = {}
                 if self.work_item_lifecycle is not None and lifecycle_handle is not None:
-                    self.work_item_lifecycle.after_question_failed(lifecycle_handle, str(e))
+                    try:
+                        self.work_item_lifecycle.after_question_failed(lifecycle_handle, e)
+                    except Exception as secondary:
+                        finalization = {
+                            "work_state_finalization_failed": True,
+                            "finalization_diagnostic": _failure_diagnostic(
+                                secondary,
+                                "question.failure_finalize",
+                                question_text,
+                                lifecycle_handle,
+                            ),
+                        }
 
                 # 更新进度（失败）
                 fail_msg = f"[FAIL] 失败: {display_text[:DISPLAY_QUESTION_TRUNCATE]}...  "
@@ -387,7 +520,7 @@ class QAEngine:
                         else Question(text=question_text)
                     )
                     error_answer = Answer(
-                        text=f"处理失败: {str(e)}",
+                        text="处理失败（" + diagnostic["root_type"] + "）",
                         score=None,
                         status="error",
                         source="error",
@@ -396,7 +529,11 @@ class QAEngine:
                     error_result = QAResult(
                         question=error_question,
                         answer=error_answer,
-                        metadata={"error": str(e)},
+                        metadata={
+                            "error": type(e).__name__,
+                            "failure_diagnostic": diagnostic,
+                            **finalization,
+                        },
                     )
                     batch_result.add_result(error_result)
                 except (ConnectionError, TimeoutError):
@@ -550,9 +687,14 @@ class QAEngine:
         ) -> bool:
             nonlocal stopped_reason
             stopped_reason = stopped_reason or reason or type(error).__name__
+            failure_detail = _failure_diagnostic(error, "question_pack.dispatch", question, handle)
             metadata = _uncertain_transport_metadata(error)
             if not metadata and isinstance(execution, dict):
                 metadata = {"execution": execution, **(transport_metadata or {})}
+            diagnostic = _safe_quick_scan_diagnostic(error)
+            if diagnostic:
+                metadata["quick_scan_diagnostic"] = diagnostic
+                logger.warning("Question-pack admission failed (%s)", diagnostic)
             output[index] = QAResult(
                 question=question,
                 answer=Answer(
@@ -562,16 +704,23 @@ class QAEngine:
                     source="error",
                     metadata=metadata,
                 ),
-                metadata={"question_pack_error": reason or type(error).__name__},
+                metadata={
+                    "question_pack_error": reason or type(error).__name__,
+                    "failure_diagnostic": failure_detail,
+                    **({"quick_scan_diagnostic": diagnostic} if diagnostic else {}),
+                },
             )
             try:
                 # Only the explicit parse-member reason reaches the original
                 # deterministic-failure branch. Generic DB/transport errors
                 # retain native received/uncertain state for reconciliation.
-                lifecycle.after_question_failed(handle, reason or type(error).__name__)
+                lifecycle.after_question_failed(handle, reason or error)
                 return True
             except Exception as finalize_error:
                 output[index].metadata["work_state_finalization_failed"] = True
+                output[index].metadata["finalization_diagnostic"] = _failure_diagnostic(
+                    finalize_error, "question_pack.failure_finalize", question, handle
+                )
                 logger.warning(
                     "Question-pack failure state needs native recovery (%s)",
                     type(finalize_error).__name__,
@@ -805,6 +954,9 @@ class QAEngine:
                         metadata={
                             "work_claim_refused": True,
                             "work_claim_reason": reason,
+                            "failure_diagnostic": _claim_refusal(
+                                question, handle, original_terminal=skipped_terminal
+                            ),
                             "original_terminal_work_skipped": skipped_terminal,
                             **(
                                 {"work_item_id": handle["work_item_id"]}
@@ -829,7 +981,12 @@ class QAEngine:
                         source="error",
                         metadata=_uncertain_transport_metadata(error),
                     ),
-                    metadata={"question_pack_error": type(error).__name__},
+                    metadata={
+                        "question_pack_error": type(error).__name__,
+                        "failure_diagnostic": _failure_diagnostic(
+                            error, "question_pack.claim", question
+                        ),
+                    },
                 )
         flush()
         for index in range(len(questions)):
