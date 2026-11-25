@@ -24,6 +24,11 @@ import sqlite3
 import sys
 from pathlib import Path
 
+from src.utils.execution_feedback import (
+    emit_execution_observation as emit_execution_observation,
+)
+from src.utils.execution_feedback import write_observations as write_observations
+
 SCHEMA_VERSION = "feedback-observation/1"
 OWNER = "stockqa"
 
@@ -669,33 +674,11 @@ def read_feedback_attempt(view, work_item_id, generation, attempt_id) -> dict | 
     return proof
 
 
-def write_observations(path, rows):
-    """Append UTF-8 JSONL; every exported value must already be a string."""
-    payload = []
-    for row in rows:
-        if not isinstance(row, dict) or not row:
-            raise ValueError("feedback observation must be a non-empty object")
-        for key, value in row.items():
-            if not isinstance(key, str) or not isinstance(value, str):
-                raise ValueError("feedback observation fields must be strings")
-        payload.append(json.dumps(row, ensure_ascii=False) + "\n")
-    with Path(path).open("a", encoding="utf-8", newline="\n") as stream:
-        stream.write("".join(payload))
-
-
 def _tracking_incomplete():
     try:
         print("feedback tracking incomplete", file=sys.stderr)
     except Exception:
         pass
-
-
-def emit_execution_observation(diagnostic, *, context=None, environ=None):
-    from src.utils.execution_feedback import publish
-
-    return publish(
-        diagnostic, context or {}, os.environ if environ is None else environ, write_observations
-    )
 
 
 def emit_refresh_observation(result, request, ledger_path, *, environ=None):

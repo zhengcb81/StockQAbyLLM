@@ -754,7 +754,9 @@ def test_composed_approved_owner_session_keeps_native_context_and_outer_admissio
     original_record = {"inputs": {"original": True}, "receipt": {"original": True}}
     approved.record = copy.deepcopy(original_record)
     approved.proof = {"confirmation": {"confirmation_id": "fixture-confirmation"}}
-    approved.service = SimpleNamespace(store=store, _record=Mock(return_value=original_record))
+    approved.service = SimpleNamespace(
+        store=store, read_registration=Mock(return_value=original_record)
+    )
     approved.plan = native.plan
     approved.fields = native.fields
     approved.scope_bindings = scopes
@@ -772,18 +774,18 @@ def test_composed_approved_owner_session_keeps_native_context_and_outer_admissio
         scope_by_question=scopes,
     )
     lc.assert_question_pack_ready([question])
-    approved.service._record.assert_called_once()
+    approved.service.read_registration.assert_called_once()
     approved.check.assert_not_called()  # Readiness cannot authorize a paid send.
-    approved.service._record.return_value = {"inputs": {"changed": True}, "receipt": {}}
+    approved.service.read_registration.return_value = {"inputs": {"changed": True}, "receipt": {}}
     with pytest.raises(ValueError, match="original_action_changed"):
         lc.assert_question_pack_ready([question])
-    approved.service._record.return_value = original_record
-    approved.service._record.reset_mock()
+    approved.service.read_registration.return_value = original_record
+    approved.service.read_registration.reset_mock()
     approved.service.store = QuickScanWorkStore(tmp_path / "foreign-wrapper.sqlite")
     with pytest.raises(ValueError):
         lc.assert_question_pack_ready([question])
     approved.check.assert_not_called()
-    approved.service._record.assert_not_called()
+    approved.service.read_registration.assert_not_called()
 
 
 def test_explicit_member_rejection_carries_typed_reason_but_storage_error_does_not():

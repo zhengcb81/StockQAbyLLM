@@ -17,6 +17,7 @@ import time
 from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import cast
 
 from . import quick_scan_refresh_admission_journal as journal
 from .quick_scan_owner_refresh import OwnerRefreshClient
@@ -218,9 +219,10 @@ class RefreshAdmissionService:
                 raise
             raise AdmissionRejected("refresh_admission_ledger_invalid") from error
 
-    def _record(self, confirmation_id):
+    def read_registration(self, confirmation_id: str) -> dict | None:
+        """Read the original persisted registration by its confirmation ID."""
         with closing(self.store.connect()) as connection:
-            return journal.read_record(connection, confirmation_id)
+            return cast(dict | None, journal.read_record(connection, confirmation_id))
 
     def _bundle(self, ref, policy):
         from src.config.json_config_manager import JSONConfigManager
@@ -368,7 +370,7 @@ class RefreshAdmissionService:
         ):
             raise AdmissionRejected("refresh_admission_confirmation_id_invalid")
         self._ledger_ready()
-        record = self._record(confirmation_id)
+        record = self.read_registration(confirmation_id)
         if record is None:
             raise AdmissionRejected("refresh_execution_registered_action_required")
         proof = self.bridge.inspect(
@@ -409,7 +411,7 @@ class RefreshAdmissionService:
             raise AdmissionRejected("refresh_admission_confirmation_id_invalid")
         try:
             self._ledger_ready()
-            existing = self._record(confirmation_id)
+            existing = self.read_registration(confirmation_id)
             proof = self.bridge.inspect(
                 confirmation_id,
                 mode="current_permissions" if existing else "fresh_registration",
@@ -586,7 +588,7 @@ class RefreshAdmissionService:
                     else None
                 ),
             )
-            committed = self._record(confirmation_id)
+            committed = self.read_registration(confirmation_id)
             if committed is None or canonical_bytes(committed["receipt"]) != canonical_bytes(
                 receipt
             ):

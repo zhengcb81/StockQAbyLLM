@@ -202,7 +202,7 @@ def record_execution_failure(
         except Exception:
             _tracking_incomplete()
     try:
-        from src.utils.quick_scan_feedback_observation import emit_execution_observation
+        from src.utils.execution_feedback import emit_execution_observation
 
         context = _FAILURE_CONTEXT.get()
         if context and explains_invocation:

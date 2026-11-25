@@ -2,40 +2,18 @@
 
 from __future__ import annotations
 
-import os
-
 # The configured first-party OS CLI uses argv, never shell commands.
 import subprocess  # nosec B404
 import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from .quick_scan_owner_process_env import route_subprocess_env
 from .quick_scan_result_outbox import canonical_bytes, strict_json_loads
 
 
 def register(config, current, request, *, process_env=None) -> dict:
-    env = (
-        dict(process_env)
-        if process_env is not None
-        else {
-            k: v
-            for k, v in os.environ.items()
-            if k.upper()
-            in {
-                "SYSTEMROOT",
-                "WINDIR",
-                "PATH",
-                "PATHEXT",
-                "COMSPEC",
-                "USERPROFILE",
-                "APPDATA",
-                "LOCALAPPDATA",
-                "SYSTEMDRIVE",
-            }
-        }
-    )
-    env.update(PYTHONDONTWRITEBYTECODE="1", PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
-    env["PYTHONPATH"] = os.pathsep.join((config["stockwiki_code_root"], env.get("PYTHONPATH", "")))
+    env = route_subprocess_env(config["stockwiki_code_root"], process_env)
     runs = Path(config["runs_dir"])
     runs.mkdir(parents=True, exist_ok=True)
     raw = canonical_bytes(request)

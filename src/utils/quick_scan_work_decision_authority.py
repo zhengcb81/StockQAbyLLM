@@ -154,7 +154,7 @@ class StockWikiWorkDecisionAuthority(OwnerWorkDecisionAuthority):
             result = subprocess.run(
                 command,
                 cwd=c["stockwiki_code_root"],
-                env=self._transport._environment(),
+                env=self._transport.subprocess_env(),
                 capture_output=True,
                 timeout=80,
                 check=False,

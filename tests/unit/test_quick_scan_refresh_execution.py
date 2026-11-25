@@ -145,13 +145,43 @@ def test_registered_scope_rejects_resealed_wrong_work_or_binding(fault):
 
 
 def report_session():
+    from types import SimpleNamespace
+
     session = ApprovedRefreshSession.__new__(ApprovedRefreshSession)
+    session.record = {"inputs": {"specifications": []}, "receipt": {"items": []}}
+    session.service = SimpleNamespace(
+        read_registration=lambda confirmation_id: copy.deepcopy(session.record)
+    )
     session.entries = {"IQS_05": {}}
     session.bundle = {"manifest": {"questions": [{"id": "IQS_05"}, {"id": "IQS_10"}]}}
     session.proof = dict(
         confirmation={"confirmation_id": "synthetic-only"}, preview={"scope_sha256": "a" * 64}
     )
     return session
+
+
+@pytest.mark.parametrize("change", ["unchanged", "removed", "inputs", "receipt"])
+def test_validate_session_requires_the_public_original_registration(change):
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    session = report_session()
+    session.record = {"inputs": {"specifications": []}, "receipt": {"items": []}}
+    read_back = copy.deepcopy(session.record)
+    if change == "removed":
+        read_back = None
+    elif change != "unchanged":
+        read_back[change] = {"changed": True}
+    reread = Mock(return_value=read_back)
+    session.service = SimpleNamespace(read_registration=reread)
+
+    if change == "unchanged":
+        session.validate_session()
+    else:
+        with pytest.raises(AdmissionRejected, match="refresh_execution_original_action_changed"):
+            session.validate_session()
+
+    reread.assert_called_once_with("synthetic-only")
 
 
 @pytest.mark.parametrize(
@@ -293,7 +323,6 @@ def test_recovery_reference_keeps_original_public_descriptor_and_time():
         qualification_status="historical_original",
     )
     session = report_session()
-    session.check = lambda: None
     session.fields = {"IQS_05": {"decision": "reuse"}}
     session.bundle["questions"] = {"IQS_05": NS(question_id="IQS_05")}
     session.reference = lambda q: NS(answer=NS(metadata={"owner_observation_reference": original}))
@@ -446,7 +475,7 @@ def reactivated_session(tmp_path):
     session.service = NS(
         store=store,
         _inputs_unchanged=Mock(),
-        _record=Mock(return_value=copy.deepcopy(record)),
+        read_registration=Mock(return_value=copy.deepcopy(record)),
         bridge=NS(inspect=Mock(return_value=copy.deepcopy(proof))),
     )
     lifecycle = QuickScanWorkLifecycle(
@@ -513,7 +542,7 @@ def test_epoch_resume_requires_current_exact_registered_action_and_native_contex
     before = store.get_owner_refresh_binding(row["work_item_id"])
     qid = question.question_id
     if fault == "missing_action":
-        session.service._record.return_value = None
+        session.service.read_registration.return_value = None
     elif fault == "entry_binding":
         session.entries[qid]["specification"]["owner_refresh_binding"][
             "request_identity_key"
@@ -752,7 +781,7 @@ def original_ready_session(tmp_path, monkeypatch):
     session.service = NS(
         store=store,
         _inputs_unchanged=Mock(),
-        _record=Mock(return_value=copy.deepcopy(record)),
+        read_registration=Mock(return_value=copy.deepcopy(record)),
         bridge=NS(inspect=Mock(return_value=copy.deepcopy(proof))),
     )
     lifecycle = QuickScanWorkLifecycle(
@@ -1127,7 +1156,6 @@ def test_paid_snapshot_and_report_keep_mixed_work_read_only(monkeypatch):
 
     monkeypatch.setattr("src.utils.quick_scan_delivery_seal.seal_result_delivery", unexpected_seal)
     session = report_session()
-    session.check = lambda: None
     session.recovery_only = True
     session.recovery_work_item_ids = ["W_PAID"]
     session.remaining_work_item_ids = ["W_UNSENT"]
@@ -1142,8 +1170,15 @@ def test_paid_snapshot_and_report_keep_mixed_work_read_only(monkeypatch):
     }
     by_id = {item["work_item_id"]: item for item in session.work.values()}
     session.deferred = {}
-    session.service = SimpleNamespace(
-        store=SimpleNamespace(get_item=by_id.__getitem__, get_result_delivery=lambda _: None)
+    session.service.store = SimpleNamespace(
+        get_item=by_id.__getitem__,
+        list_attempts=lambda work_id: (
+            [{"attempt_id": "A_PAID", "phase": "response_available"}] if work_id == "W_PAID" else []
+        ),
+        get_attempt_response=lambda attempt_id: (
+            {"receipt": "fixture"} if attempt_id == "A_PAID" else None
+        ),
+        get_result_delivery=lambda work_id: None,
     )
     handle = adapt_owner_refresh(session)
     assert handle.snapshot().needs_new_dispatch is False

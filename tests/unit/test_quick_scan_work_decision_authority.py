@@ -176,3 +176,36 @@ def test_comparison_carrier_keeps_exact_binding_and_expiry_without_granting_auth
         authority._validate_control_delegation(value)
     # This carrier check is never a transport, native confirmation or fee grant.
     assert not authority.work_store.exists() and not authority.budget_policy_file.exists()
+
+
+def test_work_decision_uses_owner_subprocess_env_port(tmp_path, monkeypatch):
+    authority = client(tmp_path)
+    seen = []
+    prepared_env = {"PYTHONUTF8": "1", "PATH": "synthetic-owner-path"}
+
+    class PublicOwner(OwnerConsentEndpoint):
+        def consent_subprocess_env(self, python_path=None):
+            return prepared_env.copy()
+
+        def __getattribute__(self, name):
+            if name.startswith("_") and not name.startswith("__"):
+                raise AttributeError(name)
+            return super().__getattribute__(name)
+
+    authority = type(authority)(
+        PublicOwner(authority.owner.config),
+        work_store=authority.work_store,
+        budget_policy_file=authority.budget_policy_file,
+        consumer_id=authority.consumer_id,
+        confirmation_id=authority.confirmation_id,
+    )
+
+    def reply(argv, **options):
+        seen.append(options["env"])
+        return SimpleNamespace(stdout=b"{}", stderr=b"synthetic refusal", returncode=2)
+
+    monkeypatch.setattr("src.utils.quick_scan_work_decision_authority.subprocess.run", reply)
+    with pytest.raises(OwnerRefreshRejected, match="owner_work_native_rejected"):
+        authority.authorize({"kind": "known_response_resolution"})
+
+    assert seen == [prepared_env]

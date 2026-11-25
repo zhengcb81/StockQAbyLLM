@@ -1012,7 +1012,7 @@ def test_received_member_decode_failure_reaches_original_f4_without_reasking(
     )
     session.proof = {"confirmation": {"confirmation_id": "fixture"}}
     session.record = {"inputs": {}, "receipt": {}}
-    session.service._record = lambda confirmation: (
+    session.service.read_registration = lambda confirmation: (
         session.record if confirmation == "fixture" else None
     )
     monkeypatch.setattr("src.providers.llm_provider.LLMProvider.__init__", forbidden)

@@ -90,7 +90,7 @@ def current_policy(config_path, request, *, ledger_path, budget_policy_file, pro
         done = subprocess.run(
             command,
             cwd=source["stockwiki_code_root"],
-            env=client._environment(),
+            env=client.subprocess_env(),
             input=canonical(request).encode("utf8"),
             capture_output=True,
             timeout=80,

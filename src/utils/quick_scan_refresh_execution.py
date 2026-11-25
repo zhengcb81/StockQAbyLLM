@@ -377,17 +377,24 @@ class ApprovedRefreshSession:
             for qid, item in getattr(self, "work", {}).items()
         )
 
+    def _matching_original_registration(self, confirmation_id: str) -> dict | None:
+        record: dict | None = self.service.read_registration(confirmation_id)
+        if record is None or any(
+            canonical_bytes(record[key]) != canonical_bytes(self.record[key])
+            for key in ("inputs", "receipt")
+        ):
+            return None
+        return record
+
     def validate_session(self):
         """Check the original local registration without authorizing another POST.
 
         Input bytes, identity and question contracts were authenticated when this
         session was loaded. Getters and paid persistence retain that frozen scope.
         """
-        record = self.service._record(self.proof["confirmation"]["confirmation_id"])
         if (
-            record is None
-            or canonical_bytes(record["inputs"]) != canonical_bytes(self.record["inputs"])
-            or canonical_bytes(record["receipt"]) != canonical_bytes(self.record["receipt"])
+            self._matching_original_registration(self.proof["confirmation"]["confirmation_id"])
+            is None
         ):
             raise AdmissionRejected("refresh_execution_original_action_changed")
         if getattr(self, "recovery_only", False):
@@ -464,13 +471,8 @@ class ApprovedRefreshSession:
         if store is not self.service.store or qid not in self.entries:
             reject()
         confirmation = self.proof["confirmation"]["confirmation_id"]
-        record = self.service._record(confirmation)
-        if (
-            record is None
-            or record["inputs"]["action"]["confirmation_id"] != confirmation
-            or canonical_bytes(record["inputs"]) != canonical_bytes(self.record["inputs"])
-            or canonical_bytes(record["receipt"]) != canonical_bytes(self.record["receipt"])
-        ):
+        record = self._matching_original_registration(confirmation)
+        if record is None or record["inputs"]["action"]["confirmation_id"] != confirmation:
             reject()
         items = [item for item in self.proof["preview"]["items"] if item["question_id"] == qid]
         if len(items) != 1:

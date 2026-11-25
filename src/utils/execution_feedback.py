@@ -92,6 +92,27 @@ def _write_native(directory, row, token, receipt):
     )
 
 
+def write_observations(path, rows):
+    """Append UTF-8 JSONL; every exported value must already be a string."""
+    payload = []
+    for row in rows:
+        if not isinstance(row, dict) or not row:
+            raise ValueError("feedback observation must be a non-empty object")
+        for key, value in row.items():
+            if not isinstance(key, str) or not isinstance(value, str):
+                raise ValueError("feedback observation fields must be strings")
+        payload.append(json.dumps(row, ensure_ascii=False) + "\n")
+    with Path(path).open("a", encoding="utf-8", newline="\n") as stream:
+        stream.write("".join(payload))
+
+
+def emit_execution_observation(diagnostic, *, context=None, environ=None):
+    """Publish an invocation failure without opening any business state."""
+    return publish(
+        diagnostic, context or {}, os.environ if environ is None else environ, write_observations
+    )
+
+
 def publish(diagnostic, context, env, project):
     token = uuid4().hex
     directory = inbox(env)

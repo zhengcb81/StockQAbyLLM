@@ -1,5 +1,6 @@
 """Failure provenance without exception text, live providers or production state."""
 
+import builtins
 import importlib
 import io
 import json
@@ -12,6 +13,7 @@ from uuid import uuid4
 
 import pytest
 
+from src.utils import execution_feedback
 from src.utils import logger as diagnostic_log
 from src.utils import quick_scan_feedback_observation as feedback
 from src.utils.quick_scan_refresh_admission import AdmissionRejected
@@ -191,7 +193,9 @@ def test_logs_and_optional_sidecar_never_read_exception_text_or_change_result(
         assert details["diagnostic"]["root_type"] == "NewFailure"
         assert SECRET not in stream.getvalue() + json.dumps(rows)
         monkeypatch.setenv(feedback.ENV_OUT, str(tmp_path / "caller.jsonl"))
-        monkeypatch.setattr(feedback, "write_observations", Mock(side_effect=OSError(SECRET)))
+        monkeypatch.setattr(
+            execution_feedback, "write_observations", Mock(side_effect=OSError(SECRET))
+        )
         value = diagnostic_log.record_execution_failure(
             logger, nested_failure(), stage="question.search"
         )
@@ -254,7 +258,9 @@ def test_normal_cli_without_feedback_environment_has_real_invocation_context(mon
 
 
 def test_broken_sidecar_does_not_change_original_success_or_failure(monkeypatch, tmp_path):
-    monkeypatch.setattr(feedback, "write_observations", Mock(side_effect=ValueError(SECRET)))
+    monkeypatch.setattr(
+        execution_feedback, "write_observations", Mock(side_effect=ValueError(SECRET))
+    )
     token = diagnostic_log.configure_failure_diagnostics(output=tmp_path / "result.json")
     try:
         e, provider, lifecycle = engine()
@@ -303,3 +309,34 @@ def test_optional_log_io_cannot_block_import_logger_or_successful_answer(
     assert "logging tracking incomplete" in captured.err
     assert SECRET not in captured.err
     assert captured.out == ""
+
+
+def test_failure_log_publishes_receipts_without_loading_business_inspection(monkeypatch, tmp_path):
+    blocking = {
+        "quick_scan_feedback_observation",
+        "quick_scan_refresh_inspect",
+        "quick_scan_work_store",
+    }
+    attempted = []
+    original_import = builtins.__import__
+
+    def import_from_logging(name, *args, **kwargs):
+        if name.rsplit(".", 1)[-1] in blocking:
+            attempted.append(name)
+            raise ImportError("business inspection unavailable")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", import_from_logging)
+    diagnostic = diagnostic_log.record_execution_failure(
+        None, nested_failure(), stage="question.search"
+    )
+
+    assert attempted == []
+    rows = list((tmp_path / "inbox").glob("feedback-*.jsonl"))
+    receipts = list((tmp_path / "inbox").glob("feedback-*.cause.json"))
+    assert len(rows) == len(receipts) == 1
+    assert len(list((tmp_path / "inbox").glob("feedback-*.ready"))) == 1
+    receipt = json.loads(receipts[0].read_text(encoding="utf8"))
+    assert receipt["diagnostic"] == diagnostic
+    assert diagnostic["root_type"] == "NewFailure"
+    assert SECRET not in json.dumps(receipt)

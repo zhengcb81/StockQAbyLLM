@@ -7,7 +7,6 @@ does not authenticate a new registration; the Q13 journal decides replay.
 
 import copy
 import hashlib
-import os
 import re
 
 # The configured first-party OS CLI uses argv, never shell commands.
@@ -16,6 +15,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .quick_scan_owner_process_env import consent_subprocess_env
 from .quick_scan_owner_refresh import (
     OwnerRefreshClient,
     OwnerRefreshRejected,
@@ -64,7 +64,12 @@ class OwnerConsentEndpoint:
         ):
             raise OwnerRefreshRejected("refresh_consent_deployment_required")
         self.config = copy.deepcopy(config)
-        self._environment = process_env
+        self._process_env = process_env
+
+    def consent_subprocess_env(self, python_path: str | None = None) -> dict[str, str]:
+        return consent_subprocess_env(
+            self.config["stockwiki_code_root"], self._process_env, python_path
+        )
 
 
 class RefreshConsentClient:
@@ -81,36 +86,8 @@ class RefreshConsentClient:
             lambda: datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         )
 
-    def _environment(self, python_path=None):
-        source = self.owner._environment if self.owner._environment is not None else os.environ
-        env = {
-            k: v
-            for k, v in source.items()
-            if k.upper()
-            in {
-                "SYSTEMROOT",
-                "WINDIR",
-                "PATH",
-                "PATHEXT",
-                "COMSPEC",
-                "USERPROFILE",
-                "APPDATA",
-                "LOCALAPPDATA",
-                "SYSTEMDRIVE",
-            }
-        }
-        env.update(PYTHONDONTWRITEBYTECODE="1", PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
-        env["PYTHONPATH"] = python_path or self.owner.config["stockwiki_code_root"]
-        if source.get("IQS_C06_RUN_INTEGRATION") == "1":
-            owned = Path(source["IQS_C06_OWN"]).resolve()
-            env.update(IQS_C06_RUN_INTEGRATION="1", IQS_C06_OWN=str(owned))
-            env["PYTHONPATH"] = os.pathsep.join([str(owned / "guard"), env["PYTHONPATH"]])
-            env.update(
-                TEMP=str(owned / "tmp"),
-                TMP=str(owned / "tmp"),
-                TMPDIR=str(owned / "tmp"),
-            )
-        return env
+    def subprocess_env(self, python_path: str | None = None) -> dict[str, str]:
+        return self.owner.consent_subprocess_env(python_path)
 
     def inspect(self, confirmation_id, *, mode):
         if (
@@ -161,7 +138,7 @@ class RefreshConsentClient:
             completed = subprocess.run(  # nosec B603
                 command,
                 cwd=cwd,
-                env=self._environment(python_path),
+                env=self.subprocess_env(python_path),
                 input=input_bytes,
                 capture_output=True,
                 timeout=80,

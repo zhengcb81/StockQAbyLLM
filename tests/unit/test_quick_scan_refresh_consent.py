@@ -1,24 +1,27 @@
 """Transport-negative tests use synthetic owner bytes, never authenticate them."""
 
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-from src.utils.quick_scan_owner_refresh import OwnerRefreshClient, OwnerRefreshRejected
-from src.utils.quick_scan_refresh_consent import RefreshConsentClient
+from src.utils.quick_scan_owner_refresh import OwnerRefreshRejected
+from src.utils.quick_scan_refresh_consent import (
+    OwnerConsentEndpoint,
+    RefreshConsentClient,
+)
 
 
-def client(tmp_path):
-    owner = object.__new__(OwnerRefreshClient)
-    owner.config = dict(
+def client(tmp_path, *, process_env=None):
+    roots = dict(
         stockwiki_code_root=str(tmp_path / "sw"),
         stockwiki_workspace_root=str(tmp_path / "owner"),
         iqs_code_root=str(tmp_path / "iqs"),
         iqs_release_root=str(tmp_path / "release"),
     )
-    owner._environment = None
+    owner = OwnerConsentEndpoint(roots, process_env=process_env)
     cli = tmp_path / "sw/stockwiki/quick_scan_refresh_owner_cli.py"
     cli.parent.mkdir(parents=True)
     cli.write_text("# synthetic transport fixture only", encoding="utf-8")
@@ -92,3 +95,34 @@ def test_untrusted_or_failed_output_is_rejected_without_json_authority(tmp_path,
     )
     assert "ZAI_API_KEY" not in options["env"] and options.get("shell", False) is False
     assert options["cwd"] == c.owner.config["stockwiki_code_root"]
+
+
+def test_consent_subprocess_env_filters_explicit_source_and_keeps_c06_isolation(tmp_path):
+    owned = tmp_path / "owned"
+    source = {
+        "Path": "synthetic-owner-path",
+        "PYTHONPATH": "synthetic-inherited-import-root",
+        "ZAI_API_KEY": "synthetic-never-a-real-key",
+        "TEMP": "synthetic-inherited-temp",
+        "IQS_C06_RUN_INTEGRATION": "1",
+        "IQS_C06_OWN": str(owned),
+    }
+    consent = client(tmp_path, process_env=source)
+    explicit_root = str(tmp_path / "alternate-root")
+
+    env = consent.subprocess_env(explicit_root)
+
+    assert env == {
+        "Path": "synthetic-owner-path",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONUTF8": "1",
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONPATH": os.pathsep.join([str(owned / "guard"), explicit_root]),
+        "IQS_C06_RUN_INTEGRATION": "1",
+        "IQS_C06_OWN": str(owned),
+        "TEMP": str(owned / "tmp"),
+        "TMP": str(owned / "tmp"),
+        "TMPDIR": str(owned / "tmp"),
+    }
+    env["Path"] = "changed-by-caller"
+    assert consent.subprocess_env()["Path"] == source["Path"]
