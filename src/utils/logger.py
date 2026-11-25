@@ -441,8 +441,9 @@ def get_logger(
             warn_feedback_unavailable("logging tracking incomplete")
 
     # 添加控制台处理器
-    if log_to_console or file_unavailable:
-        console_handler = logging.StreamHandler(sys.stderr if file_unavailable else sys.stdout)
+    console_stream = sys.stderr if file_unavailable or sys.stdout is None else sys.stdout
+    if (log_to_console or file_unavailable) and console_stream is not None:
+        console_handler = logging.StreamHandler(console_stream)
         console_handler.setLevel(level)
         console_handler.addFilter(
             lambda record: not record.__dict__.get("_stockqa_structural_failure")

@@ -22,8 +22,11 @@ def warn_feedback_unavailable(message: str) -> None:
     """Report an unavailable diagnostic sink at the last local output boundary."""
     # If stderr is also unavailable, the caller's original outcome still owns
     # the exit status. There is no further sink to recurse into here.
+    stream = sys.stderr
+    if stream is None:
+        return
     with suppress(Exception):
-        print(message, file=sys.stderr)
+        print(message, file=stream)
 
 
 @lru_cache(maxsize=1)

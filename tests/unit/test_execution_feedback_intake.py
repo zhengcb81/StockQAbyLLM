@@ -413,6 +413,38 @@ def test_bad_operator_outbox_still_exposes_original_in_owner_inbox(tmp_path, mon
     )
 
 
+def test_native_feedback_and_log_setup_never_write_stdout_when_stderr_is_absent(
+    tmp_path, monkeypatch, capsys
+):
+    from src.utils import execution_feedback
+
+    native = tmp_path / "owner-native"
+    blocked = tmp_path / "blocked"
+    blocked.write_bytes(b"unchanged")
+    monkeypatch.setattr(execution_feedback, "DEFAULT_INBOX", native)
+    monkeypatch.setattr(diagnostics, "LOG_DIR", blocked)
+    error = diagnostics.build_failure_diagnostic(
+        OSError("synthetic private"), stage="inspect.request"
+    )
+
+    with monkeypatch.context() as pythonw:
+        pythonw.setattr(sys, "stderr", None)
+        (event,) = execution_feedback.emit_execution_observation(
+            error, environ={"RESEARCH_FEEDBACK_DIR": str(blocked)}
+        )
+        logger = diagnostics.get_logger("stockqa-test-pythonw-sink")
+        try:
+            logger.warning("local logging unavailable")
+        finally:
+            diagnostics.close_logger(logger)
+        print('{"state":"failed"}')
+
+    assert capsys.readouterr() == ('{"state":"failed"}\n', "")
+    proof = execution_feedback.read_execution(event, {})
+    assert proof["diagnostic"]["root_type"] == "OSError"
+    assert blocked.read_bytes() == b"unchanged"
+
+
 def test_budget_owner_publishes_only_its_own_rule_code():
     from src.utils.quick_scan_work_store import BudgetAdmissionError
 
