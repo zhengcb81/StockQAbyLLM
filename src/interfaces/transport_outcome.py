@@ -3,15 +3,16 @@
 from __future__ import annotations
 
 import copy
+from collections import deque
 from typing import Any, Dict, Iterator
 
 
 def iter_exception_chain(error: object) -> Iterator[BaseException]:
-    """Visit up to sixteen distinct cause/context facts, including suppressed context."""
-    pending = [error]
+    """Visit each native cause/context exception once, including suppressed context."""
+    pending = deque([error])
     seen: set[int] = set()
-    while pending and len(seen) < 16:
-        current = pending.pop(0)
+    while pending:
+        current = pending.popleft()
         if not isinstance(current, BaseException) or id(current) in seen:
             continue
         seen.add(id(current))

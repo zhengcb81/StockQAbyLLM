@@ -832,7 +832,99 @@ def test_legacy_lifecycle_still_records_unknown_for_typed_transport_failure(tmp_
     assert store.get_item(wid)["status"] == "uncertain"
 
 
-def test_public_exception_chain_is_bounded_and_deduplicates_both_links():
+def test_deep_uncertainty_retains_original_lease_and_cold_cause(session, tmp_path, monkeypatch):
+    import subprocess
+    import sys
+
+    from tests.unit.test_execution_feedback_intake import _offline_env
+    from tests.unit.test_quick_scan_feedback_owner import _action
+
+    inbox = tmp_path / "deep-cause"
+    monkeypatch.setenv("RESEARCH_FEEDBACK_DIR", str(inbox))
+    sentinel = "private-deep-wrapper"
+    outcome = transport.QuickScanWorkUncertainError(
+        "retained-physical",
+        {"request_id": "retained-request", "search_status": "unverified"},
+    )
+    outer = outcome
+    for _ in range(24):
+        wrapped = RuntimeError(sentinel)
+        wrapped.__cause__ = outer
+        outer = wrapped
+    outcome.__context__ = outer
+    original_items = {}
+
+    def fail_after_dispatch(pack, **_kwargs):
+        for question in pack:
+            work_id = session.owner.entries[question.question_id]["work_item_id"]
+            original_items[work_id] = session.store.get_item(work_id)
+        raise outer
+
+    search = Mock(side_effect=fail_after_dispatch)
+    provider = SimpleNamespace(
+        require_search=True,
+        search_question_pack=search,
+        get_provider_name=lambda: "synthetic",
+    )
+    engine = QAEngine(provider, progress_reporter=Mock(), work_item_lifecycle=session.lifecycle)
+    questions = [session.questions["IQS_01"], session.questions["IQS_02"]]
+    batch = engine.process_questions(questions, question_pack_size=2)
+    assert len(batch.results) == len(questions)
+    assert search.call_count == 1 and session.counts == Counter()
+    with pytest.raises(KeyError, match="unknown budget policy"):
+        session.store.get_quick_scan_budget_status("pack-transport")
+
+    markers = list(inbox.glob("*.ready"))
+    assert len(markers) == len(questions)
+    observation = json.loads(markers[0].with_suffix(".jsonl").read_bytes())
+    receipt = subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            "-X",
+            "utf8",
+            "-m",
+            "src.utils.quick_scan_feedback_owner",
+            "--state",
+            str(tmp_path / "deep-feedback.sqlite"),
+            "triage",
+        ],
+        input=json.dumps(
+            _action("triage", {"occurrence_id": "deep", "observation": observation})
+        ).encode(),
+        cwd=tmp_path,
+        env={**_offline_env(tmp_path), "RESEARCH_FEEDBACK_DIR": str(inbox)},
+        capture_output=True,
+        timeout=30,
+        check=True,
+    )
+    cold = json.loads(receipt.stdout)["result"]
+    assert cold["evidence_ref"] == observation["evidence_ref"]
+    diagnostic = cold["diagnostic"]
+    assert diagnostic["stage"] == "question_pack.dispatch"
+    assert diagnostic["references"]["work_item_id"] in original_items
+    assert [row["type"] for row in diagnostic["chain"]] == [
+        *["RuntimeError"] * 24,
+        "QuickScanWorkUncertainError",
+    ]
+    assert sentinel not in receipt.stdout.decode()
+
+    for result in batch.results:
+        question = result.question
+        work_id = session.owner.entries[question.question_id]["work_item_id"]
+        assert original_items[work_id]["status"] == "leased"
+        assert session.store.get_item(work_id) == original_items[work_id]
+        assert session.store.list_attempts(work_id) == []
+        execution = result.answer.metadata["execution"]
+        assert execution["attempt_id"] == "retained-physical"
+        assert execution["request_id"] == "retained-request"
+        assert execution["dispatch_outcome"]["state"] == "uncertain"
+        assert session.lifecycle.before_question(question)["claimed"] is False
+        assert session.store.get_item(work_id) == original_items[work_id]
+    assert search.call_count == 1 and session.counts == Counter()
+
+
+def test_public_exception_chain_keeps_distinct_facts_and_deduplicates_both_links():
     from src.interfaces.transport_outcome import iter_exception_chain
 
     errors = [RuntimeError("synthetic") for _ in range(30)]
@@ -841,4 +933,4 @@ def test_public_exception_chain_is_bounded_and_deduplicates_both_links():
     errors[-1].__context__ = errors[0]
     errors[0].__context__ = errors[1]
     found = list(iter_exception_chain(errors[0]))
-    assert len(found) == 16 and len({id(error) for error in found}) == 16
+    assert found == errors
