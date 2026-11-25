@@ -290,12 +290,12 @@ LOG_RECORD_MAX_CHARS = 2000
 
 # Q05（LLM-08）凭据类内容脱敏模式（落盘前应用）。
 _CREDENTIAL_VALUE = r"""(?:"[^"\r\n]*"?|'[^'\r\n]*'?|[^\s,;"'&]+)"""
-_CREDENTIAL_TOKEN = r"[A-Za-z0-9._~+/\-]+=*"
+_FOLDED_AUTH_VALUE = re.compile(r"[A-Za-z0-9._~+/\-]+=*")
 LOG_REDACTION_PATTERNS = (
     (
         re.compile(
             rf"""(?im)(\b(?:proxy[-_])?authorization["']?[ \t]*[:=][ \t]*)"""
-            rf"(?:(?:bearer|basic)[ \t]*\r?\n[ \t]*{_CREDENTIAL_TOKEN}(?=[ \t]*\r?$)"
+            rf"(?:(?:bearer|basic)[ \t]*\r?\n[ \t]*{_FOLDED_AUTH_VALUE.pattern}(?=[ \t]*\r?$)"
             rf"|(?:(?:bearer|basic)[ \t]+)?{_CREDENTIAL_VALUE})"
         ),
         r"\1***",
@@ -357,8 +357,8 @@ def subprocess_stderr_excerpt(stderr: bytes | str | _StderrStream | None) -> str
             (index for index, line in enumerate(lines) if line.strip() and not line[0].isspace()),
             len(lines),
         )
-        if first_complete < len(lines) and re.fullmatch(
-            _CREDENTIAL_TOKEN, lines[first_complete].strip()
+        if first_complete < len(lines) and _FOLDED_AUTH_VALUE.fullmatch(
+            lines[first_complete].strip()
         ):
             # A malformed fold may start with an unindented credential after
             # a header that was truncated at the start of the window.
