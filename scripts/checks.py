@@ -113,6 +113,8 @@ DAILY_TEST_TARGETS: Tuple[str, ...] = (
     "tests/unit/test_owner_refresh_charge_boundaries.py",
     "tests/unit/test_question_pack_presend_recovery.py",
     "tests/unit/test_execution_feedback_intake.py::test_diagnostic_constructor_failure_preserves_original_pack_cleanup",
+    "tests/unit/test_execution_feedback_intake.py::test_cold_owner_selects_original_observation_directory",
+    "tests/unit/test_quick_scan_feedback_owner.py::test_reconcile_knows_the_exact_native_paid_cost_without_changing_it",
     "tests/unit/test_execution_failure_diagnostics.py::test_cause_context_and_new_exception_keep_code_positions_without_text",
     "tests/unit/test_quick_scan_operational_readiness.py",
     "tests/unit/test_q09_budget_concurrency.py",

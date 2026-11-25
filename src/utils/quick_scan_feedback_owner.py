@@ -121,22 +121,31 @@ def _version(proof: dict) -> str:
     return "stockqa:settlement/1/" + hashlib.sha256(canonical_bytes(proof)).hexdigest()
 
 
-def _read_action(ledger: Path | None, state: Path, kind: str, payload: dict) -> dict:
+def _read_action(
+    ledger: Path | None,
+    state: Path,
+    kind: str,
+    payload: dict,
+    *,
+    observation_dir: Path | None,
+) -> dict:
     def native_path(ref: SettlementRef) -> Path | None:
-        from src.utils.execution_feedback import DEFAULT_INBOX, inbox
+        from src.utils.execution_feedback import observation_read_dirs
 
-        return (
-            ledger
-            or feedback_ledger(state, ref.evidence, ref.attempt_id)
-            or feedback_ledger(inbox(os.environ) / "bindings.sqlite", ref.evidence, ref.attempt_id)
-            or feedback_ledger(DEFAULT_INBOX / "bindings.sqlite", ref.evidence, ref.attempt_id)
-        )
+        if ledger is not None:
+            return ledger
+        directories = observation_read_dirs(os.environ, observation_dir=observation_dir)
+        for registry in (state, *(directory / "bindings.sqlite" for directory in directories)):
+            path = feedback_ledger(registry, ref.evidence, ref.attempt_id)
+            if path is not None:
+                return path
+        return None
 
     row = payload.get("observation", {})
     if kind in {"triage", "reconcile"} and isinstance(row, dict):
         from src.utils.execution_feedback import read_execution
 
-        failure = read_execution(row, os.environ)
+        failure = read_execution(row, os.environ, observation_dir=observation_dir)
         if failure is not None:
             native = failure["observation"]
             if kind == "triage":
@@ -265,11 +274,18 @@ def _validate(request: dict, kind: str) -> None:
         raise ValueError("invalid owner action digest")
 
 
-def _submit(ledger: Path | None, state: Path, kind: str, request: dict) -> dict:
+def _submit(
+    ledger: Path | None,
+    state: Path,
+    kind: str,
+    request: dict,
+    *,
+    observation_dir: Path | None = None,
+) -> dict:
     _validate(request, kind)
     payload = request["payload"]
     if kind == "reconcile":
-        return _read_action(ledger, state, kind, payload)
+        return _read_action(ledger, state, kind, payload, observation_dir=observation_dir)
     if ledger is not None:
         separate_feedback_state(state, ledger)
     state.parent.mkdir(parents=True, exist_ok=True)
@@ -292,7 +308,7 @@ def _submit(ledger: Path | None, state: Path, kind: str, request: dict) -> dict:
         result = (
             _report(con, payload)
             if kind == "report"
-            else _read_action(ledger, state, kind, payload)
+            else _read_action(ledger, state, kind, payload, observation_dir=observation_dir)
         )
         con.execute(
             "INSERT INTO feedback_actions VALUES (?, ?, ?, ?, ?)",
@@ -307,6 +323,11 @@ def main(argv: list[str] | None = None) -> int:
         "--ledger", type=Path, help="explicitly supplied original ledger for historical replay"
     )
     parser.add_argument("--state", type=Path, required=True, help="durable local feedback receipts")
+    parser.add_argument(
+        "--observation-dir",
+        type=Path,
+        help="read native failure and settlement records from this existing StockQA inbox",
+    )
     parser.add_argument("kind", choices=(*_KINDS, "get-action"))
     parser.add_argument("action_id", nargs="?")
     args = parser.parse_args(argv)
@@ -316,7 +337,15 @@ def main(argv: list[str] | None = None) -> int:
             response = _lookup(args.state, args.action_id)
         else:
             request = strict_json_loads(sys.stdin.read())
-            response = {"result": _submit(args.ledger, args.state, args.kind, request)}
+            response = {
+                "result": _submit(
+                    args.ledger,
+                    args.state,
+                    args.kind,
+                    request,
+                    observation_dir=args.observation_dir,
+                )
+            }
             if args.kind == "reconcile":
                 response["state"] = "done"
     except (

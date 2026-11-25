@@ -85,6 +85,11 @@ _SYNTHETIC_FAILURE = (
     + b"Authorization: Bearer synthetic-bearer+/=\n"
     + b'{"Authorization": "Basic synthetic-basic+/="}\n'
     + b"Authorization: Bearer\r\n\tsynthetic-folded+/=\n"
+    + b"Authorization: Bearer\nsynthetic-unindented-bearer+/=\n"
+    + b"PermissionError: kept after unindented bearer\n"
+    + b"Authorization: Basic \r\nsynthetic-unindented-basic+/=\r\n"
+    + b"OSError: kept after unindented basic\n"
+    + b"Authorization: Bearer\r\n  ValueError: kept after missing credential\n"
     + b"owner link: https://example.invalid/?api_key=synthetic-url-key&healthy=unchanged\n"
     + b"Authorization was checked.\n"
 )
@@ -92,6 +97,8 @@ _SYNTHETIC_CREDENTIALS = (
     "synthetic-bearer+/=",
     "synthetic-basic+/=",
     "synthetic-folded+/=",
+    "synthetic-unindented-bearer+/=",
+    "synthetic-unindented-basic+/=",
     "synthetic-url-key",
 )
 
@@ -171,6 +178,9 @@ def test_owner_capability_failure_keeps_safe_stderr_tail(tmp_path, caplog, capsy
     assert all(value not in caplog.text for value in _SYNTHETIC_CREDENTIALS)
     assert "healthy=unchanged" in caplog.text
     assert "Authorization was checked." in caplog.text
+    assert "PermissionError: kept after unindented bearer" in caplog.text
+    assert "OSError: kept after unindented basic" in caplog.text
+    assert "ValueError: kept after missing credential" in caplog.text
     assert capsys.readouterr().out == ""
     assert not list((tmp_path / "runs").iterdir())
 
@@ -254,3 +264,25 @@ def test_cropped_stderr_window_does_not_log_mid_value(tmp_path, caplog):
 
     assert "synthetic-private-window" not in caplog.text
     assert "PermissionError: synthetic marker after giant header" in caplog.text
+
+
+def test_cropped_stderr_window_never_logs_unindented_header_value(tmp_path, caplog):
+    owner, code_root = _owner_refresh(tmp_path)
+    wrapped = b"\nsynthetic-unindented-window+/=\napi_key="
+    final = b"\nPermissionError: kept after partial header\n"
+    # The 8 KiB window opens at the last two letters of the header's scheme.
+    padding = b"x" * (8192 - 2 - len(wrapped) - len(final))
+    _native_cli(
+        code_root, "quick_scan_query_v2_cli", b"Authorization: Bearer" + wrapped + padding + final
+    )
+    service = research_mod.OwnerResearchServices.__new__(research_mod.OwnerResearchServices)
+    service._assert_registered_inputs = lambda **_: None
+    service.owner = owner
+
+    with pytest.raises(
+        research_mod.OwnerResearchRejected, match="subject_dispatch_capability_cli_failed"
+    ):
+        service.preflight_subject_dispatch()
+
+    assert "synthetic-unindented-window" not in caplog.text
+    assert "PermissionError: kept after partial header" in caplog.text

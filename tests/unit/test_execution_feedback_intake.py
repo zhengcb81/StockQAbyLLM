@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -51,6 +52,21 @@ def _offline_env(root):
         PYTHONUTF8="1",
     )
     return env
+
+
+def _failure_owner_request(kind, event):
+    payload = {"occurrence_id": "test-occurrence", "observation": event}
+    action_id = hashlib.sha256(kind.encode()).hexdigest()
+    wire = json.dumps(["stockqa", kind, action_id, payload], sort_keys=True, separators=(",", ":"))
+    return {
+        "schema_version": "feedback-action/1",
+        "owner": "stockqa",
+        "kind": kind,
+        "method": "lookup" if kind == "reconcile" else "submit",
+        "action_id": action_id,
+        "payload": payload,
+        "request_digest": hashlib.sha256(wire.encode()).hexdigest(),
+    }
 
 
 class OpaqueError(RuntimeError):
@@ -166,21 +182,8 @@ def test_ordinary_failure_reaches_outbox_and_cold_owner(mode, tmp_path):
     identity = json.loads(marker.read_bytes())
     assert all(identity[key] == event[key] for key in ("owner", "run_id", "attempt_id", "step_id"))
     assert event["disposition"] == "deviation" and event["check_id"] == "execution-outcome"
-    payload = {"occurrence_id": "test-occurrence", "observation": event}
     for kind in ("triage", "reconcile"):
-        action_id = hashlib.sha256(kind.encode()).hexdigest()
-        wire = json.dumps(
-            ["stockqa", kind, action_id, payload], sort_keys=True, separators=(",", ":")
-        )
-        action = {
-            "schema_version": "feedback-action/1",
-            "owner": "stockqa",
-            "kind": kind,
-            "method": "lookup" if kind == "reconcile" else "submit",
-            "action_id": action_id,
-            "payload": payload,
-            "request_digest": hashlib.sha256(wire.encode()).hexdigest(),
-        }
+        action = _failure_owner_request(kind, event)
         receipt = subprocess.check_output(
             [*PYTHON, "-m", "src.utils.quick_scan_feedback_owner", "--state", str(state), kind],
             input=json.dumps(action).encode(),
@@ -207,6 +210,60 @@ def test_ordinary_failure_reaches_outbox_and_cold_owner(mode, tmp_path):
                 "not_applicable" if mode in {"parse", "inspection"} else "unknown"
             )
     assert not (tmp_path / "absent.sqlite").exists()
+
+
+def test_cold_owner_selects_original_observation_directory(tmp_path):
+    old_inbox = tmp_path / "original"
+    saved = tmp_path / "owner" / "observations"
+    relocated = tmp_path / "other-code"
+    relocated.mkdir()
+    state = tmp_path / "owner" / "feedback.sqlite"
+    env = _offline_env(tmp_path)
+
+    failure = subprocess.run(
+        [*PYTHON, str(ROOT / "main_with_llm.py"), "--question-pack-size", "0"],
+        cwd=tmp_path,
+        env={**env, "RESEARCH_FEEDBACK_DIR": str(old_inbox)},
+        capture_output=True,
+        timeout=30,
+    )
+    assert failure.returncode == 2
+    shutil.copytree(old_inbox, saved)
+    (observation,) = [json.loads(path.read_bytes()) for path in saved.glob("*.jsonl")]
+    original_bytes = {path.name: path.read_bytes() for path in saved.iterdir()}
+    decoy = tmp_path / "unrelated-inbox"
+    request = json.dumps(_failure_owner_request("reconcile", observation)).encode()
+    route = [*PYTHON, "-m", "src.utils.quick_scan_feedback_owner", "--state", str(state)]
+
+    def cold(*args, locator):
+        result = subprocess.run(
+            [*route, *args, "reconcile"],
+            input=request,
+            cwd=relocated,
+            env={**env, "RESEARCH_FEEDBACK_DIR": str(locator)},
+            capture_output=True,
+            timeout=30,
+        )
+        assert result.returncode == 0, result.stderr.decode(errors="replace")
+        return json.loads(result.stdout)
+
+    expected = {
+        "state": "done",
+        "result": {
+            "status": "known",
+            "job_status": "failed",
+            "cost_state": "not_applicable",
+            "evidence_ref": observation["evidence_ref"],
+        },
+    }
+    assert cold(locator=saved) == expected
+    for _ in range(2):
+        assert cold("--observation-dir", str(saved), locator=decoy) == expected
+    missing = cold("--observation-dir", str(decoy), locator=saved)
+    assert missing["result"]["job_status"] == "unconfirmed"
+    assert original_bytes == {path.name: path.read_bytes() for path in saved.iterdir()}
+    assert not state.exists() and not decoy.exists()
+    assert not list(relocated.iterdir())
 
 
 @pytest.mark.parametrize(

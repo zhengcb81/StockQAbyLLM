@@ -13,6 +13,7 @@ from pathlib import Path
 if __name__ == "__main__":
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from src.utils.quick_scan_feedback_registry import bind_feedback_ledger  # noqa: E402
 from src.utils.quick_scan_work_store import quick_scan_receipt_sha256  # noqa: E402
 from tests.unit.test_quick_scan_feedback_observation import (  # noqa: E402
     _invoke,
@@ -133,9 +134,10 @@ def _action(kind, payload):
     }
 
 
-def _run(ledger, state, kind, action=None, *suffix, lost=False):
+def _run(ledger, state, kind, action=None, *suffix, lost=False, observation_dir=None):
     command = ["-c", LOST_REPLY] if lost else ["-m", PORT]
     ledger_args = ["--ledger", str(ledger)] if ledger is not None else []
+    inbox_args = ["--observation-dir", str(observation_dir)] if observation_dir is not None else []
     return subprocess.run(
         [
             sys.executable,
@@ -144,6 +146,7 @@ def _run(ledger, state, kind, action=None, *suffix, lost=False):
             "utf8",
             *command,
             *ledger_args,
+            *inbox_args,
             "--state",
             str(state),
             kind,
@@ -157,8 +160,8 @@ def _run(ledger, state, kind, action=None, *suffix, lost=False):
     )
 
 
-def _apply(ledger, state, kind, payload):
-    process = _run(ledger, state, kind, _action(kind, payload))
+def _apply(ledger, state, kind, payload, *, observation_dir=None):
+    process = _run(ledger, state, kind, _action(kind, payload), observation_dir=observation_dir)
     assert process.returncode == 0, process.stderr.decode(errors="replace")
     response = json.loads(process.stdout)
     if kind == "reconcile":
@@ -309,15 +312,19 @@ def test_reconcile_knows_the_exact_native_paid_cost_without_changing_it(tmp_path
         "evidence_ref": evidence,
     }
     state = tmp_path / "feedback.sqlite"
-    assert (
-        _apply(
-            store.path,
-            state,
-            "reconcile",
-            {"observation": {"evidence_ref": evidence, "details_ref": f"qa-attempt/1/{attempt}"}},
-        )
-        == expect
-    )
+    observation = {"evidence_ref": evidence, "details_ref": f"qa-attempt/1/{attempt}"}
+    payload = {"observation": observation}
+    assert _apply(store.path, state, "reconcile", payload) == expect
+
+    inbox = tmp_path / "previous-owner-inbox"
+    registry = inbox / "bindings.sqlite"
+    bind_feedback_ledger(registry, store.path, [observation])
+    before_bindings = registry.read_bytes()
+    assert _apply(None, state, "reconcile", payload, observation_dir=inbox) == expect
+    missing = _apply(None, state, "reconcile", payload, observation_dir=tmp_path / "unused")
+    assert missing["cost_state"] == "unknown"
+    assert list(inbox.iterdir()) == [registry]
+    assert registry.read_bytes() == before_bindings
     assert not state.exists()
     assert store.path.read_bytes() == baseline
 

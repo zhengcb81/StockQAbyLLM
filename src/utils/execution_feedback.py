@@ -75,6 +75,13 @@ def inbox(env):
     return Path(env.get("RESEARCH_FEEDBACK_DIR") or DEFAULT_INBOX)
 
 
+def observation_read_dirs(env, *, observation_dir: Path | None = None) -> tuple[Path, ...]:
+    """Keep an explicitly selected native read root independent of the code directory."""
+    if observation_dir is not None:
+        return (observation_dir,)
+    return tuple(dict.fromkeys((inbox(env), DEFAULT_INBOX)))
+
+
 def publish_native(directory, row, *, token=None, receipt=None):
     """Commit evidence before the marker that lets a consumer ingest the row."""
     token = token or uuid4().hex
@@ -185,7 +192,7 @@ def publish(diagnostic, context, env, project):
     return [row]
 
 
-def read_execution(observation, env):
+def read_execution(observation, env, *, observation_dir: Path | None = None):
     evidence = observation.get("evidence_ref")
     match = (
         re.fullmatch(r"stockqa-invocation/1/([0-9a-f]{32})", evidence or "")
@@ -195,7 +202,7 @@ def read_execution(observation, env):
     if not match:
         return None
     try:
-        for directory in dict.fromkeys((inbox(env), DEFAULT_INBOX)):
+        for directory in observation_read_dirs(env, observation_dir=observation_dir):
             path = directory / ("feedback-" + match[1] + ".cause.json")
             if path.is_file():
                 break
