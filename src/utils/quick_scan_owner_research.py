@@ -17,13 +17,13 @@ from dataclasses import dataclass
 
 from src.core.models import Answer, QAResult, Question
 from src.interfaces.quick_scan_lifecycle import QuickScanWorkLifecyclePort
-from src.providers.llm_client import LLMClient
-from src.utils.quick_scan_result_outbox import canonical_sha256
-from src.utils.quick_scan_work_store import (
+from src.interfaces.quick_scan_work_values import (
     budget_policy_projection,
     quick_scan_receipt_sha256,
     sanitize_transport_receipt,
 )
+from src.providers.llm_client import LLMClient
+from src.utils.quick_scan_result_outbox import canonical_sha256
 
 _logger = logging.getLogger(__name__)
 _STDERR_REDACT_RE = re.compile(
@@ -731,9 +731,7 @@ class OwnerResearchServices:
     def generation_scope(self, envelope):
         if _owner_runtime_projection(self.owner).recovery_only:
             raise OwnerResearchRejected("paid_recovery_cannot_dispatch")
-        from src.utils.quick_scan_work_transport import (
-            bind_quick_scan_budget,
-        )
+        from src.utils.quick_scan_work_transport import bind_quick_scan_budget
 
         self._validate_envelope(envelope)
         if self.request_scope is not None:

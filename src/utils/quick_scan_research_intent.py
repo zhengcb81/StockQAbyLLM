@@ -83,8 +83,9 @@ def bind_intent(
     provided_context=None,
     endpoint_profile_id=None,
 ):
+    from src.interfaces.quick_scan_work_values import validate_sha256 as _sha256
+
     from .quick_scan_work_store import QuickScanWorkStore
-    from .quick_scan_work_store import api_work_store_sha256 as _sha256
 
     if not isinstance(store, QuickScanWorkStore) or _INTENT.get() is not None:
         raise ValueError("native_research_intent_binding_invalid")
@@ -136,7 +137,7 @@ def binding_from_row(row) -> dict:
 
 def get_intent_response(store, task_sha256, intent_sha256):
     """Only original DB rows are returned, including a truthful missing output."""
-    from .quick_scan_work_store import api_work_store_sha256 as _sha256
+    from src.interfaces.quick_scan_work_values import validate_sha256 as _sha256
 
     _sha256(task_sha256, "research task hash")
     _sha256(intent_sha256, "research intent hash")
@@ -222,7 +223,7 @@ def bind_native_send(function):
             raise ValueError("native_research_intent_original_owner_work_required")
         if get_intent_response(store, task_sha, intent_sha) is not None:
             raise ValueError("native_research_intent_already_sent_inspect_original")
-        from .quick_scan_work_store import api_work_store_sha256 as _sha256
+        from src.interfaces.quick_scan_work_values import validate_sha256 as _sha256
 
         if provided is not None:
             from .quick_scan_provided_context import (

@@ -176,7 +176,7 @@ def _read(connection, pack_id):
         "SELECT * FROM quick_scan_question_pack_outcome WHERE pack_id=?", (pack_id,)
     ).fetchone()
     if outcome is not None:
-        from .quick_scan_work_store import quick_scan_receipt_sha256
+        from src.interfaces.quick_scan_work_values import quick_scan_receipt_sha256
 
         frozen_receipt = json.loads(outcome["receipt_json"])
         if quick_scan_receipt_sha256(frozen_receipt) != outcome["receipt_sha256"]:
@@ -209,13 +209,11 @@ def _read(connection, pack_id):
 
 
 def _validate_frozen(connection, pack):
+    from src.interfaces.quick_scan_work_values import validate_safe_identifier as _safe
+    from src.interfaces.quick_scan_work_values import validate_sha256 as _sha256
     from src.providers.model_resolution import model_resolution_sha256
 
-    from .quick_scan_work_store import (
-        WorkConflictError,
-    )
-    from .quick_scan_work_store import api_work_store_safe as _safe
-    from .quick_scan_work_store import api_work_store_sha256 as _sha256
+    from .quick_scan_work_store import WorkConflictError
 
     for key in ("pack_id", "execution_attempt_id", "route_id", "provider", "model_requested"):
         _safe(pack[key], key)
@@ -335,14 +333,11 @@ def prepare(
     model_resolution=None,
     search_mode="native_search",
 ):
+    from src.interfaces.quick_scan_work_values import validate_safe_identifier as _safe
+    from src.interfaces.quick_scan_work_values import validate_sha256 as _sha256
     from src.providers.model_resolution import normalize_model_resolution
 
-    from .quick_scan_work_store import (
-        Lease,
-        WorkConflictError,
-    )
-    from .quick_scan_work_store import api_work_store_safe as _safe
-    from .quick_scan_work_store import api_work_store_sha256 as _sha256
+    from .quick_scan_work_store import Lease, WorkConflictError
 
     if search_mode != "native_search":
         raise ValueError(
@@ -524,23 +519,19 @@ def record(
     actual_cost=None,
     cost_source_ref=None,
 ):
+    from src.interfaces.quick_scan_work_values import (
+        quick_scan_receipt_sha256,
+    )
+    from src.interfaces.quick_scan_work_values import (
+        sanitize_transport_receipt as _sanitized_receipt,
+    )
     from src.providers.model_resolution import (
         model_resolution_allowed,
         model_resolution_sha256,
     )
 
     from .quick_scan_subject_journal import guard_response
-    from .quick_scan_work_store import (
-        Lease,
-        LeaseFencedError,
-        WorkConflictError,
-    )
-    from .quick_scan_work_store import (
-        api_work_store_sanitized_receipt as _sanitized_receipt,
-    )
-    from .quick_scan_work_store import (
-        quick_scan_receipt_sha256,
-    )
+    from .quick_scan_work_store import Lease, LeaseFencedError, WorkConflictError
 
     with _operation(store, pack_id) as connection:
         pack = _read(connection, pack_id)
@@ -647,7 +638,7 @@ def record(
 
 
 def get(store, pack_id):
-    from .quick_scan_work_store import api_work_store_safe as _safe
+    from src.interfaces.quick_scan_work_values import validate_safe_identifier as _safe
 
     _safe(pack_id, "pack_id")
     with store.transaction() as connection:

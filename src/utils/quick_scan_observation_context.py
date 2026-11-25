@@ -538,11 +538,11 @@ def _evidence_url_identity(url: str) -> str:
     """Use the receipt's URL identity without laundering stripped credentials."""
     from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-    from .quick_scan_work_store import (
-        api_work_store_canonical_source_urls as _canonical_source_urls,
+    from src.interfaces.quick_scan_work_values import (
+        canonical_source_urls as _canonical_source_urls,
     )
-    from .quick_scan_work_store import (
-        api_work_store_sensitive_query_parameter as _sensitive_query_parameter,
+    from src.interfaces.quick_scan_work_values import (
+        sensitive_query_parameter as _sensitive_query_parameter,
     )
 
     try:
@@ -723,7 +723,7 @@ def _vendor_receipt_execution(checkpoint: dict, response: dict | None) -> dict:
     it again inside its sealing transaction. Hash consistency alone does not
     authenticate an arbitrary caller's record or grant owner/financial status.
     """
-    from .quick_scan_work_store import quick_scan_receipt_sha256
+    from src.interfaces.quick_scan_work_values import quick_scan_receipt_sha256
 
     if not isinstance(response, dict) or not isinstance(response.get("receipt"), dict):
         raise ValueError("vendor identity profile requires the durable response")

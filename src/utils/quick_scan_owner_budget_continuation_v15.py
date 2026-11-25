@@ -228,10 +228,11 @@ def snapshot_tx(connection, path, policy_id, attempt_ids=None):
 def exposure_snapshot(path, policy, attempt_ids=None):
     from contextlib import closing
 
-    from .quick_scan_refresh_inspect import ReadOnlyWorkView
-    from .quick_scan_work_store import (
-        api_work_store_budget_policy_projection as _budget_policy_projection,
+    from src.interfaces.quick_scan_work_values import (
+        budget_policy_projection as _budget_policy_projection,
     )
+
+    from .quick_scan_refresh_inspect import ReadOnlyWorkView
 
     normalized = _budget_policy_projection(policy)
     view = ReadOnlyWorkView(path)

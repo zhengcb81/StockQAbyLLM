@@ -81,11 +81,11 @@ def register(
     An actual original owner session is mandatory. Later calls may recover the
     identical registration; they cannot renew the turn cap or replace inputs.
     """
+    from src.interfaces.quick_scan_work_values import validate_sha256 as _sha256
     from src.providers.model_resolution import model_resolution_sha256
 
     from .quick_scan_owner_refresh_api import adapt_owner_refresh
     from .quick_scan_work_store import QuickScanWorkStore
-    from .quick_scan_work_store import api_work_store_sha256 as _sha256
 
     try:
         owner = adapt_owner_refresh(owner)
@@ -181,7 +181,7 @@ def bind(store, work_item_id, lease, session_id, *, intent_sha256):
     """Bind only this native work; never applies to budget-only or pack sends."""
     if _ACTIVE.get() is not None:
         _fail("nested_binding")
-    from .quick_scan_work_store import api_work_store_sha256 as _sha256
+    from src.interfaces.quick_scan_work_values import validate_sha256 as _sha256
 
     _sha256(intent_sha256, "research intent hash")
     value = (store, work_item_id, lease, session_id, intent_sha256)
@@ -217,9 +217,8 @@ def guard_turn(
     intent_sha256,
 ):
     """Run in prepare_attempt's SAME transaction before allocating the attempt."""
+    from src.interfaces.quick_scan_work_values import validate_sha256 as _sha256
     from src.providers.model_resolution import model_resolution_sha256
-
-    from .quick_scan_work_store import api_work_store_sha256 as _sha256
 
     _sha256(intent_sha256, "research intent hash")
     from .quick_scan_research_output import api_research_output_read as read
@@ -294,8 +293,9 @@ def find_attempt_for_intent(store, session_id, intent_sha256):
     """
     from contextlib import closing
 
+    from src.interfaces.quick_scan_work_values import validate_sha256 as _sha256
+
     from .quick_scan_research_output import api_research_output_read as read
-    from .quick_scan_work_store import api_work_store_sha256 as _sha256
 
     _sha256(intent_sha256, "research intent hash")
     with closing(store.connect()) as connection:
@@ -332,7 +332,7 @@ def find_attempt_for_task_intent(store, work_item_id, task_sha256, intent_sha256
     """Recover the session join from native rows, never a process-local handle."""
     from contextlib import closing
 
-    from .quick_scan_work_store import api_work_store_sha256 as _sha256
+    from src.interfaces.quick_scan_work_values import validate_sha256 as _sha256
 
     _sha256(task_sha256, "research task hash")
     _sha256(intent_sha256, "research intent hash")

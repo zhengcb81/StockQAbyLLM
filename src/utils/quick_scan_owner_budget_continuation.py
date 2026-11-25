@@ -114,8 +114,8 @@ ATTEMPT_FIELDS = (
 
 def _fresh_exposure_snapshot(path, policy, *, owner_ack_ref):
     """Owner-explicit fresh budget: zero retained attempts, no prior cash state."""
-    from .quick_scan_work_store import (
-        api_work_store_budget_policy_projection as _budget_policy_projection,
+    from src.interfaces.quick_scan_work_values import (
+        budget_policy_projection as _budget_policy_projection,
     )
 
     if not isinstance(owner_ack_ref, str) or not owner_ack_ref.strip():
@@ -186,8 +186,8 @@ def exposure_snapshot(
         return project(path, policy, attempt_ids)
     if dialect != "1.4.0":
         raise ValueError("owner_exposure_snapshot_dialect_unsupported")
-    from .quick_scan_work_store import (
-        api_work_store_budget_policy_projection as _budget_policy_projection,
+    from src.interfaces.quick_scan_work_values import (
+        budget_policy_projection as _budget_policy_projection,
     )
 
     if (
@@ -635,9 +635,7 @@ def register_cells(connection, proof, items, specifications, bundles, *, ledger_
 
 def _current_session():
     from .quick_scan_owner_refresh_api import is_owner_refresh_port
-    from .quick_scan_work_transport import (
-        current_quick_scan_owner_refresh_guard,
-    )
+    from .quick_scan_work_transport import current_quick_scan_owner_refresh_guard
 
     owner = current_quick_scan_owner_refresh_guard()
     if not is_owner_refresh_port(owner):

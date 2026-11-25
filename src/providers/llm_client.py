@@ -71,7 +71,7 @@ class LLMSearchResponse:
         external = self.execution_metadata.get("external_context_use")
         if "external_context_use" not in self.execution_metadata:
             return self.execution_metadata.get("search_status") == "executed"
-        from src.utils.quick_scan_work_store import quick_scan_receipt_sha256
+        from src.interfaces.quick_scan_work_values import quick_scan_receipt_sha256
 
         transport = self.execution_metadata.get("work_transport")
         if (
@@ -1677,7 +1677,7 @@ class LLMClient:
             )
             # Private transport provenance comes from this actual HTTP,
             # never from model-generated answer JSON or merged repair history.
-            from src.utils.quick_scan_work_store import sanitize_transport_receipt
+            from src.interfaces.quick_scan_work_values import sanitize_transport_receipt
 
             result.execution_metadata["work_transport"] = {
                 "work_attempt_id": work_attempt.attempt_id,
@@ -1912,7 +1912,7 @@ class AsyncLLMClient:
             )
             # Private transport provenance comes from this actual HTTP,
             # never from model-generated answer JSON or merged repair history.
-            from src.utils.quick_scan_work_store import sanitize_transport_receipt
+            from src.interfaces.quick_scan_work_values import sanitize_transport_receipt
 
             result.execution_metadata["work_transport"] = {
                 "work_attempt_id": work_attempt.attempt_id,

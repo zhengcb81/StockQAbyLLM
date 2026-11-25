@@ -10,6 +10,10 @@ from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
 
+from src.interfaces.quick_scan_work_values import (
+    budget_policy_projection as _budget_policy_projection,
+)
+
 from .quick_scan_known_outcome_journal import (
     OwnerWorkDecisionAuthority,
     OwnerWorkDecisionGrant,
@@ -19,9 +23,6 @@ from .quick_scan_owner_refresh import api_owner_refresh_read as _read
 from .quick_scan_refresh_consent import OwnerConsentEndpoint, RefreshConsentClient
 from .quick_scan_refresh_inspect import ReadOnlyWorkView
 from .quick_scan_result_outbox import canonical_bytes, canonical_sha256
-from .quick_scan_work_store import (
-    api_work_store_budget_policy_projection as _budget_policy_projection,
-)
 
 _logger = logging.getLogger(__name__)
 _STDERR_REDACT_RE = re.compile(

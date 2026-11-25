@@ -20,6 +20,17 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterator, Optional
 
+from src.interfaces.quick_scan_work_values import (
+    canonical_native_events,
+    cost_to_micros,
+)
+from src.interfaces.quick_scan_work_values import (
+    quick_scan_receipt_sha256 as _receipt_sha256,
+)
+from src.interfaces.quick_scan_work_values import (
+    sanitize_transport_receipt,
+    validate_transport_text,
+)
 from src.interfaces.transport_outcome import (
     UncertainTransportOutcome,
     iter_exception_chain,
@@ -30,13 +41,6 @@ from src.utils.quick_scan_work_store import (
     LeaseFencedError,
     QuickScanWorkStore,
     SendPermit,
-    canonical_native_events,
-    cost_to_micros,
-)
-from src.utils.quick_scan_work_store import quick_scan_receipt_sha256 as _receipt_sha256
-from src.utils.quick_scan_work_store import (
-    sanitize_transport_receipt,
-    validate_transport_text,
 )
 
 

@@ -15,16 +15,14 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .quick_scan_owner_process_env import consent_subprocess_env
-from .quick_scan_owner_refresh import (
-    OwnerRefreshClient,
-    OwnerRefreshRejected,
+from src.interfaces.quick_scan_work_values import (
+    budget_policy_projection as _budget_policy_projection,
 )
+
+from .quick_scan_owner_process_env import consent_subprocess_env
+from .quick_scan_owner_refresh import OwnerRefreshClient, OwnerRefreshRejected
 from .quick_scan_owner_refresh import api_owner_refresh_read as _read
 from .quick_scan_result_outbox import canonical_bytes, canonical_sha256
-from .quick_scan_work_store import (
-    api_work_store_budget_policy_projection as _budget_policy_projection,
-)
 
 MAX_BYTES = 8 * 1024 * 1024
 WIRE_FIELDS = {

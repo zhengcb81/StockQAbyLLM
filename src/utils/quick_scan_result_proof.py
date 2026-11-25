@@ -13,11 +13,11 @@ from src.interfaces.quick_scan_result_proof import (
     QUICK_SCAN_RESULT_PROOF_PROTOCOL,
     QuickScanResultProofPort,
 )
-from src.utils.quick_scan_work_store import (
-    QuickScanWorkStore,
+from src.interfaces.quick_scan_work_values import (
     canonical_native_events,
     sanitize_transport_receipt,
 )
+from src.utils.quick_scan_work_store import QuickScanWorkStore
 from src.utils.quick_scan_work_transport import project_quick_scan_search
 
 

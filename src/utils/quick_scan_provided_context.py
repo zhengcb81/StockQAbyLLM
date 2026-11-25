@@ -38,10 +38,10 @@ _SOURCE_FIELDS = (
 
 
 def _sources(records, cutoff):
-    from .quick_scan_work_store import (
-        api_work_store_canonical_source_urls as _canonical_source_urls,
+    from src.interfaces.quick_scan_work_values import (
+        canonical_source_urls as _canonical_source_urls,
     )
-    from .quick_scan_work_store import api_work_store_sha256 as _sha256
+    from src.interfaces.quick_scan_work_values import validate_sha256 as _sha256
 
     boundary = date.fromisoformat(cutoff)
     result = []

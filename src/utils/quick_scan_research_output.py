@@ -170,7 +170,7 @@ def _source(store, connection, attempt_id):
         or not 200 <= receipt["http_status_code"] < 300
     ):
         raise ValueError("research_visible_native_response_invalid")
-    from .quick_scan_work_store import api_work_store_sha256 as _sha256
+    from src.interfaces.quick_scan_work_values import validate_sha256 as _sha256
 
     _sha256(receipt.get("request_payload_sha256"), "research request hash")
     attempt = connection.execute(
