@@ -41,6 +41,43 @@ def test_output_can_be_called_without_an_engine_or_provider(tmp_path):
     assert out.is_file()
 
 
+def test_result_proof_reads_a_narrow_evidence_port_without_a_sql_connection():
+    from src.utils.quick_scan_result_proof import result_proof_port
+
+    expected = {"request_id": "req-fixture"}
+    proof = {"work_item_id": "WORK"}
+
+    class EvidenceReader:
+        def get_item(self, work_item_id):
+            raise AssertionError("checkpoint projection already has the bound item")
+
+        def list_attempts(self, work_item_id):
+            raise AssertionError("no history required for checkpoint projection")
+
+        def get_attempt_response(self, attempt_id):
+            raise AssertionError("the owner reviews the response in its own read")
+
+        def read_external_checkpoint_search(self, attempt_id, receipt, supplied):
+            assert attempt_id == "ATTEMPT"
+            assert receipt == expected
+            assert supplied is proof
+            return {
+                "proof": proof,
+                "source_urls": ["https://example.com"],
+                "search_receipt_id": "USE",
+            }
+
+    metadata = {
+        "external_context_use": proof,
+        "work_transport": {"work_attempt_id": "ATTEMPT", "final_receipt": expected},
+    }
+    projection = result_proof_port(EvidenceReader()).project_checkpoint_search(
+        metadata, work_item_id="WORK"
+    )
+    assert projection["external_context_use"] is proof
+    assert projection["search_status"] == "executed"
+
+
 def test_paid_runner_uses_original_receipt_metadata_without_today_model_or_budget(
     tmp_path, monkeypatch
 ):
@@ -55,6 +92,7 @@ def test_paid_runner_uses_original_receipt_metadata_without_today_model_or_budge
     from src.utils import quick_scan_owner_refresh_api as owner_api
     from src.utils import quick_scan_shared_routes as shared
     from src.utils import quick_scan_work_store as ledger
+    from src.utils.quick_scan_result_proof import result_proof_port_for_store
     from tests.unit import test_quick_scan_work_store as ledger_fixture
     from tests.unit.test_q07_checkpoint import UUID_ENTITY
 
@@ -107,8 +145,13 @@ def test_paid_runner_uses_original_receipt_metadata_without_today_model_or_budge
     store = ledger.QuickScanWorkStore.for_existing_ledger(store.path)
     ledger_before = store.path.read_bytes()
 
-    # Model only the registered owner port. The composition uses the same
-    # concrete existing ledger and public proof adapter as the native runner.
+    # The runner only gets the public capabilities of the real opened ledger.
+    readback = SimpleNamespace(
+        list_attempts=store.list_attempts,
+        get_attempt_response=store.get_attempt_response,
+        get_attempt_transmission=store.get_attempt_transmission,
+        get_subject_dispatch_receipt=store.get_subject_dispatch_receipt,
+    )
     snapshot = OwnerRefreshSnapshot(
         kind="approved",
         entries={qid: {"kind": "work", "work_item_id": work} for qid, work in works.items()},
@@ -151,11 +194,11 @@ def test_paid_runner_uses_original_receipt_metadata_without_today_model_or_budge
     for module, name in (
         (runner, "LLMConfig"),
         (runner, "QuickScanCostResolver"),
+        (runner, "QuickScanWorkLifecycle"),
         (LLMClient, "send_search_request"),
         (requests.Session, "request"),
     ):
         monkeypatch.setattr(module, name, no_fresh)
-    monkeypatch.setattr(runner, "QuickScanWorkLifecycle", lambda *args, **kwargs: lifecycle_view)
     replayed = []
 
     def replay(lifecycle, pairs, **kwargs):
@@ -183,7 +226,9 @@ def test_paid_runner_uses_original_receipt_metadata_without_today_model_or_budge
         owner,
         {},
         questions,
-        store=store,
+        ledger=readback,
+        result_proof=result_proof_port_for_store(store),
+        lifecycle_factory=lambda **kwargs: lifecycle_view,
         identity={},
         company="Synthetic",
         entity_id=UUID_ENTITY,

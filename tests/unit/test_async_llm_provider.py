@@ -3,6 +3,7 @@
 import asyncio
 import hashlib
 import json
+import subprocess
 from unittest.mock import AsyncMock, Mock
 
 import httpx
@@ -10,6 +11,7 @@ import pytest
 
 from src.core.models import Question
 from src.providers.async_llm_provider import AsyncLLMProvider
+from src.providers.llm_client import LLMTransportAttemptError
 from src.utils.quick_scan_work_store import (
     QuickScanWorkStore,
     quick_scan_receipt_sha256,
@@ -21,6 +23,7 @@ from src.utils.quick_scan_work_transport import (
     bind_quick_scan_route,
     bind_quick_scan_work,
 )
+from tests.unit.test_execution_feedback_intake import PYTHON, _offline_env
 
 
 def _provider(tmp_path, *, alias=False):
@@ -69,6 +72,133 @@ def _provider(tmp_path, *, alias=False):
     )
     provider.retry_strategy.get_wait_time = lambda _retry: 0
     return provider, resolution
+
+
+def test_batch_failure_is_readable_under_one_parent_attempt_without_resending(
+    tmp_path, monkeypatch
+):
+    original = tmp_path / "original"
+    inbox = tmp_path / "inbox"
+    monkeypatch.setenv("RESEARCH_FEEDBACK_DIR", str(inbox))
+    monkeypatch.setenv("RESEARCH_FEEDBACK_RUN_ID", "original-batch")
+    monkeypatch.setenv("RESEARCH_FEEDBACK_ATTEMPT_ID", "original-attempt")
+    provider, _ = _provider(tmp_path)
+    private = "private-question-sentinel"
+    method = AsyncMock(side_effect=TypeError("private-error-sentinel"))
+    monkeypatch.setattr(provider.client, "send_search_request_async", method)
+
+    assert asyncio.run(provider.batch_search_async([private, "other-private-question"])) == [[], []]
+    assert method.await_count == 2
+
+    original.mkdir()
+    env = _offline_env(original)
+    cold = json.loads(
+        subprocess.check_output(
+            [
+                *PYTHON,
+                "-m",
+                "src.utils.quick_scan_feedback_owner",
+                "--observation-dir",
+                str(inbox),
+                "runtime-history",
+                "--run-id",
+                "original-batch",
+                "--attempt-id",
+                "original-attempt",
+            ],
+            cwd=original,
+            env=env,
+            timeout=30,
+        )
+    )
+    failures = cold["failures"]
+    assert len(failures) == 2
+    assert {failure["diagnostic"]["root_type"] for failure in failures} == {"TypeError"}
+    assert {failure["cost_state"] for failure in failures} == {"unknown"}
+    assert all(failure["diagnostic"]["chain"][0]["frames"] for failure in failures)
+    references = [failure["diagnostic"]["references"] for failure in failures]
+    assert {ref["question_id"] for ref in references} == {
+        "query-sha256-" + hashlib.sha256(query.encode()).hexdigest()
+        for query in (private, "other-private-question")
+    }
+    assert len({ref["invocation_id"] for ref in references}) == 1
+    assert private not in json.dumps(cold) and "private-error-sentinel" not in json.dumps(cold)
+    assert method.await_count == 2
+
+
+def test_batch_keeps_original_transport_causes_when_returns_error_results(tmp_path, monkeypatch):
+    inbox = tmp_path / "inbox"
+    monkeypatch.setenv("RESEARCH_FEEDBACK_DIR", str(inbox))
+    monkeypatch.setenv("RESEARCH_FEEDBACK_RUN_ID", "timeout-batch")
+    monkeypatch.setenv("RESEARCH_FEEDBACK_ATTEMPT_ID", "timeout-attempt")
+    provider, _ = _provider(tmp_path)
+    provider.max_retries = 1
+    questions = {
+        "private-transport-question-alpha": "request-fixture-alpha",
+        "private-transport-question-beta": "request-fixture-beta",
+    }
+
+    async def timeout(prompt):
+        (request_id,) = [request for question, request in questions.items() if question in prompt]
+        try:
+            raise TimeoutError("private-transport-error")
+        except TimeoutError as cause:
+            raise LLMTransportAttemptError(
+                "TimeoutError",
+                {"request_id": request_id, "attempt_id": "provider-" + request_id},
+            ) from cause
+
+    transport = AsyncMock(side_effect=timeout)
+    monkeypatch.setattr(provider.client, "send_search_request_async", transport)
+    results = asyncio.run(provider.batch_search_async(list(questions)))
+    assert [result[0].status for result in results] == ["error", "error"]
+    assert [result[0].metadata["attempts"][0]["request_id"] for result in results] == list(
+        questions.values()
+    )
+    assert transport.await_count == 2
+
+    cold = tmp_path / "fresh-reader"
+    cold.mkdir()
+    env = _offline_env(cold)
+    route = [
+        *PYTHON,
+        "-m",
+        "src.utils.quick_scan_feedback_owner",
+        "--observation-dir",
+        str(inbox),
+        "runtime-history",
+        "--run-id",
+        "timeout-batch",
+        "--attempt-id",
+        "timeout-attempt",
+    ]
+    first, second = (
+        subprocess.check_output(route, cwd=cold, env=env, timeout=30) for _ in range(2)
+    )
+    assert first == second and transport.await_count == 2
+    failures = json.loads(first)["failures"]
+    expected = {
+        "query-sha256-" + hashlib.sha256(question.encode()).hexdigest(): request
+        for question, request in questions.items()
+    }
+    assert len(failures) == len(expected)
+    invocations = set()
+    for failure in failures:
+        diagnostic = failure["diagnostic"]
+        assert diagnostic["root_type"] == "TimeoutError"
+        assert [node["type"] for node in diagnostic["chain"]] == [
+            "LLMTransportAttemptError",
+            "TimeoutError",
+        ]
+        assert diagnostic["chain"][-1]["frames"]
+        refs = diagnostic["references"]
+        assert refs["request_id"] == expected.pop(refs["question_id"])
+        assert refs["provider_attempt_id"] == "provider-" + refs["request_id"]
+        assert refs["attempt_id"] == "timeout-attempt"
+        invocations.add(refs["invocation_id"])
+        assert failure["cost_state"] == "unknown"
+    assert not expected and len(invocations) == 1
+    assert b"private-transport-" not in first and b"async_provider_returned_error" not in first
 
 
 def _claimed(tmp_path):

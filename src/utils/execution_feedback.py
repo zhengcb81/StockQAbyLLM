@@ -16,6 +16,12 @@ from uuid import uuid4
 
 OWNER = "stockqa"
 DEFAULT_INBOX = Path(__file__).resolve().parents[2] / "logs" / ".feedback" / "observations"
+DEFAULT_LOG_DIR = Path("logs")
+RECEIPT_MESSAGE = "execution_failure_receipt"
+PHASE_MESSAGE = "execution_phase"
+_ID = re.compile(r"[A-Za-z0-9_.:/@-]{1,200}")
+_EVIDENCE = re.compile(r"stockqa-invocation/1/([0-9a-f]{32})")
+_LOG_NAME = re.compile(r"stock_qa_\d{8}\.log(?:\.1)?")
 
 
 def warn_feedback_unavailable(message: str) -> None:
@@ -124,19 +130,58 @@ def write_observations(path, rows):
         stream.write("".join(payload))
 
 
-def emit_execution_observation(diagnostic, *, context=None, environ=None):
+def _public_id(value):
+    return value if isinstance(value, str) and _ID.fullmatch(value) else None
+
+
+def execution_references(context, env):
+    """Select one identity for the caller response, owner evidence and F4."""
+    invocation = context.get("invocation_id") or "cli-invocation-" + uuid4().hex
+    return {
+        "invocation_id": invocation,
+        "run_id": context.get("run_id")
+        or _public_id(env.get("RESEARCH_FEEDBACK_RUN_ID"))
+        or "cli-run-" + invocation.removeprefix("cli-invocation-"),
+        "attempt_id": context.get("attempt_id")
+        or _public_id(env.get("RESEARCH_FEEDBACK_ATTEMPT_ID"))
+        or invocation,
+    }
+
+
+def execution_phase(stage, context, references, *, exit_code=None):
+    result = {
+        "schema": "stockqa.runtime_phase/1",
+        "stage": stage,
+        "entry": context.get("entry"),
+        "run_id": context["run_id"],
+        "attempt_id": context["attempt_id"],
+        "invocation_id": context["invocation_id"],
+        "version": _version(),
+        "recorded_at": datetime.now(timezone.utc).isoformat(),
+        "references": references,
+    }
+    if stage == "cli.started":
+        result["options"] = context.get("options", [])
+    if exit_code is not None:
+        result["exit_code"] = exit_code
+    return result
+
+
+def emit_execution_observation(diagnostic, *, context=None, environ=None, fallback=None):
     """Publish an invocation failure without opening any business state."""
     return publish(
-        diagnostic, context or {}, os.environ if environ is None else environ, write_observations
+        diagnostic,
+        context or {},
+        os.environ if environ is None else environ,
+        write_observations,
+        fallback=fallback,
     )
 
 
-def publish(diagnostic, context, env, project):
+def publish(diagnostic, context, env, project, *, fallback=None):
     token = uuid4().hex
     directory = inbox(env)
-    invocation = context.get("invocation_id") or "cli-invocation-" + token
-    run = env.get("RESEARCH_FEEDBACK_RUN_ID") or context.get("run_id") or invocation
-    attempt = env.get("RESEARCH_FEEDBACK_ATTEMPT_ID") or invocation
+    identity = execution_references(context, env)
     step = diagnostic["stage"] + "/" + diagnostic["references"].get("question_id", "invocation")
     # One inherited parent attempt may run the same question or CLI more than once.
     step += "/" + token
@@ -146,8 +191,8 @@ def publish(diagnostic, context, env, project):
         "schema_version": "feedback-observation/1",
         "owner": OWNER,
         "origin_owner": OWNER,
-        "run_id": run,
-        "attempt_id": attempt,
+        "run_id": identity["run_id"],
+        "attempt_id": identity["attempt_id"],
         "step_id": step,
         "check_id": "execution-outcome",
         "expected": "completed",
@@ -180,7 +225,11 @@ def publish(diagnostic, context, env, project):
         "observation": row,
         "diagnostic": diagnostic,
         "recorded_at": datetime.now(timezone.utc).isoformat(),
-        "job_status": "cancelled" if diagnostic["stage"] == "cli.cancelled" else "failed",
+        "job_status": (
+            "cancelled"
+            if diagnostic["stage"] in {"cli.cancelled", "provider.async.cancelled"}
+            else "failed"
+        ),
         "cost_state": "not_applicable" if local_only else "unknown",
     }
     native_error = None
@@ -188,55 +237,176 @@ def publish(diagnostic, context, env, project):
         publish_native(directory, row, token=token, receipt=receipt)
     except OSError as error:
         native_error = error
+        if fallback is not None:
+            fallback(receipt)
     if env.get("RESEARCH_FEEDBACK_OUT"):
-        project(env["RESEARCH_FEEDBACK_OUT"], [row])
-    if native_error:
+        try:
+            project(env["RESEARCH_FEEDBACK_OUT"], [row])
+        except (OSError, ValueError):
+            _warn_incomplete(row)
+            return [row]
+    if native_error is not None and fallback is None:
         raise native_error
+    if native_error is not None:
+        _warn_incomplete(row)
     return [row]
 
 
-def read_execution(observation, env, *, observation_dir: Path | None = None):
-    evidence = observation.get("evidence_ref")
-    match = (
-        re.fullmatch(r"stockqa-invocation/1/([0-9a-f]{32})", evidence or "")
-        if isinstance(evidence, str)
-        else None
+def _warn_incomplete(row):
+    fields = {
+        key: row[key]
+        for key in ("run_id", "attempt_id", "evidence_ref", "refusal_code")
+        if key in row
+    }
+    warn_feedback_unavailable("execution failure tracking incomplete " + _bytes(fields).decode())
+
+
+def _valid_receipt(receipt, token):
+    row = receipt["observation"]
+    return (
+        row["owner"] == OWNER
+        and isinstance(receipt["recorded_at"], str)
+        and receipt.get("job_status") in {"failed", "cancelled"}
+        and row["evidence_ref"] == "stockqa-invocation/1/" + token
+        and row["details_ref"]
+        == "stockqa-failure-diagnostic/1/"
+        + token
+        + "#"
+        + hashlib.sha256(_bytes(receipt["diagnostic"])).hexdigest()
     )
-    if not match:
-        return None
+
+
+def _readable_paths(directory, pattern):
     try:
-        for directory in observation_read_dirs(env, observation_dir=observation_dir):
-            path = directory / ("feedback-" + match[1] + ".cause.json")
-            if path.is_file():
-                break
-        else:
-            return None
-        receipt = json.loads(path.read_bytes())
-        native = receipt["observation"]
-        if not all(
-            observation.get(k) == native.get(k)
-            for k in (
-                "owner",
-                "run_id",
-                "attempt_id",
-                "step_id",
-                "check_id",
-                "actual",
-                "expected",
-                "disposition",
-                "evidence_ref",
-                "details_ref",
-            )
-        ):
-            return None
-        if (
-            native["details_ref"]
-            != "stockqa-failure-diagnostic/1/"
-            + match[1]
-            + "#"
-            + hashlib.sha256(_bytes(receipt["diagnostic"])).hexdigest()
-        ):
-            return None
-        return receipt
-    except (OSError, ValueError, KeyError, TypeError):
+        yield from directory.glob(pattern)
+    except OSError:
+        return
+
+
+def _native_receipts(directories, token=None):
+    basename = "feedback-" + (token or "*") + ".cause.json"
+    for directory in directories:
+        for path in _readable_paths(directory, basename):
+            try:
+                receipt = json.loads(path.read_bytes())
+                if _valid_receipt(receipt, path.name[9:-11]):
+                    yield receipt
+            except (OSError, ValueError, KeyError, TypeError, RecursionError):
+                continue
+
+
+def _log_records(log_dir, prefix, match):
+    for path in _readable_paths(log_dir, "stock_qa_*.log*"):
+        if not _LOG_NAME.fullmatch(path.name):
+            continue
+        try:
+            with path.open(encoding="utf8", errors="replace") as stream:
+                for line in stream:
+                    _, found, body = line.partition(" - " + prefix + " ")
+                    if found and match in body:
+                        try:
+                            yield json.loads(body)
+                        except (ValueError, RecursionError):
+                            continue
+        except OSError:
+            continue
+
+
+def _log_receipts(log_dir, match):
+    for receipt in _log_records(log_dir, RECEIPT_MESSAGE, match):
+        try:
+            token = _EVIDENCE.fullmatch(receipt["observation"]["evidence_ref"])
+            if token and _valid_receipt(receipt, token[1]):
+                yield receipt
+        except (KeyError, TypeError, RecursionError):
+            continue
+
+
+def read_execution(observation, env, *, observation_dir: Path | None = None, log_dir=None):
+    evidence = observation.get("evidence_ref")
+    token = _EVIDENCE.fullmatch(evidence) if isinstance(evidence, str) else None
+    if token is None:
         return None
+    directories = observation_read_dirs(env, observation_dir=observation_dir)
+    for candidates in (
+        _native_receipts(directories, token[1]),
+        _log_receipts(log_dir or DEFAULT_LOG_DIR, evidence),
+    ):
+        for receipt in candidates:
+            native = receipt["observation"]
+            if all(
+                observation.get(key) == native.get(key)
+                for key in (
+                    "owner",
+                    "run_id",
+                    "attempt_id",
+                    "step_id",
+                    "check_id",
+                    "actual",
+                    "expected",
+                    "disposition",
+                    "evidence_ref",
+                    "details_ref",
+                )
+            ):
+                return receipt
+    return None
+
+
+def runtime_history(run_id, attempt_id, env, *, observation_dir=None, log_dir=None):
+    """Read the original attempt without opening a business ledger or appending logs."""
+    if not _public_id(run_id) or not _public_id(attempt_id):
+        raise ValueError("invalid runtime identity")
+    directories = observation_read_dirs(env, observation_dir=observation_dir)
+    log_dir = log_dir or DEFAULT_LOG_DIR
+    failures: dict[str, dict] = {}
+    for candidates in (_native_receipts(directories), _log_receipts(log_dir, run_id)):
+        for receipt in candidates:
+            row = receipt["observation"]
+            if row.get("run_id") == run_id and row.get("attempt_id") == attempt_id:
+                failures.setdefault(row["evidence_ref"], receipt)
+    phases = [
+        phase
+        for phase in _log_records(log_dir, PHASE_MESSAGE, run_id)
+        if isinstance(phase, dict)
+        and phase.get("schema") == "stockqa.runtime_phase/1"
+        and phase.get("run_id") == run_id
+        and phase.get("attempt_id") == attempt_id
+        and isinstance(phase.get("recorded_at"), str)
+    ]
+    phases.sort(key=lambda phase: phase["recorded_at"])
+    outcomes = sorted(failures.values(), key=lambda entry: entry["recorded_at"])
+    last_phase = phases[-1] if phases else None
+    terminal = last_phase if last_phase and last_phase.get("stage") == "cli.exited" else None
+    if terminal is not None:
+        # One host attempt may contain multiple overlapping CLI invocations.
+        # An earlier sibling exit cannot close a later orphaned dispatch.
+        closed = {
+            phase.get("invocation_id") for phase in phases if phase.get("stage") == "cli.exited"
+        }
+        if any(phase.get("invocation_id") not in closed for phase in phases):
+            terminal = None
+    if terminal is not None:
+        status = "completed" if terminal.get("exit_code") == 0 else "failed"
+    elif outcomes and (
+        not phases
+        or outcomes[-1]["diagnostic"].get("stage") == "spend.preflight"
+        or outcomes[-1]["diagnostic"].get("stage", "").startswith("cli.")
+    ):
+        status = outcomes[-1]["job_status"]
+    else:
+        status = "outcome_unknown"
+    cost = "unknown"
+    if outcomes and all(event.get("cost_state") == "not_applicable" for event in outcomes):
+        if not any(phase.get("stage") == "transport.intent" for phase in phases):
+            cost = "not_applicable"
+    return {
+        "schema": "stockqa.runtime_history/1",
+        "run_id": run_id,
+        "attempt_id": attempt_id,
+        "status": "available" if phases or failures else "unavailable_or_absent",
+        "invocation_status": status,
+        "cost_state": cost,
+        "phases": phases,
+        "failures": outcomes,
+    }

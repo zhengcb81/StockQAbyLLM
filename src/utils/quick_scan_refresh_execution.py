@@ -7,21 +7,23 @@ and uncertain work never become a fresh generation under an old action.
 
 import copy
 import hashlib
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from src.interfaces.quick_scan_owner_refresh import QuickScanOwnerRefreshPort
+from src.interfaces.quick_scan_result_proof import QuickScanResultProofPort
+
 from .logger import record_execution_failure
 from .quick_scan_owner_refresh import OwnerRefreshRejected, public_observation_reference
-from .quick_scan_refresh_admission import (
-    AdmissionRejected,
-    RefreshAdmissionService,
-)
+from .quick_scan_refresh_admission import AdmissionRejected, RefreshAdmissionService
 from .quick_scan_refresh_admission import api_refresh_admission_snapshot as _snapshot
-from .quick_scan_refresh_admission import (
-    match_question,
-)
+from .quick_scan_refresh_admission import match_question
 from .quick_scan_refresh_batch import SPEC_FIELDS
 from .quick_scan_result_outbox import canonical_bytes, canonical_sha256
+from .quick_scan_work_store import (
+    QuickScanWorkStore,
+)
 from .quick_scan_work_store import (
     api_work_store_budget_policy_projection as _budget_policy_projection,
 )
@@ -266,6 +268,27 @@ def prepare_execution(
     if recovery_only:
         session.check()
     return session
+
+
+@dataclass(frozen=True)
+class ApprovedExecutionPorts:
+    """Owner-issued dispatch authority and result proof for one registration."""
+
+    owner: QuickScanOwnerRefreshPort
+    ledger: QuickScanWorkStore
+    result_proof: QuickScanResultProofPort
+
+
+def prepare_runtime_execution(*args, **kwargs) -> ApprovedExecutionPorts:
+    """Compose opaque owner and evidence ports before returning to the runner."""
+    from .quick_scan_owner_refresh_api import adapt_owner_refresh
+    from .quick_scan_result_proof import result_proof_port_for_store
+
+    session = prepare_execution(*args, **kwargs)
+    ledger = session.service.store
+    return ApprovedExecutionPorts(
+        adapt_owner_refresh(session), ledger, result_proof_port_for_store(ledger)
+    )
 
 
 class ApprovedRefreshSession:

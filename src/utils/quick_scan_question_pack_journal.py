@@ -12,6 +12,13 @@ import json
 import uuid
 from contextlib import contextmanager
 
+from src.interfaces.quick_scan_work_values import (
+    Lease,
+    LeaseFencedError,
+    WorkConflictError,
+)
+from src.utils.quick_scan_attempt_receipts import response_record
+
 _DDL_V17_ADDITIONS = [
     """CREATE TABLE quick_scan_question_pack (
         pack_id TEXT PRIMARY KEY, execution_attempt_id TEXT NOT NULL UNIQUE,
@@ -103,8 +110,6 @@ def _operation(store, pack_id):
 
 
 def guard_individual(connection, store, attempt_id):
-    from .quick_scan_work_store import WorkConflictError
-
     row = connection.execute(
         "SELECT pack_id FROM quick_scan_question_pack_member WHERE attempt_id=?", (attempt_id,)
     ).fetchone()
@@ -113,8 +118,6 @@ def guard_individual(connection, store, attempt_id):
 
 
 def _read(connection, pack_id):
-    from .quick_scan_work_store import WorkConflictError
-
     header = connection.execute(
         "SELECT * FROM quick_scan_question_pack WHERE pack_id=?", (pack_id,)
     ).fetchone()
@@ -192,14 +195,12 @@ def _read(connection, pack_id):
             execution_receipt=json.loads(outcome["receipt_json"]),
             receipt_sha256=outcome["receipt_sha256"],
         )
-        from .quick_scan_work_store import QuickScanWorkStore
-
         physical = connection.execute(
             "SELECT * FROM quick_scan_attempt_response WHERE attempt_id=?",
             (result["budget_attempt_id"],),
         ).fetchone()
         if physical is not None:
-            physical_record = QuickScanWorkStore.response_record(connection, physical)
+            physical_record = response_record(connection, physical)
             if "native_search_events" in physical_record:
                 result["native_search_events"] = physical_record["native_search_events"]
                 result["execution_receipt"]["web_search_calls"] = physical_record[
@@ -212,8 +213,6 @@ def _validate_frozen(connection, pack):
     from src.interfaces.quick_scan_work_values import validate_safe_identifier as _safe
     from src.interfaces.quick_scan_work_values import validate_sha256 as _sha256
     from src.providers.model_resolution import model_resolution_sha256
-
-    from .quick_scan_work_store import WorkConflictError
 
     for key in ("pack_id", "execution_attempt_id", "route_id", "provider", "model_requested"):
         _safe(pack[key], key)
@@ -275,7 +274,6 @@ def _validate_members(store, connection, pack, *, guard_subject, now):
         api_owner_refresh_journal_guard_send as guard_owner_send,
     )
     from .quick_scan_subject_journal import guard_send as guard_subject_send
-    from .quick_scan_work_store import Lease, WorkConflictError
 
     for member in pack["members"]:
         item = store.item_in_transaction(connection, member["work_item_id"])
@@ -336,8 +334,6 @@ def prepare(
     from src.interfaces.quick_scan_work_values import validate_safe_identifier as _safe
     from src.interfaces.quick_scan_work_values import validate_sha256 as _sha256
     from src.providers.model_resolution import normalize_model_resolution
-
-    from .quick_scan_work_store import Lease, WorkConflictError
 
     if search_mode != "native_search":
         raise ValueError(
@@ -461,8 +457,6 @@ def prepare(
 
 
 def mark(store, pack_id, *, budget_policy, budget_route, company_request_scope=None):
-    from .quick_scan_work_store import Lease, WorkConflictError
-
     with _operation(store, pack_id) as connection:
         pack = _read(connection, pack_id)
         if pack is None or pack["phase"] != "prepared":
@@ -496,8 +490,6 @@ def mark(store, pack_id, *, budget_policy, budget_route, company_request_scope=N
 
 
 def validate_for_post(store, pack_id):
-    from .quick_scan_work_store import WorkConflictError
-
     with store.transaction() as connection:
         pack = _read(connection, pack_id)
         if pack is None or pack["phase"] != "send_intent":
@@ -531,7 +523,6 @@ def record(
     )
 
     from .quick_scan_subject_journal import guard_response
-    from .quick_scan_work_store import Lease, LeaseFencedError, WorkConflictError
 
     with _operation(store, pack_id) as connection:
         pack = _read(connection, pack_id)

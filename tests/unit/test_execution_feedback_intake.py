@@ -6,6 +6,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import Mock
@@ -75,6 +76,217 @@ class OpaqueError(RuntimeError):
         if name in {"__dict__", "__cause__", "__context__", "__traceback__", "diagnostic"}:
             raise RuntimeError("private property")
         return super().__getattribute__(name)
+
+
+@pytest.mark.parametrize("hosted", [False, True], ids=["standalone", "host"])
+@pytest.mark.parametrize("blocked", ["none", "diagnostics", "all"])
+def test_public_spend_preflight_is_cold_readable_by_the_original_identity(
+    tmp_path, hosted, blocked
+):
+    env = _offline_env(tmp_path)
+    source = tmp_path / "inbox"
+    projection = tmp_path / "observations.jsonl"
+    env.update(
+        RESEARCH_FEEDBACK_DIR=str(source),
+        RESEARCH_FEEDBACK_OUT=str(projection),
+    )
+    if hosted:
+        env.update(
+            RESEARCH_FEEDBACK_RUN_ID="host-run-a", RESEARCH_FEEDBACK_ATTEMPT_ID="host-attempt-1"
+        )
+    if blocked != "none":
+        unavailable = tmp_path / "unavailable"
+        unavailable.write_bytes(b"occupied")
+        env.update(
+            RESEARCH_FEEDBACK_DIR=str(unavailable),
+            RESEARCH_FEEDBACK_OUT=str(unavailable / "out.jsonl"),
+            TEST_OWNER_INBOX=str(unavailable / "native"),
+        )
+        with (tmp_path / "sitecustomize.py").open("a", encoding="ascii") as guard:
+            guard.write(
+                "import os\nfrom pathlib import Path\n"
+                "from src.utils import execution_feedback\n"
+                "execution_feedback.DEFAULT_INBOX=Path(os.environ['TEST_OWNER_INBOX'])\n"
+            )
+    if blocked == "all":
+        (tmp_path / "logs").write_bytes(b"occupied")
+    done = subprocess.run(
+        [
+            *PYTHON,
+            str(ROOT / "main_with_llm.py"),
+            "--company",
+            "Synthetic",
+            "--require-search",
+            "--entity-id",
+            "00000000-0000-4000-8000-000000000001",
+            "--config",
+            "missing.json",
+            "--output",
+            "result.json",
+        ],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        timeout=30,
+    )
+    assert done.returncode == 2
+    machine = json.loads(done.stdout)
+    assert machine["schema"] == "stockqa.spend_preflight/1.0.0"
+    assert machine["status"] == "needs_configuration" and machine["blocked"]
+    assert machine["reason"] == "spend_authorization_missing"
+    if hosted:
+        assert machine["run_id"] == "host-run-a"
+        assert machine.get("attempt_id") == "host-attempt-1"
+    if blocked == "none":
+        (event,) = [json.loads(path.read_bytes()) for path in source.glob("*.jsonl")]
+        assert event["run_id"] == machine["run_id"]
+        assert event["attempt_id"] == machine["attempt_id"]
+    else:
+        assert machine["run_id"].encode() in done.stderr
+        assert machine["attempt_id"].encode() in done.stderr
+    assert not (tmp_path / "result.json").exists()
+    assert not list(tmp_path.rglob("*.sqlite"))
+    assert not list(tmp_path.rglob("*.sqlite3"))
+
+    # A fresh reader uses only the public run/attempt and the original storage roots.
+    reader = tmp_path / "cold"
+    reader.mkdir()
+    before = {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
+    command = [
+        *PYTHON,
+        "-m",
+        "src.utils.quick_scan_feedback_owner",
+        "--observation-dir",
+        env["RESEARCH_FEEDBACK_DIR"],
+        "--log-dir",
+        str(tmp_path / "logs"),
+        "runtime-history",
+        "--run-id",
+        machine["run_id"],
+        "--attempt-id",
+        machine["attempt_id"],
+    ]
+
+    def cold_read():
+        return json.loads(subprocess.check_output(command, cwd=reader, env=env, timeout=30))
+
+    history = cold_read()
+    assert cold_read() == history
+    assert {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()} == before
+    assert (history["run_id"], history["attempt_id"]) == (machine["run_id"], machine["attempt_id"])
+    if blocked == "all":
+        assert history["status"] == "unavailable_or_absent"
+        assert history["failures"] == []
+    else:
+        assert history["status"] == "available"
+        (failure,) = history["failures"]
+        assert failure["observation"]["refusal_code"] == machine["reason"]
+        assert failure["diagnostic"]["outcome_source"] == "returned_status"
+        assert failure["diagnostic"]["references"]["attempt_id"] == machine["attempt_id"]
+        assert failure["cost_state"] == "not_applicable"
+
+
+@pytest.mark.parametrize("stop_after_intent", [False, True])
+def test_public_dispatch_can_be_cold_read_after_a_success_or_process_stop(
+    tmp_path, stop_after_intent
+):
+    env = _offline_env(tmp_path)
+    env.update(
+        RESEARCH_FEEDBACK_DIR=str(tmp_path / "inbox"),
+        RESEARCH_FEEDBACK_RUN_ID="original-cli",
+        RESEARCH_FEEDBACK_ATTEMPT_ID="original-cli-attempt",
+    )
+    launcher = tmp_path / "launch.py"
+    launcher.write_text(
+        "import sys, threading\n"
+        "from pathlib import Path\n"
+        "from pytest import MonkeyPatch\n"
+        "from tests.integration.test_quick_scan_cli import _invoke, _ordered_policy, "
+        "_ordered_provider_configs, _response\n"
+        "should_stop = sys.argv[1] == 'stop'\n"
+        "def post(*args, **kw):\n"
+        "    with Path('posts.txt').open('a', encoding='ascii') as fd:\n"
+        "        fd.write('request\\n')\n"
+        "    if should_stop:\n"
+        "        threading.Event().wait(45)\n"
+        "        raise RuntimeError('test transport timeout')\n"
+        "    return _response()\n"
+        "with MonkeyPatch.context() as patches:\n"
+        "    code, _, _ = _invoke(patches, Path.cwd(), provider_name='primary', "
+        "provider_configs=_ordered_provider_configs(), model_policy=_ordered_policy(), responses=post)\n"
+        "sys.exit(code)\n",
+        encoding="ascii",
+    )
+    worker = subprocess.Popen(
+        [*PYTHON, str(launcher), "stop" if stop_after_intent else "complete"],
+        cwd=tmp_path,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    sent = tmp_path / "posts.txt"
+    try:
+        if stop_after_intent:
+            until = time.monotonic() + 35
+            while not sent.exists() and worker.poll() is None and time.monotonic() < until:
+                time.sleep(0.025)
+            assert sent.is_file() and worker.poll() is None
+            worker.kill()
+        stdout, stderr = worker.communicate(timeout=40)
+        if not stop_after_intent:
+            assert worker.returncode == 0, (stdout, stderr)
+    finally:
+        if worker.poll() is None:
+            worker.kill()
+            worker.communicate(timeout=10)
+    assert sent.read_text(encoding="ascii").splitlines() == ["request"]
+    assert (tmp_path / "result.json").exists() is not stop_after_intent
+
+    ledger = tmp_path / "quick_scan_work.sqlite"
+    before = ledger.read_bytes()
+    reader = tmp_path / "new-process"
+    reader.mkdir()
+    cold = json.loads(
+        subprocess.check_output(
+            [
+                *PYTHON,
+                "-m",
+                "src.utils.quick_scan_feedback_owner",
+                "--log-dir",
+                str(tmp_path / "logs"),
+                "runtime-history",
+                "--run-id",
+                "original-cli",
+                "--attempt-id",
+                "original-cli-attempt",
+            ],
+            cwd=reader,
+            env=env,
+            timeout=30,
+        )
+    )
+    phases = cold["phases"]
+    stages = [stage["stage"] for stage in phases]
+    assert stages[:2] == ["cli.started", "transport.intent"]
+    assert phases[0]["entry"] == "main_with_llm.py"
+    assert phases[0]["options"] and phases[0]["version"]
+    assert phases[1]["references"]["work_attempt_id"]
+    if stop_after_intent:
+        assert stages == ["cli.started", "transport.intent"]
+        assert cold["invocation_status"] == "outcome_unknown"
+        assert cold["cost_state"] == "unknown"
+    else:
+        assert stages == [
+            "cli.started",
+            "transport.intent",
+            "transport.response_received",
+            "transport.response_persisted",
+            "cli.exited",
+        ]
+        assert phases[-1]["exit_code"] == 0
+        assert cold["invocation_status"] == "completed"
+    assert ledger.read_bytes() == before
+    assert sent.read_text(encoding="ascii").splitlines() == ["request"]
 
 
 def test_suppressed_original_and_unreadable_attributes_do_not_skip_failed_finalization(

@@ -707,19 +707,20 @@ def emit_refresh_observation(result, request, ledger_path, *, environ=None):
             if row["disposition"] != "expected"
             or row["actual"] in {"failed_settled", "send_uncertain"}
         ]
-        if native:
+        if native or out:
+            published = rows if out else native
             state = environment.get(ENV_STATE)
             for registry in dict.fromkeys(
                 [directory / "bindings.sqlite", *([Path(state)] if state else [])]
             ):
                 try:
-                    bind_feedback_ledger(registry, Path(ledger_path), native)
+                    bind_feedback_ledger(registry, Path(ledger_path), published)
                 except (OSError, ValueError, sqlite3.Error):
                     _tracking_incomplete()
                     if registry == directory / "bindings.sqlite" and directory != DEFAULT_INBOX:
                         try:
                             bind_feedback_ledger(
-                                DEFAULT_INBOX / "bindings.sqlite", Path(ledger_path), native
+                                DEFAULT_INBOX / "bindings.sqlite", Path(ledger_path), published
                             )
                         except (OSError, ValueError, sqlite3.Error):
                             _tracking_incomplete()

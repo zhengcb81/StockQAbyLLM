@@ -23,6 +23,7 @@ from src.utils.quick_scan_feedback_observation import (
 )
 from src.utils.quick_scan_feedback_registry import (
     feedback_ledger,
+    native_observation_retained,
     separate_feedback_state,
 )
 from src.utils.quick_scan_result_outbox import canonical_bytes, strict_json_loads
@@ -128,24 +129,54 @@ def _read_action(
     payload: dict,
     *,
     observation_dir: Path | None,
+    log_dir: Path | None = None,
 ) -> dict:
-    def native_path(ref: SettlementRef) -> Path | None:
+    def native_path(ref: SettlementRef, observation: dict | None = None) -> Path | None:
         from src.utils.execution_feedback import observation_read_dirs
 
-        if ledger is not None:
+        origin: tuple[str, str] | None = None
+        if observation is not None:
+            if "run_id" in observation:
+                run, attempt = observation["run_id"], observation.get("attempt_id")
+                if (
+                    not isinstance(run, str)
+                    or not isinstance(attempt, str)
+                    or not run
+                    or not attempt
+                ):
+                    return None
+                origin = (run, attempt)
+            elif observation.get("attempt_id", ref.attempt_id) != ref.attempt_id:
+                return None  # A canonical native query never supplies another attempt label.
+        if ledger is not None and origin is None:
             return ledger
         directories = observation_read_dirs(os.environ, observation_dir=observation_dir)
-        for registry in (state, *(directory / "bindings.sqlite" for directory in directories)):
-            path = feedback_ledger(registry, ref.evidence, ref.attempt_id)
-            if path is not None:
-                return path
+        registries = (state, *(directory / "bindings.sqlite" for directory in directories))
+
+        def registered(pair: tuple[str, str] | None) -> Path | None:
+            for registry in dict.fromkeys(registries):
+                path = feedback_ledger(registry, ref.evidence, ref.attempt_id, origin=pair)
+                if path is not None and (ledger is None or path.resolve() == ledger.resolve()):
+                    return path
+            return None
+
+        path = registered(origin)
+        if path is not None or origin is None:
+            return path
+        if any(
+            native_observation_retained(directory, ref.evidence, ref.attempt_id, origin)
+            for directory in directories
+        ):
+            # A retained pre-binding ready record proves the original outer pair.
+            # The exact native receipt is still read from the owner below.
+            return ledger if ledger is not None else registered(None)
         return None
 
     row = payload.get("observation", {})
     if kind in {"triage", "reconcile"} and isinstance(row, dict):
         from src.utils.execution_feedback import read_execution
 
-        failure = read_execution(row, os.environ, observation_dir=observation_dir)
+        failure = read_execution(row, os.environ, observation_dir=observation_dir, log_dir=log_dir)
         if failure is not None:
             native = failure["observation"]
             if kind == "triage":
@@ -171,7 +202,7 @@ def _read_action(
             }
     if kind == "reconcile":
         case = SettlementRef.from_observation(row)
-        path = native_path(case) if case else None
+        path = native_path(case, row) if case else None
         proof = _read(path, case) if path and case else None
         return {
             "status": "known" if proof and proof["cost_state"] == "known" else "cost_unknown",
@@ -193,7 +224,7 @@ def _read_action(
             else {"status": "needs_evidence"}
         )
     case = _case(row)
-    path = native_path(case) if case else None
+    path = native_path(case, row) if case else None
     proof = _settled(path, case) if path and case else None
     if kind == "triage":
         if case and proof:
@@ -281,11 +312,14 @@ def _submit(
     request: dict,
     *,
     observation_dir: Path | None = None,
+    log_dir: Path | None = None,
 ) -> dict:
     _validate(request, kind)
     payload = request["payload"]
     if kind == "reconcile":
-        return _read_action(ledger, state, kind, payload, observation_dir=observation_dir)
+        return _read_action(
+            ledger, state, kind, payload, observation_dir=observation_dir, log_dir=log_dir
+        )
     if ledger is not None:
         separate_feedback_state(state, ledger)
     state.parent.mkdir(parents=True, exist_ok=True)
@@ -308,7 +342,9 @@ def _submit(
         result = (
             _report(con, payload)
             if kind == "report"
-            else _read_action(ledger, state, kind, payload, observation_dir=observation_dir)
+            else _read_action(
+                ledger, state, kind, payload, observation_dir=observation_dir, log_dir=log_dir
+            )
         )
         con.execute(
             "INSERT INTO feedback_actions VALUES (?, ?, ?, ?, ?)",
@@ -322,18 +358,33 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--ledger", type=Path, help="explicitly supplied original ledger for historical replay"
     )
-    parser.add_argument("--state", type=Path, required=True, help="durable local feedback receipts")
+    parser.add_argument("--state", type=Path, help="durable local feedback action receipts")
     parser.add_argument(
         "--observation-dir",
         type=Path,
         help="read native failure and settlement records from this existing StockQA inbox",
     )
-    parser.add_argument("kind", choices=(*_KINDS, "get-action"))
+    parser.add_argument("--log-dir", type=Path, help="original runtime log directory")
+    parser.add_argument("--run-id")
+    parser.add_argument("--attempt-id")
+    parser.add_argument("kind", choices=(*_KINDS, "get-action", "runtime-history"))
     parser.add_argument("action_id", nargs="?")
     args = parser.parse_args(argv)
     sys.addaudithook(deny_network)
     try:
-        if args.kind == "get-action":
+        if args.kind == "runtime-history":
+            from src.utils.execution_feedback import runtime_history
+
+            response = runtime_history(
+                args.run_id,
+                args.attempt_id,
+                os.environ,
+                observation_dir=args.observation_dir,
+                log_dir=args.log_dir,
+            )
+        elif args.state is None:
+            parser.error("--state is required for feedback actions")
+        elif args.kind == "get-action":
             response = _lookup(args.state, args.action_id)
         else:
             request = strict_json_loads(sys.stdin.read())
@@ -344,6 +395,7 @@ def main(argv: list[str] | None = None) -> int:
                     args.kind,
                     request,
                     observation_dir=args.observation_dir,
+                    log_dir=args.log_dir,
                 )
             }
             if args.kind == "reconcile":

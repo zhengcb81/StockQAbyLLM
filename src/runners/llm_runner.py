@@ -41,6 +41,7 @@ from src.providers.llm_provider import LLMProvider
 from src.services.answer_generator import AnswerGenerator
 from src.utils.llm_integration import OrderedSearchProviderCascade
 from src.utils.logger import (
+    current_execution_references,
     get_logger,
     observe_arguments,
     observed_command,
@@ -55,7 +56,10 @@ from src.utils.quick_scan_work_transport import bind_quick_scan_budget
 
 if TYPE_CHECKING:
     from src.interfaces.quick_scan_owner_refresh import QuickScanOwnerRefreshPort
-    from src.interfaces.quick_scan_result_proof import QuickScanResultProofPort
+    from src.interfaces.quick_scan_result_proof import (
+        QuickScanRecoveryLedger,
+        QuickScanResultProofPort,
+    )
     from src.utils.quick_scan_company_context import CompanyScanTaskPort
 
 
@@ -2288,18 +2292,21 @@ class LLMRunner:
         if require_search and not approved_refresh:
             blocked = _spend_authorization_preflight(spend_authorization)
             if blocked is not None:
+                identity = current_execution_references()
                 record_execution_failure(
-                    None, ValueError(), stage="spend.preflight", refusal_code=blocked
+                    self.logger,
+                    None,
+                    stage="spend.preflight",
+                    refusal_code=blocked,
+                    references=identity,
                 )
                 payload = {
                     "schema": "stockqa.spend_preflight/1.0.0",
                     "status": "needs_configuration",
                     "blocked": True,
                     "reason": blocked,
-                    "run_id": "run-"
-                    + time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
-                    + "-"
-                    + uuid.uuid4().hex[:6],
+                    "run_id": identity["run_id"],
+                    "attempt_id": identity["attempt_id"],
                 }
                 print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
                 return 2
@@ -2428,6 +2435,7 @@ class LLMRunner:
             shared_budget_policy = None
             provider_health = None
             approved_session = None
+            approved_runtime = None
             shared_document = None
             if shared_company_config is not None:
                 from src.utils.quick_scan_shared_company import (
@@ -2506,12 +2514,13 @@ class LLMRunner:
                     "complete authority requires identity and full manifest before any HTTP"
                 )
             if refresh_admission_config is not None:
-                from src.utils.quick_scan_owner_refresh_api import adapt_owner_refresh
-                from src.utils.quick_scan_refresh_execution import prepare_execution
+                from src.utils.quick_scan_refresh_execution import (
+                    prepare_runtime_execution,
+                )
 
                 if c06_authority is None or c06_authority.get("schema_version") != "3.0.0":
                     raise ValueError("approved refresh requires complete authority3/context2")
-                prepared_session = prepare_execution(
+                approved_runtime = prepare_runtime_execution(
                     refresh_admission_config,
                     refresh_confirmation_id,
                     recovery_only=shared_company_recovery_only,
@@ -2524,10 +2533,8 @@ class LLMRunner:
                         "questions.json": config,
                     },
                 )
-                # The work store stays with the session's own composition; the
-                # adapted port is opaque and carries no store or service.
-                recovery_store = prepared_session.service.store
-                approved_session = adapt_owner_refresh(prepared_session)
+                recovery_store = approved_runtime.ledger
+                approved_session = approved_runtime.owner
                 approved_snapshot = approved_session.snapshot()
                 if approved_snapshot.needs_new_dispatch and not shared_company_recovery_only:
                     approved_session.assert_execution_controls(
@@ -2540,17 +2547,19 @@ class LLMRunner:
             )
 
             if shared_company_recovery_only:
-                if approved_session is None or shared_document is None or identity_payload is None:
+                if approved_runtime is None or shared_document is None or identity_payload is None:
                     raise ValueError("shared_recovery_original_registered_inputs_required")
-                selected = set(approved_session.snapshot().requested_question_ids)
+                selected = set(approved_runtime.owner.snapshot().requested_question_ids)
                 original_questions = [
                     q for q in questions if isinstance(q, Question) and q.question_id in selected
                 ]
                 return self._recover_shared_company_answers(
-                    approved_session,
+                    approved_runtime.owner,
                     shared_document,
                     original_questions,
-                    store=recovery_store if refresh_admission_config is not None else None,
+                    ledger=approved_runtime.ledger,
+                    result_proof=approved_runtime.result_proof,
+                    lifecycle_factory=self._paid_lifecycle_factory(approved_runtime.ledger),
                     identity=identity_payload,
                     company=company,
                     entity_id=entity_id,
@@ -2792,6 +2801,7 @@ class LLMRunner:
                             )
                         return quick_scan_policy
 
+                    freeze_policy_source = False
                     if approved_session is not None:
 
                         def approved_policy_reader():
@@ -2808,6 +2818,12 @@ class LLMRunner:
                             executor_store=budget_store,
                             policy_reader=approved_policy_reader,
                         )
+                        approved_proof = approved_session.snapshot().proof
+                        if approved_proof is None:
+                            raise ValueError("approved_refresh_original_proof_unavailable")
+                        freeze_policy_source = (
+                            approved_proof["request"]["protocol"] == "iqs.refresh_request/1.3.0"
+                        )
 
                     llm_provider: SearchProvider = OrderedSearchProviderCascade(
                         providers=route_providers,
@@ -2819,9 +2835,7 @@ class LLMRunner:
                         quota_groups=policy["quota_groups"],
                         policy_source=(
                             None
-                            if approved_session is not None
-                            and approved_session.snapshot().proof["request"]["protocol"]
-                            == "iqs.refresh_request/1.3.0"
+                            if freeze_policy_source
                             else {
                                 "policy_provider": policy_provider,
                                 "provider_factory": lambda snapshot: self._build_route_providers(
@@ -2873,7 +2887,11 @@ class LLMRunner:
                 work_store = budget_store or QuickScanWorkStore(
                     llm_config.config_file.parent / "quick_scan_work.sqlite"
                 )
-                result_proof = result_proof_port_for_store(work_store)
+                result_proof = (
+                    approved_runtime.result_proof
+                    if approved_runtime is not None
+                    else result_proof_port_for_store(work_store)
+                )
                 # Q13: the incremental plan over the frozen manifest is a
                 # read-only receipt printed BEFORE dispatch; its per-question
                 # scope/generation bindings are the only authority the
@@ -2950,9 +2968,7 @@ class LLMRunner:
                 if owner_refresh_config is not None:
                     from datetime import datetime, timezone
 
-                    from src.utils.quick_scan_owner_refresh import (
-                        OwnerRefreshClient,
-                    )
+                    from src.utils.quick_scan_owner_refresh import OwnerRefreshClient
                     from src.utils.quick_scan_owner_refresh_api import (
                         adapt_owner_refresh,
                     )
@@ -3011,19 +3027,20 @@ class LLMRunner:
                     }
                     routing_overrides = owner_session.routing_fingerprints()
                     print(json.dumps(owner_snapshot.plan, ensure_ascii=False, sort_keys=True))
+                if approved_session is None:
+                    run_id = "run-" + time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+                    scan_id = "scan-l02"
+                else:
+                    approved_record = approved_session.snapshot().record
+                    if approved_record is None:
+                        raise ValueError("approved_refresh_original_registration_unavailable")
+                    run_id = approved_record["inputs"]["run_id"]
+                    scan_id = approved_record["inputs"]["scan_id"]
                 work_lifecycle = QuickScanWorkLifecycle(
                     work_store,
                     entity_id=entity_id,
-                    run_id=(
-                        approved_session.snapshot().record["inputs"]["run_id"]
-                        if approved_session is not None
-                        else "run-" + time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
-                    ),
-                    scan_id=(
-                        approved_session.snapshot().record["inputs"]["scan_id"]
-                        if approved_session is not None
-                        else "scan-l02"
-                    ),
+                    run_id=run_id,
+                    scan_id=scan_id,
                     identity=identity_payload,
                     lease_seconds=work_lease_seconds,
                     routing_fingerprint=routing_fingerprint_for(questions),
@@ -3252,18 +3269,34 @@ class LLMRunner:
             self.logger.error("处理失败: %s", type(e).__name__)
             return 1
 
+    @staticmethod
+    def _paid_lifecycle_factory(ledger):
+        """Bind the trusted transport lifecycle once at the composition entry."""
+        from functools import partial
+
+        return partial(QuickScanWorkLifecycle, ledger)
+
     def _recover_shared_company_answers(
-        self, session, shared_config, questions, *, store, identity, company, entity_id, output
+        self,
+        session,
+        shared_config,
+        questions,
+        *,
+        ledger: "QuickScanRecoveryLedger",
+        result_proof: "QuickScanResultProofPort",
+        lifecycle_factory,
+        identity,
+        company,
+        entity_id,
+        output,
     ) -> int:
         """Preserve paid answers without loading today's sending configuration.
 
         The original SDK object carries only verified response/model metadata;
         it has no credentials or network endpoint. All generation paths remain
-        forbidden by the original recovery-only owner. The work store comes
-        from the composition root, never through the opaque owner port.
+        forbidden by the original recovery-only owner. This path consumes
+        the original ledger's read port and cannot acquire its transactions.
         """
-        if store is None:
-            raise ValueError("shared_recovery_original_work_store_required")
         from src.utils.quick_scan_owner_refresh_api import runtime_projection
 
         snapshot = runtime_projection(session)
@@ -3277,9 +3310,9 @@ class LLMRunner:
         route_attempts: list[tuple[str, dict[str, Any]]] = []
         for question_id, entry in snapshot.entries.items():
             work_id = entry.get("work_item_id")
-            if entry.get("kind") != "work":
+            if entry.get("kind") != "work" or not isinstance(work_id, str):
                 continue
-            attempts = store.list_attempts(work_id)
+            attempts = ledger.list_attempts(work_id)
             if work_id in snapshot.recovery_work_item_ids:
                 route_attempts.extend(
                     (work_id, attempt)
@@ -3344,7 +3377,7 @@ class LLMRunner:
                         != binding
                     ):
                         continue
-                    response = store.get_attempt_response(attempt["attempt_id"])
+                    response = ledger.get_attempt_response(attempt["attempt_id"])
                     if response is not None:
                         response_vendors.add(response["receipt"]["provider"])
                     elif work_id in unknown_route_work_ids:
@@ -3379,8 +3412,7 @@ class LLMRunner:
         registration = session.snapshot()
         if pairs:
             route = pairs[0][0]
-            lifecycle = QuickScanWorkLifecycle(
-                store,
+            lifecycle = lifecycle_factory(
                 entity_id=entity_id,
                 run_id=registration.record["inputs"]["run_id"],
                 scan_id=registration.record["inputs"]["scan_id"],
@@ -3428,7 +3460,7 @@ class LLMRunner:
                 company_name=company,
                 provider_name=registration.proof["owner_policy"]["qa"]["provider_config_ref"],
                 requested_model=registration.plan["model"],
-                result_proof_port=result_proof_port_for_store(store),
+                result_proof_port=result_proof,
             ),
             owner_refresh_session=session,
         )
@@ -3442,15 +3474,15 @@ class LLMRunner:
             work_id = entry.get("work_item_id")
             if entry.get("kind") != "work" or work_id not in remaining_ids:
                 continue
-            attempts = store.list_attempts(work_id)
+            attempts = ledger.list_attempts(work_id)
             if attempts and attempts[-1].get("phase") in {"send_intent", "uncertain"}:
                 unknown_question_ids.append(question_id)
                 attempt_id = attempts[-1]["attempt_id"]
-                transmission = store.get_attempt_transmission(attempt_id)
+                transmission = ledger.get_attempt_transmission(attempt_id)
                 if transmission.get("send_intent_at") is None:
                     raise ValueError("shared_recovery_unknown_send_intent_unavailable")
                 unknown_intent_question_ids.append(question_id)
-                receipt_record = store.get_subject_dispatch_receipt(attempt_id)
+                receipt_record = ledger.get_subject_dispatch_receipt(attempt_id)
                 if receipt_record is not None:
                     dispatch_request = receipt_record["receipt"]["dispatch_request"]
                     if (
@@ -3462,7 +3494,7 @@ class LLMRunner:
                     unknown_dispatch_receipt_question_ids.append(question_id)
             elif not attempts or all(
                 attempt.get("phase") in {"prepared", "abandoned_unsent"}
-                and store.get_attempt_transmission(attempt["attempt_id"]).get("send_intent_at")
+                and ledger.get_attempt_transmission(attempt["attempt_id"]).get("send_intent_at")
                 is None
                 for attempt in attempts
             ):
@@ -3635,7 +3667,7 @@ def main() -> int:
 
     parser.add_argument("--verbose", "-v", action="store_true", help="启用详细日志输出")
 
-    observe_arguments(parser)
+    observe_arguments(parser, record_lifecycle=True)
     args = parser.parse_args()
 
     runner = LLMRunner(verbose=args.verbose)

@@ -27,6 +27,12 @@ from src.core.models import (
 )
 from src.interfaces.quick_scan_work_values import BINDING_ID as _BINDING_ID
 from src.interfaces.quick_scan_work_values import ENTITY_ID as _ENTITY_ID
+from src.interfaces.quick_scan_work_values import Lease as Lease
+from src.interfaces.quick_scan_work_values import LeaseFencedError as LeaseFencedError
+from src.interfaces.quick_scan_work_values import (
+    ResearchOutputProjectionError,
+)
+from src.interfaces.quick_scan_work_values import WorkConflictError as WorkConflictError
 from src.interfaces.quick_scan_work_values import (
     budget_policy_projection as _budget_policy_projection,
 )
@@ -53,6 +59,7 @@ from src.interfaces.quick_scan_work_values import validate_safe_identifier as _s
 from src.interfaces.quick_scan_work_values import validate_sha256 as _sha256
 from src.interfaces.quick_scan_work_values import validate_timestamp as _timestamp
 from src.interfaces.quick_scan_work_values import validate_transport_text as _safe_text
+from src.utils.quick_scan_attempt_receipts import resolution_record, response_record
 from src.utils.quick_scan_external_journal import DDL_V9_ADDITIONS as _DDL_V9_ADDITIONS
 from src.utils.quick_scan_external_journal import (
     DDL_V10_ADDITIONS as _DDL_V10_ADDITIONS,
@@ -116,14 +123,6 @@ _DELIVERY_NOT_SENT_REASONS = {
 }
 
 
-class WorkConflictError(ValueError):
-    """An existing logical item or attempt disagrees with immutable inputs."""
-
-
-class LeaseFencedError(RuntimeError):
-    """The supplied worker lease is absent, expired, or superseded."""
-
-
 class BudgetAdmissionError(RuntimeError):
     """A quick-scan dispatch cannot be admitted under its durable policy."""
 
@@ -142,12 +141,6 @@ class BudgetAdmissionError(RuntimeError):
 
 class BudgetPolicyConflict(ValueError):
     """An immutable budget identity was rebound to an incompatible currency."""
-
-
-@dataclass(frozen=True)
-class Lease:
-    lease_token: str
-    lease_epoch: int
 
 
 @dataclass(frozen=True)
@@ -1650,18 +1643,7 @@ class QuickScanWorkStore:
         ):
             raise LeaseFencedError("quick-scan work lease is stale")
 
-    @staticmethod
-    def _resolution_record(row: sqlite3.Row) -> dict:
-        from src.providers.model_resolution import (
-            model_resolution_sha256,
-            normalize_model_resolution,
-        )
-
-        policy = normalize_model_resolution(json.loads(row["policy_json"]))
-        encoded = json.dumps(policy, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
-        if encoded != row["policy_json"] or model_resolution_sha256(policy) != row["policy_sha256"]:
-            raise ValueError("frozen model resolution hash mismatch")
-        return {**dict(row), "policy": policy}
+    _resolution_record = staticmethod(resolution_record)
 
     @staticmethod
     def _freeze_resolution_tx(
@@ -1695,64 +1677,7 @@ class QuickScanWorkStore:
             ),
         )
 
-    @classmethod
-    def _response_record(cls, connection: sqlite3.Connection, row: sqlite3.Row) -> dict:
-        receipt = json.loads(row["receipt_json"])
-        encoded = json.dumps(
-            _sanitized_receipt(receipt),
-            sort_keys=True,
-            separators=(",", ":"),
-            ensure_ascii=True,
-        )
-        resolution = connection.execute(
-            "SELECT * FROM quick_scan_attempt_resolution WHERE attempt_id=?",
-            (row["attempt_id"],),
-        ).fetchone()
-        if resolution is None:
-            raise ValueError("durable response has no frozen resolution")
-        frozen = cls._resolution_record(resolution)
-        mapping = {
-            "provider": "provider",
-            "protocol": "search_protocol",
-            "model_requested": "requested_model",
-            "model_resolved": "actual_model",
-            "response_id": "response_id",
-            "provider_attempt_id": "attempt_id",
-            "response_sha256": "response_sha256",
-        }
-        if (
-            encoded != row["receipt_json"]
-            or quick_scan_receipt_sha256(receipt) != row["receipt_sha256"]
-            or any(row[field] != receipt.get(key) for field, key in mapping.items())
-            or receipt.get("model_resolution_sha256") != frozen["policy_sha256"]
-            or row["model_requested"] != frozen["model_requested"]
-            or receipt.get("response_json_basis") not in {"strict_http_json", "parsed_payload"}
-        ):
-            raise ValueError("durable response provenance mismatch")
-        _sha256(row["response_sha256"], "HTTP canonical JSON hash")
-        _safe_text(row["provider_attempt_id"], "provider attempt", maximum=300)
-        result = {**dict(row), "receipt": receipt, "model_resolution": frozen["policy"]}
-        if connection.execute("PRAGMA user_version").fetchone()[0] >= 12:
-            events = connection.execute(
-                "SELECT * FROM quick_scan_native_search_events WHERE attempt_id=?",
-                (row["attempt_id"],),
-            ).fetchone()
-            if events is not None:
-                canonical = json.dumps(
-                    _canonical_native_events(json.loads(events["events_json"])),
-                    ensure_ascii=True,
-                    sort_keys=True,
-                    separators=(",", ":"),
-                )
-                if (
-                    canonical != events["events_json"]
-                    or hashlib.sha256(canonical.encode()).hexdigest() != events["events_sha256"]
-                    or events["native_receipt_sha256"] != row["receipt_sha256"]
-                    or events["response_sha256"] != row["response_sha256"]
-                ):
-                    raise ValueError("durable native event binding mismatch")
-                result["native_search_events"] = json.loads(canonical)
-        return result
+    _response_record = staticmethod(response_record)
 
     @staticmethod
     def _persist_native_events_tx(
@@ -1887,11 +1812,76 @@ class QuickScanWorkStore:
 
     def get_attempt_response(self, attempt_id: str) -> Optional[dict]:
         with closing(self._connect()) as connection:
-            row = connection.execute(
-                "SELECT * FROM quick_scan_attempt_response WHERE attempt_id=?",
-                (attempt_id,),
-            ).fetchone()
-            return None if row is None else self._response_record(connection, row)
+            return self._attempt_response(connection, attempt_id)
+
+    @classmethod
+    def _attempt_response(cls, connection: sqlite3.Connection, attempt_id: str) -> dict | None:
+        row = connection.execute(
+            "SELECT * FROM quick_scan_attempt_response WHERE attempt_id=?",
+            (attempt_id,),
+        ).fetchone()
+        return None if row is None else cls._response_record(connection, row)
+
+    def read_external_checkpoint_search(
+        self, attempt_id: str, original_receipt: dict, proof: dict
+    ) -> dict | None:
+        """Verify the physical response and external-use proof in the owner."""
+        with closing(self._connect()) as connection:
+            original = self._attempt_response(connection, attempt_id)
+            if original is None or original["receipt"] != original_receipt:
+                raise WorkConflictError(
+                    "external projection differs from the actual final response"
+                )
+            return self._external_checkpoint_projection(
+                connection, attempt_id, proof, original_receipt=original["receipt"]
+            )
+
+    def read_provided_answer_sources(
+        self, work_item_id: str, attempt_id: str, original_receipt: dict
+    ) -> list[dict]:
+        """Read provided sources bound to the original, already recorded attempt."""
+        from .quick_scan_provided_context import api_provided_context_read_sources
+
+        with closing(self._connect()) as connection:
+            original = self._attempt_response(connection, attempt_id)
+            if original is None or original["receipt"] != original_receipt:
+                raise WorkConflictError("provided_context_original_receipt_mismatch")
+            return cast(
+                list[dict],
+                api_provided_context_read_sources(
+                    connection,
+                    work_item_id=work_item_id,
+                    attempt_id=attempt_id,
+                    receipt=original["receipt"],
+                ),
+            )
+
+    def save_received_research(
+        self,
+        attempt_id: str,
+        visible_output: dict,
+        *,
+        record_response: Callable[[], bool],
+        stage_for_recovery: bool = False,
+    ) -> None:
+        """Commit the original transport outcome with a replayable output in one transaction."""
+        from src.utils.quick_scan_research_output import (
+            api_research_output_persist,
+            api_research_output_stage,
+        )
+
+        with self._transaction() as connection:
+            if not record_response():
+                return  # The receipt was retained but the logical attempt is uncertain.
+            persist = (
+                api_research_output_stage if stage_for_recovery else api_research_output_persist
+            )
+            try:
+                persist(self, connection, attempt_id, visible_output)
+            except Exception as error:
+                raise ResearchOutputProjectionError(
+                    "could not project received research"
+                ) from error
 
     def get_research_visible_output(self, reference: str) -> Optional[dict]:
         """Verify a visible-only original by native physical or SDK attempt ref.
@@ -3726,6 +3716,12 @@ class QuickScanWorkStore:
             )
             return "pending"
 
+    def release_unsent_group(self, members: Sequence[tuple[str, Lease]]) -> None:
+        """Release the entire original selection atomically or leave every lease alone."""
+        with self._transaction():
+            for work_item_id, lease in members:
+                self.release_unsent(work_item_id, lease)
+
     def recover_expired(self, work_item_id: str) -> str:
         """Release provably unsent work; a send intent is always uncertain."""
         with self._transaction() as connection:
@@ -3878,7 +3874,11 @@ class QuickScanWorkStore:
 
     @staticmethod
     def _external_checkpoint_projection(
-        connection: sqlite3.Connection, attempt_id: str, supplied: Optional[dict]
+        connection: sqlite3.Connection,
+        attempt_id: str,
+        supplied: Optional[dict],
+        *,
+        original_receipt: dict | None = None,
     ) -> Optional[dict]:
         """Read owner proof, never accept a caller's self-signed replacement."""
         from src.utils.quick_scan_external_journal import read_use
@@ -3901,13 +3901,13 @@ class QuickScanWorkStore:
             or supplied != proof
         ):
             raise WorkConflictError("checkpoint requires the actual external context-use proof")
-        response_row = connection.execute(
-            "SELECT * FROM quick_scan_attempt_response WHERE attempt_id=?",
-            (attempt_id,),
-        ).fetchone()
-        original = QuickScanWorkStore._response_record(connection, response_row)["receipt"]
+        if original_receipt is None:
+            original = QuickScanWorkStore._attempt_response(connection, attempt_id)
+            if original is None:
+                raise WorkConflictError("external proof has no durable response")
+            original_receipt = original["receipt"]
         urls = _canonical_source_urls(
-            list(original.get("source_urls") or []) + proof["source_urls"]
+            list(original_receipt.get("source_urls") or []) + proof["source_urls"]
         )
         return {
             "proof": proof,
@@ -6990,9 +6990,12 @@ WORK_STORE_API_METHODS = frozenset(
         "prepare_question_pack",
         "prepare_result_delivery",
         "prepare_standard_inputs",
+        "read_external_checkpoint_search",
+        "read_provided_answer_sources",
         "reconcile_budget_attempt",
         "register_external_research_continuation",
         "release_unsent",
+        "release_unsent_group",
         "assert_question_pack_terminal_persistence",
         "inspect_question_skip_terminal",
         "question_pack_operation",
@@ -7015,6 +7018,7 @@ WORK_STORE_API_METHODS = frozenset(
         "response_record",
         "result_delivery_record",
         "save_answer_checkpoint",
+        "save_received_research",
         "store_side_tables",
         "supersede_result_delivery",
         "transaction",

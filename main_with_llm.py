@@ -387,7 +387,7 @@ def main():
         default=None,
         help="可选共享公司引擎配置；复用原准入、客户端和预算，不回退重问",
     )
-    observe_arguments(parser)
+    observe_arguments(parser, record_lifecycle=True)
     args = parser.parse_args()
 
     # 验证参数互斥性

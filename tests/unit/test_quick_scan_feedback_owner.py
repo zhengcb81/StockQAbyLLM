@@ -6,8 +6,10 @@ import argparse
 import hashlib
 import json
 import os
+import sqlite3
 import subprocess
 import sys
+from contextlib import closing
 from pathlib import Path
 
 if __name__ == "__main__":
@@ -21,8 +23,8 @@ from tests.unit.test_quick_scan_feedback_observation import (  # noqa: E402
     _request,
     _settled_without_answer,
 )
-from tests.unit.test_quick_scan_work_store import (  # noqa: E402
-    _created,
+from tests.unit.test_quick_scan_work_store import _created  # noqa: E402
+from tests.unit.test_quick_scan_work_store import (
     _prepared,
     _store,
     _synthetic_search_receipt,
@@ -260,6 +262,7 @@ def test_explicit_legacy_read_can_restore_original_ref_and_never_writes_the_ledg
     state = tmp_path / "explicit-feedback.sqlite"
     observation = {**data["observation"], "attempt_id": data["attempt_id"]}
     observation.pop("details_ref")
+    observation.pop("run_id")  # A direct legacy lookup uses only the canonical native identity.
     payload = {"occurrence_id": "old", "observation": observation}
     assert _apply(ledger, state, "triage", payload)["decision"] == "repair"
     rejected = _run(ledger, ledger, "triage", _action("triage", payload))
@@ -326,6 +329,82 @@ def test_reconcile_knows_the_exact_native_paid_cost_without_changing_it(tmp_path
     assert list(inbox.iterdir()) == [registry]
     assert registry.read_bytes() == before_bindings
     assert not state.exists()
+    assert store.path.read_bytes() == baseline
+
+    # The real inspect CLI publishes the hosted envelope around the same native paid receipt.
+    policy_file = tmp_path / "policy.json"
+    request_file = tmp_path / "request.json"
+    policy_file.write_text(json.dumps(policy), encoding="utf8")
+    request_file.write_text(json.dumps(_request(store, item, policy)), encoding="utf8")
+    observed = tmp_path / "original-host"
+    process = _invoke(
+        store.path,
+        policy_file,
+        request_file,
+        {
+            "RESEARCH_FEEDBACK_DIR": str(observed),
+            "RESEARCH_FEEDBACK_RUN_ID": "fixture-host-run",
+            "RESEARCH_FEEDBACK_ATTEMPT_ID": "fixture-host-attempt",
+        },
+    )
+    assert process.returncode == 0 and json.loads(process.stdout)["API_requests"] == 0
+    (published,) = [
+        row
+        for marker in observed.glob("feedback-*.ready")
+        if (row := json.loads(marker.with_suffix(".jsonl").read_bytes()))["check_id"]
+        == "settled-disposition"
+    ]
+    assert (published["run_id"], published["attempt_id"]) == (
+        "fixture-host-run",
+        "fixture-host-attempt",
+    )
+    original_bindings = {path.name: path.read_bytes() for path in observed.iterdir()}
+    index_only = tmp_path / "retained-index"
+    index_only.mkdir()
+    (index_only / "bindings.sqlite").write_bytes(original_bindings["bindings.sqlite"])
+    ready_only = tmp_path / "retained-legacy-ready"
+    ready_only.mkdir()
+    for name, content in original_bindings.items():
+        if name != "bindings.sqlite":
+            (ready_only / name).write_bytes(content)
+    with closing(sqlite3.connect(ready_only / "bindings.sqlite")) as connection, connection:
+        connection.execute("CREATE TABLE ledger_bindings (evidence, attempt, ledger)")
+        connection.execute(
+            "INSERT INTO ledger_bindings VALUES (?, ?, ?)",
+            (evidence, f"qa-attempt/1/{attempt}", str(store.path)),
+        )
+    calls = [
+        ("native", None),
+        ("explicit-ledger", store.path),
+    ]
+    for variant, direct_ledger in calls:
+        assert (
+            _apply(
+                direct_ledger,
+                state,
+                "reconcile",
+                {"observation": published},
+                observation_dir=observed,
+            )
+            == expect
+        ), variant
+        for field in ("run_id", "attempt_id"):
+            edited = {**published, field: "a-different-host-label"}
+            result = _apply(
+                direct_ledger, state, "reconcile", {"observation": edited}, observation_dir=observed
+            )
+            assert result["cost_state"] == "unknown" and result["job_status"] == "unconfirmed", (
+                variant,
+                field,
+            )
+    for directory in (index_only, ready_only):
+        files_before_query = {path.name: path.read_bytes() for path in directory.iterdir()}
+        assert (
+            _apply(None, state, "reconcile", {"observation": published}, observation_dir=directory)
+            == expect
+        )
+        assert {path.name: path.read_bytes() for path in directory.iterdir()} == files_before_query
+    assert {path.name: path.read_bytes() for path in observed.iterdir()} == original_bindings
     assert store.path.read_bytes() == baseline
 
 

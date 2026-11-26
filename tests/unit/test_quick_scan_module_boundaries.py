@@ -41,7 +41,6 @@ STORE_SQL_ADAPTERS = {
     "utils/quick_scan_saved_research_publication.py",
     "utils/quick_scan_uncertain_seal.py",
     "utils/quick_scan_work_store.py",
-    "utils/quick_scan_work_transport.py",
 }
 
 #: The single module allowed to drive the raw question-pack transaction seam.
@@ -185,11 +184,22 @@ def test_owner_refresh_consumers_use_the_versioned_port_instead_of_session_inter
                     "owner",
                     "session",
                     "approved_session",
+                    "prepared_session",
                     "owner_session",
                 }:
                     if set(chain) & {"native", "service"}:
                         violations.append((relative, node.lineno, ast.unparse(node)))
     assert not violations, violations
+
+
+def test_question_pack_journal_does_not_depend_on_its_ledger_composer():
+    source = SRC_ROOT / "utils/quick_scan_question_pack_journal.py"
+    imports = {
+        _imported_module(source, node)
+        for node in ast.walk(_tree(source))
+        if isinstance(node, ast.ImportFrom)
+    }
+    assert "src.utils.quick_scan_work_store" not in imports
 
 
 def test_runner_does_not_query_work_store_sql_schema_directly():

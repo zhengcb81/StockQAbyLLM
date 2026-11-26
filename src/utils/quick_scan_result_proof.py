@@ -11,22 +11,20 @@ from typing import Any, Dict
 
 from src.interfaces.quick_scan_result_proof import (
     QUICK_SCAN_RESULT_PROOF_PROTOCOL,
+    QuickScanProofLedger,
     QuickScanResultProofPort,
 )
 from src.interfaces.quick_scan_work_values import (
     canonical_native_events,
     sanitize_transport_receipt,
 )
-from src.utils.quick_scan_work_store import QuickScanWorkStore
 from src.utils.quick_scan_work_transport import project_quick_scan_search
 
 
 class QuickScanResultProofAdapter:
     """Read-only projection from the original work ledger to public results."""
 
-    def __init__(self, work_store: QuickScanWorkStore | None = None) -> None:
-        if work_store is not None and not isinstance(work_store, QuickScanWorkStore):
-            raise TypeError("quick_scan_result_proof_requires_owner_work_store")
+    def __init__(self, work_store: QuickScanProofLedger | None = None) -> None:
         self._work_store = work_store
 
     def sanitize_transport_receipt(self, receipt: Any) -> Dict[str, Any]:
@@ -103,12 +101,12 @@ class QuickScanResultProofAdapter:
             raise ValueError("external public output could not verify its actual owner") from error
 
 
-def result_proof_port_for_store(work_store: QuickScanWorkStore) -> QuickScanResultProofPort:
+def result_proof_port_for_store(work_store: QuickScanProofLedger) -> QuickScanResultProofPort:
     """Create the public proof adapter for a caller's already-owned store."""
     return QuickScanResultProofAdapter(work_store)
 
 
-def result_proof_port(work_store: QuickScanWorkStore | None = None) -> QuickScanResultProofPort:
+def result_proof_port(work_store: QuickScanProofLedger | None = None) -> QuickScanResultProofPort:
     """Create a proof adapter, optionally bound to a durable Quick Scan store."""
     return QuickScanResultProofAdapter(work_store)
 

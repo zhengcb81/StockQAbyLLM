@@ -26,9 +26,16 @@ from datetime import datetime
 from functools import wraps
 from pathlib import Path
 from typing import Any, Protocol
-from uuid import uuid4
 
-from src.utils.execution_feedback import warn_feedback_unavailable
+from src.utils.execution_feedback import (
+    DEFAULT_LOG_DIR,
+    PHASE_MESSAGE,
+    RECEIPT_MESSAGE,
+    emit_execution_observation,
+    execution_phase,
+    execution_references,
+    warn_feedback_unavailable,
+)
 
 _FAILURE_CONTEXT: ContextVar[dict[str, Any]] = ContextVar("stockqa_failure_context", default={})
 _REFERENCE_FIELDS = frozenset(
@@ -39,6 +46,8 @@ _REFERENCE_FIELDS = frozenset(
         "attempt_id",
         "run_id",
         "invocation_id",
+        "request_id",
+        "provider_attempt_id",
         "provider",
         "model",
     }
@@ -46,24 +55,30 @@ _REFERENCE_FIELDS = frozenset(
 
 
 def _failure_references(values):
-    return {
-        key: value
-        for key, value in values.items()
-        if key in _REFERENCE_FIELDS
-        and type(value) is str
-        and re.fullmatch(r"[A-Za-z0-9_.:/@-]{1,200}", value)
-    }
+    references = {}
+    for key, value in values.items():
+        if key not in _REFERENCE_FIELDS or type(value) is not str or not value:
+            continue
+        if (
+            re.fullmatch(r"[A-Za-z0-9_.:/@-]{1,200}", value)
+            and "://" not in value
+            and sanitize_log_text(value, truncate=False) == value
+        ):
+            references[key] = value
+        elif key in {"request_id", "provider_attempt_id"}:
+            # A provider header can be arbitrary text. Keep a correlation hash
+            # when its value cannot safely be published as an opaque identifier.
+            references[key] = (
+                "sha256-" + hashlib.sha256(value.encode("utf8", "surrogatepass")).hexdigest()
+            )
+    return references
 
 
 def configure_failure_diagnostics(*, output):
     """Associate this real CLI invocation with its existing output, not an HTTP attempt."""
-    invocation = "cli-invocation-" + uuid4().hex
-    context = {
-        "invocation_id": invocation,
-        "run_id": "cli-run-" + invocation.removeprefix("cli-invocation-"),
-    }
+    context = execution_references({}, os.environ)
     try:
-        if output is not None:
+        if output is not None and not os.environ.get("RESEARCH_FEEDBACK_RUN_ID"):
             path = Path(output).absolute()
             context["run_id"] = (
                 "cli-output-" + hashlib.sha256(str(path).encode("utf8")).hexdigest()[:24]
@@ -77,6 +92,24 @@ def configure_failure_diagnostics(*, output):
 
 def reset_failure_diagnostics(token):
     _FAILURE_CONTEXT.reset(token)
+
+
+def current_execution_references():
+    return execution_references(_FAILURE_CONTEXT.get(), os.environ)
+
+
+@contextmanager
+def execution_scope(entry):
+    """Create one attempt for a public non-CLI operation or inherit its caller."""
+    if _FAILURE_CONTEXT.get():
+        yield
+        return
+    token = configure_failure_diagnostics(output=None)
+    try:
+        _FAILURE_CONTEXT.get()["entry"] = entry
+        yield
+    finally:
+        reset_failure_diagnostics(token)
 
 
 def build_failure_diagnostic(error, *, stage, references=None):
@@ -172,7 +205,13 @@ def record_execution_failure(
     logger, error, *, stage, references=None, refusal_code=None, explains_invocation=True
 ):
     """A defective observer cannot replace the business outcome or its cleanup."""
+    context = _FAILURE_CONTEXT.get()
+    identity = context
     try:
+        identity = execution_references(
+            context or _failure_references(references or {}), os.environ
+        )
+        references = {**identity, **(references or {})}
         if error is None:
             diagnostic = {
                 "stage": stage,
@@ -196,9 +235,9 @@ def record_execution_failure(
         }
     if refusal_code is not None:
         diagnostic["refusal_code"] = refusal_code
-    if _FAILURE_CONTEXT.get():
-        diagnostic["entry"] = _FAILURE_CONTEXT.get().get("entry")
-        diagnostic["options"] = _FAILURE_CONTEXT.get().get("options", [])
+    if context:
+        diagnostic["entry"] = context.get("entry")
+        diagnostic["options"] = context.get("options", [])
     if logger is not None:
         try:
             logger.error(
@@ -209,18 +248,43 @@ def record_execution_failure(
         except Exception:
             _tracking_incomplete()
     try:
-        from src.utils.execution_feedback import emit_execution_observation
-
-        context = _FAILURE_CONTEXT.get()
         if context and explains_invocation:
             context["has_failure"] = True
-        emit_execution_observation(diagnostic, context=context)
+        emit_execution_observation(diagnostic, context=identity, fallback=_log_failure_receipt)
     except Exception:
         _tracking_incomplete()
     return diagnostic
 
 
-def observe_arguments(parser, argv=None):
+def _log_failure_receipt(receipt):
+    _log_execution_record(RECEIPT_MESSAGE, receipt, logging.ERROR)
+
+
+def _log_execution_record(kind, body, level):
+    # The existing journal rotation and formatter also serve machine-safe history.
+    get_logger("stockqa.execution", log_to_console=False).log(
+        level,
+        "%s %s",
+        kind,
+        json.dumps(body, ensure_ascii=True, sort_keys=True),
+        extra={"_stockqa_structural_failure": True},
+    )
+
+
+def record_execution_phase(stage, *, references=None, exit_code=None):
+    context = _FAILURE_CONTEXT.get()
+    if not context.get("record_lifecycle"):
+        return
+    try:
+        phase = execution_phase(
+            stage, context, _failure_references(references or {}), exit_code=exit_code
+        )
+        _log_execution_record(PHASE_MESSAGE, phase, logging.INFO)
+    except Exception:
+        _tracking_incomplete()
+
+
+def observe_arguments(parser, argv=None, *, record_lifecycle=False):
     """Keep enough public argument shape to reproduce a refusal without a secret-bearing argv."""
     context = _FAILURE_CONTEXT.get()
     if not context:
@@ -257,6 +321,9 @@ def observe_arguments(parser, argv=None):
                     item["input_ref"] = hashlib.sha256(value.encode("utf8")).hexdigest()
             shapes.append(item)
         context["options"] = shapes
+        if record_lifecycle and not {"--help", "-h"}.intersection(args):
+            context["record_lifecycle"] = True
+            record_execution_phase("cli.started")
     except Exception:
         _tracking_incomplete()
 
@@ -274,13 +341,22 @@ def observed_command(function):
             except SystemExit as error:
                 if error.code not in (None, 0) and not _FAILURE_CONTEXT.get().get("has_failure"):
                     record_execution_failure(None, error, stage="cli.arguments")
+                record_execution_phase(
+                    "cli.exited", exit_code=error.code if type(error.code) is int else 1
+                )
+                raise
+            except KeyboardInterrupt as error:
+                record_execution_failure(None, error, stage="cli.cancelled")
                 raise
             except Exception as error:
                 if not _FAILURE_CONTEXT.get().get("has_failure"):
                     record_execution_failure(None, error, stage="cli.run")
+                record_execution_phase("cli.exited", exit_code=1)
                 raise
             if result and not _FAILURE_CONTEXT.get().get("has_failure"):
                 record_execution_failure(None, SystemExit(result), stage="cli.return")
+            if type(result) is int:
+                record_execution_phase("cli.exited", exit_code=result)
             return result
         finally:
             reset_failure_diagnostics(token)
@@ -289,7 +365,7 @@ def observed_command(function):
 
 
 # 日志目录
-LOG_DIR = Path("logs")
+LOG_DIR = DEFAULT_LOG_DIR
 _DAILY_LOG_MAX_BYTES = 2 * 1024 * 1024
 
 # Q05（LLM-08）单条日志记录最大长度（含 traceback），超出即截断。

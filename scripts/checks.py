@@ -105,6 +105,7 @@ DAILY_TEST_TARGETS: Tuple[str, ...] = (
     "tests/unit/test_main_with_llm.py",
     "tests/unit/test_q07_checkpoint.py",
     "tests/unit/test_s1_p0_provider_and_subprocess_logging.py",
+    "tests/unit/test_async_llm_provider.py",
     "tests/unit/test_quick_scan_module_boundaries.py",
     "tests/unit/test_quick_scan_work_values.py",
     "tests/unit/test_quick_scan_public_api_contracts.py",
@@ -116,9 +117,15 @@ DAILY_TEST_TARGETS: Tuple[str, ...] = (
     "tests/unit/test_execution_feedback_intake.py::test_cold_owner_selects_original_observation_directory",
     "tests/unit/test_execution_feedback_intake.py::test_native_feedback_and_log_setup_never_write_stdout_when_stderr_is_absent",
     "tests/unit/test_execution_feedback_intake.py"
+    "::test_public_spend_preflight_is_cold_readable_by_the_original_identity",
+    "tests/unit/test_execution_feedback_intake.py"
+    "::test_public_dispatch_can_be_cold_read_after_a_success_or_process_stop",
+    "tests/unit/test_execution_feedback_intake.py"
     "::test_native_log_rotation_preserves_business_and_both_writers",
     "tests/unit/test_paid_runner_independence.py"
     "::test_paid_runner_uses_original_receipt_metadata_without_today_model_or_budget",
+    "tests/unit/test_paid_runner_independence.py"
+    "::test_result_proof_reads_a_narrow_evidence_port_without_a_sql_connection",
     "tests/unit/test_quick_scan_feedback_owner.py::test_reconcile_knows_the_exact_native_paid_cost_without_changing_it",
     "tests/unit/test_execution_failure_diagnostics.py::test_cause_context_and_new_exception_keep_code_positions_without_text",
     "tests/unit/test_quick_scan_operational_readiness.py",

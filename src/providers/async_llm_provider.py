@@ -6,13 +6,14 @@
 """
 
 import asyncio
-from typing import Any, Dict, List, Optional, Tuple, cast
+import hashlib
+from typing import Any, Callable, Dict, List, Optional, Tuple, cast
 
 import httpx
 
-from src.config.settings import DISPLAY_QUERY_TRUNCATE, DISPLAY_TITLE_TRUNCATE
+from src.config.settings import DISPLAY_TITLE_TRUNCATE
 from src.core.models import Question, SearchResult
-from src.utils.logger import get_logger
+from src.utils.logger import execution_scope, get_logger, record_execution_failure
 from src.utils.quick_scan_work_transport import (
     QuickScanBudgetDeferredError,
     QuickScanWorkPersistenceError,
@@ -107,7 +108,54 @@ class AsyncLLMProvider(BaseLLMProvider):
     async def _search_async(
         self, query: str, question_id: Optional[str], *, response_kind: str = "score"
     ) -> List[SearchResult]:
-        logger.info("异步 LLM 处理问题: %s...", query[:DISPLAY_QUERY_TRUNCATE])
+        with execution_scope("provider.async.search"):
+            references = {
+                "question_id": question_id
+                or "query-sha256-" + hashlib.sha256(query.encode()).hexdigest(),
+            }
+            retained = False
+
+            def retain_failure(error, *, stage="provider.async.search", refusal_code=None):
+                nonlocal retained
+                attempt = (
+                    error.attempt_receipt if isinstance(error, LLMTransportAttemptError) else {}
+                )
+                record_execution_failure(
+                    logger,
+                    error,
+                    stage=stage,
+                    references={
+                        **references,
+                        "request_id": attempt.get("request_id"),
+                        "provider_attempt_id": attempt.get("attempt_id"),
+                    },
+                    refusal_code=refusal_code,
+                    explains_invocation=False,
+                )
+                retained = True
+
+            try:
+                results = await self._search_result_async(
+                    query, question_id, response_kind=response_kind, retain_failure=retain_failure
+                )
+            except asyncio.CancelledError as error:
+                retain_failure(error, stage="provider.async.cancelled")
+                raise
+            except Exception as error:
+                retain_failure(error)
+                raise
+            if not retained and results and results[0].status == "error":
+                retain_failure(None, refusal_code="async_provider_returned_error")
+            return results
+
+    async def _search_result_async(
+        self,
+        query: str,
+        question_id: Optional[str],
+        *,
+        response_kind: str,
+        retain_failure: Callable[[BaseException], None],
+    ) -> List[SearchResult]:
 
         prompt = (
             self._build_prompt(query, question_id=question_id, response_kind=response_kind)
@@ -119,6 +167,7 @@ class AsyncLLMProvider(BaseLLMProvider):
             expected_question_id=question_id,
             expected_entity_id=self.entity_id if self.require_search else None,
             expected_company_name=self.company_name if self.require_search else None,
+            retain_failure=retain_failure,
         )
 
         if self.require_search:
@@ -180,6 +229,8 @@ class AsyncLLMProvider(BaseLLMProvider):
         expected_entity_id: Optional[str],
         expected_company_name: Optional[str],
         initial_metadata: Dict[str, Any],
+        *,
+        retain_failure: Callable[[BaseException], None],
     ) -> Tuple[ParsedLLMAnswer, Dict[str, Any]]:
         """Perform at most one explicitly budgeted async format repair."""
         repair_prompt = self._build_format_repair_prompt(
@@ -235,6 +286,7 @@ class AsyncLLMProvider(BaseLLMProvider):
                 ),
             ):
                 raise
+            retain_failure(error)
             logger.warning("异步格式修复失败（%s）", type(error).__name__)
             if isinstance(error, LLMTransportAttemptError):
                 repair_metadata = {
@@ -258,6 +310,8 @@ class AsyncLLMProvider(BaseLLMProvider):
         expected_question_id: Optional[str] = None,
         expected_entity_id: Optional[str] = None,
         expected_company_name: Optional[str] = None,
+        *,
+        retain_failure: Callable[[BaseException], None],
     ) -> Tuple[ParsedLLMAnswer, Dict[str, Any]]:
         """异步调用 LLM API，带重试。"""
         if not self.api_key:
@@ -325,6 +379,7 @@ class AsyncLLMProvider(BaseLLMProvider):
                             expected_entity_id,
                             expected_company_name,
                             execution_metadata,
+                            retain_failure=retain_failure,
                         )
                     execution_metadata = dict(execution_metadata)
                     execution_metadata["format_repair"] = {
@@ -344,6 +399,7 @@ class AsyncLLMProvider(BaseLLMProvider):
                         expected_entity_id,
                         expected_company_name,
                         execution_metadata,
+                        retain_failure=retain_failure,
                     )
 
                 if retry < self.max_retries - 1:
@@ -374,6 +430,7 @@ class AsyncLLMProvider(BaseLLMProvider):
                     )
                     await asyncio.sleep(wait_time)
                 else:
+                    retain_failure(error)
                     logger.error(
                         "%s 异步API请求失败，已尝试 %d 次（%s）",
                         self.provider_name,
@@ -402,7 +459,6 @@ class AsyncLLMProvider(BaseLLMProvider):
                         "异步 API请求失败（%s），%.1f 秒后重试...",
                         type(e).__name__,
                         wait_time,
-                        exc_info=True,
                     )
                     await asyncio.sleep(wait_time)
                 else:
@@ -411,19 +467,12 @@ class AsyncLLMProvider(BaseLLMProvider):
                         self.provider_name,
                         self.max_retries,
                         type(e).__name__,
-                        exc_info=True,
                     )
                     raise Exception(
                         f"异步 API请求失败，已重试 {self.max_retries} 次（{type(e).__name__}）"
                     ) from e
 
-            except (TypeError, KeyError, AttributeError, NameError, SyntaxError, ImportError) as e:
-                logger.error(
-                    "%s 异步调用发生内部编程错误（%s），停止重试",
-                    self.provider_name,
-                    type(e).__name__,
-                    exc_info=True,
-                )
+            except (TypeError, KeyError, AttributeError, NameError, SyntaxError, ImportError):
                 raise
 
             except Exception as e:
@@ -433,15 +482,14 @@ class AsyncLLMProvider(BaseLLMProvider):
                         "异步发生未知错误（%s），%.1f 秒后重试...",
                         type(e).__name__,
                         wait_time,
-                        exc_info=True,
                     )
                     await asyncio.sleep(wait_time)
                 else:
+                    retain_failure(e)
                     logger.error(
                         "经过 %d 次尝试后仍发生错误（%s）",
                         self.max_retries,
                         type(e).__name__,
-                        exc_info=True,
                     )
                     return ParsedLLMAnswer(None, f"处理失败（{type(e).__name__}）", "error"), {}
 
@@ -449,13 +497,15 @@ class AsyncLLMProvider(BaseLLMProvider):
 
     async def batch_search_async(self, queries: List[str]) -> List[List[SearchResult]]:
         """批量异步搜索。"""
-        tasks = [self.search_async(query) for query in queries]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        with execution_scope("provider.async.batch"):
+            tasks = [self.search_async(query) for query in queries]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
 
         processed_results: List[List[SearchResult]] = []
-        for i, result in enumerate(results):
+        for result in results:
+            if isinstance(result, asyncio.CancelledError):
+                raise result
             if isinstance(result, Exception):
-                logger.error("查询 %s... 处理失败: %s", queries[i][:50], result)
                 processed_results.append([])
             else:
                 processed_results.append(cast(List[SearchResult], result))

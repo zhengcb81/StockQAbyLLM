@@ -20,7 +20,9 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterator, Optional
 
+from src.interfaces.quick_scan_result_proof import QuickScanProofLedger
 from src.interfaces.quick_scan_work_values import (
+    ResearchOutputProjectionError,
     canonical_native_events,
     cost_to_micros,
 )
@@ -35,6 +37,7 @@ from src.interfaces.transport_outcome import (
     UncertainTransportOutcome,
     iter_exception_chain,
 )
+from src.utils.logger import record_execution_phase
 from src.utils.quick_scan_work_store import (
     BudgetAdmissionError,
     Lease,
@@ -129,6 +132,12 @@ class QuickScanSendAttempt:
     _consumed: bool = False
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
+    def _record_phase(self, stage: str) -> None:
+        references = {"work_attempt_id": self.attempt_id}
+        if self.binding is not None:
+            references["work_item_id"] = self.binding.work_item_id
+        record_execution_phase(stage, references=references)
+
     def consume_for_post(self) -> None:
         """Consume this in-memory handle exactly once before entering HTTP transport."""
         with self._lock:
@@ -210,6 +219,7 @@ class QuickScanSendAttempt:
                         "could not persist external search dispatch"
                     ) from error
             self._consumed = True
+            self._record_phase("transport.intent")
 
     def record_response(
         self,
@@ -223,11 +233,14 @@ class QuickScanSendAttempt:
             api_research_intent_anchor_original_receipt as anchor_original_receipt,
         )
 
+        self._record_phase("transport.response_received")
         anchor_original_receipt(self, receipt)
         if research_visible_output is None:
-            return self._record_response(
+            self._record_response(
                 http_status_code=http_status_code, request_id=request_id, receipt=receipt
             )
+            self._record_phase("transport.response_persisted")
+            return
         store = (
             self.binding.store
             if self.binding is not None
@@ -239,69 +252,65 @@ class QuickScanSendAttempt:
         )
         if store is None:
             raise QuickScanWorkPersistenceError("research visible output requires native store")
-        from src.utils.quick_scan_research_output import (
-            api_research_output_persist as persist,
-        )
-        from src.utils.quick_scan_research_output import (
-            api_research_output_stage as stage,
-        )
 
         receipt_before_projection = copy.deepcopy(receipt)
-        projection_error = None
+        uncertain = None
+
+        def record_response(*, retain_uncertain: bool = True) -> bool:
+            nonlocal uncertain
+            try:
+                self._record_response(
+                    http_status_code=http_status_code, request_id=request_id, receipt=receipt
+                )
+            except QuickScanWorkUncertainError as error:
+                if not retain_uncertain:
+                    raise
+                # Commit the original late receipt without making it replay-safe.
+                uncertain = error
+                return False
+            return True
+
         try:
-            uncertain = None
-            with store.transaction() as connection:
-                try:
-                    self._record_response(
-                        http_status_code=http_status_code, request_id=request_id, receipt=receipt
-                    )
-                except QuickScanWorkUncertainError as error:
-                    # Original late/expired-lease paths retain their received
-                    # receipt and native charge. Commit that evidence, but do
-                    # not make an uncertain logical outcome replay-safe.
-                    uncertain = error
-                else:
-                    try:
-                        persist(store, connection, self.attempt_id, research_visible_output)
-                    except Exception as error:
-                        projection_error = error
-                        raise
+            store.save_received_research(
+                self.attempt_id, research_visible_output, record_response=record_response
+            )
             if uncertain is not None:
                 raise uncertain
+        except ResearchOutputProjectionError as error:
+            projection_error = error.__cause__ or error
         except (QuickScanWorkPersistenceError, QuickScanWorkUncertainError):
-            if projection_error is None:
-                raise
+            raise
         except Exception as error:
-            if projection_error is None:
-                raise QuickScanWorkPersistenceError(
-                    "could not persist research visible output", receipt
-                ) from error
-
-        if projection_error is not None:
-            # The first transaction rolled back because only the final projection
-            # failed. Retain the original paid receipt/cost, then persist the safe
-            # answer in its recovery journal. Readers can serve that immutable
-            # answer without another provider request while projection is repaired.
-            receipt.clear()
-            receipt.update(receipt_before_projection)
-            try:
-                with store.transaction() as connection:
-                    self._record_response(
-                        http_status_code=http_status_code,
-                        request_id=request_id,
-                        receipt=receipt,
-                    )
-                    stage(store, connection, self.attempt_id, research_visible_output)
-            except QuickScanWorkUncertainError:
-                raise
-            except Exception as recovery_error:
-                raise QuickScanWorkPersistenceError(
-                    "could not stage paid research output for zero-request recovery", receipt
-                ) from recovery_error
             raise QuickScanWorkPersistenceError(
-                "research output projection failed; paid answer retained for zero-request recovery",
-                receipt,
-            ) from projection_error
+                "could not persist research visible output", receipt
+            ) from error
+        else:
+            self._record_phase("transport.response_persisted")
+            return
+
+        # The first transaction rolled back only for projection. Persist the
+        # original paid receipt and safe output through the owner's recovery journal.
+        receipt.clear()
+        receipt.update(receipt_before_projection)
+        uncertain = None
+        try:
+            store.save_received_research(
+                self.attempt_id,
+                research_visible_output,
+                record_response=lambda: record_response(retain_uncertain=False),
+                stage_for_recovery=True,
+            )
+        except QuickScanWorkUncertainError:
+            raise
+        except Exception as recovery_error:
+            raise QuickScanWorkPersistenceError(
+                "could not stage paid research output for zero-request recovery", receipt
+            ) from recovery_error
+        self._record_phase("transport.response_staged")
+        raise QuickScanWorkPersistenceError(
+            "research output projection failed; paid answer retained for zero-request recovery",
+            receipt,
+        ) from projection_error
 
     def _record_response(
         self,
@@ -673,7 +682,7 @@ def attach_external_use_proof(attempt: Optional[QuickScanSendAttempt], metadata:
 def project_quick_scan_search(
     metadata: dict,
     *,
-    work_store: Optional[QuickScanWorkStore] = None,
+    work_store: Optional[QuickScanProofLedger] = None,
     work_item_id: Optional[str] = None,
 ) -> dict:
     """Project search availability only after re-reading the actual use owner.
@@ -689,12 +698,10 @@ def project_quick_scan_search(
             "source_urls": metadata.get("source_urls", []),
         }
     try:
-        from contextlib import closing
-
         work = _WORK_BINDING.get()
         if work_store is None and work is not None:
             work_store, work_item_id = work.store, work.work_item_id
-        if not isinstance(work_store, QuickScanWorkStore) or not isinstance(work_item_id, str):
+        if work_store is None or not isinstance(work_item_id, str):
             raise ValueError("external projection requires the actual work owner")
         transport = metadata.get("work_transport")
         if not isinstance(transport, dict) or not isinstance(transport.get("work_attempt_id"), str):
@@ -703,13 +710,9 @@ def project_quick_scan_search(
         proof = metadata["external_context_use"]
         if not isinstance(proof, dict) or proof.get("work_item_id") != work_item_id:
             raise ValueError("external projection is bound to another work item")
-        response = work_store.get_attempt_response(attempt_id)
-        if response is None or response["receipt"] != sanitize_transport_receipt(
-            transport.get("final_receipt")
-        ):
-            raise ValueError("external projection differs from the actual final response")
-        with closing(work_store.connect()) as connection:
-            projection = work_store.external_checkpoint_projection(connection, attempt_id, proof)
+        projection = work_store.read_external_checkpoint_search(
+            attempt_id, sanitize_transport_receipt(transport.get("final_receipt")), proof
+        )
         if projection is None:
             raise ValueError("external projection has no actual use proof")
         return {
@@ -729,26 +732,13 @@ def project_quick_scan_answer_sources(metadata: dict, *, work_store, work_item_i
     search = project_quick_scan_search(metadata, work_store=work_store, work_item_id=work_item_id)
     sources = []
     if metadata.get("research_intent_binding_sha256") is not None:
-        from contextlib import closing
-
-        from .quick_scan_provided_context import (
-            api_provided_context_read_sources as read_sources,
-        )
-
         transport = metadata.get("work_transport") or {}
         attempt_id = transport.get("work_attempt_id")
-        if not isinstance(work_store, QuickScanWorkStore) or not isinstance(attempt_id, str):
+        if work_store is None or not isinstance(attempt_id, str):
             raise ValueError("provided_context_original_owner_required")
-        original = work_store.get_attempt_response(attempt_id)
-        if original is None or original["receipt"] != sanitize_transport_receipt(metadata):
-            raise ValueError("provided_context_original_receipt_mismatch")
-        with closing(work_store.connect()) as connection:
-            sources = read_sources(
-                connection,
-                work_item_id=work_item_id,
-                attempt_id=attempt_id,
-                receipt=original["receipt"],
-            )
+        sources = work_store.read_provided_answer_sources(
+            work_item_id, attempt_id, sanitize_transport_receipt(metadata)
+        )
     # Search evidence and its clock/receipt remain exclusively vendor-owned.
     if sources and (search.get("search_status") != "executed" or not search.get("source_urls")):
         raise ValueError("provided_context_requires_original_executed_search")
@@ -1358,9 +1348,7 @@ def _release_unsent_binding(binding):
         else ((binding.work_item_id, binding.lease),)
     )
     try:
-        with binding.store.transaction():
-            for work_id, lease in members:
-                binding.store.release_unsent(work_id, lease)
+        binding.store.release_unsent_group(members)
         return True, "released_unsent"
     except Exception:
         # Native release rejects sent/received/unknown work and stale leases.

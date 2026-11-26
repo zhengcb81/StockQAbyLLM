@@ -10,10 +10,30 @@ import hashlib
 import json
 import math
 import re
+from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any, Optional, Sequence
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+
+class WorkConflictError(ValueError):
+    """An existing logical item or attempt disagrees with immutable inputs."""
+
+
+class LeaseFencedError(RuntimeError):
+    """The supplied worker lease is absent, expired, or superseded."""
+
+
+class ResearchOutputProjectionError(RuntimeError):
+    """The receiving owner rolled back a failed visible-output projection."""
+
+
+@dataclass(frozen=True)
+class Lease:
+    lease_token: str
+    lease_epoch: int
+
 
 _SAFE_ID = re.compile(r"^[A-Za-z0-9_.-]{1,160}$")
 
