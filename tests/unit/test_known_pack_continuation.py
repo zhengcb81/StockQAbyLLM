@@ -96,6 +96,10 @@ def test_optin_assertion_runs_after_finalizers_and_continues_only_future_pack():
 
 
 def fixture(tmp_path, monkeypatch, mode):
+    return fixture_with_owner(tmp_path, monkeypatch, mode)[:-1]
+
+
+def fixture_with_owner(tmp_path, monkeypatch, mode):
     from src.providers import llm_client
 
     monkeypatch.chdir(tmp_path)
@@ -312,7 +316,7 @@ def fixture(tmp_path, monkeypatch, mode):
         # Inject through the public journal operation consumed by WorkStore;
         # patching the private implementation would miss its frozen export alias.
         monkeypatch.setattr(journal, "read_question_pack", read)
-    return store, provider, lc, questions, session, policy
+    return store, provider, lc, questions, session, policy, owner
 
 
 @pytest.mark.parametrize(

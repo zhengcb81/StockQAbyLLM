@@ -23,3 +23,29 @@
 - Native targeted checks passed for six checkpoint, unchanged long-answer and unpaid refusal cases.
 - The public generic StockQA command used an explicit local provider over real TCP. The observed wire request, generated answer and sanitized process output passed. Paid quick-scan unit controls remain independently exercised.
 - Two separate StockWiki freshness composition cases passed using the exact local StockWiki release 6cd6d7ef.
+
+- The first exact Windows attempt at c25e56fa collected 4,017 applicable
+  nodes. It crossed 716 calls before the 900-second launcher deadline and
+  printed 68 failures in seven files. The raw partial output is
+  C:/Temp/s6a/stockqa-p1-evidence/exact-c25e56fa.log. It produced no final
+  execution receipt.
+- The failure clusters had several causes. Windows Git converted the
+  byte-locked SQL export on checkout. A legacy subprocess guard ran before
+  the checked-out source was importable, so a provider fixture and its
+  shutdown checkpoint did not install. Some tests wrote attributes on the
+  opaque public owner port or expected it to make a repeated check and
+  throw raw exceptions. External policy rejection lost its safe
+  machine-readable reason between the runtime and the cold feedback
+  receipt. These causes received separate focused regression runs.
+- The native CLI now fails before product startup if the synthetic guard
+  did not fully install. The seven failure groups remain in the normal
+  suite, and the standalone CLI grant-argument test now executes there.
+  The actual transport refusal tests assert zero requests, while paid
+  independent results keep their original usable checkpoint.
+- A pinned disabled route needs fresh eligibility only for pending
+  dispatch. Once work is already paid, its recorded route is readable.
+  Optional additive data is compatible under the existing visible-answer
+  schema. A future information date remains invalid. These cases have
+  separate assertions.
+- The two-platform exact execution receipts and independent review are
+  still prerequisites for module release for this candidate.

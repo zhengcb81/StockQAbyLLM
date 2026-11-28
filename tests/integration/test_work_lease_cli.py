@@ -103,7 +103,7 @@ def test_actual_sdk_delayed_response_obeys_new_claim_policy_without_renewal(
             super().__init__(*args, lease_seconds=lease, **kwargs)
 
     monkeypatch.setattr(fixtures, "QuickScanWorkLifecycle", ConfiguredLifecycle)
-    store, provider, lifecycle, questions, session, policy = fixtures.fixture(
+    store, provider, lifecycle, questions, session, policy, owner = fixtures.fixture_with_owner(
         tmp_path, monkeypatch, "answer_generator"
     )
     assert lifecycle._lease_seconds == lease
@@ -112,7 +112,7 @@ def test_actual_sdk_delayed_response_obeys_new_claim_policy_without_renewal(
     ]  # exact seconds avoid ISO microsecond rounding in test-only owner timestamps
     monkeypatch.setattr(store, "clock", lambda: clock[0])
     monkeypatch.setattr(
-        lifecycle._owner_refresh,
+        owner,
         "register_subject_dispatch",
         lambda request: fixtures._owner_receipt(request, clock[0]),
     )

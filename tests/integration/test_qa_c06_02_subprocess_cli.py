@@ -30,6 +30,24 @@ from src.utils.quick_scan_work_store import QuickScanWorkStore
 from tests.integration import test_qa_c06_02_e2e as base
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+_CHILD_BOOTSTRAP = """
+import runpy
+import sys
+
+guard = sys.modules.get("sitecustomize")
+if not getattr(guard, "OFFLINE_GUARD_READY", False):
+    raise SystemExit("StockQA offline fixture did not install")
+del sys.argv[0]
+runpy.run_path(sys.argv[0], run_name="__main__")
+"""
+_GUARD_READY = "\nOFFLINE_GUARD_READY = True\n"
+
+
+def guarded_cli_args(argv):
+    """Fail closed if Python could not install the synthetic boundary."""
+    return [sys.executable, "-B", "-X", "utf8", "-c", _CHILD_BOOTSTRAP, str(MAIN), *argv]
+
+
 MAIN = REPO_ROOT / "main_with_llm.py"
 QUESTIONS = [question["id"] for question in base.MANIFEST_DOC["questions"]]
 PLAN_PREFIX = '{"contract_id": "stockqa.consumes_iqs_question_manifest'
@@ -163,7 +181,7 @@ def _prepare_root(tmp_path: Path, *, corrupt_question: str | None = None) -> dic
     (tmp_path / "temp").mkdir()
     guard = tmp_path / "guard"
     guard.mkdir()
-    (guard / "sitecustomize.py").write_text(_GUARD, encoding="utf-8", newline="\n")
+    (guard / "sitecustomize.py").write_text(_GUARD + _GUARD_READY, encoding="utf-8", newline="\n")
     responses = {}
     for question_id in QUESTIONS:
         body = base._standard_answer(question_id)
@@ -218,12 +236,16 @@ def _prepare_root(tmp_path: Path, *, corrupt_question: str | None = None) -> dic
 
 
 def _child_env(tmp_path: Path, *, stub: bool) -> dict:
-    env = os.environ.copy()
-    for key in [key for key in list(env) if key.upper().endswith("_API_KEY")]:
-        env.pop(key)
-    env["E97_OWNED_ROOT"] = str(tmp_path)
-    env["PYTHONPATH"] = os.pathsep.join(
-        [str(tmp_path / "guard")] + ([env["PYTHONPATH"]] if env.get("PYTHONPATH") else [])
+    keys = {"SYSTEMROOT", "WINDIR", "SYSTEMDRIVE", "PATH", "PATHEXT", "COMSPEC"}
+    env = {key: value for key, value in os.environ.items() if key.upper() in keys}
+    env.update(
+        E97_OWNED_ROOT=str(tmp_path),
+        PYTHONPATH=os.pathsep.join((str(tmp_path / "guard"), str(REPO_ROOT))),
+        HOME=str(tmp_path),
+        USERPROFILE=str(tmp_path),
+        APPDATA=str(tmp_path),
+        LOCALAPPDATA=str(tmp_path),
+        RESEARCH_FEEDBACK_DIR=str(tmp_path / "feedback"),
     )
     env["QA100_STUB_HTTP"] = "1" if stub else "0"
     env["TEMP"] = env["TMP"] = env["TMPDIR"] = str(tmp_path / "temp")
@@ -235,15 +257,30 @@ def _child_env(tmp_path: Path, *, stub: bool) -> dict:
 
 def _spawn(tmp_path: Path, argv: list[str], *, stub: bool) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [sys.executable, "-B", "-X", "utf8", str(MAIN), *argv],
+        guarded_cli_args(argv),
         cwd=tmp_path,
         env=_child_env(tmp_path, stub=stub),
+        stdin=subprocess.DEVNULL,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         capture_output=True,
         text=True,
         encoding="utf-8",
         errors="replace",
         timeout=240,
     )
+
+
+def test_guard_bootstrap_refuses_to_run_when_the_http_fixture_fails_to_import(tmp_path):
+    (tmp_path / "temp").mkdir()
+    guard = tmp_path / "guard"
+    guard.mkdir()
+    (guard / "sitecustomize.py").write_text(
+        'raise ImportError("synthetic guard setup failure")\n', encoding="utf-8"
+    )
+    result = _spawn(tmp_path, ["--help"], stub=False)
+    assert result.returncode == 1
+    assert "StockQA offline fixture did not install" in result.stderr
+    assert "usage:" not in result.stdout
 
 
 def _cold_argv(files: dict) -> list[str]:

@@ -2598,6 +2598,7 @@ class LLMRunner:
             # of silently falling back to native search.
             if search_policy is not None:
                 from src.config.quick_scan_search_policy import (
+                    SearchPolicyRejected,
                     load_search_policy,
                     policy_receipt,
                 )
@@ -2619,11 +2620,7 @@ class LLMRunner:
                     and not search_document.admitted
                     and not readonly_recovery
                 ):
-                    rejections = ",".join(
-                        f"{item['route_id']}:{item['reason']}"
-                        for item in search_document.rejections
-                    )
-                    raise ValueError("external_search_routes_unadmitted: " + rejections)
+                    raise SearchPolicyRejected("external_search_routes_unadmitted")
                 if search_document.requires_external:
                     from src.config.quick_scan_search_policy import (
                         execution_query_plans,
@@ -2632,21 +2629,23 @@ class LLMRunner:
                     execution_query_plans(search_document)
                     plan = search_document.execution_plan
                     if plan is None:
-                        raise ValueError("frozen_execution_plan_required")
+                        raise SearchPolicyRejected("frozen_execution_plan_required")
                     if identity_payload is None or manifest is None:
-                        raise ValueError("external_context_requires_identity_and_manifest")
+                        raise SearchPolicyRejected(
+                            "external_context_requires_identity_and_manifest"
+                        )
                     if (
                         plan["entity_id"] != entity_id
                         or plan["identity_snapshot_sha256"]
                         != identity_payload["identity_snapshot_sha256"]
                     ):
-                        raise ValueError("external_policy_identity_mismatch")
+                        raise SearchPolicyRejected("external_policy_identity_mismatch")
                     if plan["question_manifest_sha256"] != manifest["manifest_sha256"]:
-                        raise ValueError("external_policy_manifest_mismatch")
+                        raise SearchPolicyRejected("external_policy_manifest_mismatch")
                     planned = {qid for query in plan["queries"] for qid in query["question_ids"]}
                     expected = {question["id"] for question in manifest["questions"]}
                     if planned != expected:
-                        raise ValueError("external_policy_question_binding_mismatch")
+                        raise SearchPolicyRejected("external_policy_question_binding_mismatch")
 
             if (
                 question_pack_size > 1

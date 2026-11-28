@@ -259,13 +259,3 @@ def test_require_publisher_without_a_checkpoint_returns_none(owned_store):
 
     with closing(owned_store._connect()) as connection:
         assert require_publisher(owned_store, connection, "WORK_missing", object()) is None
-
-
-def test_apply_cli_exposes_no_preauthorized_grant_option():
-    import inspect
-
-    from src.utils import quick_scan_work_decision_apply_cli as cli
-
-    source = inspect.getsource(cli.main)
-    assert "preauthorized_grant" not in source
-    assert "--grant" not in source

@@ -52,6 +52,7 @@ def configured():
 
 def test_approved_target_bypasses_primary_order_without_mutating_original_policy():
     session, policy = configured()
+    session.work = {"IQS_05": {"status": "pending"}}
     old = copy.deepcopy(policy)
     selected = session.execution_routes(policy)
     assert selected == [old["routes"][1]] and policy == old
@@ -66,6 +67,7 @@ def test_approved_target_bypasses_primary_order_without_mutating_original_policy
 )
 def test_wrong_or_unavailable_target_is_not_replaced_by_priority_first(fault):
     session, policy = configured()
+    session.work = {"IQS_05": {"status": "pending"}}
     if fault == "model":
         policy["routes"][1]["model"] = "OTHER"
     elif fault == "config":
@@ -91,3 +93,11 @@ def test_wrong_or_unavailable_target_is_not_replaced_by_priority_first(fault):
         return
     with pytest.raises(AdmissionRejected):
         session.execution_routes(policy)
+
+
+def test_previously_paid_target_remains_readable_without_enabling_new_send():
+    session, policy = configured()
+    session.work = {"IQS_05": {"status": "response_available"}}
+    policy["routes"][1]["eligible"] = False
+    assert not session.needs_new_dispatch
+    assert session.execution_routes(policy) == [policy["routes"][1]]

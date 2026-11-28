@@ -251,9 +251,7 @@ def test_original_provider_generator_checkpoint_standard_roundtrip_and_one_physi
     assert store.get_quick_scan_budget_status("pack-transport")["spent_micros"] == 30000
 
 
-@pytest.mark.parametrize(
-    "fault", ["prose", "coverage", "unknown_field", "evidence_url", "future_date", "metrics"]
-)
+@pytest.mark.parametrize("fault", ["prose", "coverage", "evidence_url", "future_date", "metrics"])
 def test_complete_profile_rejects_incomplete_member_before_result_and_preserves_valid_siblings(
     pack, tmp_path, fault
 ):
@@ -263,8 +261,7 @@ def test_complete_profile_rejects_incomplete_member_before_result_and_preserves_
         answers[1]["description"] = "Plain generic prose is not a complete C06 answer."
     if fault == "coverage":
         bad.pop("coverage")
-    if fault == "unknown_field":
-        bad["invented_authority"] = True
+
     if fault == "evidence_url":
         bad["evidence"] = [
             {
@@ -276,7 +273,7 @@ def test_complete_profile_rejects_incomplete_member_before_result_and_preserves_
             }
         ]
     if fault == "future_date":
-        bad["information_as_of"] = "2099-01-01"
+        bad["information_as_of"] = answers[1]["information_as_of"] = "2099-01-01"
     if fault == "metrics":
         bad["metrics"] = [{"id": "not-a-complete-metric"}]
     provider, questions = provider_for(tmp_path, answers)
@@ -289,6 +286,18 @@ def test_complete_profile_rejects_incomplete_member_before_result_and_preserves_
             {"question_id": QIDS[1], "code": "full_standard_answer_invalid"}
         ]
     assert provider.client.send_search_request.call_count == 1
+    assert all(pack[0].get_answer_checkpoint(wid) is None for wid, _ in pack[1])
+
+
+def test_standard_pack_retains_additive_model_metadata_without_making_it_authority(pack, tmp_path):
+    answers = [member(qid) for qid in QIDS]
+    answers[1]["description"]["display_hint"] = "Synthetic display extension"
+    provider, questions = provider_for(tmp_path, answers)
+    with _bindings(pack), standard_answer_transport(True):
+        result = provider.search_question_pack(questions)
+    assert result.invalid_question_ids == ()
+    assert [row.metadata["question_id"] for row in result.results] == list(QIDS)
+    assert result.execution_metadata["question_pack_standard_diagnostics"]["rejections"] == []
     assert all(pack[0].get_answer_checkpoint(wid) is None for wid, _ in pack[1])
 
 

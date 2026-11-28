@@ -8,7 +8,6 @@ import hashlib
 import json
 import os
 import subprocess
-import sys
 import time
 from contextlib import closing
 from datetime import datetime, timezone
@@ -23,7 +22,12 @@ from src.utils.quick_scan_work_store import QuickScanWorkStore
 # These tests reuse the existing guarded subprocess harness. Only the actual
 # requests HTTP boundary, a synthetic price card and the store's public clock
 # dependency are controlled. No runner/coordinator/parser/checkpoint is mocked.
-from tests.integration.test_qa_c06_02_subprocess_cli import _GUARD, _child_env
+from tests.integration.test_qa_c06_02_subprocess_cli import (
+    _GUARD,
+    _GUARD_READY,
+    _child_env,
+    guarded_cli_args,
+)
 from tests.integration.test_quick_scan_cli import (
     _http_failure,
     _invoke,
@@ -193,13 +197,23 @@ def test_public_external_main_cold_and_warm_keep_receipt_and_avoid_http(
 def test_public_external_main_wrong_manifest_fails_before_store_or_http(
     tmp_path, monkeypatch, caplog
 ):
+    feedback = tmp_path / "feedback"
+    monkeypatch.setenv("RESEARCH_FEEDBACK_DIR", str(feedback))
     kwargs, search, path = _inputs(tmp_path, monkeypatch)
     document = json.loads(path.read_text("utf-8"))
     document["execution_plan"]["question_manifest_sha256"] = "e" * 64
     path.write_text(json.dumps(document), encoding="utf-8")
     code, _, models = _invoke(monkeypatch, tmp_path, **kwargs)
     assert code != 0
-    assert "external_policy_manifest_mismatch" in caplog.text
+    assert '"refusal_code": "external_policy_manifest_mismatch"' in caplog.text
+    receipts = [
+        json.loads(receipt.read_text(encoding="utf-8")) for receipt in feedback.glob("*.cause.json")
+    ]
+    assert any(
+        receipt["diagnostic"].get("refusal_code") == "external_policy_manifest_mismatch"
+        and receipt["diagnostic"]["stage"] == "cli.search_policy"
+        for receipt in receipts
+    )
     assert search.request.call_count == 0 and models.post.call_count == 0
     assert not (tmp_path / "quick_scan_work.sqlite").exists()
 
@@ -547,7 +561,9 @@ def _subprocess_inputs(tmp_path, monkeypatch, *, mcp=False, hybrid=False, deepse
     (tmp_path / "logs").mkdir()
     (tmp_path / "temp").mkdir()
     (tmp_path / "guard").mkdir()
-    (tmp_path / "guard/sitecustomize.py").write_text(_GUARD + _EXTERNAL_CHILD, encoding="utf-8")
+    (tmp_path / "guard/sitecustomize.py").write_text(
+        _GUARD + _EXTERNAL_CHILD + _GUARD_READY, encoding="utf-8"
+    )
     (tmp_path / "store-clock.txt").write_text(str(time.time()), encoding="utf-8")
     return [
         "--company",
@@ -579,14 +595,9 @@ def _external_child_env(tmp_path, *, stub, pause=None):
 
 def _external_spawn(tmp_path, argv, *, stub, label):
     result = subprocess.run(
-        [
-            sys.executable,
-            "-B",
-            "-X",
-            "utf8",
-            str(Path(__file__).resolve().parents[2] / "main_with_llm.py"),
-            *argv,
-        ],
+        guarded_cli_args(argv),
+        stdin=subprocess.DEVNULL,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         cwd=tmp_path,
         env=_external_child_env(tmp_path, stub=stub),
         capture_output=True,
@@ -599,14 +610,9 @@ def _external_spawn(tmp_path, argv, *, stub, label):
 
 def _external_kill(tmp_path, argv, point):
     process = subprocess.Popen(
-        [
-            sys.executable,
-            "-B",
-            "-X",
-            "utf8",
-            str(Path(__file__).resolve().parents[2] / "main_with_llm.py"),
-            *argv,
-        ],
+        guarded_cli_args(argv),
+        stdin=subprocess.DEVNULL,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         cwd=tmp_path,
         env=_external_child_env(tmp_path, stub=True, pause=point),
         stdout=subprocess.PIPE,

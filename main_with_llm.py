@@ -25,6 +25,7 @@ from src.cli.batch_processor import (
 )
 
 # pylint: disable=wrong-import-position
+from src.config.quick_scan_search_policy import SearchPolicyRejected
 from src.utils.logger import (
     get_logger,
     observe_arguments,
@@ -453,6 +454,11 @@ def main():
                 else {}
             ),
         )
+    except SearchPolicyRejected as error:
+        record_execution_failure(
+            logger, error, stage="cli.search_policy", refusal_code=error.reason
+        )
+        return 1
     except Exception as e:  # pylint: disable=broad-exception-caught
         record_execution_failure(None, e, stage="cli.run")
         logger.error("运行失败: %s", type(e).__name__)

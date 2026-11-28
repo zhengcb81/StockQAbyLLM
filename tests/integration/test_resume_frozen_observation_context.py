@@ -12,13 +12,14 @@ import pytest
 from src.core.qa_engine import QAEngine
 from src.providers.base_llm_provider import standard_answer_transport
 from src.utils import quick_scan_work_transport as transport
+from src.utils.quick_scan_owner_refresh_api import adapt_owner_refresh
 from src.utils.quick_scan_result_outbox import canonical_sha256
 from tests.unit import test_known_pack_continuation as fx
 
 
 def prepared_unsent(tmp_path, monkeypatch, old_count=2):
     (tmp_path / "logs").mkdir(exist_ok=True)
-    store, provider, lifecycle, questions, session, policy = fx.fixture(
+    store, provider, lifecycle, questions, session, policy, native_owner = fx.fixture_with_owner(
         tmp_path, monkeypatch, "answer_generator"
     )
     clock = [float(int(time.time()) + 1)]
@@ -31,7 +32,7 @@ def prepared_unsent(tmp_path, monkeypatch, old_count=2):
         lambda: datetime.fromtimestamp(clock[0], timezone.utc).isoformat().replace("+00:00", "Z"),
     )
     monkeypatch.setattr(
-        lifecycle._owner_refresh,
+        native_owner,
         "register_subject_dispatch",
         lambda request: fx._owner_receipt(request, clock[0]),
     )
@@ -39,7 +40,7 @@ def prepared_unsent(tmp_path, monkeypatch, old_count=2):
     for row in original["questions"].values():
         row["metadata"].update(run_id="RUN_CONTINUE", scan_id="SCAN_CONTINUE")
     lifecycle._observation_context = original
-    lifecycle._owner_refresh.observation_context = original
+    native_owner.observation_context = original
     handles = [lifecycle.before_question(q) for q in questions[:old_count]]
     assert all(h["claimed"] for h in handles)
     for h in handles:
@@ -65,10 +66,10 @@ def prepared_unsent(tmp_path, monkeypatch, old_count=2):
         row["metadata"].update(
             run_id="RUN_NEW_CONTEXT", scan_id="SCAN_NEW_CONTEXT", inputset_id="INPUT_NEW_CONTEXT"
         )
-    owner = copy.copy(lifecycle._owner_refresh)
+    owner = copy.copy(native_owner)
     owner.observation_context = current
     owner.check = Mock(wraps=owner.check)
-    lifecycle._owner_refresh = owner
+    lifecycle._owner_refresh = adapt_owner_refresh(owner)
     lifecycle._observation_context = current
     lifecycle._run_id, lifecycle._scan_id = "RUN_NEW_CONTEXT", "SCAN_NEW_CONTEXT"
     return (
@@ -82,6 +83,7 @@ def prepared_unsent(tmp_path, monkeypatch, old_count=2):
         original,
         current,
         old_pack,
+        owner,
     )
 
 
@@ -110,7 +112,7 @@ def test_original_unsent_context_resumes_under_new_run_and_seals_without_rewriti
     tmp_path, monkeypatch
 ):
     values = prepared_unsent(tmp_path, monkeypatch)
-    store, _, lifecycle, _, session, _, handles, original, current, old_pack = values
+    store, _, lifecycle, _, session, _, handles, original, current, old_pack, owner = values
     old_attempts = [copy.deepcopy(store.list_attempts(h["work_item_id"])) for h in handles]
     observed = []
     original_factory = lifecycle.dispatch_question_pack_context
@@ -135,12 +137,12 @@ def test_original_unsent_context_resumes_under_new_run_and_seals_without_rewriti
         assert store.get_standard_answer(wid) is not None
     assert store.get_question_pack(old_pack["pack_id"]) == old_pack
     assert lifecycle._observation_context == current
-    assert lifecycle._owner_refresh.check.call_count >= 2
+    owner.check.assert_called_once_with()
 
 
 def test_mixed_original_and_unfrozen_members_keep_distinct_contexts(tmp_path, monkeypatch):
     values = prepared_unsent(tmp_path, monkeypatch, old_count=1)
-    store, _, _, _, session, _, handles, original, current, _ = values
+    store, _, _, _, session, _, handles, original, current, _, owner = values
     result = execute(values)
     assert session.post.call_count == 1 and all(r.answer.status == "scored" for r in result.results)
     old_id = handles[0]["work_item_id"]
@@ -157,7 +159,7 @@ def test_mixed_original_and_unfrozen_members_keep_distinct_contexts(tmp_path, mo
 )
 def test_stable_context_change_is_rejected_before_http(tmp_path, monkeypatch, mutation):
     values = prepared_unsent(tmp_path, monkeypatch)
-    store, _, lifecycle, questions, session, _, handles, original, current, _ = values
+    store, _, lifecycle, questions, session, _, handles, original, current, _, owner = values
     q = current["questions"][questions[0].question_id]
     if mutation == "cutoff":
         q["metadata"]["information_cutoff"] = "2026-09-23"
@@ -187,11 +189,15 @@ def test_stable_context_change_is_rejected_before_http(tmp_path, monkeypatch, mu
 
 def test_current_owner_rejection_still_stops_original_context_resume(tmp_path, monkeypatch):
     values = prepared_unsent(tmp_path, monkeypatch)
-    lifecycle, session = values[2], values[4]
-    lifecycle._owner_refresh.check.side_effect = RuntimeError("synthetic current owner refused")
-    with pytest.raises(RuntimeError, match="current owner refused"):
-        execute(values)
-    assert session.post.call_count == 0
+    session, owner = values[4], values[-1]
+    owner.check.side_effect = RuntimeError("synthetic current owner refused")
+    resumed = execute(values)
+    assert resumed.results and session.post.call_count == 0
+    owner.check.assert_called_once_with()
+    for row in resumed.results:
+        assert row.answer.status == "error" and row.answer.score is None
+        assert row.metadata["quick_scan_diagnostic"]["reason"] == "owner_guard_rejected"
+        assert row.metadata["quick_scan_diagnostic"]["released_unsent"]
 
 
 def loaded_authority(tmp_path, context, version="3.0.0"):
@@ -219,7 +225,7 @@ def loaded_authority(tmp_path, context, version="3.0.0"):
 
 def test_loaded_complete_v3_authority_really_seals_resumed_original_context(tmp_path, monkeypatch):
     values = prepared_unsent(tmp_path, monkeypatch)
-    store, _, lifecycle, _, session, _, handles, original, current, old_pack = values
+    store, _, lifecycle, _, session, _, handles, original, current, old_pack, owner = values
     path, authority = loaded_authority(tmp_path, current)
     raw_before, authority_before = path.read_bytes(), copy.deepcopy(authority)
     lifecycle._c06_authority = authority
@@ -275,7 +281,7 @@ def test_complete_sealer_rejects_stable_drift_or_false_context_hash(
     )
 
     values = prepared_unsent(tmp_path, monkeypatch)
-    store, _, lifecycle, _, session, _, handles, original, current, _ = values
+    store, _, lifecycle, _, session, _, handles, original, current, _, owner = values
     _, authority = loaded_authority(tmp_path, current)
     lifecycle._c06_authority = authority
     monkeypatch.setattr(lifecycle, "_seal_delivery", lambda _wid: None)
@@ -341,24 +347,22 @@ def test_authorized_response_survives_later_owner_refusal_without_future_post(
     tmp_path, monkeypatch
 ):
     values = prepared_unsent(tmp_path, monkeypatch)
-    store, _, lifecycle, questions, session, _, handles, original, current, _ = values
+    store, _, lifecycle, questions, session, _, handles, original, current, _, owner = values
     _, authority = loaded_authority(tmp_path, current)
     lifecycle._c06_authority = authority
     original_post = session.post.side_effect
     valid_send_checks = []
 
     def post(*args, **kwargs):
-        assert lifecycle._owner_refresh.check.side_effect is None
-        valid_send_checks.append(lifecycle._owner_refresh.check.call_count)
+        assert owner.check.side_effect is None
+        valid_send_checks.append(owner.check.call_count)
         assert all(
             store.get_item(h["work_item_id"])["lease_expires_at"] > store.clock() for h in handles
         )
         response = original_post(*args, **kwargs)
         # Original send authorization passed; only the permission for a FUTURE
         # dispatch changes after the successful response, not this valid lease.
-        lifecycle._owner_refresh.check.side_effect = RuntimeError(
-            "synthetic permission revoked after response"
-        )
+        owner.check.side_effect = RuntimeError("synthetic permission revoked after response")
         return response
 
     session.post.side_effect = post
@@ -371,6 +375,9 @@ def test_authorized_response_survives_later_owner_refusal_without_future_post(
         assert store.get_result_delivery(wid)["state"] == "ready"
         assert store.get_observation_context(wid)["context"] == original
     assert all(r.answer.status == "scored" for r in result.results)
-    with pytest.raises(RuntimeError, match="permission revoked after response"):
-        execute(values, selected=[questions[-1]])
-    assert session.post.call_count == 1
+    later = execute(values, selected=[questions[-1]])
+    assert session.post.call_count == 1 and len(later.results) == 1
+    assert later.results[0].answer.status == "error"
+    assert later.results[0].metadata["quick_scan_diagnostic"]["reason"] == "owner_guard_rejected"
+    for handle in handles:
+        assert store.get_result_delivery(handle["work_item_id"])["state"] == "ready"
