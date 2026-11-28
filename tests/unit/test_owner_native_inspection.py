@@ -11,6 +11,8 @@ from types import SimpleNamespace
 import pytest
 
 from src.core.models import Question
+from src.runners.llm_runner import RegisteredResearchWork
+from src.utils.quick_scan_owner_refresh_api import adapt_owner_refresh
 from src.utils.quick_scan_owner_research import (
     OwnerResearchRejected,
     OwnerResearchServices,
@@ -20,12 +22,47 @@ from src.utils.quick_scan_work_store import (
     QuickScanWorkStore,
     quick_scan_receipt_sha256,
 )
+from tests.unit.owner_refresh_port_test_support import approved_owner_refresh_session
 from tests.unit.test_quick_scan_budget import _policy
 from tests.unit.test_quick_scan_work_store import (
     _created,
     _prepared,
     _synthetic_search_receipt,
 )
+
+
+def inspection_owner(store, entries):
+    native = approved_owner_refresh_session(
+        store=store,
+        question_ids=tuple(entries),
+        work_item_ids=tuple(entry["work_item_id"] for entry in entries.values()),
+    )
+    return adapt_owner_refresh(native)
+
+
+def bind_local_carriers(mapper, policy, route_id, budget_route, *, check=None):
+    native = approved_owner_refresh_session(check=check)
+    native.plan["provider"] = "provider"
+    native.proof["request"]["protocol"] = "iqs.refresh_request/1.5.0"
+    native.service.budget = copy.deepcopy(policy)
+    mapper.owner = adapt_owner_refresh(native)
+    work = RegisteredResearchWork(
+        owner=mapper.owner,
+        store=native.service.store,
+        transport_managed=True,
+        route_id=route_id,
+        provider_config_ref="alias",
+        model_requested="fixture",
+        model_resolution=None,
+        budget_policy=policy,
+        budget_route=budget_route,
+        observation_context={},
+    )
+    mapper.lifecycle = SimpleNamespace(registered_research_work=lambda: work)
+    mapper.request_scope = mapper._request_scope_snapshot = None
+    mapper._original_endpoint_profiles = mapper._original_endpoint_profiles_snapshot = {}
+    mapper._route_snapshot = (route_id, "alias", copy.deepcopy(budget_route), None)
+    mapper._context_sha256 = canonical_sha256({})
 
 
 def test_known_refusal_json_is_not_reported_as_successful_native_attempt(tmp_path):
@@ -48,11 +85,11 @@ def test_known_refusal_json_is_not_reported_as_successful_native_attempt(tmp_pat
         execution_receipt=native,
     )
     mapper = OwnerResearchServices.__new__(OwnerResearchServices)
-    mapper._assert_registered_inputs = lambda: None  # Mapper-only unit; never owner admission.
+    mapper._assert_registered_inputs = (
+        lambda *, check_current: None
+    )  # Mapper-only unit; never owner admission.
     mapper.store = store
-    mapper.owner = SimpleNamespace(
-        check=lambda: None, entries={"IQS_05": {"kind": "work", "work_item_id": work_id}}
-    )
+    mapper.owner = inspection_owner(store, {"IQS_05": {"kind": "work", "work_item_id": work_id}})
     mapper.questions = {"IQS_05": Question("synthetic mapper fixture", question_id="IQS_05")}
     mapper._observations, mapper._replayed_refs = {}, {}
     result = mapper.inspect_attempt("stockqa:" + native["attempt_id"])
@@ -82,25 +119,12 @@ def test_every_cache_and_observer_entrypoint_refuses_separate_carrier_drift(drif
         company_ref={"sha256": "a" * 64},
         limits={"max_model_requests_per_session": 2},
     )
-    lifecycle = SimpleNamespace(
-        _model_requested="fixture",
-        _route_id="route",
-        _provider_name="alias",
-        _budget_route={"id": "route"},
-        _model_resolution=None,
-        _observation_context={},
-        _budget_policy=policy,
-    )
     mapper = OwnerResearchServices.__new__(OwnerResearchServices)
-    mapper.task, mapper.lifecycle = task, lifecycle
+    mapper.task = task
     mapper.client = SimpleNamespace(
         model="fixture", provider_name="provider", base_url="https://original.invalid"
     )
-    mapper.owner = SimpleNamespace(
-        plan={"provider": "provider"},
-        service=SimpleNamespace(budget=copy.deepcopy(policy)),
-        check=lambda: None,
-    )
+    bind_local_carriers(mapper, policy, "route", {"id": "route"})
     mapper.native_search = mapper._native_search_snapshot = False
     mapper.owner_batch_claim = mapper._owner_batch_claim_snapshot = False
     mapper._task_sha256 = canonical_sha256(task.raw)
@@ -109,13 +133,7 @@ def test_every_cache_and_observer_entrypoint_refuses_separate_carrier_drift(drif
     mapper._company_ref_snapshot = copy.deepcopy(task.company_ref)
     mapper._limits_snapshot = copy.deepcopy(task.limits)
     mapper._client_endpoint_snapshot = mapper.client.base_url
-    mapper._route_snapshot = (
-        lifecycle._route_id,
-        lifecycle._provider_name,
-        copy.deepcopy(lifecycle._budget_route),
-        None,
-    )
-    mapper._context_sha256 = canonical_sha256(lifecycle._observation_context)
+
     mapper._assert_registered_inputs()
     if drift == "company_ref":
         task.company_ref = {"sha256": "b" * 64}
@@ -149,17 +167,8 @@ def test_task_binding_is_pure_but_generation_scope_still_checks_current_revocati
         company_ref={"sha256": "a" * 64},
         limits={},
     )
-    lifecycle = SimpleNamespace(
-        _model_requested="fixture",
-        _route_id="r",
-        _provider_name="alias",
-        _budget_route={"route_id": "r"},
-        _model_resolution=None,
-        _observation_context={},
-        _budget_policy=policy,
-    )
     mapper = OwnerResearchServices.__new__(OwnerResearchServices)
-    mapper.task, mapper.lifecycle = task, lifecycle
+    mapper.task = task
     mapper.client = SimpleNamespace(
         model="fixture", provider_name="provider", base_url="https://original.invalid"
     )
@@ -169,11 +178,7 @@ def test_task_binding_is_pure_but_generation_scope_still_checks_current_revocati
         calls.append("current")
         raise ValueError("native_actor_revoked")
 
-    mapper.owner = SimpleNamespace(
-        plan={"provider": "provider"},
-        service=SimpleNamespace(budget=copy.deepcopy(policy)),
-        check=revoked,
-    )
+    bind_local_carriers(mapper, policy, "r", {"route_id": "r"}, check=revoked)
     mapper.native_search = mapper._native_search_snapshot = False
     mapper.owner_batch_claim = mapper._owner_batch_claim_snapshot = False
     mapper._task_sha256 = canonical_sha256(task.raw)
@@ -182,8 +187,7 @@ def test_task_binding_is_pure_but_generation_scope_still_checks_current_revocati
     mapper._company_ref_snapshot = copy.deepcopy(task.company_ref)
     mapper._limits_snapshot = {}
     mapper._client_endpoint_snapshot = mapper.client.base_url
-    mapper._route_snapshot = ("r", "alias", copy.deepcopy(lifecycle._budget_route), None)
-    mapper._context_sha256 = canonical_sha256({})
+
     mapper._task_binding = None
     binding = dict(
         synthetic=False,
@@ -225,8 +229,10 @@ def test_recover_intent_classifies_only_store_proven_unsent_scope(tmp_path, rele
         else:
             assert store.recover_expired(entry["work_item_id"]) == "pending"
     mapper = OwnerResearchServices.__new__(OwnerResearchServices)
-    mapper._assert_registered_inputs = lambda: None  # Scope classification seam only.
-    mapper.store, mapper.owner = store, SimpleNamespace(entries=entries)
+    mapper._assert_registered_inputs = (
+        lambda *, check_current: None
+    )  # Scope classification seam only.
+    mapper.store, mapper.owner = store, inspection_owner(store, entries)
     mapper.questions = {qid: object() for qid in qids}
     mapper._task_sha256 = "a" * 64
     before = [
@@ -261,10 +267,21 @@ def test_recover_intent_does_not_turn_missing_output_into_send_permission(tmp_pa
                     work_id, lease, attempt["attempt_id"], outcome="unknown"
                 )
     mapper = OwnerResearchServices.__new__(OwnerResearchServices)
-    mapper._assert_registered_inputs = lambda: None  # Same classifier seam only.
-    mapper.store, mapper.owner = store, SimpleNamespace(
-        entries={"IQS_05": dict(kind="work", work_item_id=work_id)}
-    )
+    mapper._assert_registered_inputs = lambda *, check_current: None  # Same classifier seam only.
+    mapper.store = store
+    mapper.owner = inspection_owner(store, {"IQS_05": dict(kind="work", work_item_id=work_id)})
     mapper.questions = {"IQS_05": object()}
     mapper._task_sha256 = "a" * 64
-    assert mapper.recover_intent(dict(kind="model_step", question_ids=["IQS_05"])) is None
+    before = store.get_item(work_id)
+    attempts = store.list_attempts(work_id)
+    recovered = mapper.recover_intent(dict(kind="model_step", question_ids=["IQS_05"]))
+    if state == "new_pending":
+        assert recovered == {
+            "decision": "not_sent",
+            "saved_receipt": None,
+            "reason": "original_released_unsent_scope",
+        }
+    else:
+        assert recovered is None
+    assert store.get_item(work_id) == before
+    assert store.list_attempts(work_id) == attempts

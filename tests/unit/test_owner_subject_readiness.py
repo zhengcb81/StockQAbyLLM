@@ -397,10 +397,9 @@ def test_transport_failure_refused_and_owned_temp_removed(readiness, monkeypatch
 def test_constructor_calls_readiness_before_any_dispatch(monkeypatch):
     # Constructor wiring only: original classes with explicit boundary doubles.
     # This is not an owner-admission positive or actual sender evidence.
-    from iqs_company_agent_lab.api import create_owner_task
-
     from src.providers.llm_client import LLMClient
     from src.runners.llm_runner import QuickScanWorkLifecycle
+    from src.utils import quick_scan_company_api
     from tests.unit.test_quick_scan_budget import _policy
 
     budget = _policy(model="deepseek-flash")
@@ -429,22 +428,28 @@ def test_constructor_calls_readiness_before_any_dispatch(monkeypatch):
         _observation_context={},
     ).items():
         setattr(lifecycle, key, value)
-    task = create_owner_task(
-        {
-            "protocol": "iqs.synthetic-owner-readiness-task/1.0.0",
-            "run_id": "synthetic-readiness",
-            "company_ref": {"path": "company.json", "bytes": 1, "sha256": "a" * 64},
-            "information_cutoff": "2026-10-15",
-            "limits": {},
-            "strategy_id": "synthetic-test",
-            "question_refs": [],
-        },
-        [],
-        {"origin": "owner_public", "subject": {"subject_ref": {"entity_id": "SYNTHETIC"}}},
-        {"records": []},
-        {"provider": "deepseek", "model": "deepseek-flash"},
-        {},
-    )
+    task = {
+        "protocol": "iqs.synthetic-owner-readiness-task/1.0.0",
+        "task_sha256": "a" * 64,
+        "contract_sha256": "b" * 64,
+        "raw": {"run_id": "synthetic-readiness"},
+        "questions": [],
+        "question_ids": [],
+        "company_doc": {"origin": "owner_public"},
+        "company_ref": {"path": "company.json", "bytes": 1, "sha256": "a" * 64},
+        "evidence_board_doc": {"records": []},
+        "runtime_profile": {"provider": "deepseek", "model": "deepseek-flash"},
+        "targets": {},
+        "limits": {},
+        "owner_binding": None,
+        "owner_control_binding": None,
+    }
+
+    def public_api(*operations):
+        assert operations == ("task_from_snapshot", "task_snapshot")
+        return SimpleNamespace(task_from_snapshot=copy.deepcopy, task_snapshot=copy.deepcopy)
+
+    monkeypatch.setattr(quick_scan_company_api, "company_agent_public_api", public_api)
     client = LLMClient(
         "SYNTHETIC-NOT-A-KEY",
         "deepseek-flash",

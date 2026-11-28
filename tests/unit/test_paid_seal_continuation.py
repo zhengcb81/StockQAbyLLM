@@ -2,12 +2,12 @@
 
 import copy
 import sqlite3
-from types import SimpleNamespace
 
 import pytest
 
 from src.utils import quick_scan_delivery_seal as sealing
 from src.utils.quick_scan_work_store import LeaseFencedError, WorkConflictError
+from tests.unit.owner_refresh_port_test_support import approved_owner_refresh_session
 from tests.unit.test_q10_delivery import (
     _c06_authority,
     _lifecycle,
@@ -90,7 +90,10 @@ def test_public_paid_runner_does_not_require_usable_optional_capture(tmp_path, m
                 deliveries=[],
             )
 
-        return SimpleNamespace(recover_received_checkpoints=recover)
+        owner = approved_owner_refresh_session()
+        owner.recovery_only = True
+        owner.recover_received_checkpoints = recover
+        return owner
 
     monkeypatch.setattr(execution, "prepare_execution", prepare)
     monkeypatch.setattr(

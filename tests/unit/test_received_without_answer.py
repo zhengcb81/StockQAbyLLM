@@ -111,6 +111,8 @@ def test_v17_migration_preserves_rows_and_current_events_reject_sql_mutation(tmp
     import sqlite3
     from contextlib import closing
 
+    from tests.c06_legacy_fixture import remove_c06_additions
+
     store, work, lease, attempt, clock = received(tmp_path, monkeypatch)
     before_item = store.get_item(work)
     before_attempts = store.list_attempts(work)
@@ -119,8 +121,7 @@ def test_v17_migration_preserves_rows_and_current_events_reject_sql_mutation(tmp
     # Explicit mutable fixture restores the previous native DDL, never a real
     # old ledger or the immutable source SQL used in inspection regressions.
     with closing(sqlite3.connect(store.path)) as con:
-        con.execute("DROP TRIGGER quick_scan_work_event_no_update")
-        con.execute("DROP TRIGGER quick_scan_work_event_no_delete")
+        remove_c06_additions(con, after_version=17)
         con.execute("PRAGMA user_version=17")
         con.commit()
     migrated = QuickScanWorkStore(store.path, clock=lambda: clock[0])

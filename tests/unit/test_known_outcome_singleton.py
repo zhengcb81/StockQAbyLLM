@@ -48,7 +48,7 @@ def single(
     from src.providers import llm_research_client as sdk
 
     clock = [1800000000.0]
-    monkeypatch.setattr(sdk, "_utc_now", lambda: "2027-01-15T08:00:00Z")
+    monkeypatch.setattr(sdk, "utc_now", lambda: "2027-01-15T08:00:00Z")
     wire[0].payloads = [response(actual_model="mimo-v2.6-pro")]
     ctx = v2()
     qid = next(iter(ctx["questions"]))

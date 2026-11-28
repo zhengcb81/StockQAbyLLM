@@ -3,7 +3,6 @@
 import copy
 import hashlib
 import json
-import re
 import shutil
 import sqlite3
 import sys
@@ -13,16 +12,8 @@ from contextlib import closing
 from pathlib import Path
 
 from src.utils.quick_scan_external_journal import _digest
-from src.utils.quick_scan_work_store import (
-    _DDL_CHECKPOINT_V11,
-    _DDL_V2_ADDITIONS,
-    _DDL_V22_ADDITIONS,
-    _DDL_V23_ADDITIONS,
-    _DDL_V24_ADDITIONS,
-    SCHEMA_VERSION,
-    Lease,
-    QuickScanWorkStore,
-)
+from src.utils.quick_scan_work_store import SCHEMA_VERSION, Lease, QuickScanWorkStore
+from tests.c06_legacy_fixture import remove_c06_additions
 
 
 def fixture(root):
@@ -551,27 +542,7 @@ class ContinuationTests(unittest.TestCase):
                     "SELECT * FROM quick_scan_budget_attempt ORDER BY budget_attempt_id"
                 )
             ]
-            later_objects = {"trigger": set(), "index": set(), "table": set()}
-            for additions in (_DDL_V22_ADDITIONS, _DDL_V23_ADDITIONS, _DDL_V24_ADDITIONS):
-                for statement in additions:
-                    match = re.match(r"CREATE (TABLE|INDEX|TRIGGER) ([A-Za-z_]+)", statement)
-                    if match is not None:
-                        later_objects[match[1].lower()].add(match[2])
-            for kind in ("trigger", "index", "table"):
-                for name in sorted(later_objects[kind]):
-                    connection.execute(f"DROP {kind.upper()} IF EXISTS {name}")
-            connection.execute("DROP TRIGGER answer_checkpoint_no_update")
-            connection.execute("DROP TRIGGER answer_checkpoint_no_delete")
-            connection.execute(
-                "ALTER TABLE answer_checkpoint RENAME TO answer_checkpoint_v25_original"
-            )
-            connection.execute(_DDL_CHECKPOINT_V11)
-            connection.execute(
-                "INSERT INTO answer_checkpoint SELECT * FROM answer_checkpoint_v25_original"
-            )
-            connection.execute("DROP TABLE answer_checkpoint_v25_original")
-            for statement in _DDL_V2_ADDITIONS[1:]:
-                connection.execute(statement)
+            remove_c06_additions(connection, after_version=21)
             connection.execute("PRAGMA user_version=21")
             connection.commit()
         QuickScanWorkStore(path, clock=lambda: 1000.0)

@@ -230,7 +230,7 @@ def test_durable_provenance_corruption_never_becomes_execution_verified(tmp_path
     )
 
 
-def test_missing_ledger_and_uncheckpointed_sidecar_are_not_created_or_repaired(
+def test_missing_ledger_and_unused_sidecar_are_not_created_or_repaired(
     tmp_path,
 ):
     source, path, req, original, package = fixture(tmp_path)
@@ -239,36 +239,55 @@ def test_missing_ledger_and_uncheckpointed_sidecar_are_not_created_or_repaired(
         inspect(missing, req)
     assert not missing.exists()
     journal = path.with_name(path.name + "-wal")
-    journal.write_bytes(b"owned busy marker")
+    journal.write_bytes(b"unused sidecar marker")
     before = path.read_bytes()
-    with pytest.raises(ValueError):
-        inspect(path, req)
-    assert journal.read_bytes() == b"owned busy marker" and path.read_bytes() == before
+    result = inspect(path, req)
+    assert result["observations"][original["observation_id"]]["status"] == "verified"
+    assert journal.read_bytes() == b"unused sidecar marker" and path.read_bytes() == before
+
+
+def run_inspection_cli(tmp_path, ledger, request):
+    keys = {"SYSTEMROOT", "WINDIR", "SYSTEMDRIVE", "PATH", "PATHEXT", "COMSPEC"}
+    env = {key: value for key, value in os.environ.items() if key.upper() in keys}
+    env.update(
+        PYTHONPATH=str(Path(__file__).resolve().parents[2]),
+        PYTHONUTF8="1",
+        HOME=str(tmp_path),
+        USERPROFILE=str(tmp_path),
+        TEMP=str(tmp_path),
+        TMP=str(tmp_path),
+        TMPDIR=str(tmp_path),
+        RESEARCH_FEEDBACK_DIR=str(tmp_path / "feedback"),
+    )
+    return subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            "-m",
+            "src.utils.quick_scan_execution_inspect_cli",
+            "--ledger",
+            str(ledger),
+            "--request",
+            str(request),
+        ],
+        cwd=tmp_path,
+        env=env,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        timeout=45,
+    )
 
 
 def test_actual_os_cli_reopens_original_ledger_and_never_opens_model_config(tmp_path):
     source, path, req, original, package = fixture(tmp_path)
+    (tmp_path / "llm_apis.json").write_text(
+        "unused synthetic malformed model config", encoding="utf-8"
+    )
     file = tmp_path / "inspection.json"
     file.write_text(json.dumps(req), encoding="utf-8")
     before = path.read_bytes()
-    process = subprocess.run(
-        [
-            sys.executable,
-            "-B",
-            "-X",
-            "utf8",
-            "-m",
-            "src.utils.quick_scan_execution_inspect_cli",
-            "--ledger",
-            str(path),
-            "--request",
-            str(file),
-        ],
-        cwd=tmp_path,
-        env=dict(os.environ),
-        capture_output=True,
-        timeout=45,
-    )
+    process = run_inspection_cli(tmp_path, path, file)
     assert process.returncode == 0, (process.stdout, process.stderr)
     result = json.loads(process.stdout)
     assert result["observations"][original["observation_id"]]["status"] == "verified"
@@ -292,24 +311,7 @@ def test_batch_with_valid_first_original_and_missing_second_refuses_all_without_
     file = tmp_path / "partial-batch.json"
     file.write_text(json.dumps(req), encoding="utf-8")
     before = path.read_bytes()
-    process = subprocess.run(
-        [
-            sys.executable,
-            "-B",
-            "-X",
-            "utf8",
-            "-m",
-            "src.utils.quick_scan_execution_inspect_cli",
-            "--ledger",
-            str(path),
-            "--request",
-            str(file),
-        ],
-        cwd=tmp_path,
-        env=dict(os.environ),
-        capture_output=True,
-        timeout=45,
-    )
+    process = run_inspection_cli(tmp_path, path, file)
     assert process.returncode == 2, (process.stdout, process.stderr)
     result = json.loads(process.stdout)
     assert result["status"] == "rejected" and "observations" not in result

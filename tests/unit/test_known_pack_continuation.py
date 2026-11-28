@@ -302,7 +302,7 @@ def fixture_with_owner(tmp_path, monkeypatch, mode):
     if mode in {"proof_DB_error", "conflicting_receipt"}:
         import src.utils.quick_scan_question_pack_journal as journal
 
-        original = journal.read_question_pack
+        original = journal.api_question_pack_journal_read_question_pack
 
         def read(connection, pack_id):
             row = connection.execute("SELECT 1 FROM work_item WHERE status='failed'").fetchone()
@@ -315,7 +315,7 @@ def fixture_with_owner(tmp_path, monkeypatch, mode):
 
         # Inject through the public journal operation consumed by WorkStore;
         # patching the private implementation would miss its frozen export alias.
-        monkeypatch.setattr(journal, "read_question_pack", read)
+        monkeypatch.setattr(journal, "api_question_pack_journal_read_question_pack", read)
     return store, provider, lc, questions, session, policy, owner
 
 
@@ -445,7 +445,9 @@ def test_resume_original_failed_work_skips_without_new_attempt_then_sends_pendin
     setup = (
         "unknown" if mode == "unknown" else ("coverage" if mode == "checkpoint" else "all_invalid")
     )
-    store, provider, lc, questions, session, policy = fixture(tmp_path, monkeypatch, setup)
+    store, provider, lc, questions, session, policy, owner = fixture_with_owner(
+        tmp_path, monkeypatch, setup
+    )
     handles = {}
     before = lc.before_question
 
@@ -529,7 +531,6 @@ def test_resume_original_failed_work_skips_without_new_attempt_then_sends_pendin
                 },
             )
             assert store.get_item(ids[qid])["status"] == "failed"
-    owner = lc._owner_refresh
     for qid in QIDS[:2]:
         owner.fields[qid]["decision"] = "resume_existing_work"
         owner.projection[qid] = {"work_item_id": ids[qid]}

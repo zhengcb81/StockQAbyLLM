@@ -10,26 +10,27 @@ import pytest
 
 from src.core.models import Question
 from src.runners.llm_runner import QuickScanWorkLifecycle
-from src.utils import quick_scan_refresh_admission_journal as journal
 from src.utils.quick_scan_owner_refresh import OwnerRefreshSession
 from src.utils.quick_scan_owner_research import OwnerResearchServices
 from src.utils.quick_scan_refresh_admission import AdmissionRejected
 from src.utils.quick_scan_refresh_execution import ApprovedRefreshSession
+from src.utils.quick_scan_refresh_inspect import ReadOnlyWorkView
 from src.utils.quick_scan_work_store import BudgetAdmissionError, WorkConflictError
 from src.utils.quick_scan_work_transport import _OWNER_REFRESH_GUARD
+from tests.unit.owner_refresh_port_test_support import approved_owner_refresh_port
 from tests.unit.test_owner_batch_claim import invoke, prepare, rows, sha
 
 
 def synthetic_adapter(prepared):
     """No real permission granted: only original journal + a counted check spy."""
     store, _, confirmation, _, items = prepared
-    with closing(store._connect()) as db:
-        record = journal.read_record(db, confirmation)
+    read_registration = ReadOnlyWorkView(store.path).get_registered_refresh_action
+    record = read_registration(confirmation)
     owner = object.__new__(ApprovedRefreshSession)
     owner.native = object.__new__(OwnerRefreshSession)
     owner.native.store = store
     owner.native.observation_context = None
-    owner.service = SimpleNamespace(store=store)
+    owner.service = SimpleNamespace(store=store, read_registration=read_registration)
     owner.proof = {"confirmation": {"confirmation_id": confirmation}}
     owner.record = record
     owner.entries = {
@@ -92,7 +93,7 @@ def lifecycle(prepared, owner):
     )
 
 
-def test_one_fresh_check_claims_exact_group_and_does_not_bind_permission_cache(tmp_path):
+def test_local_claim_leases_exact_group_without_requesting_send_permission(tmp_path):
     prepared = prepare(tmp_path, 3)
     owner, calls = synthetic_adapter(prepared)
     life = lifecycle(prepared, owner)
@@ -100,14 +101,13 @@ def test_one_fresh_check_claims_exact_group_and_does_not_bind_permission_cache(t
     result = life.before_registered_questions(
         [Question(qid, question_id=qid) for qid in owner.entries]
     )
-    assert len(calls) == 1 and len(result) == 3 and all(r["claimed"] is True for r in result)
+    assert calls == [] and len(result) == 3 and all(r["claimed"] is True for r in result)
     assert _OWNER_REFRESH_GUARD.get() is before
 
 
 @pytest.mark.parametrize(
     "drift",
     [
-        "revoked",
         "foreign_qid",
         "reference",
         "deferred",
@@ -122,14 +122,7 @@ def test_adapter_rejects_drift_without_partial_claims(tmp_path, drift):
     owner, calls = synthetic_adapter(prepared)
     life = lifecycle(prepared, owner)
     questions = [Question(qid, question_id=qid) for qid in owner.entries]
-    if drift == "revoked":
-
-        def refuse():
-            calls.append("revoked")
-            raise AdmissionRejected("native permission revoked")
-
-        owner.check = refuse
-    elif drift == "foreign_qid":
+    if drift == "foreign_qid":
         questions[-1] = Question("foreign", question_id="FOREIGN")
     elif drift == "reference":
         owner.entries[questions[-1].question_id]["kind"] = "reference"
@@ -151,14 +144,50 @@ def test_adapter_rejects_drift_without_partial_claims(tmp_path, drift):
     assert rows(prepared[0]) == before
 
 
-def test_native_check_time_crossing_original_deadline_leaves_all_pending(tmp_path, monkeypatch):
+def test_send_permission_rejection_is_owned_by_transport_after_atomic_claim(tmp_path):
+    from src.utils.quick_scan_work_transport import (
+        QuickScanWorkPersistenceError,
+        _check_owner_refresh_guard,
+        bind_owner_refresh_guard,
+        bind_quick_scan_work,
+    )
+
+    prepared = prepare(tmp_path)
+    owner, calls = synthetic_adapter(prepared)
+    life = lifecycle(prepared, owner)
+
+    def revoked():
+        calls.append("current-send-check")
+        raise AdmissionRejected("native permission revoked")
+
+    owner.check = revoked
+    handles = life.before_registered_questions(
+        [Question(qid, question_id=qid) for qid in owner.entries]
+    )
+    assert calls == [] and all(handle["claimed"] for handle in handles)
+    with bind_quick_scan_work(prepared[0], handles[0]["work_item_id"], handles[0]["lease"]):
+        with bind_owner_refresh_guard(life._owner_refresh):
+            with pytest.raises(QuickScanWorkPersistenceError) as error:
+                _check_owner_refresh_guard()
+    assert isinstance(error.value.__cause__, AdmissionRejected)
+    assert calls == ["current-send-check"]
+
+
+def test_registration_read_crossing_original_deadline_leaves_all_pending(tmp_path, monkeypatch):
     prepared = prepare(tmp_path)
     owner, _ = synthetic_adapter(prepared)
     life = lifecycle(prepared, owner)
     monotonic = [10.0]
     monkeypatch.setattr(time, "monotonic", lambda: monotonic[0])
     life._deadline = 15.0
-    owner.check = lambda: monotonic.__setitem__(0, 20.0)
+    read_registration = owner.service.read_registration
+
+    def slow_registration(key):
+        record = read_registration(key)
+        monotonic[0] = 20.0
+        return record
+
+    owner.service.read_registration = slow_registration
     before = rows(prepared[0])
     with pytest.raises(WorkConflictError, match="deadline"):
         life.before_registered_questions([Question(qid, question_id=qid) for qid in owner.entries])
@@ -183,30 +212,7 @@ def test_explicit_service_opt_in_defaults_off():
 @pytest.mark.parametrize("enabled", [False, True])
 def test_service_uses_selected_branch_without_extra_or_partial_handle_claims(enabled):
     services = object.__new__(OwnerResearchServices)
-    from src.interfaces.quick_scan_owner_refresh import OwnerRefreshSnapshot
-
-    services.owner = SimpleNamespace(
-        snapshot=lambda: OwnerRefreshSnapshot(
-            kind="approved",
-            plan={},
-            proof={},
-            record={},
-            bundle={},
-            entries={},
-            fields={},
-            work={},
-            deferred={},
-            scope_bindings={},
-            observation_context={},
-            ordered_route_targets=None,
-            requested_question_ids=(),
-            needs_new_dispatch=False,
-            recovery_only=False,
-            recovery_work_item_ids=(),
-            remaining_work_item_ids=(),
-        ),
-        check=lambda: None,
-    )
+    services.owner = approved_owner_refresh_port()
     services._validate_envelope = lambda e: None
     services.request_scope = None
     services._active = False

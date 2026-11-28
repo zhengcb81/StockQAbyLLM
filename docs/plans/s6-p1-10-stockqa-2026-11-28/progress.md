@@ -49,3 +49,31 @@
   separate assertions.
 - The two-platform exact execution receipts and independent review are
   still prerequisites for module release for this candidate.
+
+- Hosted CI for c25e56fa completed both machines and exposed deeper
+  defects. Windows reported 249 failed, 3,763 passed and 5 skipped.
+  Ubuntu reported 248 failed, 3,760 passed and 5 skipped. Each failed
+  group remains in the standalone matrix.
+  [Exact c25e56fa Actions run](https://github.com/zhengcb81/StockQAbyLLM/actions/runs/46100996500)
+- A native read-only view now borrows the already-validated underlying
+  SQLite transaction at its owning factory, so nested snapshot reads do
+  not ask their public read port to set connection attributes. Legacy
+  migration tests rebuild the complete earlier schema through one
+  fixture helper. Original row tampering is checked on the affected
+  original read and does not require a whole-ledger sweep on open.
+- The byte-pinned C06 SQL is still the immutable input. Its reconstructed
+  database is compared to an independent load with the same SQLite
+  runtime, so SQLite dump-format changes cannot invalidate healthy
+  original input. The real CLI subprocesses explicitly import the
+  checked-out source and use a minimal environment in their test root.
+- Negative IQS cases now exercise the public DTO or a tiny test-owned
+  module. The real owner semantic composition still uses the actual
+  IQS release. Native outcome tests retain the immutable paid evidence,
+  exact lease and proof checks, including local pending-state reads
+  that confer no authority to send.
+- Windows targeted confirmation covered the exact read-only snapshot repair,
+  old-schema migrations, chosen review inputs, and actual cold CLI.
+  The late worker, cached provided-context receipt, and lawful owner-close
+  branches passed together. The historic paid-recovery batch completed its
+  first 60 calls without failures before the local process deadline. Full
+  coverage still requires successful exact hosted execution receipts.

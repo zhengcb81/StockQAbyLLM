@@ -225,10 +225,9 @@ def test_error_result_keeps_typed_uncertain_receipt_without_checkpoint_or_retry(
     assert "raw_body" not in str(public) and "must-not-export" not in str(public)
 
 
-@pytest.mark.parametrize("kind", ["lookalike", "cycle", "deep"])
-def test_uncertain_projection_rejects_untyped_or_unbounded_exception_chains(kind):
+@pytest.mark.parametrize("kind", ["lookalike", "cycle"])
+def test_uncertain_projection_rejects_untyped_or_circular_exception_chains(kind):
     from src.core.qa_engine import _uncertain_transport_metadata
-    from src.utils.quick_scan_work_transport import QuickScanWorkUncertainError
 
     class LookalikeError(ValueError):
         attempt_id = "fixture-attempt"
@@ -237,16 +236,25 @@ def test_uncertain_projection_rejects_untyped_or_unbounded_exception_chains(kind
     error: BaseException = ValueError("fixture")
     if kind == "lookalike":
         error = LookalikeError("fixture")
-    elif kind == "cycle":
-        error.__cause__ = error
     else:
-        cursor = error
-        for _ in range(16):
-            child = ValueError("fixture")
-            cursor.__cause__ = child
-            cursor = child
-        cursor.__cause__ = QuickScanWorkUncertainError("fixture-attempt", {})
+        error.__cause__ = error
     assert _uncertain_transport_metadata(error) == {}
+
+
+def test_uncertain_projection_recovers_typed_outcome_through_deep_native_cause_chain():
+    from src.core.qa_engine import _uncertain_transport_metadata
+    from src.utils.quick_scan_work_transport import QuickScanWorkUncertainError
+
+    error: BaseException = QuickScanWorkUncertainError("fixture-attempt", {})
+    for _ in range(16):
+        wrapper = ValueError("synthetic wrapper")
+        wrapper.__cause__ = error
+        error = wrapper
+    execution = _uncertain_transport_metadata(error)["execution"]
+    assert execution["attempt_id"] == "fixture-attempt"
+    assert (
+        execution["dispatch_outcome"]["resume_condition"] == "reconcile_same_attempt_before_retry"
+    )
 
 
 def test_hydrate_only_reuses_original_reference_checkpoint_and_timestamp_without_claim_or_send():

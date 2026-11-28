@@ -9,6 +9,7 @@ import pytest
 
 from src.utils.quick_scan_refresh_admission_journal import DDL_V16_ADDITIONS, read
 from src.utils.quick_scan_refresh_batch import register_refresh_action
+from src.utils.quick_scan_refresh_inspect import ReadOnlyWorkView
 from src.utils.quick_scan_work_store import SCHEMA_VERSION, QuickScanWorkStore
 from tests.c06_legacy_fixture import remove_c06_additions
 from tests.unit.test_quick_scan_refresh_batch import counts, specs
@@ -205,7 +206,7 @@ def test_immutable_record_cannot_be_changed_and_resealed_row_cannot_hide_wrong_o
         )
         con.execute(DDL_V16_ADDITIONS[1])
     with pytest.raises(ValueError, match="admission_work_mismatch"):
-        QuickScanWorkStore(store.path)
+        ReadOnlyWorkView(store.path).get_registered_refresh_action(action()["confirmation_id"])
 
 
 def test_failed_v15_migration_rolls_back_schema_and_preserves_original_bytes(tmp_path, monkeypatch):
@@ -267,7 +268,7 @@ def test_resealed_json_boolean_cannot_impersonate_original_numeric_contract(tmp_
         )
         con.execute(DDL_V16_ADDITIONS[1])
     with pytest.raises(ValueError, match="admission_"):
-        QuickScanWorkStore(store.path)
+        ReadOnlyWorkView(store.path).get_registered_refresh_action(action()["confirmation_id"])
 
 
 def references():

@@ -156,7 +156,8 @@ class _Borrowed:
         self.__query_only_before = int(connection.execute("PRAGMA query_only").fetchone()[0])
         self.__closed = False
         self.__owns_connection = owns_connection
-        connection.execute("PRAGMA query_only=ON")
+        if self.__query_only_before == 0:
+            connection.execute("PRAGMA query_only=ON")
 
     def execute(self, sql, parameters=()):
         if self.__closed:
@@ -259,7 +260,7 @@ class ReadOnlyWorkView(QuickScanWorkStore):
                 raise ValueError("refresh_executor_store_unavailable")
         self.path = raw_path.resolve()
         self._clock: Callable[[], float] = clock
-        self._inspection_connection = None
+        self._inspection_connection: sqlite3.Connection | None = None
         if not self.path.is_file():
             raise ValueError("refresh_executor_store_unavailable")
         # Sidecar existence is normal concurrency, not corruption. SQLite's
@@ -344,7 +345,7 @@ class ReadOnlyWorkView(QuickScanWorkStore):
     def from_transaction(cls, path, connection):
         """Bind read methods to a caller-owned transaction without taking ownership."""
         view = cls(path)
-        view._inspection_connection = connection
+        view._inspection_connection = cls._native_read_connection(connection)
         return view
 
     def current_time(self) -> float:

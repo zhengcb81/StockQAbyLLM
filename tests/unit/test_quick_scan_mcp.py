@@ -385,9 +385,9 @@ def test_v12_upgrade_keeps_actual_http_events_cash_and_creates_no_control_histor
     from tests.unit.test_quick_scan_external_context import _native_event_answer
 
     args, _, attempt_id, search, sync, clock = _native_event_answer(tmp_path, monkeypatch)
-    _install_real_v12(args["store"])
     before_response = args["store"].get_attempt_response(attempt_id)
     before_cash = args["store"].get_quick_scan_budget_status("q09-fixture")
+    _install_real_v12(args["store"])
     with closing(args["store"]._connect()) as connection:
         before_events = [
             tuple(row)

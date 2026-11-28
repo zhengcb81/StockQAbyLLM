@@ -70,7 +70,9 @@ def test_complete_snapshot_synthetic_no_migration(original):
     assert all(row["actual_cost_micros"] is None for row in snap["attempts"])
     assert api.validate_control(control(original)) == control(original)
     with closing(store._connect()) as db:
-        assert db.execute("PRAGMA user_version").fetchone()[0] == 24
+        from src.utils.quick_scan_work_store import SCHEMA_VERSION
+
+        assert db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         v15.validate_retained_rows(db, control(original), policy["policy_id"])
 
 
@@ -309,7 +311,7 @@ def test_public_observer_only_measures_current_owner_work(tmp_path):
     from pathlib import Path
     from types import SimpleNamespace
 
-    path = Path(__file__).resolve().parents[1] / "integration/test_owner_continuation_v15_public.py"
+    path = Path(__file__).resolve().parents[1] / "composition/test_owner_continuation_v15_public.py"
     tree = ast.parse(path.read_text(encoding="utf8"))
     child = next(
         node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "child_run"

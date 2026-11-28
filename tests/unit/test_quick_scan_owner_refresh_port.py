@@ -368,27 +368,29 @@ def test_semantic_resources_are_resolved_from_owner_config_without_returning_pat
     ],
 )
 def test_original_semantic_resources_report_unsupported_api(monkeypatch, tmp_path, protocol):
-    iqs_root = _original_iqs_root_or_skip(monkeypatch)
-    import answer_validation
+    import sys
+    from importlib.util import module_from_spec, spec_from_file_location
 
+    iqs_root = tmp_path / "synthetic-iqs"
+    scripts = iqs_root / "scripts"
+    scripts.mkdir(parents=True)
+    source = scripts / "answer_validation.py"
+    source.write_text(f"API_PROTOCOL = {protocol!r}\n", encoding="utf-8")
+    spec = spec_from_file_location("answer_validation", source)
+    assert spec is not None and spec.loader is not None
+    api = module_from_spec(spec)
+    spec.loader.exec_module(api)
+    monkeypatch.setitem(sys.modules, "answer_validation", api)
     owner = _approved_owner(object())
     context = {"schema": "context-v1", "questions": {"Q1": {"metadata": {}}}}
     owner.native.observation_context = context
     owner.native.client.config = {"iqs_code_root": str(iqs_root), "iqs_release_root": str(tmp_path)}
-    monkeypatch.setattr(answer_validation, "API_PROTOCOL", protocol)
     with pytest.raises(ValueError, match="original_semantic_api_version_unsupported"):
         adapt_owner_refresh(owner).original_semantic_resources(context)
 
 
-def test_semantic_resources_reject_context_from_another_owner(monkeypatch, tmp_path):
-    iqs_root = _original_iqs_root_or_skip(monkeypatch)
-    import answer_validation
-
+def test_semantic_resources_reject_context_from_another_owner():
     owner = _approved_owner(object())
-    owner.native.client.config = {
-        "iqs_code_root": str(iqs_root),
-        "iqs_release_root": str(tmp_path.resolve()),
-    }
     port = adapt_owner_refresh(owner)
     with pytest.raises(ValueError, match="original_semantic_context_mismatch"):
         port.original_semantic_resources({"schema": "other", "questions": {}})

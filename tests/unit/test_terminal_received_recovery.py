@@ -544,7 +544,20 @@ def test_captured_leased_paid_pack_recovers_original_final_json_after_expiry(
             qid: entry for qid, entry in entries.items() if entry["work_item_id"] in extra_ids
         }
     owner.entries = entries
-    owner.service = NS(store=store)
+    confirmation_id = "rc1_" + "c" * 64
+    registration = {
+        "inputs": {"run_id": "RUN_SYNTHETIC"},
+        "receipt": {"work_item_ids": sorted(item["work_item_id"] for item in entries.values())},
+    }
+    owner.proof = {"confirmation": {"confirmation_id": confirmation_id}}
+    owner.record = copy.deepcopy(registration)
+    owner.service = NS(
+        store=store,
+        read_registration=lambda key: (
+            copy.deepcopy(registration) if key == confirmation_id else None
+        ),
+    )
+    owner.allow_unknown_only = mixed_state == "only_unsent"
     from tests.unit.test_quick_scan_observation_context import MANIFEST
 
     owner.bundle = {

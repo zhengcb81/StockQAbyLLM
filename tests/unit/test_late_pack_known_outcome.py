@@ -20,13 +20,13 @@ from tests.unit.test_quick_scan_known_outcome import authority, immutable
 def late_pack(tmp_path, monkeypatch, *, unknown=False, event_fault=None):
     from src.providers import llm_client
 
-    store, provider, lifecycle, questions, session, policy = fixtures.fixture(
+    store, provider, lifecycle, questions, session, policy, owner = fixtures.fixture_with_owner(
         tmp_path, monkeypatch, "unknown" if unknown else "answer_generator"
     )
     clock = [1800000000.0]
     monkeypatch.setattr(store, "clock", lambda: clock[0])
     monkeypatch.setattr(
-        lifecycle._owner_refresh,
+        owner,
         "register_subject_dispatch",
         lambda request: fixtures._owner_receipt(request, clock[0]),
     )
@@ -78,7 +78,7 @@ def late_pack(tmp_path, monkeypatch, *, unknown=False, event_fault=None):
         ).process_questions(questions[:2], question_pack_size=2)
     assert session.post.call_count == 1
     assert all(store.get_item(h["work_item_id"])["status"] == "uncertain" for h in handles.values())
-    return store, clock, handles, questions, session, policy, lifecycle
+    return store, clock, handles, questions, session, policy, lifecycle, owner
 
 
 def intent_for(store, wid, index):
@@ -100,7 +100,9 @@ def intent_for(store, wid, index):
 
 
 def test_actual_late_send_intent_pack_derive_close_reopen_and_explicit_retry(tmp_path, monkeypatch):
-    store, clock, handles, questions, session, policy, lifecycle = late_pack(tmp_path, monkeypatch)
+    store, clock, handles, questions, session, policy, lifecycle, old_owner = late_pack(
+        tmp_path, monkeypatch
+    )
     physical_before = immutable(store)
     intents = []
     saved = []
@@ -176,7 +178,6 @@ def test_actual_late_send_intent_pack_derive_close_reopen_and_explicit_retry(tmp
         routing_fingerprints,
     )
 
-    old_owner = lifecycle._owner_refresh
     new_plan = copy.deepcopy(old_owner.plan)
     selected = next(row for row in new_plan["fields"] if row["field_id"] == q.question_id)
     selected.update(
@@ -221,7 +222,7 @@ def test_actual_late_send_intent_pack_derive_close_reopen_and_explicit_retry(tmp
 def test_late_pack_requires_original_late_hash_and_event_and_known_physical(
     tmp_path, monkeypatch, fault
 ):
-    store, clock, handles, questions, session, policy, _ = late_pack(
+    store, clock, handles, questions, session, policy, _, _ = late_pack(
         tmp_path,
         monkeypatch,
         unknown=fault == "unknown",

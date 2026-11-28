@@ -205,8 +205,6 @@ def _scope_lifecycle(native, *, owner=None, budget=True):
 
 
 def test_research_scope_keeps_native_budget_guard_and_default_q09_reservation(native):
-    from src.utils.quick_scan_owner_refresh import OwnerRefreshSession
-    from src.utils.quick_scan_refresh_execution import ApprovedRefreshSession
     from src.utils.quick_scan_work_transport import (
         QuickScanWorkPersistenceError,
         bind_quick_scan_budget,
@@ -215,12 +213,12 @@ def test_research_scope_keeps_native_budget_guard_and_default_q09_reservation(na
     )
 
     mapper = native[0]
-    # Guard-only owner object; the opt-in public E2E covers real admission.
-    owner = ApprovedRefreshSession.__new__(ApprovedRefreshSession)
-    owner.service = SimpleNamespace(store=mapper.store)
-    owner.native = OwnerRefreshSession.__new__(OwnerRefreshSession)
-    owner.native.store = mapper.store
-    owner.check = lambda: None
+    # This test exercises native budget reservations, not owner registration.
+    from tests.unit.owner_refresh_port_test_support import (
+        approved_owner_refresh_session,
+    )
+
+    owner = approved_owner_refresh_session(store=mapper.store)
     lifecycle, handle, policy = _scope_lifecycle(native, owner=owner)
     with lifecycle.dispatch_context(handle):
         assert own_reservation_held() is True

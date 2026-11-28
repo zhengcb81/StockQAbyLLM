@@ -317,7 +317,8 @@ def test_concurrent_account_group_reservations_cannot_overspend(tmp_path, monkey
 
 
 def test_schema20_migration_preserves_every_old_budget_value(tmp_path, monkeypatch):
-    from src.utils.quick_scan_work_store import _MCP_GUARD_OLD, SCHEMA_VERSION
+    from src.utils.quick_scan_work_store import SCHEMA_VERSION
+    from tests.c06_legacy_fixture import remove_c06_additions
 
     args, req, _, clock = _mcp_fixture(tmp_path, monkeypatch)
     stage = _stage(args, req, "initialize")
@@ -330,14 +331,7 @@ def test_schema20_migration_preserves_every_old_budget_value(tmp_path, monkeypat
     )
     with store._transaction() as c:
         before = [tuple(row) for row in c.execute("SELECT * FROM quick_scan_budget_attempt")]
-        # Build an actual v20 fixture, including removal of later v22 objects.
-        c.execute("DROP TRIGGER quick_scan_external_research_admission_no_update")
-        c.execute("DROP TRIGGER quick_scan_external_research_admission_no_delete")
-        c.execute("DROP TABLE quick_scan_external_research_admission")
-        c.execute("DROP TRIGGER quick_scan_mcp_search_insert_guard")
-        for table in ("proof", "reservation", "route", "account"):
-            c.execute("DROP TABLE quick_scan_quota_" + table)
-        c.execute(_MCP_GUARD_OLD)
+        remove_c06_additions(c, after_version=20)
         c.execute("PRAGMA user_version=20")
     reopened = QuickScanWorkStore(store.path, clock=lambda: clock[0])
     with closing(reopened._connect()) as c:

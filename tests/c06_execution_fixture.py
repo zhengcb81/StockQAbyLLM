@@ -32,10 +32,12 @@ def execution_fixture(root=None):
                 con.executescript(raw.decode("utf-8"))
         # A retained file must match the exact source SQL, not a caller's
         # newly sealed checksum. Never repair/replace an unexpected ledger.
-        expected = raw.decode("utf-8").split("PRAGMA user_version=16;\n", 1)[1]
+        with closing(sqlite3.connect(":memory:")) as reference:
+            reference.executescript(raw.decode("utf-8"))
+            expected = tuple(reference.iterdump())
         with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True)) as con:
             assert con.execute("PRAGMA user_version").fetchone()[0] == 16
-            assert "\n".join(con.iterdump()) + "\n" == expected
+            assert tuple(con.iterdump()) == expected
         _cache[path] = hashlib.sha256(path.read_bytes()).hexdigest()
     assert hashlib.sha256(path.read_bytes()).hexdigest() == _cache[path]
     return path, _cache[path]
