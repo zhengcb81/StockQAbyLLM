@@ -1768,3 +1768,125 @@ def test_public_cli_immediate_policy_swaps_at_next_undispatched_boundary(monkeyp
     assert first_version != second_version
     assert second_version.startswith("quick-scan-test-policy@")
     assert receipts["IQS_06"]["attempts"][-1]["policy_transition"]["at_boundary"] is True
+
+
+def test_public_cli_loopback_search_and_model_resume_after_checkpoint_commit(tmp_path, monkeypatch):
+    """The native CLI owns admission, actual HTTP, priced receipt and cold replay."""
+    from http.server import BaseHTTPRequestHandler
+    from urllib.parse import parse_qs, urlsplit
+
+    from tests.integration.stockqa_loopback_support import serving_loopback
+    from tests.integration.test_external_context_cli_e2e import (
+        _external_kill,
+        _external_spawn,
+        _external_store,
+        _subprocess_inputs,
+    )
+
+    calls = []
+    source_url = "https://fixture.example/ir"
+    evidence = "Synthetic margin disclosure published by the issuer"
+
+    class Provider(BaseHTTPRequestHandler):
+        def write_json(self, value, *, request_id):
+            body = json.dumps(value).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("x-request-id", request_id)
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_GET(self):
+            target = urlsplit(self.path)
+            calls.append((self.command, target.path, parse_qs(target.query)))
+            self.write_json(
+                {
+                    "web": {
+                        "results": [
+                            {
+                                "title": "Synthetic issuer",
+                                "url": source_url,
+                                "description": evidence,
+                                "page_age": "2026-09-01",
+                            }
+                        ]
+                    }
+                },
+                request_id="tcp-search",
+            )
+
+        def do_POST(self):
+            request = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            calls.append((self.command, self.path, request))
+            answer = {
+                "entity_id": "ENT_SYNTHETIC",
+                "company_name": "Fixture Corp",
+                "question_id": "IQS_05",
+                "status": "scored",
+                "score": 6,
+                "description": "Supported synthetic answer",
+            }
+            self.write_json(
+                {
+                    "id": "tcp-original-model-response",
+                    "status": "completed",
+                    "model": request["model"],
+                    "usage": {"input_tokens": 1000, "output_tokens": 10},
+                    "output": [
+                        {
+                            "type": "message",
+                            "role": "assistant",
+                            "content": [{"type": "output_text", "text": json.dumps(answer)}],
+                        }
+                    ],
+                },
+                request_id="tcp-model",
+            )
+
+        def log_message(self, format, *args):
+            pass
+
+    argv = _subprocess_inputs(tmp_path, monkeypatch)
+    with serving_loopback(Provider) as port:
+        _external_kill(tmp_path, argv, "checkpoint_saved", loopback_port=port)
+        assert not (tmp_path / "result.json").exists()
+        assert [(method, path) for method, path, _ in calls] == [
+            ("GET", "/res/v1/web/search"),
+            ("POST", "/v1/responses"),
+        ]
+        assert calls[0][2]["q"] == ["Synthetic issuer margin"]
+        model_request = calls[1][2]
+        assert model_request["model"] == "gpt-4.1"
+        assert "Target question_id: IQS_05" in model_request["input"]
+        assert evidence in model_request["input"]
+
+        store = _external_store(tmp_path)
+        work_id = store.find_work_items(entity_id="ENT_SYNTHETIC", question_ids=["IQS_05"])[
+            "IQS_05"
+        ][0]["work_item_id"]
+        original = store.get_answer_checkpoint(work_id)
+        assert original["payload"]["answer"]["score"] == 6
+        attempt_id = original["attempt_id"]
+        physical = store.get_attempt_response(attempt_id)
+        budget = store.get_quick_scan_budget_status("quick-scan-test-policy")
+        assert budget["requests"] == 2
+        assert budget["spent_micros"] == 13000 and budget["reserved_micros"] == 0
+        resumed = _external_spawn(
+            tmp_path, argv, stub=False, label="tcp-resume", loopback_port=port
+        )
+        assert resumed.returncode == 0, resumed.stdout[-3000:] + resumed.stderr[-2000:]
+
+    public = json.loads((tmp_path / "result.json").read_text("utf-8"))
+    receipt = public["execution_receipts"]["IQS_05"]
+    assert public["answers"]["IQS_05"]["score"] == 6
+    assert receipt["provider"] == "openai"
+    assert receipt["actual_model"] == receipt["requested_model"] == "gpt-4.1"
+    assert receipt["response_id"] == "tcp-original-model-response"
+    assert receipt["search_status"] == "executed"
+    assert receipt["search_binding"]["external_context_use"]["work_item_id"] == work_id
+    assert source_url in json.dumps(receipt)
+    assert store.get_answer_checkpoint(work_id) == original
+    assert store.get_attempt_response(attempt_id) == physical
+    assert store.get_quick_scan_budget_status("quick-scan-test-policy") == budget
+    assert len(calls) == 2 and not (tmp_path / "network-attempts.jsonl").exists()

@@ -21,6 +21,15 @@ class WorkConflictError(ValueError):
     """An existing logical item or attempt disagrees with immutable inputs."""
 
 
+class NativeCheckpointReadError(ValueError):
+    """A stored checkpoint exists but its immutable evidence could not be read."""
+
+    def __init__(self, work_item_id: str, attempt_id: str):
+        self.work_item_id = work_item_id
+        self.attempt_id = attempt_id
+        super().__init__("answer checkpoint unavailable")
+
+
 class LeaseFencedError(RuntimeError):
     """The supplied worker lease is absent, expired, or superseded."""
 

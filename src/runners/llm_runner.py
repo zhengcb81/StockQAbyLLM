@@ -33,6 +33,8 @@ from src.config.llm_config import LLMConfig
 from src.core.exceptions import ProcessingError
 from src.core.models import REUSABLE_ANSWER_STATUSES, Question
 from src.core.qa_engine import QAEngine
+from src.interfaces.quick_scan_lifecycle import CheckpointUnavailable
+from src.interfaces.quick_scan_work_values import NativeCheckpointReadError
 from src.interfaces.search_provider import SearchProvider
 from src.interfaces.transport_outcome import (
     UncertainTransportOutcome,
@@ -92,6 +94,19 @@ def validate_work_lease_seconds(value: Any) -> float:
 
 
 logger = get_logger(__name__)
+
+
+def _record_checkpoint_failure(error: Exception, **references: Any) -> dict[str, Any]:
+    if isinstance(error, NativeCheckpointReadError):
+        references.update(work_item_id=error.work_item_id, work_attempt_id=error.attempt_id)
+    diagnostic: dict[str, Any] = record_execution_failure(
+        logger,
+        error,
+        stage="recovery.checkpoint_read",
+        references=references,
+        refusal_code="checkpoint_unavailable",
+    )
+    return diagnostic
 
 
 def _owner_analysis_scope(owner):
@@ -724,15 +739,13 @@ class QuickScanWorkLifecycle:
         }
 
     def hydrate_question(self, question: Question) -> Optional[Dict[str, Any]]:
-        """Q07: the stored answer checkpoint for this question's logical work
-        item (JOB-03/PAR-04) — an idempotent ATTACH plus a read-only lookup,
-        never a claim: the engine hydrates instead of re-dispatching. Never
-        raises (the claim path would create the same logical row anyway)."""
+        """Restore the exact saved answer. Only absence permits the engine to claim."""
         text = question.text.strip()
         question_id = question.question_id or (
             "Q_" + hashlib.sha256(text.encode("utf-8")).hexdigest()[:12].upper()
         )
         fingerprint = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        references = {"question_id": question_id, "run_id": self._run_id}
         try:
             if self._owner_refresh is not None:
                 if self._owner_refresh.snapshot().kind == "approved":
@@ -741,6 +754,10 @@ class QuickScanWorkLifecycle:
                     )
                     if checkpoint is None:
                         return None
+                    references.update(
+                        work_item_id=checkpoint["work_item_id"],
+                        work_attempt_id=checkpoint["attempt_id"],
+                    )
                     row = self._store.get_item(checkpoint["work_item_id"])
                 else:
                     return None
@@ -767,12 +784,11 @@ class QuickScanWorkLifecycle:
                     run_id=self._run_id,
                     scan_id=self._scan_id,
                 )
+                references["work_item_id"] = row["work_item_id"]
                 checkpoint = self._store.get_answer_checkpoint(row["work_item_id"])
-        except Exception as exc:  # noqa: BLE001
-            logger.debug("hydrate check skipped (%s)", exc)
-            return None
-        if checkpoint:
-            logger.info("Q07 水合已存检查点（%s）", question_id)
+            if checkpoint is None:
+                return None
+            references["work_attempt_id"] = checkpoint["attempt_id"]
             if checkpoint.get("checkpoint_schema_version") == 2:
                 # Restore from the actual response owner, not the compact
                 # generic search fields that deliberately differ from native.
@@ -799,7 +815,11 @@ class QuickScanWorkLifecycle:
                     execution, work_store=self._store, work_item_id=row["work_item_id"]
                 )
                 checkpoint = {**checkpoint, "external_execution_metadata": execution}
-        return checkpoint if checkpoint is None else dict(checkpoint)
+        except (KeyError, ValueError, SQLiteError, ProcessingError) as error:
+            diagnostic = _record_checkpoint_failure(error, **references)
+            raise CheckpointUnavailable(diagnostic) from error
+        logger.info("Q07 水合已存检查点（%s）", question_id)
+        return dict(checkpoint)
 
     def _seal_delivery(self, work_item_id: str) -> None:
         """Q10: settle a freshly persisted checkpoint into a sealed C06 package
@@ -1691,12 +1711,7 @@ def recovery_report(store: QuickScanWorkStore, *, run_id: str, scan_id: str) -> 
             checkpoint = store.get_answer_checkpoint(work_item_id)
         except (ValueError, WorkConflictError, SQLiteError) as error:
             report["checkpoint_unavailable"].append(work_item_id)
-            record_execution_failure(
-                logger,
-                error,
-                stage="recovery.checkpoint_read",
-                references={"run_id": run_id, "work_item_id": work_item_id},
-            )
+            _record_checkpoint_failure(error, run_id=run_id, work_item_id=work_item_id)
             continue
         if checkpoint is not None:
             report["persisted"].append(work_item_id)
@@ -3460,7 +3475,16 @@ class LLMRunner:
             from src.core.models import QABatchResult
 
             batch = QABatchResult(total_questions=len(questions))
-        saved = [result.question.question_id for result in batch.results]
+        unavailable = [
+            result.question.question_id
+            for result in batch.results
+            if result.answer.status == "error"
+        ]
+        saved = [
+            result.question.question_id
+            for result in batch.results
+            if result.answer.status != "error"
+        ]
         remaining = [q.question_id for q in questions if q.question_id not in saved]
         QAEngine.output_results(
             batch,
@@ -3523,6 +3547,7 @@ class LLMRunner:
             "unknown_dispatch_receipt_question_ids": unknown_dispatch_receipt_question_ids,
             "never_sent_question_ids": never_sent_question_ids,
             "saved_question_ids": saved,
+            "checkpoint_unavailable_question_ids": unavailable,
             "remaining_question_ids": remaining,
             "original_question_count": len(questions),
             "restored_question_count": len(saved),

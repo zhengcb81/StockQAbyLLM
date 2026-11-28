@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Iterable, Sequence
 
 from src.core.models import Question
+from src.interfaces.quick_scan_work_values import NativeCheckpointReadError
 from src.utils.quick_scan_work_store import QuickScanWorkStore
 
 __all__ = [
@@ -302,7 +303,10 @@ def _classify(
     if status == "cancelled":
         return "skip_cancelled", current["generation"], work_item_id
 
-    checkpoint = store.get_answer_checkpoint(work_item_id)
+    try:
+        checkpoint = store.get_answer_checkpoint(work_item_id)
+    except NativeCheckpointReadError:
+        return "checkpoint_unavailable", current["generation"], work_item_id
     if checkpoint is None:
         return "dispatch", current["generation"], work_item_id
     answer_status = checkpoint["payload"]["answer"].get("status")

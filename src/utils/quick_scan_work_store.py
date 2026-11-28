@@ -30,6 +30,7 @@ from src.interfaces.quick_scan_work_values import ENTITY_ID as _ENTITY_ID
 from src.interfaces.quick_scan_work_values import Lease as Lease
 from src.interfaces.quick_scan_work_values import LeaseFencedError as LeaseFencedError
 from src.interfaces.quick_scan_work_values import (
+    NativeCheckpointReadError,
     ResearchOutputProjectionError,
 )
 from src.interfaces.quick_scan_work_values import WorkConflictError as WorkConflictError
@@ -4518,12 +4519,17 @@ class QuickScanWorkStore:
             row = connection.execute(
                 "SELECT c.*,w.*,a.attempt_id AS bound_attempt_id "
                 "FROM answer_checkpoint c JOIN work_item w ON w.work_item_id=c.work_item_id "
-                "JOIN attempt a ON a.attempt_id=c.attempt_id WHERE c.work_item_id=?",
+                "LEFT JOIN attempt a ON a.attempt_id=c.attempt_id WHERE c.work_item_id=?",
                 (work_item_id,),
             ).fetchone()
-            if row is not None and row["checkpoint_schema_version"] == 3 and not allow_research:
+            if row is None:
+                return None
+            if row["checkpoint_schema_version"] == 3 and not allow_research:
                 raise WorkConflictError("research_only_checkpoint_does_not_satisfy_verified_search")
-            return None if row is None else self._checkpoint_record(connection, row)
+            try:
+                return self._checkpoint_record(connection, row)
+            except (ValueError, KeyError, sqlite3.Error) as error:
+                raise NativeCheckpointReadError(work_item_id, row["attempt_id"]) from error
 
     @staticmethod
     def _store_side_tables(

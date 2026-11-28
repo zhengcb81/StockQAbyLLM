@@ -7,6 +7,7 @@ financial correctness evidence. Every file and database stays in tmp_path.
 import hashlib
 import json
 import os
+import sqlite3
 import subprocess
 import time
 from contextlib import closing
@@ -39,9 +40,8 @@ from tests.unit.test_external_search_provider import _response as search_respons
 from tests.unit.test_quick_scan_external_context import _execution_policy_document
 
 
-def _inputs(tmp_path, monkeypatch, *, hybrid=False):
+def _inputs(tmp_path, monkeypatch, *, hybrid=False, question_count=1):
     # Independently freeze inputs before constructing any model answer.
-    prompt = "公司的第1项核心优势是否持久？"
     identity = {
         "object_type": "entity",
         "schema_version": "2.2.0",
@@ -59,20 +59,21 @@ def _inputs(tmp_path, monkeypatch, *, hybrid=False):
     manifest = {
         "schema_version": "1.0.0",
         "template_version": "synthetic/1",
-        "question_count": 1,
+        "question_count": question_count,
         "modules": ["synthetic/core"],
         "module_locks": {},
         "replacements": {},
         "questions": [
             {
-                "id": "IQS_05",
+                "id": f"IQS_{index + 4:02d}",
                 "module_id": "synthetic/core",
                 "scope": "entity",
-                "prompt": prompt,
-                "prompt_sha256": digest(prompt.encode()),
+                "prompt": f"公司的第{index}项核心优势是否持久？",
+                "prompt_sha256": digest(f"公司的第{index}项核心优势是否持久？".encode()),
                 "semantic_sha256": digest(b"synthetic-semantic"),
                 "definition_sha256": digest(b"synthetic-definition"),
             }
+            for index in range(1, question_count + 1)
         ],
     }
     manifest_path = tmp_path / "manifest-synthetic.json"
@@ -81,6 +82,17 @@ def _inputs(tmp_path, monkeypatch, *, hybrid=False):
     search["external_routes"][0]["credential_env"] = "IQS_SYNTHETIC_SEARCH_TOKEN"
     search["external_routes"][0]["endpoint"] = "https://api.search.brave.com/res/v1/web/search"
     plan = search["execution_plan"]
+    if question_count > 1:
+        query = plan["queries"][0]
+        plan["queries"] = [
+            {
+                **query,
+                "query_id": f"margins-{qid.lower()}",
+                "query": f"{query['query']} for {qid}",
+                "question_ids": [qid],
+            }
+            for qid in [q["id"] for q in manifest["questions"]]
+        ]
     plan["entity_id"] = "ENT_SYNTHETIC"
     plan["identity_snapshot_sha256"] = digest(identity_path.read_bytes())
     plan["question_manifest_sha256"] = digest(manifest_path.read_bytes())
@@ -415,6 +427,13 @@ def _record_control(self, *args, **kwargs):
     return result
 QuickScanWorkStore.record_mcp_stage = _record_control
 
+_original_checkpoint_save = QuickScanWorkStore.save_answer_checkpoint
+def _save_checkpoint(self, *args, **kwargs):
+    result = _original_checkpoint_save(self, *args, **kwargs)
+    _pause("checkpoint_saved")
+    return result
+QuickScanWorkStore.save_answer_checkpoint = _save_checkpoint
+
 def _sent(kind, *, payload=None):
     entry = {"kind": kind, "pid": os.getpid(), "synthetic_only": True}
     if payload is not None and kind == "model":
@@ -475,7 +494,9 @@ def _model_post(self, url, **kwargs):
     assert url in {"https://api.openai.com/v1/responses", "https://api.deepseek.com/responses"}
     payload = kwargs["json"]
     _sent("model", payload=payload)
-    body = {"entity_id": "ENT_SYNTHETIC", "company_name": "Fixture Corp", "question_id": "IQS_05",
+    question = re.search(r"Target question_id: ([A-Za-z0-9_.]+)\.", payload["input"])
+    assert question is not None
+    body = {"entity_id": "ENT_SYNTHETIC", "company_name": "Fixture Corp", "question_id": question.group(1),
         "status": "scored", "score": 6, "description": "Synthetic supported answer"}
     standard_path = OWNED / "standard-synthetic.json"
     if standard_path.exists():
@@ -493,11 +514,39 @@ def _model_post(self, url, **kwargs):
 if os.environ.get("IQS_CHILD_HTTP") == "1":
     requests.Session.request = _search_request
     requests.Session.post = _model_post
+elif _fixture_port:
+    from urllib.parse import urlsplit, urlunsplit
+
+    _send = requests.adapters.HTTPAdapter.send
+    _fixture_routes = {
+        ("GET", "api.search.brave.com", "/res/v1/web/search"),
+        ("POST", "api.openai.com", "/v1/responses"),
+    }
+
+    def _send_to_fixture(adapter, request, **kwargs):
+        original = request.url
+        parts = urlsplit(original)
+        if parts.scheme != "https" or (request.method, parts.netloc, parts.path) not in _fixture_routes:
+            raise AssertionError("test received a request outside its configured vendor routes")
+        request.url = urlunsplit(
+            ("http", f"127.0.0.1:{_fixture_port}", parts.path, parts.query, "")
+        )
+        kwargs["proxies"] = {}
+        try:
+            return _send(adapter, request, **kwargs)
+        finally:
+            request.url = original
+
+    requests.adapters.HTTPAdapter.send = _send_to_fixture
 """
 
 
-def _subprocess_inputs(tmp_path, monkeypatch, *, mcp=False, hybrid=False, deepseek=False):
-    kwargs, _, search_path = _inputs(tmp_path, monkeypatch, hybrid=hybrid)
+def _subprocess_inputs(
+    tmp_path, monkeypatch, *, mcp=False, hybrid=False, deepseek=False, question_count=1
+):
+    kwargs, _, search_path = _inputs(
+        tmp_path, monkeypatch, hybrid=hybrid, question_count=question_count
+    )
     document = json.loads(search_path.read_text("utf-8"))
     # Keep evidence valid across an expired worker lease; passage of time is a
     # public injected clock dependency, not a rewrite of SQLite owner rows.
@@ -544,6 +593,7 @@ def _subprocess_inputs(tmp_path, monkeypatch, *, mcp=False, hybrid=False, deepse
         provider_configs=kwargs["provider_configs"],
         model_policy=kwargs["model_policy"],
         rate_cards=card,
+        question_count=question_count,
     )
     spend = tmp_path / "spend-synthetic.json"
     spend.write_text(
@@ -583,23 +633,26 @@ def _subprocess_inputs(tmp_path, monkeypatch, *, mcp=False, hybrid=False, deepse
     ]
 
 
-def _external_child_env(tmp_path, *, stub, pause=None):
+def _external_child_env(tmp_path, *, stub, pause=None, loopback_port=None):
     env = _child_env(tmp_path, stub=False)
     env.update(IQS_CHILD_HTTP="1" if stub else "0", IQS_CHILD_PAUSE=pause or "")
-    if stub:
+    if loopback_port is not None:
+        assert not stub
+        env["E97_FIXTURE_LOOPBACK_PORT"] = str(loopback_port)
+    if stub or loopback_port is not None:
         env["IQS_SYNTHETIC_SEARCH_TOKEN"] = "synthetic-only"
     else:
         env.pop("IQS_SYNTHETIC_SEARCH_TOKEN", None)
     return env
 
 
-def _external_spawn(tmp_path, argv, *, stub, label):
+def _external_spawn(tmp_path, argv, *, stub, label, loopback_port=None):
     result = subprocess.run(
         guarded_cli_args(argv),
         stdin=subprocess.DEVNULL,
         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         cwd=tmp_path,
-        env=_external_child_env(tmp_path, stub=stub),
+        env=_external_child_env(tmp_path, stub=stub, loopback_port=loopback_port),
         capture_output=True,
         timeout=45,
     )
@@ -608,13 +661,15 @@ def _external_spawn(tmp_path, argv, *, stub, label):
     return result
 
 
-def _external_kill(tmp_path, argv, point):
+def _external_kill(tmp_path, argv, point, *, loopback_port=None):
     process = subprocess.Popen(
         guarded_cli_args(argv),
         stdin=subprocess.DEVNULL,
         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         cwd=tmp_path,
-        env=_external_child_env(tmp_path, stub=True, pause=point),
+        env=_external_child_env(
+            tmp_path, stub=loopback_port is None, pause=point, loopback_port=loopback_port
+        ),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -665,6 +720,85 @@ def _external_store(tmp_path):
         tmp_path / "quick_scan_work.sqlite",
         clock=lambda: float((tmp_path / "store-clock.txt").read_text("utf-8")),
     )
+
+
+def test_cold_cli_keeps_invalid_checkpoint_distinct_and_reuses_healthy_sibling(
+    tmp_path, monkeypatch
+):
+    argv = _subprocess_inputs(tmp_path, monkeypatch, question_count=2)
+    seeded = _external_spawn(tmp_path, argv, stub=True, label="checkpoint-seed")
+    assert seeded.returncode == 0, seeded.stdout[-2500:] + seeded.stderr[-2000:]
+    original = json.loads((tmp_path / "result.json").read_text("utf-8"))
+    store = _external_store(tmp_path)
+    first, sibling = ("IQS_05", "IQS_06")
+    work_ids = {
+        qid: original["execution_receipts"][qid]["search_binding"]["external_context_use"][
+            "work_item_id"
+        ]
+        for qid in (first, sibling)
+    }
+    attempts = {qid: store.list_attempts(wid) for qid, wid in work_ids.items()}
+    attempt_id = attempts[first][-1]["attempt_id"]
+    physical = store.get_attempt_response(attempt_id)
+    budget = store.get_quick_scan_budget_status("quick-scan-test-policy")
+    sends = _external_sends(tmp_path)
+    assert [call["kind"] for call in sends].count("model") == 2
+    sentinel = "broken-checkpoint-local-sentinel"
+    with closing(sqlite3.connect(store.path)) as connection:
+        (trigger,) = connection.execute(
+            "SELECT sql FROM sqlite_master WHERE name='answer_checkpoint_no_update'"
+        ).fetchone()
+        connection.execute("DROP TRIGGER answer_checkpoint_no_update")
+        connection.execute(
+            "UPDATE answer_checkpoint SET payload_json=? WHERE work_item_id=?",
+            (sentinel, work_ids[first]),
+        )
+        connection.execute(trigger)
+        connection.commit()
+    output = tmp_path / "checkpoint-cold.json"
+    resumed = _external_spawn(
+        tmp_path, [*argv, "--output", str(output)], stub=True, label="checkpoint-cold"
+    )
+    assert resumed.returncode == 1, resumed.stdout[-3000:] + resumed.stderr[-2000:]
+    report = json.loads(output.read_text("utf-8"))
+    receipts = (
+        json.loads(line)
+        for line in resumed.stdout.decode("utf-8").splitlines()
+        if line.startswith("{")
+    )
+    plan = next(
+        item for item in receipts if item.get("schema") == "stockqa.question_manifest_plan/1.0.0"
+    )
+    assert plan["counts"]["checkpoint_unavailable"] == 1
+    assert plan["model_calls_planned"] == 0
+    assert report["answers"][first]["score"] is None
+    diagnostic = report["execution_receipts"][first]["failure_diagnostic"]
+    assert diagnostic["stage"] == "recovery.checkpoint_read"
+    assert diagnostic["refusal_code"] == "checkpoint_unavailable"
+    assert diagnostic["references"]["work_item_id"] == work_ids[first]
+    assert diagnostic["references"]["work_attempt_id"] == attempt_id
+    assert any(node["type"] == "JSONDecodeError" for node in diagnostic["chain"])
+    assert report["answers"][sibling] == original["answers"][sibling]
+    assert report["execution_receipts"][sibling] == original["execution_receipts"][sibling]
+    failures = [
+        json.loads(path.read_text("utf-8"))["diagnostic"]
+        for path in (tmp_path / "feedback").glob("*.cause.json")
+    ]
+    assert any(
+        cause["stage"] == diagnostic["stage"]
+        and cause["references"]["work_attempt_id"] == attempt_id
+        for cause in failures
+    )
+    assert sentinel not in json.dumps(report) + json.dumps(failures)
+    assert _external_sends(tmp_path) == sends
+    assert store.get_quick_scan_budget_status("quick-scan-test-policy") == budget
+    assert {qid: store.list_attempts(wid) for qid, wid in work_ids.items()} == attempts
+    assert store.get_attempt_response(attempt_id) == physical
+    with closing(sqlite3.connect(store.path.as_uri() + "?mode=ro", uri=True)) as connection:
+        assert connection.execute(
+            "SELECT payload_json FROM answer_checkpoint WHERE work_item_id=?", (work_ids[first],)
+        ).fetchone() == (sentinel,)
+    assert not (tmp_path / "network-attempts.jsonl").exists()
 
 
 def _expire_child_lease(tmp_path):

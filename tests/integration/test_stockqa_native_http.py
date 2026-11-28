@@ -6,9 +6,10 @@ import json
 import os
 import subprocess
 import sys
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
 from pathlib import Path
-from threading import Thread
+
+from tests.integration.stockqa_loopback_support import serving_loopback
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURE_TOKEN = "offline-stockqa-native-http-fixture"
@@ -62,7 +63,7 @@ def test_public_cli_reads_config_and_posts_once_to_loopback(tmp_path):
         HOME=str(tmp_path),
         USERPROFILE=str(tmp_path),
     )
-    with ThreadingHTTPServer(("127.0.0.1", 0), Provider) as server:
+    with serving_loopback(Provider) as port:
         config = {
             "default_provider": "fixture",
             "providers": {
@@ -70,42 +71,35 @@ def test_public_cli_reads_config_and_posts_once_to_loopback(tmp_path):
                     "enabled": True,
                     "api_key": FIXTURE_TOKEN,
                     "model": "s6-loopback",
-                    "base_url": f"http://127.0.0.1:{server.server_port}/chat/completions",
+                    "base_url": f"http://127.0.0.1:{port}/chat/completions",
                     "max_retries": 1,
                 }
             },
         }
         (tmp_path / "llm_apis.json").write_text(json.dumps(config), encoding="utf-8")
-        worker = Thread(target=server.serve_forever, kwargs={"poll_interval": 0.02})
-        worker.start()
-        try:
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    "-B",
-                    str(ROOT / "main_with_llm.py"),
-                    "--company",
-                    "Fixture Company",
-                    "--provider",
-                    "fixture",
-                    "--config",
-                    "questions.json",
-                    "--output",
-                    "output.json",
-                ],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                stdin=subprocess.DEVNULL,
-                cwd=tmp_path,
-                env=env,
-                timeout=30,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-            )
-        finally:
-            server.shutdown()
-            worker.join(timeout=5)
-            assert not worker.is_alive()
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-B",
+                str(ROOT / "main_with_llm.py"),
+                "--company",
+                "Fixture Company",
+                "--provider",
+                "fixture",
+                "--config",
+                "questions.json",
+                "--output",
+                "output.json",
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            stdin=subprocess.DEVNULL,
+            cwd=tmp_path,
+            env=env,
+            timeout=30,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
 
     assert result.returncode == 0, result.stderr
     ((path, authorization, body),) = calls

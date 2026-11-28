@@ -12,7 +12,10 @@ from src.config.settings import DISPLAY_QUESTION_TRUNCATE, DISPLAY_TITLE_TRUNCAT
 from src.core.exceptions import ProcessingError, ValidationError
 from src.core.models import Answer, QABatchResult, QAResult, Question
 from src.interfaces.progress_reporter import ProgressReporter
-from src.interfaces.quick_scan_lifecycle import QuickScanWorkLifecyclePort
+from src.interfaces.quick_scan_lifecycle import (
+    CheckpointUnavailable,
+    QuickScanWorkLifecyclePort,
+)
 from src.interfaces.search_provider import SearchProvider
 from src.interfaces.transport_outcome import (
     UncertainTransportOutcome,
@@ -379,57 +382,11 @@ class QAEngine:
                 except ValueError:
                     hook_question = None
                 if hook_question is not None:
-                    reference = getattr(self.work_item_lifecycle, "reference_question", None)
-                    owner_result = reference(hook_question) if callable(reference) else None
-                    if owner_result is not None:
-                        batch_result.add_result(owner_result)
-                        continue
-                    # Q07: hydrate a stored answer checkpoint BEFORE any claim
-                    # (JOB-03/PAR-04) — saved questions are never re-dispatched;
-                    # hooks without hydrate_question keep the Q06 behavior.
-                    hydrate = getattr(self.work_item_lifecycle, "hydrate_question", None)
-                    checkpoint = hydrate(hook_question) if callable(hydrate) else None
-                    if checkpoint is not None:
-                        payload = checkpoint.get("payload") or {}
-                        stored = payload.get("answer") or {}
-                        provenance = payload.get("provenance") or {}
-                        original_time = _checkpoint_created_at(provenance)
-                        answer_metadata = _provenance_metadata(provenance)
-                        external_execution = checkpoint.get("external_execution_metadata")
-                        if isinstance(external_execution, dict):
-                            answer_metadata["execution"] = external_execution
-                            answer_metadata["attempts"] = [
-                                external_execution["work_transport"]["final_receipt"]
-                            ]
-                        created_kwargs = (
-                            {"created_at": original_time} if original_time is not None else {}
-                        )
-                        hydrated_result = QAResult(
-                            question=hook_question,
-                            answer=Answer(
-                                text=str(stored.get("description") or ""),
-                                score=stored.get("score"),
-                                status=str(stored.get("status") or "scored"),
-                                source="answer_checkpoint",
-                                metadata=answer_metadata,
-                                **created_kwargs,
-                            ),
-                            metadata={
-                                "answer_checkpoint": {
-                                    "hydrated": True,
-                                    "provenance": payload.get("provenance"),
-                                    "attempt_id": checkpoint.get("attempt_id"),
-                                    "work_item_id": checkpoint.get("work_item_id"),
-                                    "checkpointed_at": checkpoint.get("checkpointed_at"),
-                                }
-                            },
-                        )
-                        batch_result.add_result(hydrated_result)
-                        logger.info("[%d/%d] Q07 水合已存检查点", i, len(question_texts))
-                        hyd_msg = (
-                            f"[HYD] 复用检查点: {display_text[:DISPLAY_QUESTION_TRUNCATE]}...  "
-                        )
-                        self.progress_reporter.update_progress(i, len(question_texts), hyd_msg)
+                    saved = self._read_saved_question(hook_question, self.work_item_lifecycle)
+                    if saved is not None:
+                        batch_result.add_result(saved)
+                        if saved.answer.status == "error":
+                            refused_count += 1
                         continue
                     lifecycle_handle = self.work_item_lifecycle.before_question(hook_question)
                 if lifecycle_handle is None or not lifecycle_handle.get("claimed"):
@@ -573,18 +530,39 @@ class QAEngine:
             raise ValueError("hydrate_only_identified_original_questions_required")
         batch = QABatchResult(total_questions=len(questions))
         for question in questions:
-            reference = getattr(lifecycle, "reference_question", None)
-            result = reference(question) if callable(reference) else None
+            result = QAEngine._read_saved_question(question, lifecycle)
+            if result is None and allow_partial:
+                continue
             if result is None:
-                hydrate = getattr(lifecycle, "hydrate_question", None)
-                checkpoint = hydrate(question) if callable(hydrate) else None
-                if checkpoint is None and allow_partial:
-                    continue
-                if checkpoint is None:
-                    raise ValueError("hydrate_only_checkpoint_missing:" + str(question.question_id))
-                result = QAEngine._hydrate_pack_checkpoint(question, checkpoint)
+                raise ValueError("hydrate_only_checkpoint_missing:" + str(question.question_id))
             batch.add_result(result)
         return batch
+
+    @staticmethod
+    def _read_saved_question(question: Question, lifecycle: Any) -> Optional[QAResult]:
+        try:
+            reference = getattr(lifecycle, "reference_question", None)
+            original = reference(question) if callable(reference) else None
+            if original is not None:
+                return cast(QAResult, original)
+            hydrate = getattr(lifecycle, "hydrate_question", None)
+            checkpoint = hydrate(question) if callable(hydrate) else None
+            return (
+                None
+                if checkpoint is None
+                else QAEngine._hydrate_pack_checkpoint(question, checkpoint)
+            )
+        except CheckpointUnavailable as error:
+            return QAResult(
+                question=question,
+                answer=Answer(
+                    text="原检查点无法读取，保留原作业，本题未重发。",
+                    score=None,
+                    status="error",
+                    source="answer_checkpoint",
+                ),
+                metadata={"failure_diagnostic": error.diagnostic},
+            )
 
     @staticmethod
     def _hydrate_pack_checkpoint(question: Question, checkpoint: Dict[str, Any]) -> QAResult:
@@ -913,15 +891,10 @@ class QAEngine:
                     continue
             previous_key = key
             try:
-                original = lifecycle.reference_question(question)
-                if original is not None:
+                saved = self._read_saved_question(question, lifecycle)
+                if saved is not None:
                     flush()
-                    output[index] = original
-                    continue
-                checkpoint = lifecycle.hydrate_question(question)
-                if checkpoint is not None:
-                    flush()
-                    output[index] = self._hydrate_pack_checkpoint(question, checkpoint)
+                    output[index] = saved
                     continue
                 handle = lifecycle.before_question(question)
                 if not isinstance(handle, dict) or not handle.get("claimed"):

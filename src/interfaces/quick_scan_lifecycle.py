@@ -31,6 +31,14 @@ QUICK_SCAN_WORK_LIFECYCLE_METHODS = frozenset(
 )
 
 
+class CheckpointUnavailable(RuntimeError):
+    """This original work could not be restored, so the engine must not claim it."""
+
+    def __init__(self, diagnostic: dict[str, Any]):
+        self.diagnostic = diagnostic
+        super().__init__("checkpoint_unavailable")
+
+
 @runtime_checkable
 class QuickScanWorkLifecyclePort(Protocol):
     """Structural public surface implemented by Quick Scan lifecycle adapters."""
@@ -73,5 +81,6 @@ class QuickScanWorkLifecyclePort(Protocol):
 __all__ = [
     "QUICK_SCAN_WORK_LIFECYCLE_PROTOCOL",
     "QUICK_SCAN_WORK_LIFECYCLE_METHODS",
+    "CheckpointUnavailable",
     "QuickScanWorkLifecyclePort",
 ]

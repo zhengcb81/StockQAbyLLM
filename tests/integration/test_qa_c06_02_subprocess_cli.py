@@ -67,6 +67,7 @@ OWNED = Path(os.environ["E97_OWNED_ROOT"]).resolve()
 KEY_LEDGER = OWNED / "key-opens.jsonl"
 NET_LEDGER = OWNED / "network-attempts.jsonl"
 _pair_sockets = []
+_fixture_port = int(os.environ.get("E97_FIXTURE_LOOPBACK_PORT", "0"))
 
 
 def _inside(raw):
@@ -85,6 +86,12 @@ def _append(ledger, payload):
 
 def audit(event, args):
     if event in {"socket.connect", "socket.getaddrinfo", "socket.bind", "socket.sendto"}:
+        fixture_address = ("127.0.0.1", _fixture_port)
+        if _fixture_port and (
+            (event == "socket.getaddrinfo" and args[:2] == fixture_address)
+            or (event == "socket.connect" and args[1] == fixture_address)
+        ):
+            return
         # Windows asyncio's internal socketpair: the exact ephemeral loopback
         # bind (127.0.0.1 or ::1, port 0) and connects to exactly that socket.
         # No external address, listener or model/search HTTP is admitted, so

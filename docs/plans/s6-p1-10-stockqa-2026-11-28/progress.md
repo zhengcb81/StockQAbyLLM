@@ -77,3 +77,30 @@
   branches passed together. The historic paid-recovery batch completed its
   first 60 calls without failures before the local process deadline. Full
   coverage still requires successful exact hosted execution receipts.
+
+## Independent review follow-up
+
+- The original CLI twice opened the same two-question logical scope. A
+  deliberately damaged native SQLite checkpoint caused dispatch planning
+  to exit before writing any result for either question. The first
+  failure receipt was classified only as a generic CLI failure.
+  C:/Temp/s6a/stockqa-p1-evidence/p1-checkpoint-review-red.log
+- The storage boundary now identifies an unreadable original separately
+  from a missing checkpoint. Planning keeps its original generation and
+  schedules zero calls for it. The common hydration path emits the original
+  work item and attempt reference in the stable diagnostic receipt. The
+  cold child can still restore the healthy sibling while no paid state,
+  checkpoint payload, or network usage changes.
+- The actual --require-search CLI sent one search GET and one model POST
+  over TCP to a synthetic listener. The request contained the frozen
+  question and original retrieved text. The process was stopped after
+  the paid checkpoint committed and before it published its report.
+  A cold child reused the same native response and exact 13,000 micro-USD
+  budget while the TCP listener remained available. Supplier-specific
+  contract fixtures continue to cover their separate branches.
+  C:/Temp/s6a/stockqa-p1-evidence/p1-native-tcp-review.log
+- Fresh exact hosted execution receipts and independent review bind to the
+  new candidate before horizontal release.
+- The final focused Windows run passed all 120 affected tests, including
+  both native review cases and the separate paid-only missing-checkpoint
+  tests. C:/Temp/s6a/stockqa-p1-evidence/p1-review-final.log
