@@ -14,6 +14,7 @@ if os.environ.get("IQS_C06_RUN_INTEGRATION") != "1":
     )
 
 from src.core.models import Question
+from src.interfaces.transport_outcome import UncertainTransportOutcome
 from src.providers.llm_client import LLMClient
 from src.providers.llm_research_client import ResearchChatSession
 from src.runners.llm_runner import QuickScanWorkLifecycle
@@ -22,10 +23,7 @@ from src.utils.quick_scan_refresh_admission import (
     RefreshAdmissionService,
 )
 from src.utils.quick_scan_refresh_execution import prepare_execution
-from src.utils.quick_scan_work_transport import (
-    bind_quick_scan_budget,
-    bind_quick_scan_route,
-)
+from src.utils.quick_scan_work_transport import bind_quick_scan_budget
 from tests.composition.test_c06_subject_public_e2e import actual as actual
 from tests.composition.test_c06_subject_public_e2e import invoke
 from tests.delegated_fixture import setup_delegated
@@ -135,12 +133,10 @@ def test_actual_public_delegation_native_admission_revocation_and_unknown_cost(
 
     @contextmanager
     def original_scope(work_handle):
-        with lifecycle.dispatch_context(work_handle), bind_quick_scan_route(
-            route_id=route["id"],
-            provider=route["provider_config_ref"],
-            model_requested="deepseek-flash",
-            quota_group=route["quota_group"],
-        ), bind_quick_scan_budget(store, policy):
+        with (
+            lifecycle.dispatch_context(work_handle, research_budget_managed=True),
+            bind_quick_scan_budget(store, policy),
+        ):
             yield
 
     # This is a different approved, original work with no native send. Prove
@@ -150,17 +146,19 @@ def test_actual_public_delegation_native_admission_revocation_and_unknown_cost(
     with original_scope(other_handle):
         _check_owner_refresh_guard()
         with original_scope(handle):
-            with pytest.raises(Exception):
+            with pytest.raises(UncertainTransportOutcome) as timeout:
                 sdk.step(user_context="scripted timeout, do not retry")
+            assert timeout.value.attempt_receipt["failure_type"] == "ReadTimeout"
             assert len(posts) == 1
-            with pytest.raises(Exception, match="requires_inspection_or_new_admission"):
+            with pytest.raises(RuntimeError, match="requires_inspection_or_new_admission"):
                 sdk.step(user_context="same SDK session remains fenced")
         with closing(store._connect()) as connection:
             prior_budget = [
                 dict(row) for row in connection.execute("SELECT * FROM quick_scan_budget_attempt")
             ]
-            prior_work = [dict(row) for row in connection.execute("SELECT * FROM attempt")]
+        prior_work = store.list_attempts(handle["work_item_id"])
         assert len(prior_budget) == 1 and prior_budget[0]["status"] == "outcome_uncertain"
+        assert prior_budget[0]["work_attempt_id"] == timeout.value.attempt_id
         assert prior_budget[0]["actual_cost_micros"] is None
         # Revoke with the independent unsent work's scope already bound. Its
         # initial SDK object has no timeout barrier to mask the native owner
@@ -181,12 +179,15 @@ def test_actual_public_delegation_native_admission_revocation_and_unknown_cost(
             "owner_refresh_guard" in text or "consent_native_rejected" in text for text in chain
         ), chain
         assert len(posts) == 1
-        assert store.list_attempts(other_handle["work_item_id"]) == []
+        unsent_attempts = store.list_attempts(other_handle["work_item_id"])
+        assert [row["phase"] for row in unsent_attempts] == ["abandoned_unsent"]
+        assert all(row["send_intent_at"] is None for row in unsent_attempts)
+        assert store.is_released_unsent(other_handle["work_item_id"])
+    assert prior_work == store.list_attempts(handle["work_item_id"])
     with closing(store._connect()) as connection:
         assert prior_budget == [
             dict(row) for row in connection.execute("SELECT * FROM quick_scan_budget_attempt")
         ]
-        assert prior_work == [dict(row) for row in connection.execute("SELECT * FROM attempt")]
         assert (
             connection.execute("SELECT COUNT(*) FROM quick_scan_refresh_admission").fetchone()[0]
             == 1
