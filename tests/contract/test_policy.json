@@ -1,0 +1,25 @@
+{
+  "schema": "s6-test-policy/1",
+  "platforms": {
+    "linux": {
+      "roots": [
+        "tests/benchmarks",
+        "tests/contract",
+        "tests/integration",
+        "tests/smoke",
+        "tests/unit"
+      ],
+      "markexpr": "not live and not owner_composition and not windows_only"
+    },
+    "windows": {
+      "roots": [
+        "tests/benchmarks",
+        "tests/contract",
+        "tests/integration",
+        "tests/smoke",
+        "tests/unit"
+      ],
+      "markexpr": "not live and not owner_composition"
+    }
+  }
+}

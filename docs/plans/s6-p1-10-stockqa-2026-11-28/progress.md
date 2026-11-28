@@ -19,3 +19,7 @@
   `C:/Temp/s6a/stockqa-p1-evidence`. Exact execution and independent review
   belong to the release checkpoint. The original workspace, provider secrets
   and paid calls are outside the test scope.
+
+- Native targeted checks passed for six checkpoint, unchanged long-answer and unpaid refusal cases.
+- The public generic StockQA command used an explicit local provider over real TCP. The observed wire request, generated answer and sanitized process output passed. Paid quick-scan unit controls remain independently exercised.
+- Two separate StockWiki freshness composition cases passed using the exact local StockWiki release 6cd6d7ef.

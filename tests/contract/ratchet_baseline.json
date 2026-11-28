@@ -1,0 +1,3117 @@
+{
+  "constant_shapes": {
+    "scripts/checks.py:BASE_PYTEST_ARGS": "73a9e322091831da5b38f54876306f819815946f59729d0e446909b53645b275",
+    "scripts/checks.py:DAILY_TEST_TARGETS": "410f305dbc91d8a1c81982a0ae695b4ca617fa0684b0849ce69a67d9a733fd77",
+    "scripts/checks.py:EXCLUDED_TEST_DIRS": "886b8b99cec9ebcbabfac8e99eb4e7b812f54842bfe05781ba3f396d0f4b6120",
+    "scripts/checks.py:FULL_TEST_TARGETS": "cf796ecd5641cc6e51eb653f3e1e4e4e7387f08ea329b883ce5043dcb4248ce7",
+    "scripts/checks.py:MODE_STEPS": "779470e31bbce1ff02365cbb8bda537f0af10e9f7e525ffd678019b409c109cb",
+    "scripts/checks.py:OFFLINE_ENV": "05474a41f16cfce0852fb248ced15518015019d663ce2e6b267d91b51098303e",
+    "scripts/checks.py:REPORT_ARTIFACT_NAMES": "ddece596650ec7605d917ff829ecb6d1db66c54c026dc0e383404bba2d206244",
+    "scripts/checks.py:SMOKE_IMPORTS": "6ac7882d9e51c850a89ff8bfdfb17208389986362031d9e3843ad589356f99f9",
+    "scripts/checks.py:SMOKE_STATEMENTS": "7e71ac8cc4a4bfb3652753d2ff7ad9520f9cf053df526cb36b7e721b955e4947",
+    "scripts/checks.py:STEP_ORDER": "aef8ab2988f2839b8a0e515832baf1d9c7c2deaf9d7e1f69161ed2e32bf59549",
+    "scripts/checks.py:STEP_RUNNERS": "db9dea81d1539486c78b660160c8d448ce76f27575b3bdf0f6151915d4881024",
+    "scripts/checks.py:STEP_TIMEOUTS": "0dbb3e9287c8db03c2ef8390ee17512eadd263e5fdc456244546fbef434986ce",
+    "scripts/checks.py:_PYLINT_SCORE_RE": "9f5b5f66c27dbefe75285673de14ab6ebcfe378da662573c775119377a273946",
+    "scripts/checks.py:_STATIC_STEPS": "80f82272c4776ff6f1a5c4001e0f82985a01915e5d9f3990f5c272822cb4bebe",
+    "src/config/quick_scan_search_policy.py:EXECUTION_POLICY_IDS": "713938e5afea2b391950e7bd68695c399a3443387fe93e7860903da603c469f4",
+    "src/config/quick_scan_search_policy.py:EXTERNAL_ENDPOINTS": "3a00ce8f63256e5dc4aa1f31d430527e851f93b40835f2b7f58ba474b7bfc849",
+    "src/config/quick_scan_search_policy.py:MODULE_API_EXPORTS": "7d9230f9b2adc9b014468ccdfacbba4510a7f91b470a3f2fdf25b483e6f5c2db",
+    "src/config/quick_scan_search_policy.py:_EXECUTION_SCHEMA_PATH": "7db7e53d05727060468388bc9203a60484c1ebcddd7865fa24dd410c019c7d80",
+    "src/config/quick_scan_search_policy.py:_SHARED_PUBLISHER_HOSTS": "6aa0230ba913f1ab198af0fa2cb16fedb08c533af58fe1c8540df55f8763ff97",
+    "src/core/container.py:T": "2a2c71573f617bc4014886371b28622e839c30531359dc2cc039eb1ba8c733ba",
+    "src/core/models.py:QUICK_SCAN_ANSWER_FIELDS": "bf4d7f66edec5e1743fabc5915733eb133904bf12089ed4c2a5fb4235ea8cae9",
+    "src/core/models.py:SUCCESSFUL_ANSWER_STATUSES": "e9b1235d9a313c00bdebf74ed38ca3090d7952a65e5f3a521e22e08e67b4d694",
+    "src/interfaces/batch_strategy.py:R": "b7b38692057ec1ee15ffa6231e99582c2fe1925e993d4e66fd52d46ed4724755",
+    "src/interfaces/batch_strategy.py:T": "2a2c71573f617bc4014886371b28622e839c30531359dc2cc039eb1ba8c733ba",
+    "src/interfaces/quick_scan_company.py:_REQUIRED_NATIVE_INPUTS": "504482b6016f7b33702aa452420ddac05f336d7a8a24ff19cf761d273ad92721",
+    "src/interfaces/quick_scan_company.py:_SHA256": "54898892ce8f31356f61d79801d90f9a11905d90d5128fb132d9ad16086160e5",
+    "src/interfaces/quick_scan_lifecycle.py:QUICK_SCAN_WORK_LIFECYCLE_METHODS": "c647bf948cd2e7480874d0c11b1777058143d8898cb21ae62b60a1fa311efa50",
+    "src/interfaces/quick_scan_work_values.py:_BINDING_ID": "94d292fafb8022ed902e1937497ebf96e78693a638b1353e7e3a670db9f61a8c",
+    "src/interfaces/quick_scan_work_values.py:_ENTITY_ID": "a8ee558dff5a7e080aa2449d4ebc6f3ca70a2ca75bd9476a73a205bc05962de4",
+    "src/interfaces/quick_scan_work_values.py:_HEX_SHA256": "54898892ce8f31356f61d79801d90f9a11905d90d5128fb132d9ad16086160e5",
+    "src/interfaces/quick_scan_work_values.py:_RECEIPT_FIELDS": "bc9f41a44fde77266b66964483e1ca70eea90ac207447253d966ae1c24e49dd9",
+    "src/interfaces/quick_scan_work_values.py:_RESEARCH_VALIDATION_CODES": "652167d8b83c115f828f5e61b399ab79d513be9af48b8664a6a7daf89e92cecd",
+    "src/interfaces/quick_scan_work_values.py:_SAFE_ID": "68c250d7759253150409314a4f68449b1805529b201a89fdef07367131804bf5",
+    "src/providers/base_llm_provider.py:_ANALYSIS_SUBJECT_SCOPE": "7befc62c8ec6c40f1169879b49cb9238e82b76b19f52e77118c8f6fc10f953be",
+    "src/providers/base_llm_provider.py:_STANDARD_ANSWER_TRANSPORT": "25a3388937206a4db8546f95440cfdbbc89bd3639f6d886f7c07e88ce6d84f4b",
+    "src/providers/external_search_parsers.py:PARSERS": "91996a33dda3a8ca9c044fea4fb29aeb7438a07d7ed3d9474ce7b8e261769963",
+    "src/providers/external_search_provider.py:_ERROR_CODES": "8996b8a6931569642c9e24385029c5bf7706dcd956d5a1c7082ac7eb4219ade0",
+    "src/providers/llm_client.py:MODULE_API_EXPORTS": "ca562d120a6c18a29bdf42b4d4720cc60bc18ec4e13fb6170a44a0bd591f10f6",
+    "src/providers/llm_client.py:_ANTHROPIC_SEARCH_ERROR_CODES": "eecaef191a452b64bc383e80d547334763e712d243813cf390daea5cdcb6544e",
+    "src/providers/llm_client.py:_CANONICAL_PROVIDER_NAMES": "b1da1c218918bb4d960d5b2d032d662108ce653c1e74dfbc7ede342278889d6e",
+    "src/providers/llm_client.py:_MIMO_WEB_SEARCH_MODELS": "c4bedb582b5842a61ce0f32ddcfc58dce1a7e8ad87ba835ce8d0a47e03d7b3b4",
+    "src/providers/llm_provider.py:MODULE_API_EXPORTS": "bc1155bb2242b761c499df1e58982290104fe2baa0ad82107442baf78a43ea49",
+    "src/providers/llm_research_client.py:MODULE_API_EXPORTS": "5234cec5263b3f97975f056bfd086ad55bee014c04916b1d434d2066040c7143",
+    "src/providers/llm_research_client.py:_RESEARCH_CHAT_ENDPOINTS": "23adde38b9dd6d520b6476e2d893cd5b5067cf1275be6127e5ef0df9344cab24",
+    "src/providers/llm_research_client.py:_RESPONSE_VALIDATION_CODES": "20aa05444123955a9ec1fb12653b8385c8874cd9e8c6f305c71d3574de666c50",
+    "src/providers/llm_research_client.py:_SCHEMA_VALIDATORS": "6eb001f588173a807b41a169a38befd8fd205b0e73bbfcfb12c1c30df85c1980",
+    "src/providers/llm_response_parser.py:FINAL_PRIVATE_FIELDS": "7981f2c9950e25028a457ab4827012659a9b10f7bb905adb206fa6bbf286d082",
+    "src/providers/llm_response_parser.py:FINAL_PRIVATE_TAG_PATTERN": "6b8d25f162b2b8997b40ae77bb31b2bff8d161ff62e2aef213129d237e9ef0f9",
+    "src/providers/llm_response_parser.py:MODULE_API_EXPORTS": "2c5bd89b510058d86c03588b518e81265733becb9dca0c70eac5cf4a2cf0a856",
+    "src/providers/llm_response_parser.py:_PACK_DIAGNOSTICS": "337889eb0e557d6130c598787c31cd2f69db0041dabc34136dabf07d0f3573a3",
+    "src/providers/llm_retry_strategy.py:T": "2a2c71573f617bc4014886371b28622e839c30531359dc2cc039eb1ba8c733ba",
+    "src/providers/model_resolution.py:_ALIAS_KEYS": "f28cd4f1e4df2730c5ddb85e50a5f3343332076fa2d3c0d32ce699024488730d",
+    "src/providers/model_resolution.py:_PROVIDER_PROTOCOLS": "edb6bb2c0d4204772061236cc25b4b9e07269be056a35522935af383e030c4f8",
+    "src/providers/search_capability.py:STAGES": "98798b81c7a006ac2816f565bae3141fb6f2511fe954ff05584239bb9dd87887",
+    "src/utils/_quick_scan_owner_refresh_port.py:_PORTS": "e907d9692ed6f882ed61dfba4d909de4fb911a4badf081d2233c4a7c81dc8415",
+    "src/utils/execution_feedback.py:DEFAULT_LOG_DIR": "761030ea42de4d92ccb1eae8a881932abaa991989ec971bf35b51f640b83cdfa",
+    "src/utils/execution_feedback.py:_EVIDENCE": "c0ce8ac42b75a301d325cbc30b1a2a28b29f35e0d6c9564a4f8da0009ac81309",
+    "src/utils/execution_feedback.py:_ID": "a0d414eb942bd79258bd512072bb0b8c01505a78241fed21e284988864907ad1",
+    "src/utils/execution_feedback.py:_LOG_NAME": "6a3a81057adb266291de1ba79eb21181b7b8aa87afbb5c08c7d8b6618ec5d54b",
+    "src/utils/llm_integration.py:REQUEST_CACHE_KEY_FIELDS": "b68275e9ce0e66b3a10c28477b9b3b7433c9f27feecbcd7ddc846bf8cd2c084a",
+    "src/utils/llm_integration.py:T": "2a2c71573f617bc4014886371b28622e839c30531359dc2cc039eb1ba8c733ba",
+    "src/utils/llm_integration.py:_REQUEST_CACHE_DIMENSIONS": "24ad87008b1f0895e3838a40548e61cff3f7651e23e35c4f891b61899e294034",
+    "src/utils/logger.py:LOG_REDACTION_PATTERNS": "5b1de948a01adafd00348ffed3d9facaa9d4f2dc32769a72fa10051bc791b292",
+    "src/utils/logger.py:_FAILURE_CONTEXT": "7da1ebb9a3431fcb93ed8b47158956563a22049f9d800c3bdb8c69824c3b4bbe",
+    "src/utils/logger.py:_FOLDED_AUTH_VALUE": "39b83bc855b3112c5ecbb3f99be45bc0216c9c56099b66cafd4b7db720ceb681",
+    "src/utils/logger.py:_REFERENCE_FIELDS": "918e17defbdb7f9c1549465f6782a690ab9b99e285197dedc4fe6ca208c40262",
+    "src/utils/quick_scan_c06_adapter.py:_STATUS_MAP": "b3bc460ec3174b5752ef84c11654da05c036f8886c5268cb3b2dd905bd3e7bc5",
+    "src/utils/quick_scan_company_api.py:_EXPORTS": "25f7a263cbcc1494a536051cbf29011c88a097d024c31754a41392ad694cb209",
+    "src/utils/quick_scan_company_runtime.py:_RUNTIME_SERVICES": "e907d9692ed6f882ed61dfba4d909de4fb911a4badf081d2233c4a7c81dc8415",
+    "src/utils/quick_scan_company_runtime.py:_RUNTIME_SESSIONS": "e907d9692ed6f882ed61dfba4d909de4fb911a4badf081d2233c4a7c81dc8415",
+    "src/utils/quick_scan_company_runtime.py:_RUNTIME_TASK_CONTRACTS": "e907d9692ed6f882ed61dfba4d909de4fb911a4badf081d2233c4a7c81dc8415",
+    "src/utils/quick_scan_cost_resolver.py:_RATE_FIELDS": "3b68b4c2712bad17f091c7b3136872e4523a000a08bd103435d2eb5fc8dea65d",
+    "src/utils/quick_scan_cost_resolver.py:_USAGE_FIELDS": "7ef0c636e6d5c9711a0f8c717fce3c9878dac85eaab9252bd00bad7eb7c922d0",
+    "src/utils/quick_scan_delegated_consent.py:CONFIRMATION_FIELDS": "e700f727b1d0f6639366b5fe2f4065be60996739ca09ec86f012de9efad98859",
+    "src/utils/quick_scan_delegated_consent.py:GRANT_FIELDS": "b4051b2b1dbadd2b0d04152da67ae2226adfb645b75c5abd5c5d7769865b2f9e",
+    "src/utils/quick_scan_delivery_control_cli.py:_FIELDS": "2dea32aafcbe41d88824530be3b214d30565c5c635b40b9a7a4cacd5beadca5a",
+    "src/utils/quick_scan_delivery_seal.py:MODULE_API_EXPORTS": "d1b44da709671f0a7e1ed8a8555efaf7378c8599403bbc5fd269128c961544df",
+    "src/utils/quick_scan_external_context.py:MODULE_API_EXPORTS": "5be957dfae0768beddf3cd39001e17f91fd5a9e36d8881bccd038a90f796a5f8",
+    "src/utils/quick_scan_external_continuation.py:DDL_V22_ADDITIONS": "c5683039a28b3b98a7b3eb9a23595a40d42dae35e25e359334e62ad363db3154",
+    "src/utils/quick_scan_external_journal.py:DDL_V10_ADDITIONS": "c5c0c39485efd712c2ae271bd90b804a1f2b5e97f121d954091f981b75d2bf13",
+    "src/utils/quick_scan_external_journal.py:DDL_V9_ADDITIONS": "8b5f14916740d7b4b47eb5e9f4aba85d71af7fdbb753dacf401070d97a83f5f9",
+    "src/utils/quick_scan_external_journal.py:ENDPOINTS": "f3ef6d7000586d532c8f8bf6fa1695a5b1df417f65984b08ad0aee929d82e0c2",
+    "src/utils/quick_scan_external_journal.py:MODULE_API_EXPORTS": "af02524df791a5cd0888f041bc8e6e55d8eee66fdfc698c286e0ba2bb8a7226b",
+    "src/utils/quick_scan_external_journal.py:_ENTRY_KEYS": "6a9a0f5a303b8a1c59cda43f79f4cf5652c90ea2f6ab215dcb832270020e46c4",
+    "src/utils/quick_scan_external_journal.py:_PLAN_KEYS": "0af4c3f38200ab32acb0b17438e7d860b4d7c924e51a589adfbd69d6d8ab3d0b",
+    "src/utils/quick_scan_external_journal.py:_RECEIPT_KEYS": "d156e0d7855309422027ceee614e07db7018c1e51b107447ed91b425ffde5e8a",
+    "src/utils/quick_scan_external_journal.py:_USE_KEYS": "b21034be9747e60ce62ea0b09cb9f55fd466d10a0e16ebfb4a078d2008196cca",
+    "src/utils/quick_scan_external_journal.py:_WORK_KEYS": "9807c33cb8c70311583f6a114ecb95b45065c5e1f74673674ec53702d1a129c4",
+    "src/utils/quick_scan_feedback_observation.py:KNOWN_RESPONSE_STATUS": "6177b4f7e6617fef9b037320056a969cfa2c2272e9ef89a76c31ed22c3fc2b90",
+    "src/utils/quick_scan_feedback_observation.py:KNOWN_SEARCH_STATUS": "4b4c30483175c00f602c9646cdf2af1bef53660a6db9c821c8124ec1b49d5056",
+    "src/utils/quick_scan_feedback_observation.py:_ALLOWED_ACTUALS": "b880e556357424b1051f92803db880a4df2f693743d8efde7002f0196a49e25d",
+    "src/utils/quick_scan_feedback_observation.py:_ISSUE_KEYS": "d054182ee96ef4acb1fcf02b350fa1d629b2c63078c076c6e5158224c6b1ab0e",
+    "src/utils/quick_scan_feedback_observation.py:_STATUS_WORDS": "331c85e04d4e4fd46d39f8e68dde987a65df618e3c3c3e5b58dd98c86913efd3",
+    "src/utils/quick_scan_feedback_owner.py:_ATTEMPT": "b8e21bd808855c42bc084ee8ffe0c27e9f1b8d56e660efa52e4585657c662f21",
+    "src/utils/quick_scan_feedback_owner.py:_EVIDENCE": "8fa88d42b4458126c2041cd91da5401270c9de8407a0cfd1b0cbc20826ebb0d4",
+    "src/utils/quick_scan_feedback_owner.py:_KINDS": "63f2d4f659edd2c6b46735e6c4af884d1c599227f9e21e78d0cf7d5467b9187c",
+    "src/utils/quick_scan_known_outcome_journal.py:DDL_V19_ADDITIONS": "88d2cfd2dbe25e0708a11b75be3708353ca2e14b7339896ef2e7ca3b6b8a9c68",
+    "src/utils/quick_scan_known_outcome_journal.py:MODULE_API_EXPORTS": "b0ceb588459072d2a192c48157dd040abfd94ddfc15acaf8eaf61c562b87fe8f",
+    "src/utils/quick_scan_mcp_journal.py:APPROVED_SEARCH_TOOLS": "28fdf21925ac6b17332f4a994a2584392c46837384acf05a32ec16249c07833a",
+    "src/utils/quick_scan_mcp_journal.py:DDL_V13_ADDITIONS": "1f9d2713a697b4b11e2bbbc15febe59922f1b82645ce07229d1086cb15d4e9f3",
+    "src/utils/quick_scan_mcp_journal.py:MODULE_API_EXPORTS": "b3e4b5c28071f65da58c888a273d6d8cfabe9bec98dbbaec32b3ed1ab76f5c99",
+    "src/utils/quick_scan_mcp_journal.py:STAGES": "558469afb7b76c711d8b3a486dfe62b6426dc7048ae44dcbb902c1056590fc2e",
+    "src/utils/quick_scan_mcp_journal.py:SUPPORTED_PROTOCOLS": "97ef9d18eb02689c37ac04a00ad3b9e094a703132a8bff2b285273d46224c198",
+    "src/utils/quick_scan_model_policy_cli.py:FIELDS": "4d07af9c81d2dd9d9488463afc9666f9078dfb58c3f10209dcbd15a23c32e1fa",
+    "src/utils/quick_scan_observation_context.py:_ANSWER_FORMATS": "0b072803413a8a0802591ecab6399d65122a480b5314e517acecd2a162f02708",
+    "src/utils/quick_scan_observation_context.py:_CONTEXT_FIELDS": "41ada5a7360ff215eb30f673d547cb9f66e306342a1f93a6d2acb2cd203a0772",
+    "src/utils/quick_scan_observation_context.py:_HASH": "54898892ce8f31356f61d79801d90f9a11905d90d5128fb132d9ad16086160e5",
+    "src/utils/quick_scan_observation_context.py:_OBSERVATION_FORMATS": "762717ff58e5f4b3ee362bb7d13262fd788b0357b17ef9cec3dcdc295e738b96",
+    "src/utils/quick_scan_owner_budget_continuation.py:ATTEMPT_FIELDS": "f39a93f197b7dea5066876559dd78fb214d218bde8778952b0c4b467a580ad67",
+    "src/utils/quick_scan_owner_budget_continuation.py:MODULE_API_EXPORTS": "a37d4f451ab2eac28ed205afc5d9c567f89bcf732609b03610f3c9577207190f",
+    "src/utils/quick_scan_owner_budget_continuation.py:NO_EXTERNAL_SEARCH_POLICY": "4085726eb484f6b8b597f87c85314379f184cc747d4055e6ecfc23053fb6d6c5",
+    "src/utils/quick_scan_owner_budget_continuation_v15.py:BLOCKING": "9929611c375ef98a565664da42c9af86404d1c7f1cb0065b2b44d932f20624d4",
+    "src/utils/quick_scan_owner_budget_continuation_v15.py:MODULE_API_EXPORTS": "5188ff8732b05d04c7cfaaac129aa5705f9d8810f43436f767fcd5fa4a55b303",
+    "src/utils/quick_scan_owner_process_env.py:_OS_KEYS": "4cb099eebcf0fcb70ebf1c373c0410a42abdc989997e84153bc6448cf13602f4",
+    "src/utils/quick_scan_owner_process_env.py:_PYTHON_DEFAULTS": "1f19ead0002e9f019ee74275bb88edd296d7334f24caa16fe29629cbb0c3b859",
+    "src/utils/quick_scan_owner_refresh.py:MODULE_API_EXPORTS": "95be34ea1db291d8034eea2243ab447c9aabe19d2354af7b62d655d3f5028ccb",
+    "src/utils/quick_scan_owner_refresh.py:_CONFIG_KEYS": "10e81412a7859f21c39f54a5cbc1c140f21b35ba1ca5f2b805c092d4eaf2c19b",
+    "src/utils/quick_scan_owner_refresh.py:_CURRENT_KEYS": "4b9aef7966294572902e5ecb5cb6b702187a81e11de145f3f00e92974611d168",
+    "src/utils/quick_scan_owner_refresh.py:_SNAPSHOT_KEYS": "d55086b03ba2003b714d634cef96b2e5dfeb75bea0061c68774dac2bb10e0d85",
+    "src/utils/quick_scan_owner_refresh_journal.py:DDL_V14_ADDITIONS": "ae6442c30a6d7709d2a2c4380b27f6f9b0955587fa5f2234eb2d284fdd2cd9eb",
+    "src/utils/quick_scan_owner_refresh_journal.py:MODULE_API_EXPORTS": "333dc957bb7d00313a73bdd416010b63cf5543a10777732ad4198dff70169209",
+    "src/utils/quick_scan_owner_refresh_journal.py:_KEYS": "caa12b456a3810a51b514f015457fd3368f16b3ddd78b4c6e488f6047b04a705",
+    "src/utils/quick_scan_prepaid_quota.py:DDL_V21_ADDITIONS": "36754a5938d46082aa25c0f6387588e2156b6930959634594de84ce113707da7",
+    "src/utils/quick_scan_provided_context.py:MODULE_API_EXPORTS": "300c4611a466b52a9c2811ea52f561808a42dbc0f3a40100281a08b8bf56dd81",
+    "src/utils/quick_scan_provided_context.py:STORE_TABLE_DEPENDENCIES": "f0766485367fe885e306000de0b81c12ff1a3d93729011f591fc775c649fc1a1",
+    "src/utils/quick_scan_provided_context.py:_FIELDS": "a934aeef480df15ea45bfede05c37e529cbb30decb7c6b8dfd11e19653362cc4",
+    "src/utils/quick_scan_provided_context.py:_SOURCE_FIELDS": "e7cdeda285a15e90a1678714b975c172b7b66b0a0b88439a6f5b2ff334f9849d",
+    "src/utils/quick_scan_question_manifest.py:_HEX64": "54898892ce8f31356f61d79801d90f9a11905d90d5128fb132d9ad16086160e5",
+    "src/utils/quick_scan_question_manifest.py:_REQUIRED_QUESTION": "96355554c03e137b92ceaba5508d58bd7723934a1c74b650eda4bd6da7a29bd5",
+    "src/utils/quick_scan_question_manifest.py:_REQUIRED_TOP": "6e89ca2fed0b55012f23ef8ad4a5faf2324d6c866ee563ece684c8c5eb595f2f",
+    "src/utils/quick_scan_question_manifest.py:_SAFE_ID": "90c3e5691cdba9fa4719c788aff903422c82929843f96b69b35f3957b32efdfc",
+    "src/utils/quick_scan_question_manifest.py:_SCOPES": "af9f80b17b082d4ce575b38d2b5f852d91b2e8cfafd2dd781dc11a20d5049e5b",
+    "src/utils/quick_scan_question_pack_journal.py:DDL_V17_ADDITIONS": "493e5278784e5fbb25db22c13053256cd532e897ab7f01c3d57632d6ea34ad6c",
+    "src/utils/quick_scan_question_pack_journal.py:MODULE_API_EXPORTS": "7838a970577972eed56b810ef88c8ef750772504db4b346055cd796b59e3bca5",
+    "src/utils/quick_scan_question_pack_journal.py:_COMMON_FIELDS": "435d813fd16ba592a4738f4223eda1b255d5a3088af82ab7655e7d552151356c",
+    "src/utils/quick_scan_question_pack_journal.py:_DDL_V17_ADDITIONS": "34bbbbf200b5eac80ab79458f9f342219c9486fde96b8bb4bd98dce3024fe1e3",
+    "src/utils/quick_scan_question_pack_journal.py:_FINGERPRINT_FIELDS": "9807c33cb8c70311583f6a114ecb95b45065c5e1f74673674ec53702d1a129c4",
+    "src/utils/quick_scan_question_pack_journal.py:_QUESTION_PACK_OPERATION_CAPABILITY": "955303ab53d92723ca8969d85d36d62c3621a266a67a578582bc5928c32de4dc",
+    "src/utils/quick_scan_refresh_admission.py:BUNDLE_FILES": "fe777f606256a76946c5552838aeb63483af98ece61bc99586a7808c7c95eee1",
+    "src/utils/quick_scan_refresh_admission.py:MODULE_API_EXPORTS": "12d2ab46ebc6220a820bd445004bedd741e34f08175df3ff019226e65b777bd9",
+    "src/utils/quick_scan_refresh_admission.py:ROOT_KEYS": "7a38e4c777fbb334299830d57d7d4398907c9c6ee70cd2ddcfc9c451e9851ac8",
+    "src/utils/quick_scan_refresh_admission.py:_INPUT_FILENAMES": "e34910f130d9ed7e1fb71f7f7a40404a72566c5480fb4d553e84d26e3236065f",
+    "src/utils/quick_scan_refresh_admission_journal.py:ACTION_FIELDS": "2cdbfc079870d3d90c3f21f1f5e1e4707c805d1f498ca07b267fab10d52a4882",
+    "src/utils/quick_scan_refresh_admission_journal.py:DDL_V16_ADDITIONS": "6a180217a1d5a2098d87b321fa2f5422deaee352bfe0e41f288b8b80690b8eae",
+    "src/utils/quick_scan_refresh_admission_journal.py:ITEM_FIELDS": "737ef343f16873e0df13644f06a19e6e682721cfabc6c0353c702122ee7040bb",
+    "src/utils/quick_scan_refresh_batch.py:SPEC_FIELDS": "3979a6ea2bab14a5672566a885ce1e2812488bb60c10fa0161c805353dc1a61e",
+    "src/utils/quick_scan_refresh_consent.py:WIRE_FIELDS": "7ae57a90285859097bbab538b6f4ae8527d868e6638e38a60f8c5ae5b38a4a55",
+    "src/utils/quick_scan_refresh_inspect.py:MODULE_API_EXPORTS": "7a4d0de0a38651281a1500442764f3117aabc2f65c5d63e4937c2c88aaffb1c0",
+    "src/utils/quick_scan_refresh_inspect.py:READ_ONLY_SCHEMA_VERSIONS": "54eeaa75c41c5991583c7c5e10414830e49764e1b860c6972c8895b28c3953ab",
+    "src/utils/quick_scan_refresh_inspect.py:READ_ONLY_VIEW_API_METHODS": "089b36f4e159fdd640112c5c748e8959eebefdea3ff79deff2fc3c66367911fc",
+    "src/utils/quick_scan_registered_permissions_cli.py:MODES": "6a51e06407f43961af616b233f0f5ed8b11d492295d376c2588a3fa25f73c2fe",
+    "src/utils/quick_scan_research_intent.py:DDL_RESEARCH_INTENT": "44df5a42ad62fe7f8fc8784ac388dfc7ed4e8ee43468fd1715c35575a400c3a3",
+    "src/utils/quick_scan_research_intent.py:MODULE_API_EXPORTS": "2a22aa11512547c3086936e0334d33bc36bed9ad3c1897394d292e723c8df75a",
+    "src/utils/quick_scan_research_intent.py:STORE_TABLE_DEPENDENCIES": "a188f212835c55feed6bfe2a3f337ab472ed6d6b33cd5f3f85df0995e32c764e",
+    "src/utils/quick_scan_research_intent.py:_ENDPOINT_PROFILE_RE": "1d446601a55afe5cc148aa71cc1ae2ab28e3135f3f739c2ae3f26d19d237068f",
+    "src/utils/quick_scan_research_intent.py:_INTENT": "6d5ec47cc2e8fb0847af902ab14335f3bbe6e4efa5372e881daaca5f4b1ecdbd",
+    "src/utils/quick_scan_research_output.py:DDL_V23_ADDITIONS": "69dedb5c95d18df9410ccf2179c3b26bb00383d529ba911baa289e3b4ec14731",
+    "src/utils/quick_scan_research_output.py:DDL_V27_ADDITIONS": "011c7bd076aaff5bb6aa2f68aceb61d83e58f7851ffa503246b5988ba42a4bb7",
+    "src/utils/quick_scan_research_output.py:MODULE_API_EXPORTS": "74d12fb2e5adc1588b775259e7f0c179dae69b8d88689eb29249fa329145479f",
+    "src/utils/quick_scan_research_output.py:STORE_TABLE_DEPENDENCIES": "9623164ff6d645c4a7fd366cccb91042bb1ec98692441400fc979296e2afa1ed",
+    "src/utils/quick_scan_research_session.py:DDL_RESEARCH_SESSION": "788141b456b23aa9f58555f1d7c9119fe5e85a38445d0aac3b34d1ae192efd40",
+    "src/utils/quick_scan_research_session.py:MODULE_API_EXPORTS": "bda99dfe0d96646e2262acc3371a7c69f94db3e2b5051b98b6758df67357f956",
+    "src/utils/quick_scan_research_session.py:STORE_TABLE_DEPENDENCIES": "f4a42d1030bc19b82be1ff6564f5d259ba33264a2352716cb08e7164fd1d5018",
+    "src/utils/quick_scan_research_session.py:_ACTIVE": "a623fb6aa7f1cfa4002d496e56385f3fab6acfb5d43aa428c9b47266bfc4d4d3",
+    "src/utils/quick_scan_result_outbox.py:MODULE_API_EXPORTS": "8238abdf6f4742031201f53948997d690938c7f33788c1934a7b948cade4dd2f",
+    "src/utils/quick_scan_result_outbox.py:_ACK_ERRORS": "e6193ea6769b476f170ca5ef7bbe7454de5bcaedfb3bc6d554a9689d0df87c87",
+    "src/utils/quick_scan_result_outbox.py:_ACK_ID": "ce23ed054d77611085ff0ae6c6428154190bfdc640d4eafee89145ca52183797",
+    "src/utils/quick_scan_result_outbox.py:_CAPABILITIES": "f7d848cd3d7d17bbd159ebeaa8a0d4c43fc2d015ffaca09f85e832172c8159de",
+    "src/utils/quick_scan_result_outbox.py:_CONTRACT_VERSION_KEYS": "23009aeea14552640da96e68bbf36479c4673a2be8f1a42749436be4db82a691",
+    "src/utils/quick_scan_result_outbox.py:_FORBIDDEN_KEYS": "1d409a081d7f03ba1bd3ca815f6d3d971b047efca38813b8befe353808654fa9",
+    "src/utils/quick_scan_result_outbox.py:_HEX_256": "54898892ce8f31356f61d79801d90f9a11905d90d5128fb132d9ad16086160e5",
+    "src/utils/quick_scan_result_outbox.py:_ITEM_ID": "3f1160ad6d385bb45ca800c7fd4266a9f2170f97c759728f412d1dc8c2363326",
+    "src/utils/quick_scan_result_outbox.py:_OBSERVATION_ID": "0f92924138e34dd9d5c683d3221a4ef5df78e879157fde5392d4b760875aa426",
+    "src/utils/quick_scan_result_outbox.py:_PACKAGE_ID": "edb112d68ba84f0d421d9bdf1921bc2975d5fdb93cc72b1d1d3a6991372d8173",
+    "src/utils/quick_scan_result_outbox.py:_SAFE_TOKEN": "90c3e5691cdba9fa4719c788aff903422c82929843f96b69b35f3957b32efdfc",
+    "src/utils/quick_scan_result_proof.py:MODULE_API_EXPORTS": "1640a3c22c769a8df83bc8c94e2da2e93050af68acfc9fbae616b9c924723ae1",
+    "src/utils/quick_scan_saved_research_publication.py:WORK_KEYS": "9807c33cb8c70311583f6a114ecb95b45065c5e1f74673674ec53702d1a129c4",
+    "src/utils/quick_scan_shared_company.py:COMPANION_FACADES": "f97f44335f7dc2b3a6763f973a24e1ea57d8615f6421d0175daf855481e7855b",
+    "src/utils/quick_scan_shared_company.py:SHARED_ENGINE_MINIMUM_VERSION": "aeae40cbdbc21727a17dc802e202b68e08dea95b9fab6dba902ff1470542be18",
+    "src/utils/quick_scan_shared_routes.py:KNOWN_FAILURES": "b0d9cca9eb8d0aab82f7174f42ac773669fad48e9155936ef1834401249b1cc0",
+    "src/utils/quick_scan_subject_context.py:SUBJECT_FIELDS": "1161ed76e1466b496b0750fc0320d435f3d43d2f057612d1862e927cabf27e29",
+    "src/utils/quick_scan_subject_journal.py:DDL_V15_ADDITIONS": "35e4dbac27e4de2538eddaee0d2d3d11873db66ef94005be92977d68d554f997",
+    "src/utils/quick_scan_work_decision_authority.py:CONFIRMATION_FIELDS": "a42ee1ac28eb9df4bd16181ae67f0deeb4ee4d3f99c1787b4b0475894bf68d20",
+    "src/utils/quick_scan_work_decision_authority.py:STATE_FIELDS": "9cac483bf8adb911ef0a08dd7d0d8674bc210081a45f7c479b2f57a5201668ff",
+    "src/utils/quick_scan_work_decision_authority.py:WIRE_FIELDS": "c9772bc047fea59d5f5f0f6cfedd3d3b6137e48e56c2256007232d5b5203363e",
+    "src/utils/quick_scan_work_decision_inspect.py:MODULE_API_EXPORTS": "ce6a705ed2bd827b1ad5068ac4a3fcee8bb80b44fa81ed5d6b68374ec1ed58b2",
+    "src/utils/quick_scan_work_decision_inspect.py:RESOLUTION_INTENT": "877b9cc1b42c560f95781f82a6ffc4d171ccf1e254cb928bb0c0950c51ef5b20",
+    "src/utils/quick_scan_work_decision_inspect.py:RETRY_INTENT": "56140099d7dae5a6a86afc50113eed11d67f84c60a5293928bcf22233bc03b25",
+    "src/utils/quick_scan_work_store.py:MODULE_API_EXPORTS": "f5873a64c652a0baa4f788e141667bfab422c7ae88880f704bca2c252697bb90",
+    "src/utils/quick_scan_work_store.py:WORK_STORE_API_METHODS": "965b067327a9409704a4d288a9574fff679f497c3bc4393446fb947fb074a855",
+    "src/utils/quick_scan_work_store.py:_COMPACT_OBSERVATION_FIELDS": "033dd4aa9f685c711639ce74dc34c5a18411992a711260369d137cd19a09a430",
+    "src/utils/quick_scan_work_store.py:_DDL_CHECKPOINT_V11": "8ed19383a71c2f39c4e775c3988e536829c9951bb4251cc7f4a32839510f9819",
+    "src/utils/quick_scan_work_store.py:_DDL_CHECKPOINT_V25": "d5255567f1427aee7819b2a3fc800b2da34b5dd7fb7b30bd84c2190e82559257",
+    "src/utils/quick_scan_work_store.py:_DDL_V1": "a356c4f0cc4246d5992f3dfa26402ab200f03e79188ef810784037f61531c418",
+    "src/utils/quick_scan_work_store.py:_DDL_V12_ADDITIONS": "d6b5f1af1ccb1a4fafe49f56a46150417843f1d7a1aa64c9714fd0bb841c44fa",
+    "src/utils/quick_scan_work_store.py:_DDL_V18_ADDITIONS": "6034b933f30b995caada4d0edfacd790273ca504c7f66efff02ae00cd53c721c",
+    "src/utils/quick_scan_work_store.py:_DDL_V25_ADDITIONS": "f217ece579965832bd632d83e033cabe4f0e799efdf7da507335462b328c704e",
+    "src/utils/quick_scan_work_store.py:_DDL_V26_ADDITIONS": "3af766efbf287e9802da0f1fbc24ad75bd046762418466d1337607ea403e8e5f",
+    "src/utils/quick_scan_work_store.py:_DDL_V2_ADDITIONS": "2dd3e11b7063f32dcb3a5b2e688c168804a6b11a52145152c05b7e1bd21b39ba",
+    "src/utils/quick_scan_work_store.py:_DDL_V3_ADDITIONS": "b5adbf8f2e5f82b069e10bf3ec17568ddd75c2baf54b756a84eb5af625d17eba",
+    "src/utils/quick_scan_work_store.py:_DDL_V4_ADDITIONS": "becfb1166a8067f14134630d8535c70ef00f645b912f78dd515554234a54a445",
+    "src/utils/quick_scan_work_store.py:_DDL_V5_ADDITIONS": "e13f5c1ab2810e9d1abc680c98b1a3ff44a6dc40ecba7726913f44a7244fc7f3",
+    "src/utils/quick_scan_work_store.py:_DDL_V6_ADDITIONS": "57be3b5964f045e9ebf12763b129220105ed5d9f106bb121dc9c441effc8206e",
+    "src/utils/quick_scan_work_store.py:_DDL_V7_ADDITIONS": "c2e26e3b4642fc89982722ae475090a83f64cd543245c3010af36f610966049a",
+    "src/utils/quick_scan_work_store.py:_DDL_V8_ADDITIONS": "e70aa842061638375fabfa6763ebaa8c5bf43b9066bf927bd23f5763dfcd1ecb",
+    "src/utils/quick_scan_work_store.py:_DELIVERY_NOT_SENT_REASONS": "03a61d7d88af69e260a2cd465b2d4fddebab0c4b09344649b09d331b3e7a800d",
+    "src/utils/quick_scan_work_store.py:_MCP_GUARD_OLD": "c63027831c728e95231a74b5703ef6d7195d9a2bfe719a38d85845e22a8304aa",
+    "src/utils/quick_scan_work_store.py:_MCP_GUARD_V21": "af1b6bf4a0db9fe5f0821ff1774848bab123cafae6628bef85ef315e4376d785",
+    "src/utils/quick_scan_work_store.py:_REQUEST_KEY": "2d704b7f153b9432a545d78fbca8ace9b3d24d0e917e896e69f26db38317f138",
+    "src/utils/quick_scan_work_store.py:_SECURITY_ID": "ecc426e3e432df19bf616938f7499102ecb075c5f91c60bc5b711ee9ff7d236d",
+    "src/utils/quick_scan_work_store.py:_SEGMENT_ID": "8ed874c56aaf92b264e86bb14d6bb3ab295f0494ffc6d469431f679a43e624ab",
+    "src/utils/quick_scan_work_transport.py:MODULE_API_EXPORTS": "8b357018b9a8f93c8124ace14b8a227e525d6763b1bd812db7b5f77a1497b058",
+    "src/utils/quick_scan_work_transport.py:_BUDGET_BINDING": "a38add8aa31fa7526f4aa10988b217af3fcc4b3cae4c0d26791d65a0f0443991",
+    "src/utils/quick_scan_work_transport.py:_CAPACITY_FULL_REASONS": "239a70fe5fa7b34a587db34547cb03d519a284eba9d220009bf07e2fcc5d7d1c",
+    "src/utils/quick_scan_work_transport.py:_EXTERNAL_CONTEXT": "408beb10cdd581e0c88cc0e595125c207ceb4b921a312f9dc8330dde0d424b35",
+    "src/utils/quick_scan_work_transport.py:_FORMAT_REPAIR": "3a8b3ce41cabed242b223007d9eacb3454f0764aad101838457278153c404e4b",
+    "src/utils/quick_scan_work_transport.py:_OWNER_REFRESH_GUARD": "7372ffa3554d2d23b0f2f7b9c71b12b957b4c7ccf15b18f4e1b2d5271bf9b298",
+    "src/utils/quick_scan_work_transport.py:_OWN_RESERVATION": "66655da05d387603e53cace91cf4e570b1ab5ad167e3a89c7c39b47ce199fa11",
+    "src/utils/quick_scan_work_transport.py:_QUESTION_PACK_BINDING": "513384c795e9b70599c7f0325ab69539d9ebbc10fa915cb5b4747c17a475f366",
+    "src/utils/quick_scan_work_transport.py:_ROUTE_BINDING": "57ad49e813bc77342d65fd822d7cfa5b0280e8917448a38c2fca605255684417",
+    "src/utils/quick_scan_work_transport.py:_SUBJECT_DISPATCH_REGISTRAR": "2b753fcd37c5f0971441da3f31182e3a328d8fcdadbb02abfc09c01ab00e8d8e",
+    "src/utils/quick_scan_work_transport.py:_WORK_BINDING": "5551e15731e00e2689dddc2fd69a06b992d5fb5bf6d5277d12c7788d411a7afd",
+    "src/utils/security.py:_DANGEROUS_CHARS": "6f6a54689fcc529034e943c69a486f59cfd9d6749a0cdb421191f6eb68b3de1b",
+    "src/utils/security.py:_DANGEROUS_EXTENSIONS": "426ebf0712f5e5235977721cb41f39e54d3040352a28f739bc0d1071725d9e14",
+    "src/utils/security.py:_PATH_TRAVERSAL": "835bbd3453e413ff68e972e1fd89352fa231547a4fd3beb1ea1a77e8d821f2c1"
+  },
+  "findings": [
+    {
+      "count": 1,
+      "path": "src/cli/batch_processor.py",
+      "rule": "AT-01",
+      "signal": "import-cycle:src.cli.batch_processor,src.config.json_config_manager,src.config.quick_scan_search_policy,src.core.models,src.core.qa_engine,src.interfaces.search_provider,src.providers.base_llm_provider,src.providers.external_search_provider,src.providers.llm_client,src.providers.llm_provider,src.providers.llm_research_client,src.providers.llm_response_parser,src.runners.llm_runner,src.services.answer_generator,src.utils._quick_scan_company_task_factory,src.utils.llm_integration,src.utils.quick_scan_c06_adapter,src.utils.quick_scan_c06_authority,src.utils.quick_scan_company_context,src.utils.quick_scan_cost_resolver,src.utils.quick_scan_delivery_seal,src.utils.quick_scan_external_context,src.utils.quick_scan_external_continuation,src.utils.quick_scan_external_journal,src.utils.quick_scan_known_outcome_journal,src.utils.quick_scan_mcp_journal,src.utils.quick_scan_observation_context,src.utils.quick_scan_owner_budget_continuation,src.utils.quick_scan_owner_budget_continuation_v15,src.utils.quick_scan_owner_budget_permissions,src.utils.quick_scan_owner_refresh,src.utils.quick_scan_owner_refresh_journal,src.utils.quick_scan_owner_research,src.utils.quick_scan_prepaid_quota,src.utils.quick_scan_provided_context,src.utils.quick_scan_question_manifest,src.utils.quick_scan_question_pack_journal,src.utils.quick_scan_refresh_admission,src.utils.quick_scan_refresh_admission_journal,src.utils.quick_scan_refresh_batch,src.utils.quick_scan_refresh_consent,src.utils.quick_scan_refresh_execution,src.utils.quick_scan_refresh_inspect,src.utils.quick_scan_research_intent,src.utils.quick_scan_research_output,src.utils.quick_scan_research_session,src.utils.quick_scan_result_proof,src.utils.quick_scan_saved_research_publication,src.utils.quick_scan_shared_company,src.utils.quick_scan_shared_routes,src.utils.quick_scan_subject_journal,src.utils.quick_scan_uncertain_seal,src.utils.quick_scan_work_control,src.utils.quick_scan_work_decision_inspect,src.utils.quick_scan_work_store,src.utils.quick_scan_work_transport"
+    },
+    {
+      "count": 1,
+      "path": "src/config/quick_scan_search_policy.py",
+      "rule": "AT-02",
+      "signal": "private-alias:admit_search_route"
+    },
+    {
+      "count": 1,
+      "path": "src/interfaces/quick_scan_work_values.py",
+      "rule": "AT-02",
+      "signal": "private-alias:BINDING_ID"
+    },
+    {
+      "count": 1,
+      "path": "src/interfaces/quick_scan_work_values.py",
+      "rule": "AT-02",
+      "signal": "private-alias:ENTITY_ID"
+    },
+    {
+      "count": 1,
+      "path": "src/interfaces/quick_scan_work_values.py",
+      "rule": "AT-02",
+      "signal": "private-alias:budget_policy_projection"
+    },
+    {
+      "count": 1,
+      "path": "src/interfaces/quick_scan_work_values.py",
+      "rule": "AT-02",
+      "signal": "private-alias:canonical_bindings"
+    },
+    {
+      "count": 1,
+      "path": "src/interfaces/quick_scan_work_values.py",
+      "rule": "AT-02",
+      "signal": "private-alias:canonical_source_urls"
+    },
+    {
+      "count": 1,
+      "path": "src/interfaces/quick_scan_work_values.py",
+      "rule": "AT-02",
+      "signal": "private-alias:sensitive_query_parameter"
+    },
+    {
+      "count": 1,
+      "path": "src/interfaces/quick_scan_work_values.py",
+      "rule": "AT-02",
+      "signal": "private-alias:validate_safe_identifier"
+    },
+    {
+      "count": 1,
+      "path": "src/interfaces/quick_scan_work_values.py",
+      "rule": "AT-02",
+      "signal": "private-alias:validate_sha256"
+    },
+    {
+      "count": 1,
+      "path": "src/interfaces/quick_scan_work_values.py",
+      "rule": "AT-02",
+      "signal": "private-alias:validate_timestamp"
+    },
+    {
+      "count": 1,
+      "path": "src/providers/llm_client.py",
+      "rule": "AT-02",
+      "signal": "duplicate-export:MODULE_API_PROTOCOL"
+    },
+    {
+      "count": 1,
+      "path": "src/providers/llm_client.py",
+      "rule": "AT-02",
+      "signal": "private-alias:SEARCH_MAX_OUTPUT_TOKENS"
+    },
+    {
+      "count": 1,
+      "path": "src/providers/llm_client.py",
+      "rule": "AT-02",
+      "signal": "private-alias:api_llm_client_validate_search_generation_controls"
+    },
+    {
+      "count": 1,
+      "path": "src/providers/llm_client.py",
+      "rule": "AT-02",
+      "signal": "private-alias:canonical_http_json"
+    },
+    {
+      "count": 1,
+      "path": "src/providers/llm_client.py",
+      "rule": "AT-02",
+      "signal": "private-alias:failed_attempt_receipt"
+    },
+    {
+      "count": 1,
+      "path": "src/providers/llm_client.py",
+      "rule": "AT-02",
+      "signal": "private-alias:resolve_search_endpoint"
+    },
+    {
+      "count": 1,
+      "path": "src/providers/llm_client.py",
+      "rule": "AT-02",
+      "signal": "private-alias:response_request_id"
+    },
+    {
+      "count": 1,
+      "path": "src/providers/llm_client.py",
+      "rule": "AT-02",
+      "signal": "private-alias:response_status_code"
+    },
+    {
+      "count": 1,
+      "path": "src/providers/llm_client.py",
+      "rule": "AT-02",
+      "signal": "private-alias:utc_now"
+    },
+    {
+      "count": 1,
+      "path": "src/providers/llm_client.py",
+      "rule": "AT-02",
+      "signal": "private-alias:validate_search_generation_controls"
+    },
+    {
+      "count": 1,
+      "path": "src/providers/llm_provider.py",
+      "rule": "AT-02",
+      "signal": "private-alias:final_answer_diagnostic_policy"
+    },
+    {
+      "count": 1,
+      "path": "src/providers/llm_response_parser.py",
+      "rule": "AT-02",
+      "signal": "private-alias:reject_duplicate_json_keys"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_delivery_seal.py",
+      "rule": "AT-02",
+      "signal": "private-alias:api_delivery_seal_complete_package"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_delivery_seal.py",
+      "rule": "AT-02",
+      "signal": "private-alias:api_delivery_seal_send_intent_iso"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_external_context.py",
+      "rule": "AT-02",
+      "signal": "private-alias:bind_external_candidate"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_external_journal.py",
+      "rule": "AT-02",
+      "signal": "private-alias:WORK_FINGERPRINT_KEYS"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_external_journal.py",
+      "rule": "AT-02",
+      "signal": "private-alias:assert_external_operation_reusable"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_external_journal.py",
+      "rule": "AT-02",
+      "signal": "private-alias:assert_scope_resolved"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_external_journal.py",
+      "rule": "AT-02",
+      "signal": "private-alias:build_external_request_context"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_external_journal.py",
+      "rule": "AT-02",
+      "signal": "private-alias:can_resume_unsent_external_operation"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_external_journal.py",
+      "rule": "AT-02",
+      "signal": "private-alias:canonical_external_json"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_external_journal.py",
+      "rule": "AT-02",
+      "signal": "private-alias:digest_external_json"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_external_journal.py",
+      "rule": "AT-02",
+      "signal": "private-alias:external_identity_basis"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_external_journal.py",
+      "rule": "AT-02",
+      "signal": "private-alias:external_operation_cache_key"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_external_journal.py",
+      "rule": "AT-02",
+      "signal": "private-alias:validate_external_plan"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_external_journal.py",
+      "rule": "AT-02",
+      "signal": "private-alias:validate_external_receipt"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_external_journal.py",
+      "rule": "AT-02",
+      "signal": "private-alias:validate_sha256"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_known_outcome_journal.py",
+      "rule": "AT-02",
+      "signal": "private-alias:api_known_outcome_journal_authorize"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_known_outcome_journal.py",
+      "rule": "AT-02",
+      "signal": "private-alias:api_known_outcome_journal_physical"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_known_outcome_journal.py",
+      "rule": "AT-02",
+      "signal": "private-alias:api_known_outcome_journal_read"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_known_outcome_journal.py",
+      "rule": "AT-02",
+      "signal": "private-alias:derive_physical_receipt"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_known_outcome_journal.py",
+      "rule": "AT-02",
+      "signal": "private-alias:existing_owner_resolution"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_known_outcome_journal.py",
+      "rule": "AT-02",
+      "signal": "private-alias:physical_attempt_projection"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_known_outcome_journal.py",
+      "rule": "AT-02",
+      "signal": "private-alias:read_owner_work_decision"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_mcp_journal.py",
+      "rule": "AT-02",
+      "signal": "private-alias:is_mcp_stage_ready"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_mcp_journal.py",
+      "rule": "AT-02",
+      "signal": "private-alias:read_mcp_search_binding"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_mcp_journal.py",
+      "rule": "AT-02",
+      "signal": "private-alias:validate_control_response"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_owner_budget_continuation.py",
+      "rule": "AT-02",
+      "signal": "private-alias:api_owner_budget_continuation_integer"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_owner_budget_continuation.py",
+      "rule": "AT-02",
+      "signal": "private-alias:api_owner_budget_continuation_sha"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_owner_budget_continuation.py",
+      "rule": "AT-02",
+      "signal": "private-alias:api_owner_budget_continuation_text"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_owner_budget_continuation.py",
+      "rule": "AT-02",
+      "signal": "private-alias:api_owner_budget_continuation_utc"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_owner_budget_continuation_v15.py",
+      "rule": "AT-02",
+      "signal": "private-alias:api_owner_budget_continuation_v15_read_view"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_owner_refresh.py",
+      "rule": "AT-02",
+      "signal": "private-alias:api_owner_refresh_read"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_question_pack_journal.py",
+      "rule": "AT-02",
+      "signal": "duplicate-export:MODULE_API_PROTOCOL"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_question_pack_journal.py",
+      "rule": "AT-02",
+      "signal": "private-alias:api_question_pack_journal_fingerprint"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_question_pack_journal.py",
+      "rule": "AT-02",
+      "signal": "private-alias:api_question_pack_journal_read"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_question_pack_journal.py",
+      "rule": "AT-02",
+      "signal": "private-alias:read_question_pack"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_refresh_admission.py",
+      "rule": "AT-02",
+      "signal": "private-alias:api_refresh_admission_plain_path"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_refresh_admission.py",
+      "rule": "AT-02",
+      "signal": "private-alias:api_refresh_admission_snapshot"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_research_intent.py",
+      "rule": "AT-02",
+      "signal": "private-alias:api_research_intent_encode"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_research_intent.py",
+      "rule": "AT-02",
+      "signal": "private-alias:api_research_intent_hash"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_result_outbox.py",
+      "rule": "AT-02",
+      "signal": "duplicate-export:MODULE_API_PROTOCOL"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_result_outbox.py",
+      "rule": "AT-02",
+      "signal": "private-alias:CAPABILITIES"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_result_outbox.py",
+      "rule": "AT-02",
+      "signal": "private-alias:CONTRACT_VERSION_KEYS"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_result_outbox.py",
+      "rule": "AT-02",
+      "signal": "private-alias:api_result_outbox_safe_token"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_decision_inspect.py",
+      "rule": "AT-02",
+      "signal": "private-alias:api_work_decision_inspect_policy_matches"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-02",
+      "signal": "duplicate-export:MODULE_API_PROTOCOL"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-02",
+      "signal": "private-alias:ENTITY_ID"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-02",
+      "signal": "private-alias:api_work_store_budget_policy_projection"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-02",
+      "signal": "private-alias:api_work_store_canonical_bindings"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-02",
+      "signal": "private-alias:api_work_store_canonical_source_urls"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-02",
+      "signal": "private-alias:api_work_store_safe"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-02",
+      "signal": "private-alias:api_work_store_sanitized_receipt"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-02",
+      "signal": "private-alias:api_work_store_sensitive_query_parameter"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-02",
+      "signal": "private-alias:api_work_store_sha256"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-02",
+      "signal": "private-alias:assert_lease"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-02",
+      "signal": "private-alias:budget_policy_projection"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-02",
+      "signal": "private-alias:canonical_native_events"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-02",
+      "signal": "private-alias:canonical_source_urls"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-02",
+      "signal": "private-alias:checkpoint_record"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-02",
+      "signal": "private-alias:cost_to_micros"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-02",
+      "signal": "private-alias:delivery_row"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-02",
+      "signal": "private-alias:ensure_budget_policy_tx"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-02",
+      "signal": "private-alias:external_checkpoint_projection"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-02",
+      "signal": "private-alias:item_in_transaction"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-02",
+      "signal": "private-alias:now"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-02",
+      "signal": "private-alias:prepare_standard_inputs"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-02",
+      "signal": "private-alias:record_budget_outcome_tx"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-02",
+      "signal": "private-alias:record_event"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-02",
+      "signal": "private-alias:record_frozen_run_refs"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-02",
+      "signal": "private-alias:reserve_budget_attempt_tx"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-02",
+      "signal": "private-alias:response_for_checkpoint"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-02",
+      "signal": "private-alias:response_record"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-02",
+      "signal": "private-alias:result_delivery_record"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-02",
+      "signal": "private-alias:sanitize_transport_receipt"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-02",
+      "signal": "private-alias:store_side_tables"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-02",
+      "signal": "private-alias:unmapped_run_scan_pairs"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-02",
+      "signal": "private-alias:validate_safe_identifier"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-02",
+      "signal": "private-alias:validate_schema"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-02",
+      "signal": "private-alias:validate_timestamp"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-02",
+      "signal": "private-alias:validate_transport_text"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_refresh_inspect.py",
+      "rule": "AT-04",
+      "signal": "private-store-overrides:ReadOnlyWorkView"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_refresh_inspect.py",
+      "rule": "AT-04",
+      "signal": "reader-inherits-writer:ReadOnlyWorkView"
+    },
+    {
+      "count": 1,
+      "path": "src/providers/base_llm_provider.py",
+      "rule": "AT-05",
+      "signal": "shared-context-variable:_ANALYSIS_SUBJECT_SCOPE"
+    },
+    {
+      "count": 1,
+      "path": "src/providers/base_llm_provider.py",
+      "rule": "AT-05",
+      "signal": "shared-context-variable:_STANDARD_ANSWER_TRANSPORT"
+    },
+    {
+      "count": 1,
+      "path": "src/providers/llm_response_parser.py",
+      "rule": "AT-05",
+      "signal": "shared-context-variable:_PACK_DIAGNOSTICS"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/_quick_scan_owner_refresh_port.py",
+      "rule": "AT-05",
+      "signal": "shared-weak-registry:_PORTS"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/logger.py",
+      "rule": "AT-05",
+      "signal": "shared-context-variable:_FAILURE_CONTEXT"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_company_runtime.py",
+      "rule": "AT-05",
+      "signal": "shared-weak-registry:_RUNTIME_SERVICES"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_company_runtime.py",
+      "rule": "AT-05",
+      "signal": "shared-weak-registry:_RUNTIME_SESSIONS"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_company_runtime.py",
+      "rule": "AT-05",
+      "signal": "shared-weak-registry:_RUNTIME_TASK_CONTRACTS"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_research_intent.py",
+      "rule": "AT-05",
+      "signal": "shared-context-variable:_INTENT"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_research_session.py",
+      "rule": "AT-05",
+      "signal": "shared-context-variable:_ACTIVE"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_transport.py",
+      "rule": "AT-05",
+      "signal": "shared-context-variable:_BUDGET_BINDING"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_transport.py",
+      "rule": "AT-05",
+      "signal": "shared-context-variable:_EXTERNAL_CONTEXT"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_transport.py",
+      "rule": "AT-05",
+      "signal": "shared-context-variable:_FORMAT_REPAIR"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_transport.py",
+      "rule": "AT-05",
+      "signal": "shared-context-variable:_OWNER_REFRESH_GUARD"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_transport.py",
+      "rule": "AT-05",
+      "signal": "shared-context-variable:_OWN_RESERVATION"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_transport.py",
+      "rule": "AT-05",
+      "signal": "shared-context-variable:_QUESTION_PACK_BINDING"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_transport.py",
+      "rule": "AT-05",
+      "signal": "shared-context-variable:_ROUTE_BINDING"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_transport.py",
+      "rule": "AT-05",
+      "signal": "shared-context-variable:_SUBJECT_DISPATCH_REGISTRAR"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_transport.py",
+      "rule": "AT-05",
+      "signal": "shared-context-variable:_WORK_BINDING"
+    },
+    {
+      "count": 1,
+      "path": "main.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.runners.basic_runner"
+    },
+    {
+      "count": 1,
+      "path": "main.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.runners.llm_runner"
+    },
+    {
+      "count": 1,
+      "path": "main_with_llm.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.runners.llm_runner"
+    },
+    {
+      "count": 1,
+      "path": "src/cli/batch_processor.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.core.models"
+    },
+    {
+      "count": 1,
+      "path": "src/config/llm_config.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.providers.model_resolution"
+    },
+    {
+      "count": 1,
+      "path": "src/config/quick_scan_search_policy.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.providers.external_search_parsers"
+    },
+    {
+      "count": 2,
+      "path": "src/config/quick_scan_search_policy.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_prepaid_quota"
+    },
+    {
+      "count": 2,
+      "path": "src/core/models.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_result_proof"
+    },
+    {
+      "count": 1,
+      "path": "src/core/qa_engine.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.providers.llm_client"
+    },
+    {
+      "count": 1,
+      "path": "src/core/qa_engine.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.providers.llm_provider"
+    },
+    {
+      "count": 1,
+      "path": "src/core/qa_engine.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_owner_refresh_api"
+    },
+    {
+      "count": 1,
+      "path": "src/providers/base_llm_provider.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.providers.model_resolution"
+    },
+    {
+      "count": 1,
+      "path": "src/providers/base_llm_provider.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_work_transport"
+    },
+    {
+      "count": 1,
+      "path": "src/providers/external_search_provider.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_external_journal"
+    },
+    {
+      "count": 3,
+      "path": "src/providers/llm_client.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.interfaces.quick_scan_work_values"
+    },
+    {
+      "count": 4,
+      "path": "src/providers/llm_client.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_research_output"
+    },
+    {
+      "count": 3,
+      "path": "src/providers/llm_provider.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_work_transport"
+    },
+    {
+      "count": 2,
+      "path": "src/providers/llm_research_client.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_research_output"
+    },
+    {
+      "count": 3,
+      "path": "src/providers/llm_research_client.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_work_transport"
+    },
+    {
+      "count": 1,
+      "path": "src/runners/basic_runner.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.config.settings"
+    },
+    {
+      "count": 2,
+      "path": "src/runners/llm_runner.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.config.quick_scan_search_policy"
+    },
+    {
+      "count": 3,
+      "path": "src/runners/llm_runner.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.core.models"
+    },
+    {
+      "count": 2,
+      "path": "src/runners/llm_runner.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.providers.base_llm_provider"
+    },
+    {
+      "count": 5,
+      "path": "src/runners/llm_runner.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.providers.llm_client"
+    },
+    {
+      "count": 1,
+      "path": "src/runners/llm_runner.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.providers.llm_provider"
+    },
+    {
+      "count": 3,
+      "path": "src/runners/llm_runner.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.providers.model_resolution"
+    },
+    {
+      "count": 1,
+      "path": "src/runners/llm_runner.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_c06_authority"
+    },
+    {
+      "count": 1,
+      "path": "src/runners/llm_runner.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_company_context"
+    },
+    {
+      "count": 2,
+      "path": "src/runners/llm_runner.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_delivery_seal"
+    },
+    {
+      "count": 3,
+      "path": "src/runners/llm_runner.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_external_context"
+    },
+    {
+      "count": 3,
+      "path": "src/runners/llm_runner.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_observation_context"
+    },
+    {
+      "count": 1,
+      "path": "src/runners/llm_runner.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_owner_refresh"
+    },
+    {
+      "count": 11,
+      "path": "src/runners/llm_runner.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_owner_refresh_api"
+    },
+    {
+      "count": 2,
+      "path": "src/runners/llm_runner.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_question_manifest"
+    },
+    {
+      "count": 2,
+      "path": "src/runners/llm_runner.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_refresh_execution"
+    },
+    {
+      "count": 5,
+      "path": "src/runners/llm_runner.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_result_outbox"
+    },
+    {
+      "count": 3,
+      "path": "src/runners/llm_runner.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_shared_company"
+    },
+    {
+      "count": 2,
+      "path": "src/runners/llm_runner.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_shared_routes"
+    },
+    {
+      "count": 4,
+      "path": "src/runners/llm_runner.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_work_store"
+    },
+    {
+      "count": 8,
+      "path": "src/runners/llm_runner.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_work_transport"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/_quick_scan_company_task_factory.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_company_api"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/_quick_scan_owner_io.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_result_outbox"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/_quick_scan_owner_refresh_port.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_company_api"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/_quick_scan_owner_refresh_port.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_owner_refresh"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/_quick_scan_owner_refresh_port.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_refresh_execution"
+    },
+    {
+      "count": 6,
+      "path": "src/utils/_quick_scan_owner_refresh_port.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_result_outbox"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/_quick_scan_owner_refresh_port.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_work_store"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/llm_integration.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.providers.llm_client"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/llm_integration.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.providers.llm_provider"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/llm_integration.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_work_transport"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/output_validator.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.core.exceptions"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_attempt_receipts.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.providers.model_resolution"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_c06_adapter.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_observation_context"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_c06_authority.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_observation_context"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_company_context.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.core.models"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_company_context.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.providers.llm_research_client"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_company_context.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils._quick_scan_company_task_factory"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_company_context.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_company_api"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_company_context.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_owner_budget_continuation"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_company_context.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_owner_refresh_api"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_company_context.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_result_outbox"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_company_runtime.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.core.models"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_company_runtime.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.providers.llm_research_client"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_company_runtime.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_company_api"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_company_runtime.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_delivery_seal"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_company_runtime.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_observation_context"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_company_runtime.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_owner_refresh_api"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_company_runtime.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_owner_research"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_company_runtime.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_research_intent"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_company_runtime.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_result_outbox"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_company_runtime.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_work_store"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_company_runtime.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_work_transport"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_continuation_bank_cli.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_refresh_admission"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_continuation_bank_cli.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_refresh_inspect"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_cost_resolver.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.config.quick_scan_search_policy"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_delivery_control_cli.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_refresh_inspect"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_delivery_control_cli.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_work_store"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_delivery_scope_cli.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_refresh_inspect"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_delivery_seal.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_result_outbox"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_delivery_seal.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_saved_research_publication"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_external_context.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.providers.external_search_provider"
+    },
+    {
+      "count": 3,
+      "path": "src/utils/quick_scan_external_context.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_cost_resolver"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_external_context.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_evidence"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_external_context.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_external_journal"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_external_context.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_mcp_journal"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_external_context.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_provider_health"
+    },
+    {
+      "count": 4,
+      "path": "src/utils/quick_scan_external_context.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_work_store"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_external_context.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_work_transport"
+    },
+    {
+      "count": 3,
+      "path": "src/utils/quick_scan_external_continuation.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_external_journal"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_external_continuation.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_uncertain_seal"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_external_continuation.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_work_store"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_external_journal.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.config.quick_scan_search_policy"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_external_journal.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.providers.external_search_parsers"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_external_journal.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.providers.model_resolution"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_external_journal.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_external_context"
+    },
+    {
+      "count": 3,
+      "path": "src/utils/quick_scan_external_journal.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_external_continuation"
+    },
+    {
+      "count": 4,
+      "path": "src/utils/quick_scan_external_journal.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_mcp_journal"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_external_journal.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_uncertain_seal"
+    },
+    {
+      "count": 11,
+      "path": "src/utils/quick_scan_external_journal.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_work_store"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_feedback_observation.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.execution_feedback"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_feedback_observation.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_feedback_registry"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_feedback_observation.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_refresh_inspect"
+    },
+    {
+      "count": 3,
+      "path": "src/utils/quick_scan_feedback_owner.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.execution_feedback"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_feedback_owner.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_refresh_inspect"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_known_outcome_journal.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_owner_refresh_journal"
+    },
+    {
+      "count": 3,
+      "path": "src/utils/quick_scan_known_outcome_journal.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_question_pack_journal"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_known_outcome_journal.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_research_intent"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_known_outcome_journal.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_subject_journal"
+    },
+    {
+      "count": 9,
+      "path": "src/utils/quick_scan_known_outcome_journal.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_work_store"
+    },
+    {
+      "count": 5,
+      "path": "src/utils/quick_scan_mcp_journal.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_work_store"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_model_policy_cli.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.config.llm_config"
+    },
+    {
+      "count": 3,
+      "path": "src/utils/quick_scan_observation_context.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.interfaces.quick_scan_work_values"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_observation_context.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.providers.llm_response_parser"
+    },
+    {
+      "count": 5,
+      "path": "src/utils/quick_scan_observation_context.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_subject_context"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_owner_budget_continuation.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.interfaces.quick_scan_work_values"
+    },
+    {
+      "count": 7,
+      "path": "src/utils/quick_scan_owner_budget_continuation.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_owner_budget_continuation_v15"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_owner_budget_continuation.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_owner_refresh_api"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_owner_budget_continuation.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_work_transport"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_owner_budget_continuation_v15.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.interfaces.quick_scan_work_values"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_owner_budget_continuation_v15.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_owner_budget_continuation"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_owner_budget_continuation_v15.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_owner_refresh_journal"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_owner_budget_continuation_v15.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_question_pack_journal"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_owner_budget_continuation_v15.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_refresh_inspect"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_owner_budget_continuation_v15.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_research_intent"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_owner_refresh.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.core.models"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_owner_refresh.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_observation_context"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_owner_refresh.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_owner_refresh_journal"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_owner_refresh.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_subject_context"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_owner_refresh.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_subject_journal"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_owner_refresh.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_subject_owner"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_owner_refresh_api.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_result_outbox"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_owner_refresh_journal.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_known_outcome_journal"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_owner_refresh_journal.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_result_outbox"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_owner_refresh_journal.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_work_control"
+    },
+    {
+      "count": 6,
+      "path": "src/utils/quick_scan_owner_refresh_journal.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_work_store"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_owner_research.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.providers.llm_client"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_owner_research.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_company_api"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_owner_research.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_owner_budget_continuation"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_owner_research.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_owner_refresh_api"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_owner_research.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_provided_context"
+    },
+    {
+      "count": 5,
+      "path": "src/utils/quick_scan_owner_research.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_research_intent"
+    },
+    {
+      "count": 3,
+      "path": "src/utils/quick_scan_owner_research.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_research_session"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_owner_research.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_result_outbox"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_owner_research.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_work_store"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_owner_research.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_work_transport"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_prepaid_quota.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.config.quick_scan_search_policy"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_prepaid_quota.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_external_journal"
+    },
+    {
+      "count": 3,
+      "path": "src/utils/quick_scan_prepaid_quota.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_work_store"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_provided_context.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.interfaces.quick_scan_work_values"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_provided_context.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_owner_refresh_journal"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_provided_context.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_research_intent"
+    },
+    {
+      "count": 8,
+      "path": "src/utils/quick_scan_question_pack_journal.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.interfaces.quick_scan_work_values"
+    },
+    {
+      "count": 3,
+      "path": "src/utils/quick_scan_question_pack_journal.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.providers.model_resolution"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_question_pack_journal.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_owner_refresh_journal"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_question_pack_journal.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_subject_journal"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_refresh_admission.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.config.json_config_manager"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_refresh_admission.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.runners.llm_runner"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_refresh_admission.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_c06_authority"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_refresh_admission.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_owner_refresh_journal"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_refresh_admission.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_question_manifest"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_refresh_admission_cli.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_refresh_admission"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_refresh_admission_journal.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_owner_refresh_journal"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_refresh_admission_journal.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_refresh_batch"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_refresh_admission_journal.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_subject_context"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_refresh_batch.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_owner_budget_continuation"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_refresh_batch.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_refresh_admission_journal"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_refresh_consent.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_delegated_consent"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_refresh_consent.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_owner_refresh_journal"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_refresh_execution.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.core.models"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_refresh_execution.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.providers.llm_client"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_refresh_execution.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.providers.llm_response_parser"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_refresh_execution.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_delivery_seal"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_refresh_execution.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_observation_context"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_refresh_execution.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_owner_refresh_api"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_refresh_execution.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_result_outbox"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_refresh_execution.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_result_proof"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_refresh_execution.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_work_store"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_refresh_execution.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_work_transport"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_refresh_inspect.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_known_outcome_journal"
+    },
+    {
+      "count": 3,
+      "path": "src/utils/quick_scan_refresh_inspect.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_owner_budget_continuation"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_refresh_inspect.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_owner_budget_continuation_v15"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_refresh_inspect.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_owner_budget_permissions"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_refresh_inspect.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_owner_refresh_journal"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_refresh_inspect.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_work_control"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_registered_permissions_cli.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_refresh_admission"
+    },
+    {
+      "count": 3,
+      "path": "src/utils/quick_scan_research_intent.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.interfaces.quick_scan_work_values"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_research_intent.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_provided_context"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_research_intent.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_work_store"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_research_intent.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_work_transport"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_research_output.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.interfaces.quick_scan_work_values"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_research_output.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.providers.llm_response_parser"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_research_output.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_work_store"
+    },
+    {
+      "count": 5,
+      "path": "src/utils/quick_scan_research_session.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.interfaces.quick_scan_work_values"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_research_session.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.providers.model_resolution"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_research_session.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_owner_refresh_api"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_research_session.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_research_output"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_research_session.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_work_store"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_result_outbox.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.interfaces.json_fields"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_saved_research_publication.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_company_api"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_saved_research_publication.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_delivery_seal"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_saved_research_publication.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_observation_context"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_saved_research_publication.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_subject_journal"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_saved_research_publication.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_work_decision_inspect"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_saved_research_publication.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_work_store"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_shared_company.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_owner_research"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_shared_company.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_research_intent"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_shared_routes.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.core.models"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_shared_routes.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.providers.llm_research_client"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_shared_routes.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_company_api"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_shared_routes.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_shared_company"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_subject_journal.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_observation_context"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_subject_journal.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_owner_refresh_journal"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_subject_journal.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_work_store"
+    },
+    {
+      "count": 3,
+      "path": "src/utils/quick_scan_uncertain_seal.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_work_store"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_control.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_known_outcome_journal"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_decision_apply_cli.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_c06_authority"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_decision_apply_cli.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_saved_research_publication"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_work_decision_authority.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_known_outcome_journal"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_decision_authority.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_saved_research_publication"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_decision_inspect.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_known_outcome_journal"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_work_decision_inspect.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_saved_research_publication"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_decision_inspect_cli.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_refresh_inspect"
+    },
+    {
+      "count": 4,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.providers.model_resolution"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_delivery_seal"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_external_continuation"
+    },
+    {
+      "count": 10,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_external_journal"
+    },
+    {
+      "count": 8,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_known_outcome_journal"
+    },
+    {
+      "count": 6,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_mcp_journal"
+    },
+    {
+      "count": 4,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_observation_context"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_owner_budget_continuation"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_owner_refresh_api"
+    },
+    {
+      "count": 9,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_owner_refresh_journal"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_prepaid_quota"
+    },
+    {
+      "count": 3,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_provided_context"
+    },
+    {
+      "count": 13,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_question_pack_journal"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_refresh_admission_journal"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_research_output"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_research_session"
+    },
+    {
+      "count": 15,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_result_outbox"
+    },
+    {
+      "count": 3,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_saved_research_publication"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_subject_context"
+    },
+    {
+      "count": 5,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_subject_journal"
+    },
+    {
+      "count": 3,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_uncertain_seal"
+    },
+    {
+      "count": 3,
+      "path": "src/utils/quick_scan_work_transport.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.providers.model_resolution"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_work_transport.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_external_context"
+    },
+    {
+      "count": 3,
+      "path": "src/utils/quick_scan_work_transport.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_observation_context"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_transport.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_owner_budget_continuation"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_work_transport.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_owner_refresh_api"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_work_transport.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_research_intent"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_work_transport.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_research_session"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_work_transport.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_subject_journal"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_transport.py",
+      "rule": "AT-06",
+      "signal": "deferred-import:src.utils.quick_scan_uncertain_seal"
+    },
+    {
+      "count": 3,
+      "path": "src/utils/quick_scan_attempt_receipts.py",
+      "rule": "AT-07",
+      "signal": "literal-sql-outside-owner"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_execution_inspect.py",
+      "rule": "AT-07",
+      "signal": "literal-sql-outside-owner"
+    },
+    {
+      "count": 13,
+      "path": "src/utils/quick_scan_external_continuation.py",
+      "rule": "AT-07",
+      "signal": "literal-sql-outside-owner"
+    },
+    {
+      "count": 27,
+      "path": "src/utils/quick_scan_external_journal.py",
+      "rule": "AT-07",
+      "signal": "literal-sql-outside-owner"
+    },
+    {
+      "count": 10,
+      "path": "src/utils/quick_scan_feedback_observation.py",
+      "rule": "AT-07",
+      "signal": "literal-sql-outside-owner"
+    },
+    {
+      "count": 7,
+      "path": "src/utils/quick_scan_feedback_owner.py",
+      "rule": "AT-07",
+      "signal": "literal-sql-outside-owner"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_feedback_owner.py",
+      "rule": "AT-07",
+      "signal": "sqlite-connection-outside-owner"
+    },
+    {
+      "count": 6,
+      "path": "src/utils/quick_scan_feedback_registry.py",
+      "rule": "AT-07",
+      "signal": "literal-sql-outside-owner"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_feedback_registry.py",
+      "rule": "AT-07",
+      "signal": "sqlite-connection-outside-owner"
+    },
+    {
+      "count": 34,
+      "path": "src/utils/quick_scan_known_outcome_journal.py",
+      "rule": "AT-07",
+      "signal": "literal-sql-outside-owner"
+    },
+    {
+      "count": 20,
+      "path": "src/utils/quick_scan_mcp_journal.py",
+      "rule": "AT-07",
+      "signal": "literal-sql-outside-owner"
+    },
+    {
+      "count": 30,
+      "path": "src/utils/quick_scan_owner_budget_continuation.py",
+      "rule": "AT-07",
+      "signal": "literal-sql-outside-owner"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_owner_budget_continuation.py",
+      "rule": "AT-07",
+      "signal": "sqlite-connection-outside-owner"
+    },
+    {
+      "count": 11,
+      "path": "src/utils/quick_scan_owner_budget_continuation_v15.py",
+      "rule": "AT-07",
+      "signal": "literal-sql-outside-owner"
+    },
+    {
+      "count": 9,
+      "path": "src/utils/quick_scan_owner_refresh_journal.py",
+      "rule": "AT-07",
+      "signal": "literal-sql-outside-owner"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_owner_research.py",
+      "rule": "AT-07",
+      "signal": "literal-sql-outside-owner"
+    },
+    {
+      "count": 23,
+      "path": "src/utils/quick_scan_prepaid_quota.py",
+      "rule": "AT-07",
+      "signal": "literal-sql-outside-owner"
+    },
+    {
+      "count": 4,
+      "path": "src/utils/quick_scan_provided_context.py",
+      "rule": "AT-07",
+      "signal": "literal-sql-outside-owner"
+    },
+    {
+      "count": 38,
+      "path": "src/utils/quick_scan_provider_health.py",
+      "rule": "AT-07",
+      "signal": "literal-sql-outside-owner"
+    },
+    {
+      "count": 6,
+      "path": "src/utils/quick_scan_provider_health.py",
+      "rule": "AT-07",
+      "signal": "private-connection-outside-owner"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_provider_health.py",
+      "rule": "AT-07",
+      "signal": "sqlite-connection-outside-owner"
+    },
+    {
+      "count": 20,
+      "path": "src/utils/quick_scan_question_pack_journal.py",
+      "rule": "AT-07",
+      "signal": "literal-sql-outside-owner"
+    },
+    {
+      "count": 3,
+      "path": "src/utils/quick_scan_refresh_admission.py",
+      "rule": "AT-07",
+      "signal": "literal-sql-outside-owner"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_refresh_admission.py",
+      "rule": "AT-07",
+      "signal": "sqlite-connection-outside-owner"
+    },
+    {
+      "count": 5,
+      "path": "src/utils/quick_scan_refresh_admission_journal.py",
+      "rule": "AT-07",
+      "signal": "literal-sql-outside-owner"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_refresh_batch.py",
+      "rule": "AT-07",
+      "signal": "literal-sql-outside-owner"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_refresh_execution.py",
+      "rule": "AT-07",
+      "signal": "literal-sql-outside-owner"
+    },
+    {
+      "count": 14,
+      "path": "src/utils/quick_scan_refresh_inspect.py",
+      "rule": "AT-07",
+      "signal": "literal-sql-outside-owner"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_refresh_inspect.py",
+      "rule": "AT-07",
+      "signal": "private-connection-outside-owner"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_refresh_inspect.py",
+      "rule": "AT-07",
+      "signal": "sqlite-connection-outside-owner"
+    },
+    {
+      "count": 5,
+      "path": "src/utils/quick_scan_research_intent.py",
+      "rule": "AT-07",
+      "signal": "literal-sql-outside-owner"
+    },
+    {
+      "count": 10,
+      "path": "src/utils/quick_scan_research_output.py",
+      "rule": "AT-07",
+      "signal": "literal-sql-outside-owner"
+    },
+    {
+      "count": 10,
+      "path": "src/utils/quick_scan_research_session.py",
+      "rule": "AT-07",
+      "signal": "literal-sql-outside-owner"
+    },
+    {
+      "count": 18,
+      "path": "src/utils/quick_scan_saved_research_publication.py",
+      "rule": "AT-07",
+      "signal": "literal-sql-outside-owner"
+    },
+    {
+      "count": 8,
+      "path": "src/utils/quick_scan_subject_journal.py",
+      "rule": "AT-07",
+      "signal": "literal-sql-outside-owner"
+    },
+    {
+      "count": 14,
+      "path": "src/utils/quick_scan_uncertain_seal.py",
+      "rule": "AT-07",
+      "signal": "literal-sql-outside-owner"
+    },
+    {
+      "count": 3,
+      "path": "src/utils/quick_scan_work_decision_authority.py",
+      "rule": "AT-07",
+      "signal": "literal-sql-outside-owner"
+    },
+    {
+      "count": 3,
+      "path": "src/utils/quick_scan_work_decision_inspect.py",
+      "rule": "AT-07",
+      "signal": "literal-sql-outside-owner"
+    },
+    {
+      "count": 1,
+      "path": "main_with_llm.py",
+      "rule": "AT-08",
+      "signal": "path-injection-shim"
+    },
+    {
+      "count": 1,
+      "path": "scripts/validate_and_fix_skipped.py",
+      "rule": "AT-08",
+      "signal": "path-injection-shim"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_saved_research_publication.py",
+      "rule": "AT-08",
+      "signal": "path-injection-shim"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_shared_company.py",
+      "rule": "AT-08",
+      "signal": "path-injection-shim"
+    },
+    {
+      "count": 1,
+      "path": "main.py",
+      "rule": "AT-11",
+      "signal": "logged-error-without-stack"
+    },
+    {
+      "count": 3,
+      "path": "main_with_llm.py",
+      "rule": "AT-11",
+      "signal": "logged-error-without-stack"
+    },
+    {
+      "count": 2,
+      "path": "scripts/insert_methods.py",
+      "rule": "AT-11",
+      "signal": "host-path-literal"
+    },
+    {
+      "count": 7,
+      "path": "src/cli/batch_processor.py",
+      "rule": "AT-11",
+      "signal": "logged-error-without-stack"
+    },
+    {
+      "count": 3,
+      "path": "src/config/config_manager.py",
+      "rule": "AT-11",
+      "signal": "logged-error-without-stack"
+    },
+    {
+      "count": 3,
+      "path": "src/config/config_manager.py",
+      "rule": "AT-11",
+      "signal": "raise-without-explicit-cause"
+    },
+    {
+      "count": 4,
+      "path": "src/config/json_config_manager.py",
+      "rule": "AT-11",
+      "signal": "logged-error-without-stack"
+    },
+    {
+      "count": 4,
+      "path": "src/config/json_config_manager.py",
+      "rule": "AT-11",
+      "signal": "raise-without-explicit-cause"
+    },
+    {
+      "count": 2,
+      "path": "src/config/llm_config.py",
+      "rule": "AT-11",
+      "signal": "logged-error-without-stack"
+    },
+    {
+      "count": 1,
+      "path": "src/core/container.py",
+      "rule": "AT-11",
+      "signal": "logged-error-without-stack"
+    },
+    {
+      "count": 4,
+      "path": "src/core/qa_engine.py",
+      "rule": "AT-11",
+      "signal": "logged-error-without-stack"
+    },
+    {
+      "count": 1,
+      "path": "src/core/qa_engine.py",
+      "rule": "AT-11",
+      "signal": "silent-broad-except"
+    },
+    {
+      "count": 3,
+      "path": "src/interfaces/batch_strategy.py",
+      "rule": "AT-11",
+      "signal": "logged-error-without-stack"
+    },
+    {
+      "count": 3,
+      "path": "src/interfaces/quick_scan_work_values.py",
+      "rule": "AT-11",
+      "signal": "suppressed-cause-without-local-log"
+    },
+    {
+      "count": 7,
+      "path": "src/providers/async_llm_provider.py",
+      "rule": "AT-11",
+      "signal": "logged-error-without-stack"
+    },
+    {
+      "count": 1,
+      "path": "src/providers/external_search_parsers.py",
+      "rule": "AT-11",
+      "signal": "suppressed-cause-without-local-log"
+    },
+    {
+      "count": 1,
+      "path": "src/providers/external_search_provider.py",
+      "rule": "AT-11",
+      "signal": "suppressed-cause-without-local-log"
+    },
+    {
+      "count": 1,
+      "path": "src/providers/llm_client.py",
+      "rule": "AT-11",
+      "signal": "silent-broad-except"
+    },
+    {
+      "count": 2,
+      "path": "src/providers/llm_client.py",
+      "rule": "AT-11",
+      "signal": "suppressed-cause-without-local-log"
+    },
+    {
+      "count": 3,
+      "path": "src/providers/llm_provider.py",
+      "rule": "AT-11",
+      "signal": "logged-error-without-stack"
+    },
+    {
+      "count": 2,
+      "path": "src/providers/llm_provider.py",
+      "rule": "AT-11",
+      "signal": "suppressed-cause-without-local-log"
+    },
+    {
+      "count": 2,
+      "path": "src/providers/llm_research_client.py",
+      "rule": "AT-11",
+      "signal": "suppressed-cause-without-local-log"
+    },
+    {
+      "count": 4,
+      "path": "src/providers/llm_response_parser.py",
+      "rule": "AT-11",
+      "signal": "logged-error-without-stack"
+    },
+    {
+      "count": 2,
+      "path": "src/runners/basic_runner.py",
+      "rule": "AT-11",
+      "signal": "logged-error-without-stack"
+    },
+    {
+      "count": 12,
+      "path": "src/runners/llm_runner.py",
+      "rule": "AT-11",
+      "signal": "logged-error-without-stack"
+    },
+    {
+      "count": 1,
+      "path": "src/services/answer_generator.py",
+      "rule": "AT-11",
+      "signal": "logged-error-without-stack"
+    },
+    {
+      "count": 1,
+      "path": "src/services/search_service.py",
+      "rule": "AT-11",
+      "signal": "logged-error-without-stack"
+    },
+    {
+      "count": 1,
+      "path": "src/services/search_service.py",
+      "rule": "AT-11",
+      "signal": "raise-without-explicit-cause"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/execution_feedback.py",
+      "rule": "AT-11",
+      "signal": "discarded-process-stderr"
+    },
+    {
+      "count": 3,
+      "path": "src/utils/llm_integration.py",
+      "rule": "AT-11",
+      "signal": "silent-broad-except"
+    },
+    {
+      "count": 3,
+      "path": "src/utils/output_validator.py",
+      "rule": "AT-11",
+      "signal": "logged-error-without-stack"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/output_validator.py",
+      "rule": "AT-11",
+      "signal": "raise-without-explicit-cause"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_company_api.py",
+      "rule": "AT-11",
+      "signal": "suppressed-cause-without-local-log"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_cost_resolver.py",
+      "rule": "AT-11",
+      "signal": "suppressed-cause-without-local-log"
+    },
+    {
+      "count": 5,
+      "path": "src/utils/quick_scan_delivery_seal.py",
+      "rule": "AT-11",
+      "signal": "logged-error-without-stack"
+    },
+    {
+      "count": 3,
+      "path": "src/utils/quick_scan_external_context.py",
+      "rule": "AT-11",
+      "signal": "suppressed-cause-without-local-log"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_result_outbox.py",
+      "rule": "AT-11",
+      "signal": "suppressed-cause-without-local-log"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/quick_scan_work_store.py",
+      "rule": "AT-11",
+      "signal": "suppressed-cause-without-local-log"
+    },
+    {
+      "count": 2,
+      "path": "src/utils/quick_scan_work_transport.py",
+      "rule": "AT-11",
+      "signal": "raise-without-explicit-cause"
+    },
+    {
+      "count": 1,
+      "path": "src/utils/security.py",
+      "rule": "AT-11",
+      "signal": "raise-without-explicit-cause"
+    },
+    {
+      "count": 1,
+      "path": "scripts/checks.py",
+      "rule": "AT-12",
+      "signal": "fixed-test-list:DAILY_TEST_TARGETS"
+    }
+  ],
+  "schema": "s6-static-baseline/1",
+  "source_files": [
+    "main.py",
+    "main_with_llm.py",
+    "scripts/add_missing_methods.py",
+    "scripts/checks.py",
+    "scripts/fix_logging.py",
+    "scripts/insert_methods.py",
+    "scripts/security_scan.py",
+    "scripts/validate_and_fix_skipped.py",
+    "src/__init__.py",
+    "src/cli/__init__.py",
+    "src/cli/batch_processor.py",
+    "src/config/__init__.py",
+    "src/config/config_manager.py",
+    "src/config/config_provider.py",
+    "src/config/factory.py",
+    "src/config/json_config_manager.py",
+    "src/config/llm_config.py",
+    "src/config/quick_scan_search_policy.py",
+    "src/config/settings.py",
+    "src/core/__init__.py",
+    "src/core/container.py",
+    "src/core/exceptions.py",
+    "src/core/models.py",
+    "src/core/qa_engine.py",
+    "src/interfaces/__init__.py",
+    "src/interfaces/batch_strategy.py",
+    "src/interfaces/formatter.py",
+    "src/interfaces/json_fields.py",
+    "src/interfaces/progress_reporter.py",
+    "src/interfaces/quick_scan_company.py",
+    "src/interfaces/quick_scan_lifecycle.py",
+    "src/interfaces/quick_scan_owner_refresh.py",
+    "src/interfaces/quick_scan_result_proof.py",
+    "src/interfaces/quick_scan_work_values.py",
+    "src/interfaces/search_provider.py",
+    "src/interfaces/sqlite_reader.py",
+    "src/interfaces/transport_outcome.py",
+    "src/providers/__init__.py",
+    "src/providers/async_llm_provider.py",
+    "src/providers/base_llm_provider.py",
+    "src/providers/continuation_protocol.py",
+    "src/providers/external_search_parsers.py",
+    "src/providers/external_search_provider.py",
+    "src/providers/llm_client.py",
+    "src/providers/llm_provider.py",
+    "src/providers/llm_research_client.py",
+    "src/providers/llm_response_parser.py",
+    "src/providers/llm_retry_strategy.py",
+    "src/providers/model_resolution.py",
+    "src/providers/search_capability.py",
+    "src/runners/__init__.py",
+    "src/runners/basic_runner.py",
+    "src/runners/llm_runner.py",
+    "src/services/__init__.py",
+    "src/services/answer_generator.py",
+    "src/services/search_service.py",
+    "src/utils/__init__.py",
+    "src/utils/_quick_scan_company_task_factory.py",
+    "src/utils/_quick_scan_owner_io.py",
+    "src/utils/_quick_scan_owner_refresh_port.py",
+    "src/utils/cache.py",
+    "src/utils/console_reporter.py",
+    "src/utils/execution_feedback.py",
+    "src/utils/http_client.py",
+    "src/utils/llm_integration.py",
+    "src/utils/logger.py",
+    "src/utils/output_validator.py",
+    "src/utils/quick_scan_attempt_receipts.py",
+    "src/utils/quick_scan_c06_adapter.py",
+    "src/utils/quick_scan_c06_authority.py",
+    "src/utils/quick_scan_company_api.py",
+    "src/utils/quick_scan_company_context.py",
+    "src/utils/quick_scan_company_runtime.py",
+    "src/utils/quick_scan_continuation_bank_cli.py",
+    "src/utils/quick_scan_cost_resolver.py",
+    "src/utils/quick_scan_delegated_consent.py",
+    "src/utils/quick_scan_delivery_control_cli.py",
+    "src/utils/quick_scan_delivery_scope_cli.py",
+    "src/utils/quick_scan_delivery_seal.py",
+    "src/utils/quick_scan_evidence.py",
+    "src/utils/quick_scan_execution_inspect.py",
+    "src/utils/quick_scan_execution_inspect_cli.py",
+    "src/utils/quick_scan_external_context.py",
+    "src/utils/quick_scan_external_continuation.py",
+    "src/utils/quick_scan_external_journal.py",
+    "src/utils/quick_scan_feedback_observation.py",
+    "src/utils/quick_scan_feedback_owner.py",
+    "src/utils/quick_scan_feedback_registry.py",
+    "src/utils/quick_scan_known_outcome_journal.py",
+    "src/utils/quick_scan_mcp_journal.py",
+    "src/utils/quick_scan_metric_coordinates.py",
+    "src/utils/quick_scan_model_policy_cli.py",
+    "src/utils/quick_scan_observation_context.py",
+    "src/utils/quick_scan_owner_budget_continuation.py",
+    "src/utils/quick_scan_owner_budget_continuation_v15.py",
+    "src/utils/quick_scan_owner_budget_permissions.py",
+    "src/utils/quick_scan_owner_process_env.py",
+    "src/utils/quick_scan_owner_refresh.py",
+    "src/utils/quick_scan_owner_refresh_api.py",
+    "src/utils/quick_scan_owner_refresh_journal.py",
+    "src/utils/quick_scan_owner_research.py",
+    "src/utils/quick_scan_prepaid_quota.py",
+    "src/utils/quick_scan_provided_context.py",
+    "src/utils/quick_scan_provider_health.py",
+    "src/utils/quick_scan_question_manifest.py",
+    "src/utils/quick_scan_question_pack_journal.py",
+    "src/utils/quick_scan_refresh_admission.py",
+    "src/utils/quick_scan_refresh_admission_cli.py",
+    "src/utils/quick_scan_refresh_admission_journal.py",
+    "src/utils/quick_scan_refresh_batch.py",
+    "src/utils/quick_scan_refresh_consent.py",
+    "src/utils/quick_scan_refresh_execution.py",
+    "src/utils/quick_scan_refresh_inspect.py",
+    "src/utils/quick_scan_refresh_inspect_cli.py",
+    "src/utils/quick_scan_registered_permissions_cli.py",
+    "src/utils/quick_scan_research_intent.py",
+    "src/utils/quick_scan_research_output.py",
+    "src/utils/quick_scan_research_session.py",
+    "src/utils/quick_scan_result_outbox.py",
+    "src/utils/quick_scan_result_proof.py",
+    "src/utils/quick_scan_saved_research_publication.py",
+    "src/utils/quick_scan_shared_company.py",
+    "src/utils/quick_scan_shared_routes.py",
+    "src/utils/quick_scan_subject_context.py",
+    "src/utils/quick_scan_subject_journal.py",
+    "src/utils/quick_scan_subject_owner.py",
+    "src/utils/quick_scan_uncertain_seal.py",
+    "src/utils/quick_scan_work_control.py",
+    "src/utils/quick_scan_work_decision_apply_cli.py",
+    "src/utils/quick_scan_work_decision_authority.py",
+    "src/utils/quick_scan_work_decision_inspect.py",
+    "src/utils/quick_scan_work_decision_inspect_cli.py",
+    "src/utils/quick_scan_work_store.py",
+    "src/utils/quick_scan_work_transport.py",
+    "src/utils/security.py"
+  ]
+}
