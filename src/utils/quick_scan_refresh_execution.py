@@ -969,7 +969,7 @@ class ApprovedRefreshSession:
             raise AdmissionRejected("refresh_checkpoint_original_binding_required")
         binding = original["binding"]
         self._assert_original_registered_binding(qid, work, binding, store=store)
-        checkpoint = store.get_answer_checkpoint(work["work_item_id"])
+        checkpoint = store.get_answer_checkpoint(work["work_item_id"], for_recovery=True)
         context = store.get_observation_context(work["work_item_id"])
         standard = store.get_standard_answer(work["work_item_id"])
         if checkpoint is None or context is None or standard is None:

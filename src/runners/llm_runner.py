@@ -785,7 +785,9 @@ class QuickScanWorkLifecycle:
                     scan_id=self._scan_id,
                 )
                 references["work_item_id"] = row["work_item_id"]
-                checkpoint = self._store.get_answer_checkpoint(row["work_item_id"])
+                checkpoint = self._store.get_answer_checkpoint(
+                    row["work_item_id"], for_recovery=True
+                )
             if checkpoint is None:
                 return None
             references["work_attempt_id"] = checkpoint["attempt_id"]
@@ -815,7 +817,7 @@ class QuickScanWorkLifecycle:
                     execution, work_store=self._store, work_item_id=row["work_item_id"]
                 )
                 checkpoint = {**checkpoint, "external_execution_metadata": execution}
-        except (KeyError, ValueError, SQLiteError, ProcessingError) as error:
+        except (NativeCheckpointReadError, SQLiteError, ProcessingError) as error:
             diagnostic = _record_checkpoint_failure(error, **references)
             raise CheckpointUnavailable(diagnostic) from error
         logger.info("Q07 水合已存检查点（%s）", question_id)
@@ -1708,8 +1710,8 @@ def recovery_report(store: QuickScanWorkStore, *, run_id: str, scan_id: str) -> 
     for item in items:
         work_item_id = item["work_item_id"]
         try:
-            checkpoint = store.get_answer_checkpoint(work_item_id)
-        except (ValueError, WorkConflictError, SQLiteError) as error:
+            checkpoint = store.get_answer_checkpoint(work_item_id, for_recovery=True)
+        except (ValueError, SQLiteError) as error:
             report["checkpoint_unavailable"].append(work_item_id)
             _record_checkpoint_failure(error, run_id=run_id, work_item_id=work_item_id)
             continue

@@ -4511,8 +4511,13 @@ class QuickScanWorkStore:
             return self._checkpoint_record(connection, row)
 
     def get_answer_checkpoint(
-        self, work_item_id: str, *, allow_research: bool = False
+        self, work_item_id: str, *, allow_research: bool = False, for_recovery: bool = False
     ) -> Optional[dict]:
+        """Read the original checkpoint through the same validation for both callers.
+
+        Recovery retains the failed row's identity for the authoritative cold result.
+        Direct readers continue to receive the store's original validation error.
+        """
         _safe(work_item_id, "work_item_id")
         with closing(self._connect()) as connection:
             self._item(connection, work_item_id)
@@ -4529,6 +4534,8 @@ class QuickScanWorkStore:
             try:
                 return self._checkpoint_record(connection, row)
             except (ValueError, KeyError, sqlite3.Error) as error:
+                if not for_recovery:
+                    raise
                 raise NativeCheckpointReadError(work_item_id, row["attempt_id"]) from error
 
     @staticmethod

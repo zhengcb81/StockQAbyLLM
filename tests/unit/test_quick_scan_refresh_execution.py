@@ -895,15 +895,23 @@ def test_ready_recovery_refuses_changed_original_material_or_unreceived_work(
         elif fault == "wrong_model":
             original = store.get_answer_checkpoint
 
-            def changed(*args):
-                saved = original(*args)
+            def changed(*args, **kwargs):
+                saved = original(*args, **kwargs)
                 saved["payload"]["provenance"]["model_requested"] = "different-model"
                 return saved
 
             monkeypatch.setattr(store, "get_answer_checkpoint", changed)
         else:
             question = Question("Wrong question meaning", question_id=question.question_id)
-        assert lifecycle.hydrate_question(question) is None
+        expected_reason = {
+            "context_hash": "refresh_checkpoint_original_inputs_changed",
+            "answer_hash": "refresh_checkpoint_original_inputs_changed",
+            "response_missing": "refresh_checkpoint_original_response_required",
+            "wrong_model": "refresh_checkpoint_original_model_changed",
+            "wrong_question": "refresh_checkpoint_original_inputs_changed",
+        }
+        with pytest.raises(AdmissionRejected, match=expected_reason[fault]):
+            lifecycle.hydrate_question(question)
     assert store.path.read_bytes() == before
 
 

@@ -304,7 +304,7 @@ def _classify(
         return "skip_cancelled", current["generation"], work_item_id
 
     try:
-        checkpoint = store.get_answer_checkpoint(work_item_id)
+        checkpoint = store.get_answer_checkpoint(work_item_id, for_recovery=True)
     except NativeCheckpointReadError:
         return "checkpoint_unavailable", current["generation"], work_item_id
     if checkpoint is None:
