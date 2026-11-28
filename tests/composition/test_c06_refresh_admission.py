@@ -29,6 +29,24 @@ from tests.composition.test_c06_subject_public_e2e import OWN, actual, invoke, u
 from tests.unit.test_quick_scan_budget import _policy
 
 
+def setup_admission_membership(identity, entity_id):
+    identity.create_universe("admit-pool", "Synthetic test only", soft_target_capacity=1)
+    receipt = apply_membership_request(
+        identity,
+        dict(
+            action="add",
+            universe_id="admit-pool",
+            entity_id=entity_id,
+            priority=0,
+            pin=False,
+            reason="synthetic",
+            idempotency_key="fixture-admit-member",
+        ),
+        at=utc(),
+    )
+    assert receipt["status"] == "applied", receipt
+
+
 def setup_admission(
     actual,
     tmp_path,
@@ -63,20 +81,7 @@ def setup_admission(
         metadata["subject_binding"]["subject_ref"],
         metadata["metadata"]["field_id"],
     )
-    routes.identity.create_universe("admit-pool", "Synthetic test only", soft_target_capacity=1)
-    apply_membership_request(
-        routes.identity,
-        dict(
-            action="add",
-            universe_id="admit-pool",
-            entity_id=ref["entity_id"],
-            priority=0,
-            pin=False,
-            reason="synthetic",
-            idempotency_key="fixture-admit-member",
-        ),
-        at=utc(),
-    )
+    setup_admission_membership(routes.identity, ref["entity_id"])
     policy = policy or _policy(model="fixture-model")
     ledger = QuickScanWorkStore(ledger_path or tmp_path / "executor.sqlite")
     ledger.configure_quick_scan_budget(policy)

@@ -18,6 +18,7 @@ from stockwiki.quick_scan_refresh_records import RefreshRecordStore
 
 from src.utils.quick_scan_result_outbox import canonical_sha256
 from src.utils.quick_scan_work_store import QuickScanWorkStore
+from tests.composition.test_c06_refresh_admission import setup_admission_membership
 from tests.composition.test_c06_subject_public_e2e import OWN, invoke, utc
 from tests.unit.test_quick_scan_budget import _policy
 
@@ -54,20 +55,7 @@ def setup_delegated(
     ]
     metadata = authority["observation_context"]["questions"][q["id"]]
     ref = metadata["subject_binding"]["subject_ref"]
-    routes.identity.create_universe("admit-pool", "Synthetic test only", soft_target_capacity=1)
-    routes.identity.save_member(
-        dict(
-            universe_id="admit-pool",
-            entity_id=ref["entity_id"],
-            membership_status="active",
-            manual_pin=False,
-            scan_enabled=True,
-            priority=0,
-            added_at=utc(),
-            added_reason="synthetic",
-            version=1,
-        )
-    )
+    setup_admission_membership(routes.identity, ref["entity_id"])
     policy = policy or _policy(model="fixture-model")
     ledger = QuickScanWorkStore(ledger_path or tmp_path / "executor.sqlite")
     ledger.configure_quick_scan_budget(policy)
