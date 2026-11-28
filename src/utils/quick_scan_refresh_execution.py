@@ -9,10 +9,13 @@ import copy
 import hashlib
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from json import JSONDecodeError
 from pathlib import Path
+from sqlite3 import Error as SQLiteError
 
 from src.interfaces.quick_scan_owner_refresh import QuickScanOwnerRefreshPort
 from src.interfaces.quick_scan_result_proof import QuickScanResultProofPort
+from src.interfaces.quick_scan_work_values import NativeCheckpointReadError
 
 from .logger import record_execution_failure
 from .quick_scan_owner_refresh import OwnerRefreshRejected, public_observation_reference
@@ -969,10 +972,23 @@ class ApprovedRefreshSession:
             raise AdmissionRejected("refresh_checkpoint_original_binding_required")
         binding = original["binding"]
         self._assert_original_registered_binding(qid, work, binding, store=store)
-        checkpoint = store.get_answer_checkpoint(work["work_item_id"], for_recovery=True)
-        context = store.get_observation_context(work["work_item_id"])
-        standard = store.get_standard_answer(work["work_item_id"])
-        if checkpoint is None or context is None or standard is None:
+        work_item_id = work["work_item_id"]
+        checkpoint = store.get_answer_checkpoint(work_item_id, for_recovery=True)
+        if checkpoint is None:
+            raise AdmissionRejected("refresh_checkpoint_original_complete_inputs_required")
+        attempt_id = checkpoint["attempt_id"]
+
+        def read_evidence(read, identity):
+            # A corrupt persisted attachment belongs to the original paid
+            # attempt. Business refusals below keep their own reason and type.
+            try:
+                return read(identity)
+            except (JSONDecodeError, UnicodeDecodeError, SQLiteError) as error:
+                raise NativeCheckpointReadError(work_item_id, attempt_id) from error
+
+        context = read_evidence(store.get_observation_context, work_item_id)
+        standard = read_evidence(store.get_standard_answer, work_item_id)
+        if context is None or standard is None:
             raise AdmissionRejected("refresh_checkpoint_original_complete_inputs_required")
         if (
             context["context_sha256"] != canonical_sha256(context["context"])
@@ -1041,10 +1057,10 @@ class ApprovedRefreshSession:
                 )
             ),
         )
-        response = store.get_attempt_response(checkpoint["attempt_id"])
+        response = read_evidence(store.get_attempt_response, attempt_id)
         if response is None:
             raise AdmissionRejected("refresh_checkpoint_original_response_required")
-        delivery = store.get_result_delivery(work["work_item_id"])
+        delivery = read_evidence(store.get_result_delivery, work_item_id)
         self.validate_session()
         return {
             **checkpoint,

@@ -915,6 +915,64 @@ def test_ready_recovery_refuses_changed_original_material_or_unreceived_work(
     assert store.path.read_bytes() == before
 
 
+@pytest.mark.parametrize(
+    ("table", "column", "where"),
+    [
+        (
+            "quick_scan_observation_context",
+            "context_json",
+            "context_sha256=(SELECT context_sha256 FROM quick_scan_work_context WHERE work_item_id=?)",
+        ),
+        ("quick_scan_standard_answer", "answer_json", "work_item_id=?"),
+    ],
+)
+def test_corrupt_paid_checkpoint_attachment_is_reported_under_the_original_work(
+    tmp_path,
+    monkeypatch,
+    table,
+    column,
+    where,
+):
+    import sqlite3
+    from contextlib import closing
+
+    from src.core.qa_engine import QAEngine
+
+    lifecycle, _, store, work, question = original_ready_session(tmp_path, monkeypatch)
+    work_id = work["work_item_id"]
+    original = store.get_answer_checkpoint(work_id)
+    trigger = table + "_no_update"
+    with closing(sqlite3.connect(store.path)) as connection, connection:
+        (trigger_sql,) = connection.execute(
+            "SELECT sql FROM sqlite_master WHERE type='trigger' AND name=?",
+            (trigger,),
+        ).fetchone()
+        connection.execute(f"DROP TRIGGER {trigger}")
+        assert (
+            connection.execute(
+                f"UPDATE {table} SET {column}=? WHERE {where}",
+                ("{", work_id),
+            ).rowcount
+            == 1
+        )
+        connection.execute(trigger_sql)
+    corrupt_bytes = store.path.read_bytes()
+    attempts = store.list_attempts(work_id)
+
+    outcome = QAEngine.hydrate_saved_questions([question], lifecycle, allow_partial=True)
+
+    (result,) = outcome.results
+    assert result.answer.status == "error" and result.answer.source == "answer_checkpoint"
+    diagnostic = result.metadata["failure_diagnostic"]
+    assert diagnostic["refusal_code"] == "checkpoint_unavailable"
+    assert diagnostic["references"]["work_item_id"] == work_id
+    assert diagnostic["references"]["work_attempt_id"] == original["attempt_id"]
+    assert diagnostic["root_type"] == "JSONDecodeError"
+    assert store.get_answer_checkpoint(work_id) == original
+    assert store.list_attempts(work_id) == attempts
+    assert store.path.read_bytes() == corrupt_bytes
+
+
 def test_received_recovery_runner_uses_original_inputs_before_model_spend_and_generation_checks(
     tmp_path, monkeypatch
 ):
