@@ -1,2 +1,6 @@
 # The historical C06 authority hashes this source fixture's exact original bytes.
 tests/fixtures/quick_scan_c06_manifest_v2_fixture.json -text whitespace=cr-at-eol
+
+# Public S6 IQS fixtures retain the published byte digests.
+tests/fixtures/quick_scan_c06_authority_observation_v12_fixture.json -text
+tests/fixtures/iqs_public_wire/schemas/quick_scan/*.schema.json -text whitespace=cr-at-eol

@@ -1,0 +1,1094 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://invest-quick-scan.local/schemas/query-capabilities-1.1.0.json",
+  "title": "Read-only supported capabilities and explicitly selected current coverage 1.1.0",
+  "$defs": {
+    "SubjectRef": {
+      "type": "object",
+      "properties": {
+        "entity_id": {
+          "type": "string",
+          "pattern": "^ENT_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "analysis_subject_id": {
+          "type": "string",
+          "pattern": "^ASJ_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "analysis_subject_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "primary_issuer_id": {
+          "type": "string",
+          "pattern": "^ENT_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "perimeter_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "scope": {
+          "enum": [
+            "entity",
+            "security",
+            "segment"
+          ]
+        },
+        "scope_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "security_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "listing_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "segment_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "maxLength": 160
+        }
+      },
+      "required": [
+        "entity_id",
+        "analysis_subject_id",
+        "analysis_subject_revision",
+        "primary_issuer_id",
+        "perimeter_sha256",
+        "scope",
+        "scope_id",
+        "security_id",
+        "listing_id",
+        "segment_id"
+      ],
+      "additionalProperties": false
+    },
+    "Selection": {
+      "type": "object",
+      "properties": {
+        "universe_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "field_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "maxItems": 200,
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "information_cutoff": {
+          "type": "string",
+          "format": "date"
+        },
+        "model_filter": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "provider": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 160
+                },
+                "model_resolved": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 160
+                }
+              },
+              "required": [
+                "provider",
+                "model_resolved"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "field_scope_selection": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 200,
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "additionalProperties": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 3,
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "entity",
+                "security",
+                "segment"
+              ]
+            }
+          }
+        }
+      },
+      "required": [
+        "universe_id",
+        "field_ids",
+        "information_cutoff",
+        "model_filter",
+        "field_scope_selection"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": "1.1.0"
+        },
+        "message_type": {
+          "const": "request"
+        },
+        "operation": {
+          "const": "capabilities"
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "consumer_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "requested_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "selection": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "universe_id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 160
+                    },
+                    "field_ids": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 160
+                      },
+                      "maxItems": 200,
+                      "minItems": 1,
+                      "uniqueItems": true
+                    },
+                    "information_cutoff": {
+                      "type": "string",
+                      "format": "date"
+                    },
+                    "model_filter": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 160
+                            },
+                            "model_resolved": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 160
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "model_resolved"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "field_scope_selection": {
+                      "type": "object",
+                      "minProperties": 1,
+                      "maxProperties": 200,
+                      "propertyNames": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 160
+                      },
+                      "additionalProperties": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 3,
+                        "uniqueItems": true,
+                        "items": {
+                          "enum": [
+                            "entity",
+                            "security",
+                            "segment"
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "universe_id",
+                    "field_ids",
+                    "information_cutoff",
+                    "model_filter",
+                    "field_scope_selection"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "required_operations": {
+              "type": "array",
+              "maxItems": 100,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            },
+            "required_query_versions": {
+              "type": "array",
+              "maxItems": 100,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            },
+            "required_market_filters": {
+              "type": "array",
+              "maxItems": 100,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            },
+            "required_native_purposes": {
+              "type": "array",
+              "maxItems": 100,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          },
+          "required": [
+            "selection",
+            "required_operations",
+            "required_query_versions",
+            "required_market_filters",
+            "required_native_purposes"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema_version",
+        "message_type",
+        "operation",
+        "request_id",
+        "consumer_id",
+        "requested_at",
+        "payload"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocol": {
+          "const": "stockwiki.c06_query_capabilities/1.1.0"
+        },
+        "schema_version": {
+          "const": "1.1.0"
+        },
+        "message_type": {
+          "const": "response"
+        },
+        "operation": {
+          "const": "capabilities"
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "response_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "store_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "supported_operations": {
+              "type": "array",
+              "maxItems": 100,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            },
+            "supported_query_wires": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "schema_version": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  },
+                  "operations": {
+                    "type": "array",
+                    "maxItems": 100,
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 160
+                    }
+                  }
+                },
+                "required": [
+                  "schema_version",
+                  "operations"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "market_support": {
+              "type": "object",
+              "properties": {
+                "profile_listing_scope": {
+                  "const": "any_owner_attested_listing"
+                },
+                "market_filter_domains": {
+                  "const": [
+                    "CN",
+                    "HK",
+                    "US"
+                  ]
+                }
+              },
+              "required": [
+                "profile_listing_scope",
+                "market_filter_domains"
+              ],
+              "additionalProperties": false
+            },
+            "identity_market_domains": {
+              "type": "array",
+              "uniqueItems": true,
+              "maxItems": 3,
+              "items": {
+                "enum": [
+                  "CN",
+                  "HK",
+                  "US"
+                ]
+              }
+            },
+            "identity_market_scan_status": {
+              "enum": [
+                "available",
+                "unavailable"
+              ]
+            },
+            "identity_market_scope": {
+              "enum": [
+                "owner_namespace",
+                "selected_universe"
+              ]
+            },
+            "unmapped_identity_market_labels": {
+              "type": "array",
+              "uniqueItems": true,
+              "maxItems": 5000,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            },
+            "capability_requirements": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "enum": [
+                    "satisfied",
+                    "missing"
+                  ]
+                },
+                "missing_operations": {
+                  "type": "array",
+                  "maxItems": 100,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  }
+                },
+                "missing_query_versions": {
+                  "type": "array",
+                  "maxItems": 100,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  }
+                },
+                "missing_market_filters": {
+                  "type": "array",
+                  "maxItems": 100,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  }
+                },
+                "missing_native_purposes": {
+                  "type": "array",
+                  "maxItems": 100,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  }
+                }
+              },
+              "required": [
+                "status",
+                "missing_operations",
+                "missing_query_versions",
+                "missing_market_filters",
+                "missing_native_purposes"
+              ],
+              "additionalProperties": false
+            },
+            "native_interfaces": {
+              "type": "array",
+              "minItems": 8,
+              "maxItems": 8,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "component": {
+                    "enum": [
+                      "StockWiki",
+                      "StockQA"
+                    ]
+                  },
+                  "entry_type": {
+                    "enum": [
+                      "module",
+                      "script"
+                    ]
+                  },
+                  "entry_point": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  },
+                  "purpose": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  },
+                  "selectors": {
+                    "type": "array",
+                    "maxItems": 100,
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 160
+                    }
+                  },
+                  "permission_boundary": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  }
+                },
+                "required": [
+                  "component",
+                  "entry_type",
+                  "entry_point",
+                  "purpose",
+                  "selectors",
+                  "permission_boundary"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "coverage": {
+              "type": "object",
+              "properties": {
+                "selection": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "universe_id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160
+                        },
+                        "field_ids": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160
+                          },
+                          "maxItems": 200,
+                          "minItems": 1,
+                          "uniqueItems": true
+                        },
+                        "information_cutoff": {
+                          "type": "string",
+                          "format": "date"
+                        },
+                        "model_filter": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "provider": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160
+                                },
+                                "model_resolved": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160
+                                }
+                              },
+                              "required": [
+                                "provider",
+                                "model_resolved"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "field_scope_selection": {
+                          "type": "object",
+                          "minProperties": 1,
+                          "maxProperties": 200,
+                          "propertyNames": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160
+                          },
+                          "additionalProperties": {
+                            "type": "array",
+                            "minItems": 1,
+                            "maxItems": 3,
+                            "uniqueItems": true,
+                            "items": {
+                              "enum": [
+                                "entity",
+                                "security",
+                                "segment"
+                              ]
+                            }
+                          }
+                        }
+                      },
+                      "required": [
+                        "universe_id",
+                        "field_ids",
+                        "information_cutoff",
+                        "model_filter",
+                        "field_scope_selection"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "status": {
+                  "enum": [
+                    "not_requested",
+                    "unknown",
+                    "not_covered",
+                    "partial",
+                    "complete"
+                  ]
+                },
+                "reason_codes": {
+                  "type": "array",
+                  "maxItems": 100,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  }
+                },
+                "covered_market_domains": {
+                  "type": "array",
+                  "uniqueItems": true,
+                  "maxItems": 3,
+                  "items": {
+                    "enum": [
+                      "CN",
+                      "HK",
+                      "US"
+                    ]
+                  }
+                },
+                "unmapped_covered_market_labels": {
+                  "type": "array",
+                  "uniqueItems": true,
+                  "maxItems": 5000,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  }
+                },
+                "scope_counts": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "active_company_count",
+                        "profiled_company_count",
+                        "profiled_analysis_subject_count",
+                        "profile_scope_row_count"
+                      ],
+                      "properties": {
+                        "active_company_count": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "profiled_company_count": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "profiled_analysis_subject_count": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "profile_scope_row_count": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "field_scope_coverage": {
+                  "type": "object",
+                  "maxProperties": 200,
+                  "additionalProperties": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "requested_scopes",
+                      "requested_scope_row_count",
+                      "covered_scope_row_count",
+                      "unresolved_company_count",
+                      "status",
+                      "scope_denominators",
+                      "absent_requested_scopes",
+                      "missing_scope_row_count"
+                    ],
+                    "properties": {
+                      "requested_scopes": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 3,
+                        "uniqueItems": true,
+                        "items": {
+                          "enum": [
+                            "entity",
+                            "security",
+                            "segment"
+                          ]
+                        }
+                      },
+                      "requested_scope_row_count": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "covered_scope_row_count": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "unresolved_company_count": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "status": {
+                        "enum": [
+                          "unknown",
+                          "complete",
+                          "partial",
+                          "not_covered"
+                        ]
+                      },
+                      "scope_denominators": {
+                        "type": "object",
+                        "minProperties": 1,
+                        "maxProperties": 3,
+                        "propertyNames": {
+                          "enum": [
+                            "entity",
+                            "security",
+                            "segment"
+                          ]
+                        },
+                        "additionalProperties": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "requested_scope_row_count",
+                            "covered_scope_row_count"
+                          ],
+                          "properties": {
+                            "requested_scope_row_count": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "covered_scope_row_count": {
+                              "type": "integer",
+                              "minimum": 0
+                            }
+                          }
+                        }
+                      },
+                      "absent_requested_scopes": {
+                        "type": "array",
+                        "maxItems": 3,
+                        "uniqueItems": true,
+                        "items": {
+                          "enum": [
+                            "entity",
+                            "security",
+                            "segment"
+                          ]
+                        }
+                      },
+                      "missing_scope_row_count": {
+                        "type": "integer",
+                        "minimum": 0
+                      }
+                    }
+                  }
+                },
+                "basis": {
+                  "const": "availability_of_scope_bound_originals_not_accuracy_or_screening_qualification"
+                }
+              },
+              "required": [
+                "selection",
+                "status",
+                "reason_codes",
+                "covered_market_domains",
+                "unmapped_covered_market_labels",
+                "scope_counts",
+                "field_scope_coverage",
+                "basis"
+              ],
+              "additionalProperties": false
+            },
+            "watermark": {
+              "type": "object",
+              "properties": {
+                "store_id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 160
+                },
+                "read_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "source_watermarks": {
+                  "type": "array",
+                  "minItems": 4,
+                  "maxItems": 4,
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "namespace": {
+                        "enum": [
+                          "universe",
+                          "identity",
+                          "analysis_subjects",
+                          "observations"
+                        ]
+                      },
+                      "schema_version": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "status": {
+                        "enum": [
+                          "available",
+                          "missing",
+                          "read_error",
+                          "schema_unavailable"
+                        ]
+                      },
+                      "sequence": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "read_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "content_sha256": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "namespace",
+                      "schema_version",
+                      "status",
+                      "sequence",
+                      "read_at",
+                      "content_sha256"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "source_consistency": {
+                  "const": "sequential_owner_reads"
+                },
+                "observation_sequence": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "selected_index_sha256": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "scope_inventory_sha256": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "owner_context_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              },
+              "required": [
+                "store_id",
+                "read_at",
+                "source_watermarks",
+                "source_consistency",
+                "observation_sequence",
+                "selected_index_sha256",
+                "scope_inventory_sha256",
+                "owner_context_sha256"
+              ],
+              "additionalProperties": false
+            },
+            "limits": {
+              "type": "object",
+              "properties": {
+                "source_max_bytes": {
+                  "const": 8388608
+                },
+                "source_max_rows": {
+                  "const": 5000
+                },
+                "pool_index_max_bytes": {
+                  "const": 67108864
+                },
+                "page_size_max": {
+                  "const": 100
+                },
+                "snapshot_ttl_seconds": {
+                  "const": 3600
+                },
+                "snapshot_max_count": {
+                  "const": 32
+                },
+                "snapshot_max_bytes": {
+                  "const": 16777216
+                },
+                "snapshot_total_max_bytes": {
+                  "const": 67108864
+                }
+              },
+              "required": [
+                "source_max_bytes",
+                "source_max_rows",
+                "pool_index_max_bytes",
+                "page_size_max",
+                "snapshot_ttl_seconds",
+                "snapshot_max_count",
+                "snapshot_max_bytes",
+                "snapshot_total_max_bytes"
+              ],
+              "additionalProperties": false
+            },
+            "answer_qualification_assessed": {
+              "const": false
+            },
+            "facts_producer_ready": {
+              "const": false
+            },
+            "financial_accuracy_proven": {
+              "const": false
+            },
+            "full_C06_milestone_accepted": {
+              "const": false
+            },
+            "dispatch_started": {
+              "const": false
+            },
+            "API_requests": {
+              "type": "integer",
+              "const": 0
+            },
+            "database_writes": {
+              "type": "integer",
+              "const": 0
+            }
+          },
+          "required": [
+            "store_id",
+            "supported_operations",
+            "supported_query_wires",
+            "market_support",
+            "identity_market_domains",
+            "identity_market_scan_status",
+            "identity_market_scope",
+            "unmapped_identity_market_labels",
+            "capability_requirements",
+            "native_interfaces",
+            "coverage",
+            "watermark",
+            "limits",
+            "answer_qualification_assessed",
+            "facts_producer_ready",
+            "financial_accuracy_proven",
+            "full_C06_milestone_accepted",
+            "dispatch_started",
+            "API_requests",
+            "database_writes"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "protocol",
+        "schema_version",
+        "message_type",
+        "operation",
+        "request_id",
+        "response_at",
+        "result"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

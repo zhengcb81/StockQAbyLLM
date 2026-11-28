@@ -1,7 +1,7 @@
 """Constructor/readiness units over a fixed protocol sample; never owner admission.
 
 Only the public read-only CLI boundary is mocked. The validator reads the
-original IQS schema from an explicitly configured checkout, never a run archive.
+frozen public IQS schema from its released source tree.
 The fixed response contains no company, runtime path or real observation data.
 """
 
@@ -23,12 +23,9 @@ from src.utils.quick_scan_owner_research import (
 )
 from src.utils.quick_scan_refresh_execution import ApprovedRefreshSession
 
-IQS_ROOT = Path(
-    os.environ.get("IQS_C06_IQS", str(Path(__file__).resolve().parents[3] / "invest-quick-scan"))
-)
-SCHEMA = IQS_ROOT / "schemas/quick_scan/query-capabilities.schema.json"
-pytestmark = pytest.mark.skipif(
-    not SCHEMA.is_file(), reason="configured original IQS capabilities schema required"
+SCHEMA = (
+    Path(__file__).resolve().parents[1]
+    / "fixtures/iqs_public_wire/schemas/quick_scan/query-capabilities.schema.json"
 )
 
 # Synthetic fixed sample, not an owner golden or a stored real response.

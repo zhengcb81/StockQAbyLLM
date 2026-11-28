@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:iqs:quick-scan:route-store-validation:1",
+  "title": "Offline route/manifest validation DTO for StockWiki",
+  "description": "Structure/immutable archive/independent anchor validation only; hashes do not authenticate origin or authorize paid execution.",
+  "type": "object",
+  "$defs": {
+    "sha256": {"type":"string","pattern":"^[a-f0-9]{64}$"},
+    "route_id": {"type":"string","pattern":"^route_[a-f0-9]{64}$"},
+    "module_lock": {
+      "type":"object",
+      "properties": {
+        "module_id":{"type":"string","minLength":1,"maxLength":160},
+        "version":{"type":"string","pattern":"^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+        "artifact_ref":{"type":"string","pattern":"^questions/releases/artifacts/","maxLength":500},
+        "artifact_sha256":{"$ref":"#/$defs/sha256"}
+      },
+      "required":["module_id","version","artifact_ref","artifact_sha256"],
+      "additionalProperties":false
+    }
+  },
+  "properties": {
+    "protocol":{"const":"iqs.route_store_validation/1.0.0"},
+    "schema_version":{"const":"1.0.0"},
+    "status":{"const":"validated"},
+    "validation_mode":{"enum":["history","execution"]},
+    "expected_decision_id":{"$ref":"#/$defs/route_id"},
+    "decision_id":{"$ref":"#/$defs/route_id"},
+    "entity_id":{"type":"string","minLength":1,"maxLength":160},
+    "scope":{"enum":["entity","segment"]},
+    "segment_id":{"type":["string","null"],"minLength":1,"maxLength":160},
+    "route_raw_sha256":{"$ref":"#/$defs/sha256"},
+    "manifest_raw_sha256":{"$ref":"#/$defs/sha256"},
+    "module_package_id":{"type":"string","pattern":"^pkg_[a-f0-9]{64}$"},
+    "module_release_id":{"type":"string","pattern":"^modrel_[a-f0-9]{64}$"},
+    "router_version":{"type":"string","pattern":"^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "method_id":{"type":"string","minLength":1,"maxLength":160},
+    "question_count":{"type":"integer","minimum":1},
+    "module_locks":{"type":"array","minItems":1,"items":{"$ref":"#/$defs/module_lock"}},
+    "original_routing_execution":{
+      "type":"object",
+      "properties":{"checked_at":{"type":"string","format":"date-time"},"expected_decision_id":{"$ref":"#/$defs/route_id"}},
+      "required":["checked_at","expected_decision_id"],"additionalProperties":false
+    },
+    "route_execution":{"type":["object","null"]},
+    "classification_confidence":{"type":"object"},
+    "execution_checked_at":{"type":["string","null"],"format":"date-time"},
+    "new_execution_authorized":{"type":"boolean"},
+    "source_authentication":{"const":"caller_owned_anchor_and_trusted_validator_transport_required"},
+    "model_API_requests":{"const":0},
+    "database_writes":{"const":0}
+  },
+  "required":["protocol","schema_version","status","validation_mode","expected_decision_id","decision_id","entity_id","scope","segment_id","route_raw_sha256","manifest_raw_sha256","module_package_id","module_release_id","router_version","method_id","question_count","module_locks","original_routing_execution","route_execution","execution_checked_at","new_execution_authorized","source_authentication","model_API_requests","database_writes"],
+  "allOf":[
+    {"if":{"properties":{"validation_mode":{"const":"history"}},"required":["validation_mode"]},"then":{"properties":{"new_execution_authorized":{"const":false},"execution_checked_at":{"const":null}}}},
+    {"if":{"properties":{"validation_mode":{"const":"execution"}},"required":["validation_mode"]},"then":{"properties":{"new_execution_authorized":{"const":true},"execution_checked_at":{"type":"string","format":"date-time"}}}}
+  ],
+  "additionalProperties":false
+}

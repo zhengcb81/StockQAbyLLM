@@ -2,8 +2,8 @@
 
 import pytest
 
-from tests.integration.test_c06_subject_public_e2e import actual
-from tests.integration.test_controlled_pack_main_public import run_public_main_pack3
+from tests.composition.test_c06_subject_public_e2e import actual
+from tests.composition.test_controlled_pack_main_public import run_public_main_pack3
 
 
 @pytest.mark.parametrize("actual", ["1.2.0"], indirect=True)

@@ -10,9 +10,6 @@ from pathlib import Path
 
 import pytest
 
-dc = pytest.importorskip(
-    "subject_dispatch_contract", reason="C06 component tests require the IQS pure-contract runtime"
-)
 from src.utils import quick_scan_observation_context as ctx
 from src.utils import quick_scan_work_transport as transport
 from src.utils.quick_scan_result_outbox import canonical_sha256
@@ -93,10 +90,10 @@ def receipt(request):
         "protocol": "stockwiki.subject_dispatch_receipt/1.0.0",
         "store_id": "qsobs_fixture",
         "dispatch_request": copy.deepcopy(request),
-        "request_sha256": dc.digest(request),
+        "request_sha256": canonical_sha256(request),
         "registered_at": "2027-01-15T08:00:00Z",
     }  # exactly the synthetic QA clock
-    pre["receipt_id"] = "sdr_" + dc.digest(pre)
+    pre["receipt_id"] = "sdr_" + canonical_sha256(pre)
     return pre
 
 
@@ -200,16 +197,20 @@ def test_failed_registration_never_marks_paid_send_intent(tmp_path, failure):
         pre = receipt(request)
         if failure == "wrong-subject":
             pre["dispatch_request"]["subject_ref"]["analysis_subject_revision"] = 2
-            pre["request_sha256"] = dc.digest(pre["dispatch_request"])
+            pre["request_sha256"] = canonical_sha256(pre["dispatch_request"])
         if failure == "future":
             pre["registered_at"] = "2035-01-01T00:00:00Z"
-        pre["receipt_id"] = "sdr_" + dc.digest({k: v for k, v in pre.items() if k != "receipt_id"})
+        pre["receipt_id"] = "sdr_" + canonical_sha256(
+            {k: v for k, v in pre.items() if k != "receipt_id"}
+        )
         return pre
 
     with bindings(store, item, lease, None if failure == "missing" else register):
         with pytest.raises(transport.QuickScanWorkPersistenceError):
             begin()
-    assert [x["phase"] for x in store.list_attempts(item["work_item_id"])] == ["prepared"]
+    (attempt,) = store.list_attempts(item["work_item_id"])
+    assert attempt["phase"] == "abandoned_unsent"
+    assert store.get_subject_dispatch_receipt(attempt["attempt_id"]) is None
     with sqlite3.connect(store.path) as con:
         assert con.execute("SELECT COUNT(*) FROM quick_scan_budget_attempt").fetchone()[0] == 0
 

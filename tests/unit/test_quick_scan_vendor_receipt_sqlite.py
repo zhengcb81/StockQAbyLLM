@@ -91,7 +91,7 @@ def stored(tmp_path, exported, *, fact=False, fact_status="answered", request_id
         identity_state="verified",
         source_binding_ref="BND_COMPLETE_SEAL",
         source_binding_refs=("BND_COMPLETE_SEAL",),
-        identity_snapshot_sha256="b" * 64,
+        identity_snapshot_sha256=bound["identity_snapshot_sha256"],
         question_fingerprint=bound["work_prompt_sha256"],
         routing_fingerprint="d" * 64,
         run_id=meta["run_id"],

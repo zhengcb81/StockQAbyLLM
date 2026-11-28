@@ -488,6 +488,7 @@ def test_public_external_result_rejects_raw_native_receipt_drift(tmp_path, monke
 
 @pytest.mark.parametrize("hybrid", [False, True])
 @pytest.mark.parametrize("search_kind", ["brave", "deepseek_search"])
+@pytest.mark.owner_composition
 def test_public_actual_producer_to_iqs_routing_preserves_binding(
     tmp_path, monkeypatch, hybrid, search_kind
 ):

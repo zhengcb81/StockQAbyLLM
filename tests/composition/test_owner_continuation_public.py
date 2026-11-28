@@ -113,8 +113,8 @@ from src.runners.llm_runner import QuickScanWorkLifecycle
 from src.utils.quick_scan_owner_research import OwnerResearchServices
 from src.utils.quick_scan_refresh_admission import RefreshAdmissionService
 from src.utils.quick_scan_refresh_execution import prepare_execution
+from tests.composition.test_c06_subject_public_e2e import actual
 from tests.continuation_fixture import setup_continuation
-from tests.integration.test_c06_subject_public_e2e import actual
 from tests.unit.test_quick_scan_budget import _policy
 
 

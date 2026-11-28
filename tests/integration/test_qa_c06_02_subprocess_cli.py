@@ -391,6 +391,7 @@ def test_real_subprocess_cold_warm_and_seal_with_the_stub_only_at_http(tmp_path)
     _no_network(tmp_path)
 
 
+@pytest.mark.owner_composition
 def test_real_subprocess_shared_recovery_restores_saved_receipt_then_pauses_unknown(
     tmp_path, monkeypatch
 ):
@@ -431,8 +432,8 @@ def test_real_subprocess_shared_recovery_restores_saved_receipt_then_pauses_unkn
         original_endpoint_profiles,
         run_shared_company_scan,
     )
-    from tests.integration import test_c06_subject_public_e2e as native_fixture
-    from tests.integration.test_c06_refresh_admission import setup_admission
+    from tests.composition import test_c06_subject_public_e2e as native_fixture
+    from tests.composition.test_c06_refresh_admission import setup_admission
     from tests.unit.test_quick_scan_budget import _policy
 
     phase("native_fixture.start")

@@ -321,10 +321,7 @@ def test_unresolved_work_keeps_original_context_and_expired_unsent_lease_resumes
 def test_owner_public_wire_refuses_unregistered_versions_or_authority(change, monkeypatch):
     from src.utils.quick_scan_owner_refresh import _validate_owner_wire
 
-    configured = os.environ.get("IQS_ROUTE_TEST_CODE_ROOT")
-    if not configured:
-        pytest.skip("original IQS schema root not configured; set IQS_ROUTE_TEST_CODE_ROOT")
-    code_root = Path(configured)
+    code_root = Path(__file__).resolve().parents[1] / "fixtures/iqs_public_wire"
     value = dict(
         protocol="stockwiki.route_store_cli/1.0.0",
         status="rejected",
@@ -537,6 +534,7 @@ def test_paid_native_view_checks_original_scope_without_today_anchor_gate(tmp_pa
     assert store.path.read_bytes() == before
 
 
+@pytest.mark.owner_composition
 def test_paid_native_anchor_survives_real_iqs_manual_override_expiry(tmp_path, monkeypatch):
     """Real IQS expiry oracle + original SQLite safe; owner RPC alone is typed."""
     import importlib.util

@@ -26,9 +26,9 @@ from src.utils.quick_scan_work_transport import (
     bind_quick_scan_budget,
     bind_quick_scan_route,
 )
+from tests.composition.test_c06_subject_public_e2e import actual as actual
+from tests.composition.test_c06_subject_public_e2e import invoke
 from tests.delegated_fixture import setup_delegated
-from tests.integration.test_c06_subject_public_e2e import actual as actual
-from tests.integration.test_c06_subject_public_e2e import invoke
 from tests.unit.test_quick_scan_budget import _policy
 
 

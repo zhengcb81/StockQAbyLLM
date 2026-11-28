@@ -5,7 +5,7 @@
 
     python -B scripts/checks.py                 # 默认短离线 CI
     python -B scripts/checks.py --static-only   # commit，仅静态
-    python -B scripts/checks.py --full          # 大节点，全部离线 unit/integration
+    python -B scripts/checks.py --full          # 大节点，全部独立离线测试
     python -B scripts/checks.py --metrics --output-dir <目录>
     python -B scripts/checks.py --list-steps    # 只打印计划（JSON），不执行
 
@@ -14,7 +14,7 @@
 * 所有步骤用 ``sys.executable -m ...`` 启动，真实退出码原样上抛；
 * 不使用 ``|| true`` / ``--exit-zero`` / ``tee`` 吞掉真实检查错误；
 * pylint / radon / coverage 只输出诊断，不设数字通过门；
-* 默认与 ``--full`` 强制离线：排除 ``tests/live``、``tests/benchmarks``，
+* 默认与 ``--full`` 强制离线：排除 ``tests/live``、``tests/composition``，
   并把 ``STOCKQA_RUN_LIVE_E2E`` 置 ``0``，即使外部环境继承 ``=1`` 也不生效；
 * 默认不产生 coverage / XML / HTML / reports 产物，``--metrics`` 才写入显式
   ``--output-dir``；任何模式结束后都把仓库根恢复到运行前状态。
@@ -96,63 +96,13 @@ STEP_TIMEOUTS: Mapping[str, float] = {
 # 测试责任包
 # --------------------------------------------------------------------------------------
 
-#: 日常责任包（离线、短）：当前真实业务文件 + 本卡编排反例 + 公开 CLI 精选节点。
-DAILY_TEST_TARGETS: Tuple[str, ...] = (
-    "tests/unit/test_models.py",
-    "tests/unit/test_config_manager.py",
-    "tests/unit/test_llm_config.py",
-    "tests/unit/test_basic_runner.py",
-    "tests/unit/test_main_with_llm.py",
-    "tests/unit/test_q07_checkpoint.py",
-    "tests/unit/test_s1_p0_provider_and_subprocess_logging.py",
-    "tests/unit/test_async_llm_provider.py",
-    "tests/unit/test_quick_scan_module_boundaries.py",
-    "tests/unit/test_quick_scan_work_values.py",
-    "tests/unit/test_quick_scan_public_api_contracts.py",
-    "tests/unit/test_quick_scan_owner_public_boundary.py",
-    "tests/unit/test_quick_scan_budget.py",
-    "tests/unit/test_owner_refresh_charge_boundaries.py",
-    "tests/unit/test_question_pack_presend_recovery.py",
-    "tests/unit/test_execution_feedback_intake.py::test_diagnostic_constructor_failure_preserves_original_pack_cleanup",
-    "tests/unit/test_execution_feedback_intake.py::test_cold_owner_selects_original_observation_directory",
-    "tests/unit/test_execution_feedback_intake.py::test_native_feedback_and_log_setup_never_write_stdout_when_stderr_is_absent",
-    "tests/unit/test_execution_feedback_intake.py"
-    "::test_public_spend_preflight_is_cold_readable_by_the_original_identity",
-    "tests/unit/test_execution_feedback_intake.py"
-    "::test_public_dispatch_can_be_cold_read_after_a_success_or_process_stop",
-    "tests/unit/test_execution_feedback_intake.py"
-    "::test_native_log_rotation_preserves_business_and_both_writers",
-    "tests/unit/test_paid_runner_independence.py"
-    "::test_paid_runner_uses_original_receipt_metadata_without_today_model_or_budget",
-    "tests/unit/test_paid_runner_independence.py"
-    "::test_result_proof_reads_a_narrow_evidence_port_without_a_sql_connection",
-    "tests/unit/test_quick_scan_feedback_owner.py::test_reconcile_knows_the_exact_native_paid_cost_without_changing_it",
-    "tests/unit/test_execution_failure_diagnostics.py::test_cause_context_and_new_exception_keep_code_positions_without_text",
-    "tests/unit/test_quick_scan_operational_readiness.py",
-    "tests/unit/test_q09_budget_concurrency.py",
-    "tests/unit/test_ci_checks.py",
-    "tests/unit/test_sql_scope_queries.py",
-    "tests/integration/test_ci_checks_cli.py",
-    "tests/integration/test_quick_scan_cli.py"
-    "::test_public_cli_exports_eight_score_entity_timestamp_model_and_search_receipt",
-    "tests/integration/test_quick_scan_cli.py::test_public_cli_refuses_to_infer_question_id",
-    "tests/integration/test_quick_scan_cli.py"
-    "::test_public_cli_persists_every_failed_transport_retry_without_error_details",
-    "tests/integration/test_quick_scan_cli.py"
-    "::test_public_cli_does_not_retry_uncertain_server_error_without_reconciliation",
-    "tests/integration/test_quick_scan_cli.py::test_public_cli_fake_health_schema_rejects_before_http",
-    "tests/integration/test_quick_scan_cli.py"
-    "::test_public_cli_pauses_after_unpriced_attempt_without_sending_backup",
-)
-
-#: 大节点：全部离线 unit/integration。
-FULL_TEST_TARGETS: Tuple[str, ...] = ("tests/unit", "tests/integration")
-
-#: 永远排除（可能调用真实收费 provider 或做性能基准）。
-EXCLUDED_TEST_DIRS: Tuple[str, ...] = ("tests/live", "tests/benchmarks")
-
-#: 强制离线的环境变量取值：任何继承来的 ``=1`` 都会被覆盖。
-OFFLINE_ENV: Mapping[str, str] = {"STOCKQA_RUN_LIVE_E2E": "0"}
+DAILY_ROOTS: Tuple[str, ...] = ("tests/smoke",)
+# An empty explicit selection lets pytest discover its owner-declared testpaths.
+FULL_ROOTS: Tuple[str, ...] = ()
+OFFLINE_ENV: Mapping[str, str] = {
+    "STOCKQA_RUN_LIVE_E2E": "0",
+    "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+}
 
 BASE_PYTEST_ARGS: Tuple[str, ...] = (
     "-q",
@@ -161,11 +111,17 @@ BASE_PYTEST_ARGS: Tuple[str, ...] = (
     "no:base_url",
     "-p",
     "no:cacheprovider",
+    "-p",
+    "pytest_asyncio.plugin",
+    "-p",
+    "pytest_benchmark.plugin",
+    "--benchmark-disable",
     "-m",
-    "not live and not benchmark",
-    f"--ignore={EXCLUDED_TEST_DIRS[0]}",
-    f"--ignore={EXCLUDED_TEST_DIRS[1]}",
+    "not live and not owner_composition" + (" and not windows_only" if os.name != "nt" else ""),
+    "--ignore=tests/live",
+    "--ignore=tests/composition",
 )
+
 
 # --------------------------------------------------------------------------------------
 # CLI smoke：真实入口模块导入
@@ -251,7 +207,9 @@ def run_step(
         proc = subprocess.run(
             argv,
             cwd=str(cwd),
-            env=dict(env) if env is not None else None,
+            env=dict(env) if env is not None else build_env(),
+            stdin=subprocess.DEVNULL,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             timeout=timeout,
             stdout=stdout,
             stderr=stderr,
@@ -271,12 +229,25 @@ def run_step(
 
 def build_env(extra: Optional[Mapping[str, str]] = None) -> Dict[str, str]:
     """构造子进程环境：强制离线并把仓根放进 ``PYTHONPATH``。"""
-    env = dict(os.environ)
+    allowed = {
+        "SYSTEMROOT",
+        "WINDIR",
+        "SYSTEMDRIVE",
+        "COMSPEC",
+        "PATH",
+        "PATHEXT",
+        "TEMP",
+        "TMP",
+        "TMPDIR",
+        "USERNAME",
+        "USER",
+        "LOGNAME",
+    }
+    env = {key: value for key, value in os.environ.items() if key.upper() in allowed}
     env.update(OFFLINE_ENV)
-    existing = env.get("PYTHONPATH")
-    env["PYTHONPATH"] = str(REPO_ROOT) + (os.pathsep + existing if existing else "")
-    # 统一子进程标准流编码，避免 Windows 本地代码页把诊断输出变成乱码。
-    env.setdefault("PYTHONIOENCODING", "utf-8")
+    env["PYTHONPATH"] = str(REPO_ROOT)
+    env["PYTHONIOENCODING"] = "utf-8"
+    env["PYTHONUTF8"] = "1"
     if extra:
         env.update(extra)
     return env
@@ -295,6 +266,8 @@ def build_pytest_args(
     if output_dir is not None:
         out = Path(output_dir)
         args += [
+            "-p",
+            "pytest_cov.plugin",
             "--cov=src",
             "--cov-report=term-missing",
             f"--cov-report=xml:{out / 'coverage.xml'}",
@@ -561,9 +534,9 @@ def build_plan(
         targets = tuple(str(item) for item in pytest_targets)
         scope = "custom"
     elif scope == "full":
-        targets = FULL_TEST_TARGETS
+        targets = FULL_ROOTS
     else:
-        targets = DAILY_TEST_TARGETS
+        targets = DAILY_ROOTS
 
     if pytest_targets and STEP_PYTEST not in selected:
         raise ValueError("--pytest-target 需要本次运行包含 pytest 步骤")
@@ -838,7 +811,7 @@ def build_parser() -> argparse.ArgumentParser:
         dest="mode",
         action="store_const",
         const=MODE_FULL,
-        help="大节点：全部离线 unit/integration",
+        help="大节点：全部独立离线测试",
     )
     mode_group.add_argument(
         "--metrics",

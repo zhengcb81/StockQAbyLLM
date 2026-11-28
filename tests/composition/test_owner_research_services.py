@@ -19,8 +19,8 @@ from src.utils.quick_scan_owner_research import (
 from src.utils.quick_scan_refresh_admission import RefreshAdmissionService
 from src.utils.quick_scan_refresh_execution import prepare_execution
 from src.utils.quick_scan_result_outbox import canonical_sha256
-from tests.integration.test_c06_refresh_admission import setup_admission
-from tests.integration.test_c06_subject_public_e2e import actual
+from tests.composition.test_c06_refresh_admission import setup_admission
+from tests.composition.test_c06_subject_public_e2e import actual
 from tests.unit.test_quick_scan_budget import _policy
 
 

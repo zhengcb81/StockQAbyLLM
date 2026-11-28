@@ -10,8 +10,8 @@ from contextlib import closing
 
 import pytest
 
-from tests.integration.test_c06_refresh_admission import setup_admission
-from tests.integration.test_c06_subject_public_e2e import OWN, actual, invoke
+from tests.composition.test_c06_refresh_admission import setup_admission
+from tests.composition.test_c06_subject_public_e2e import OWN, actual, invoke
 from tests.unit.test_quick_scan_budget import _policy
 
 

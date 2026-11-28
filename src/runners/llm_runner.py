@@ -16,6 +16,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
+from sqlite3 import Error as SQLiteError
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, TypedDict, cast
 
 from src.cli.batch_processor import (
@@ -51,7 +52,7 @@ from src.utils.quick_scan_cost_resolver import QuickScanCostResolver
 from src.utils.quick_scan_owner_refresh_api import validate_owner_refresh_session
 from src.utils.quick_scan_provider_health import QuickScanProviderHealth
 from src.utils.quick_scan_result_proof import result_proof_port_for_store
-from src.utils.quick_scan_work_store import QuickScanWorkStore
+from src.utils.quick_scan_work_store import QuickScanWorkStore, WorkConflictError
 from src.utils.quick_scan_work_transport import bind_quick_scan_budget
 
 if TYPE_CHECKING:
@@ -1660,7 +1661,7 @@ def _preflight_checkpoint(
 
 
 def recovery_report(store: QuickScanWorkStore, *, run_id: str, scan_id: str) -> Dict[str, Any]:
-    """Q07/JOB-04: read-only four-point crash partition for one run.
+    """Q07/JOB-04: read-only recovery partition for one run.
 
     Every item of the run lands in EXACTLY ONE bucket — no silent task loss:
     * ``pre_dispatch`` — pending (or leased without send intent): never sent,
@@ -1668,15 +1669,18 @@ def recovery_report(store: QuickScanWorkStore, *, run_id: str, scan_id: str) -> 
     * ``unknown_in_flight`` — uncertain (or leased after send intent): the
       response is unknown — listed separately, never blindly re-POSTed;
     * ``persisted`` — has an answer checkpoint: never re-asked;
+    * ``checkpoint_unavailable`` — stored evidence could not be read or validated;
+      hold this work for inspection instead of treating it as safe to re-dispatch;
     * ``import_ack_pending`` — result_ready/delivered without checkpoint yet
       in the import/ACK flow (Q10's domain — annotated, re-import only);
     * ``cancelled`` — state change, history kept (JOB-05).
     """
-    items = store.list_run_items(run_id, scan_id)
+    items = store.list_run_items(run_id, scan_id, include_checkpoints=False)
     report: Dict[str, Any] = {
         "pre_dispatch": [],
         "unknown_in_flight": [],
         "persisted": [],
+        "checkpoint_unavailable": [],
         "import_ack_pending": [],
         "cancelled": [],
         "q10_import_ack_note": ("pre-ACK imports are Q10's domain: re-import only, never re-ask"),
@@ -1685,8 +1689,15 @@ def recovery_report(store: QuickScanWorkStore, *, run_id: str, scan_id: str) -> 
         work_item_id = item["work_item_id"]
         try:
             checkpoint = store.get_answer_checkpoint(work_item_id)
-        except Exception:  # noqa: BLE001
-            checkpoint = None
+        except (ValueError, WorkConflictError, SQLiteError) as error:
+            report["checkpoint_unavailable"].append(work_item_id)
+            record_execution_failure(
+                logger,
+                error,
+                stage="recovery.checkpoint_read",
+                references={"run_id": run_id, "work_item_id": work_item_id},
+            )
+            continue
         if checkpoint is not None:
             report["persisted"].append(work_item_id)
             continue

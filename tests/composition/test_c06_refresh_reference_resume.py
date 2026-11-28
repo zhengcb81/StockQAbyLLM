@@ -30,8 +30,8 @@ from stockwiki.quick_scan_subject_dispatch import SubjectBoundObservationStore
 from src.utils.quick_scan_refresh_admission import RefreshAdmissionService
 from src.utils.quick_scan_result_outbox import strict_json_loads
 from src.utils.quick_scan_work_store import QuickScanWorkStore
-from tests.integration.test_c06_refresh_admission import setup_admission
-from tests.integration.test_c06_subject_public_e2e import actual
+from tests.composition.test_c06_refresh_admission import setup_admission
+from tests.composition.test_c06_subject_public_e2e import actual
 
 OWN = Path(os.environ["IQS_C06_OWN"]).resolve()
 

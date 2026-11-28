@@ -24,8 +24,8 @@ from src.utils import quick_scan_subject_journal as subject
 from src.utils.quick_scan_subject_owner import register
 from src.utils.quick_scan_work_decision_inspect import derive_work_decision
 from src.utils.quick_scan_work_store import QuickScanWorkStore
-from tests.integration.test_c06_refresh_admission import setup_admission
-from tests.integration.test_c06_subject_public_e2e import OWN, actual, invoke, utc
+from tests.composition.test_c06_refresh_admission import setup_admission
+from tests.composition.test_c06_subject_public_e2e import OWN, actual, invoke, utc
 from tests.unit.test_quick_scan_budget import _policy
 from tests.unit.test_quick_scan_question_pack_store import _prepare, _receipt
 

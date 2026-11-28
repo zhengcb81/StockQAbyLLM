@@ -6060,8 +6060,10 @@ class QuickScanWorkStore:
                 )
             ]
 
-    def list_run_items(self, run_id: str, scan_id: str) -> list[dict]:
-        """Rebuild a scan by separating checkpointed questions from pending work."""
+    def list_run_items(
+        self, run_id: str, scan_id: str, *, include_checkpoints: bool = True
+    ) -> list[dict]:
+        """List scan work, optionally loading validated checkpoint content."""
         _safe(run_id, "run_id")
         _safe(scan_id, "scan_id")
         with closing(self._connect()) as connection:
@@ -6071,6 +6073,8 @@ class QuickScanWorkStore:
                 "ORDER BY w.question_id,w.work_item_id",
                 (run_id, scan_id),
             ).fetchall()
+            if not include_checkpoints:
+                return [dict(item) for item in rows]
             result = []
             for item in rows:
                 entry = dict(item)

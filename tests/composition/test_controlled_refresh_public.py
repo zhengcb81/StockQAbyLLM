@@ -22,8 +22,8 @@ from stockwiki.quick_scan_work_decision_owner import (
 
 from src.utils.quick_scan_refresh_execution import prepare_execution
 from src.utils.quick_scan_work_decision_inspect import derive_work_decision
-from tests.integration.test_c06_subject_public_e2e import OWN, actual, invoke, utc
-from tests.integration.test_owner_work_control_public import resolved_public_fixture
+from tests.composition.test_c06_subject_public_e2e import OWN, actual, invoke, utc
+from tests.composition.test_owner_work_control_public import resolved_public_fixture
 
 
 def controlled_public_fixture(

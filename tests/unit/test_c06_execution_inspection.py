@@ -317,6 +317,7 @@ def test_batch_with_valid_first_original_and_missing_second_refuses_all_without_
     assert hashlib.sha256(source.read_bytes()).hexdigest() == SOURCE_SHA
 
 
+@pytest.mark.windows_only
 def test_actual_windows_junction_does_not_make_foreign_ledger_a_trusted_inspection_source(
     tmp_path,
 ):

@@ -25,7 +25,7 @@ from stockwiki.quick_scan_refresh_records import (
 
 from src.utils.quick_scan_result_outbox import canonical_sha256
 from src.utils.quick_scan_work_store import QuickScanWorkStore
-from tests.integration.test_c06_subject_public_e2e import OWN, actual, invoke, utc
+from tests.composition.test_c06_subject_public_e2e import OWN, actual, invoke, utc
 from tests.unit.test_quick_scan_budget import _policy
 
 

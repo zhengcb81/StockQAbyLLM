@@ -1,0 +1,1070 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:iqs:quick-scan:route-store-cli:1",
+  "description": "Typed W15 owner route responses. Explicitly distinct from the C06 query/refresh envelope and paid dispatch authorization.",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "protocol": {
+          "const": "stockwiki.route_store_cli/1.0.0"
+        },
+        "schema_version": {
+          "const": "1.0.0"
+        },
+        "status": {
+          "const": "ok"
+        },
+        "action": {
+          "enum": [
+            "binding",
+            "record",
+            "activate",
+            "current",
+            "anchor",
+            "history",
+            "refresh"
+          ]
+        },
+        "payload": {
+          "type": "object"
+        },
+        "c06_envelope_validated": {
+          "const": false
+        },
+        "paid_dispatch_started": {
+          "const": false
+        }
+      },
+      "required": [
+        "protocol",
+        "schema_version",
+        "status",
+        "action",
+        "payload",
+        "c06_envelope_validated",
+        "paid_dispatch_started"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "binding"
+              }
+            },
+            "required": [
+              "action"
+            ]
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "binding_version": {
+                    "const": "stockwiki.route_subject/1.0.0"
+                  },
+                  "subject_key": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "analysis_subject_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "analysis_subject_revision": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "entity_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "identity_revision": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "perimeter_sha256": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "entity_sha256": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "subject": {
+                    "type": "object"
+                  },
+                  "perimeter_receipt": {
+                    "type": "object"
+                  },
+                  "route_identity_ref": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "binding_version",
+                  "subject_key",
+                  "analysis_subject_id",
+                  "analysis_subject_revision",
+                  "entity_id",
+                  "identity_revision",
+                  "perimeter_sha256",
+                  "entity_sha256",
+                  "subject",
+                  "perimeter_receipt",
+                  "route_identity_ref"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "record"
+              }
+            },
+            "required": [
+              "action"
+            ]
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "recorded",
+                      "replayed"
+                    ]
+                  },
+                  "decision_id": {
+                    "type": "string",
+                    "pattern": "^route_[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "status",
+                  "decision_id"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "activate"
+              }
+            },
+            "required": [
+              "action"
+            ]
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "activated",
+                      "unchanged"
+                    ]
+                  },
+                  "decision_id": {
+                    "type": "string",
+                    "pattern": "^route_[a-f0-9]{64}$"
+                  },
+                  "version": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                },
+                "required": [
+                  "status",
+                  "decision_id",
+                  "version"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "current"
+              }
+            },
+            "required": [
+              "action"
+            ]
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "expected_decision_id": {
+                    "type": "string",
+                    "pattern": "^route_[a-f0-9]{64}$"
+                  },
+                  "anchor_version": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "owner_source_binding_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    },
+                    "uniqueItems": true
+                  },
+                  "snapshot": {
+                    "type": "object",
+                    "properties": {
+                      "decision_id": {
+                        "type": "string",
+                        "pattern": "^route_[a-f0-9]{64}$"
+                      },
+                      "subject_key": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "entity_id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "identity_revision": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "perimeter_sha256": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "scope": {
+                        "enum": [
+                          "entity",
+                          "segment"
+                        ]
+                      },
+                      "scope_id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "route_raw_sha256": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "manifest_raw_sha256": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "router_version": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "route_as_of": {
+                        "type": "string",
+                        "format": "date"
+                      },
+                      "decided_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "route_execution": {
+                        "type": [
+                          "object",
+                          "null"
+                        ]
+                      },
+                      "module_package_id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "module_release_id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "module_locks": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "module_id": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 500
+                            },
+                            "version": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 500
+                            },
+                            "artifact_ref": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 500
+                            },
+                            "artifact_sha256": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{64}$"
+                            }
+                          },
+                          "required": [
+                            "module_id",
+                            "version",
+                            "artifact_ref",
+                            "artifact_sha256"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "minItems": 1
+                      },
+                      "question_count": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "subject_binding": {
+                        "type": "object",
+                        "properties": {
+                          "binding_version": {
+                            "const": "stockwiki.route_subject/1.0.0"
+                          },
+                          "subject_key": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          },
+                          "analysis_subject_id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          },
+                          "analysis_subject_revision": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "entity_id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          },
+                          "identity_revision": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "perimeter_sha256": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$"
+                          },
+                          "entity_sha256": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$"
+                          },
+                          "subject": {
+                            "type": "object"
+                          },
+                          "perimeter_receipt": {
+                            "type": "object"
+                          },
+                          "route_identity_ref": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          }
+                        },
+                        "required": [
+                          "binding_version",
+                          "subject_key",
+                          "analysis_subject_id",
+                          "analysis_subject_revision",
+                          "entity_id",
+                          "identity_revision",
+                          "perimeter_sha256",
+                          "entity_sha256",
+                          "subject",
+                          "perimeter_receipt",
+                          "route_identity_ref"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "classification_confidence": {
+                        "type": "object"
+                      },
+                      "route_raw_base64": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 12582912
+                      },
+                      "manifest_raw_base64": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 12582912
+                      }
+                    },
+                    "required": [
+                      "decision_id",
+                      "subject_key",
+                      "entity_id",
+                      "identity_revision",
+                      "perimeter_sha256",
+                      "scope",
+                      "scope_id",
+                      "route_raw_sha256",
+                      "manifest_raw_sha256",
+                      "router_version",
+                      "route_as_of",
+                      "decided_at",
+                      "route_execution",
+                      "module_package_id",
+                      "module_release_id",
+                      "module_locks",
+                      "question_count",
+                      "subject_binding"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "execution_validation": {
+                    "$ref": "urn:iqs:quick-scan:route-store-validation:1"
+                  }
+                },
+                "required": [
+                  "expected_decision_id",
+                  "anchor_version",
+                  "owner_source_binding_refs",
+                  "snapshot",
+                  "execution_validation"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "anchor"
+              }
+            },
+            "required": [
+              "action"
+            ]
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "expected_decision_id": {
+                    "type": "string",
+                    "pattern": "^route_[a-f0-9]{64}$"
+                  },
+                  "anchor_version": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "owner_source_binding_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    },
+                    "uniqueItems": true
+                  },
+                  "snapshot": {
+                    "type": "object",
+                    "properties": {
+                      "decision_id": {
+                        "type": "string",
+                        "pattern": "^route_[a-f0-9]{64}$"
+                      },
+                      "subject_key": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "entity_id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "identity_revision": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "perimeter_sha256": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "scope": {
+                        "enum": [
+                          "entity",
+                          "segment"
+                        ]
+                      },
+                      "scope_id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "route_raw_sha256": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "manifest_raw_sha256": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "router_version": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "route_as_of": {
+                        "type": "string",
+                        "format": "date"
+                      },
+                      "decided_at": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "route_execution": {
+                        "type": [
+                          "object",
+                          "null"
+                        ]
+                      },
+                      "module_package_id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "module_release_id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "module_locks": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "module_id": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 500
+                            },
+                            "version": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 500
+                            },
+                            "artifact_ref": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 500
+                            },
+                            "artifact_sha256": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{64}$"
+                            }
+                          },
+                          "required": [
+                            "module_id",
+                            "version",
+                            "artifact_ref",
+                            "artifact_sha256"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "minItems": 1
+                      },
+                      "question_count": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "subject_binding": {
+                        "type": "object",
+                        "properties": {
+                          "binding_version": {
+                            "const": "stockwiki.route_subject/1.0.0"
+                          },
+                          "subject_key": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          },
+                          "analysis_subject_id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          },
+                          "analysis_subject_revision": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "entity_id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          },
+                          "identity_revision": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "perimeter_sha256": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$"
+                          },
+                          "entity_sha256": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$"
+                          },
+                          "subject": {
+                            "type": "object"
+                          },
+                          "perimeter_receipt": {
+                            "type": "object"
+                          },
+                          "route_identity_ref": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          }
+                        },
+                        "required": [
+                          "binding_version",
+                          "subject_key",
+                          "analysis_subject_id",
+                          "analysis_subject_revision",
+                          "entity_id",
+                          "identity_revision",
+                          "perimeter_sha256",
+                          "entity_sha256",
+                          "subject",
+                          "perimeter_receipt",
+                          "route_identity_ref"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "classification_confidence": {
+                        "type": "object"
+                      },
+                      "route_raw_base64": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 12582912
+                      },
+                      "manifest_raw_base64": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 12582912
+                      }
+                    },
+                    "required": [
+                      "decision_id",
+                      "subject_key",
+                      "entity_id",
+                      "identity_revision",
+                      "perimeter_sha256",
+                      "scope",
+                      "scope_id",
+                      "route_raw_sha256",
+                      "manifest_raw_sha256",
+                      "router_version",
+                      "route_as_of",
+                      "decided_at",
+                      "route_execution",
+                      "module_package_id",
+                      "module_release_id",
+                      "module_locks",
+                      "question_count",
+                      "subject_binding"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "new_execution_authorized": {
+                    "const": false
+                  }
+                },
+                "required": [
+                  "expected_decision_id",
+                  "anchor_version",
+                  "owner_source_binding_refs",
+                  "snapshot",
+                  "new_execution_authorized"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "history"
+              }
+            },
+            "required": [
+              "action"
+            ]
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "current_history": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "subject_key": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 500
+                        },
+                        "scope": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 500
+                        },
+                        "scope_id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 500
+                        },
+                        "version": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "decision_id": {
+                          "type": "string",
+                          "pattern": "^route_[a-f0-9]{64}$"
+                        },
+                        "previous_decision_id": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^route_[a-f0-9]{64}$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "activated_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "required": [
+                        "subject_key",
+                        "scope",
+                        "scope_id",
+                        "version",
+                        "decision_id",
+                        "previous_decision_id",
+                        "activated_at"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "snapshots": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "decision_id": {
+                          "type": "string",
+                          "pattern": "^route_[a-f0-9]{64}$"
+                        },
+                        "subject_key": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 500
+                        },
+                        "entity_id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 500
+                        },
+                        "identity_revision": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "perimeter_sha256": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "scope": {
+                          "enum": [
+                            "entity",
+                            "segment"
+                          ]
+                        },
+                        "scope_id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 500
+                        },
+                        "route_raw_sha256": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "manifest_raw_sha256": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "router_version": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 500
+                        },
+                        "route_as_of": {
+                          "type": "string",
+                          "format": "date"
+                        },
+                        "decided_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "route_execution": {
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        },
+                        "module_package_id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 500
+                        },
+                        "module_release_id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 500
+                        },
+                        "module_locks": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "module_id": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 500
+                              },
+                              "version": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 500
+                              },
+                              "artifact_ref": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 500
+                              },
+                              "artifact_sha256": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{64}$"
+                              }
+                            },
+                            "required": [
+                              "module_id",
+                              "version",
+                              "artifact_ref",
+                              "artifact_sha256"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "minItems": 1
+                        },
+                        "question_count": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "subject_binding": {
+                          "type": "object",
+                          "properties": {
+                            "binding_version": {
+                              "const": "stockwiki.route_subject/1.0.0"
+                            },
+                            "subject_key": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 500
+                            },
+                            "analysis_subject_id": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 500
+                            },
+                            "analysis_subject_revision": {
+                              "type": "integer",
+                              "minimum": 1
+                            },
+                            "entity_id": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 500
+                            },
+                            "identity_revision": {
+                              "type": "integer",
+                              "minimum": 1
+                            },
+                            "perimeter_sha256": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{64}$"
+                            },
+                            "entity_sha256": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{64}$"
+                            },
+                            "subject": {
+                              "type": "object"
+                            },
+                            "perimeter_receipt": {
+                              "type": "object"
+                            },
+                            "route_identity_ref": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 500
+                            }
+                          },
+                          "required": [
+                            "binding_version",
+                            "subject_key",
+                            "analysis_subject_id",
+                            "analysis_subject_revision",
+                            "entity_id",
+                            "identity_revision",
+                            "perimeter_sha256",
+                            "entity_sha256",
+                            "subject",
+                            "perimeter_receipt",
+                            "route_identity_ref"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "classification_confidence": {
+                          "type": "object"
+                        },
+                        "route_raw_base64": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 12582912
+                        },
+                        "manifest_raw_base64": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 12582912
+                        }
+                      },
+                      "required": [
+                        "decision_id",
+                        "subject_key",
+                        "entity_id",
+                        "identity_revision",
+                        "perimeter_sha256",
+                        "scope",
+                        "scope_id",
+                        "route_raw_sha256",
+                        "manifest_raw_sha256",
+                        "router_version",
+                        "route_as_of",
+                        "decided_at",
+                        "route_execution",
+                        "module_package_id",
+                        "module_release_id",
+                        "module_locks",
+                        "question_count",
+                        "subject_binding"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "current_history",
+                  "snapshots"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "refresh"
+              }
+            },
+            "required": [
+              "action"
+            ]
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "$ref": "urn:iqs:quick-scan:module-refresh:1"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocol": {
+          "const": "stockwiki.route_store_cli/1.0.0"
+        },
+        "status": {
+          "const": "rejected"
+        },
+        "error_code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      },
+      "required": [
+        "protocol",
+        "status",
+        "error_code"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

@@ -7,7 +7,7 @@ This is software E2E, not a real issuer golden or financial qualification.
 
 import pytest
 
-from tests.integration import test_c06_subject_public_e2e as legacy
+from tests.composition import test_c06_subject_public_e2e as legacy
 
 actual = legacy.actual
 

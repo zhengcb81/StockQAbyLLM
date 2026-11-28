@@ -1,0 +1,463 @@
+{
+  "type": "object",
+  "properties": {
+    "protocol": {
+      "const": "stockwiki.module_refresh_plan/1.0.0"
+    },
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "subject_key": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "identity_revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "perimeter_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "decision_id": {
+      "type": "string",
+      "pattern": "^route_[a-f0-9]{64}$"
+    },
+    "anchor_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "manifest_raw_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "module_package_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "module_release_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "module_locks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "module_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "version": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "artifact_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "artifact_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "module_id",
+          "version",
+          "artifact_ref",
+          "artifact_sha256"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 1
+    },
+    "aggregation_policy": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "provider": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "scope": {
+      "enum": [
+        "entity",
+        "segment"
+      ]
+    },
+    "scope_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "information_cutoff": {
+      "type": "string",
+      "format": "date"
+    },
+    "cutoff_policy": {
+      "const": "exact_period"
+    },
+    "ttl_hours": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "now": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "fields": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "field_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "decision": {
+            "enum": [
+              "reuse",
+              "resume_existing_work",
+              "dispatch_new_work",
+              "dispatch_new_generation",
+              "deferred_unknown",
+              "manual_refresh_required",
+              "deferred_scope_unbound"
+            ]
+          },
+          "freshness_status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            }
+          },
+          "generation": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "logical_todo_key": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reuse_observation_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^obs_[a-f0-9]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "request_identity_key": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "next_retry_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "field_id",
+          "decision",
+          "freshness_status",
+          "reasons",
+          "generation",
+          "logical_todo_key",
+          "reuse_observation_id",
+          "request_identity_key"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "totals": {
+      "type": "object",
+      "properties": {
+        "fields": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reuse": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "planned_dispatches": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "deferred_unknown": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "resume_existing_work": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "deferred_scope_unbound": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "fields",
+        "reuse",
+        "planned_dispatches",
+        "deferred_unknown",
+        "resume_existing_work",
+        "deferred_scope_unbound"
+      ],
+      "additionalProperties": false
+    },
+    "module_changes": {
+      "type": "object",
+      "properties": {
+        "entered": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "uniqueItems": true
+        },
+        "exited": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "uniqueItems": true
+        },
+        "retained": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "uniqueItems": true
+        },
+        "version_changed": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "entered",
+        "exited",
+        "retained",
+        "version_changed"
+      ],
+      "additionalProperties": false
+    },
+    "comparison": {
+      "type": "object",
+      "properties": {
+        "retained_question_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "uniqueItems": true
+        },
+        "added_question_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "uniqueItems": true
+        },
+        "removed_question_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "uniqueItems": true
+        },
+        "meaning_changed_question_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "uniqueItems": true
+        },
+        "comparable_intersection": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "uniqueItems": true
+        },
+        "aggregation_rules_comparable": {
+          "type": "boolean"
+        },
+        "same_question_basket": {
+          "type": "boolean"
+        },
+        "old_scores_recomputed": {
+          "const": false
+        },
+        "history_rewritten": {
+          "const": false
+        }
+      },
+      "required": [
+        "retained_question_ids",
+        "added_question_ids",
+        "removed_question_ids",
+        "meaning_changed_question_ids",
+        "comparable_intersection",
+        "aggregation_rules_comparable",
+        "same_question_basket",
+        "old_scores_recomputed",
+        "history_rewritten"
+      ],
+      "additionalProperties": false
+    },
+    "dispatch_started": {
+      "const": false
+    },
+    "model_API_requests": {
+      "const": 0
+    },
+    "history_rewritten": {
+      "const": false
+    },
+    "paid_execution_binding_required": {
+      "const": "stockqa_q13_durable_reconciliation_and_generation_binding"
+    },
+    "refresh_id": {
+      "type": "string",
+      "pattern": "^refresh_[a-f0-9]{64}$"
+    },
+    "reused_observations": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "observation_id": {
+            "type": "string",
+            "pattern": "^obs_[a-f0-9]{64}$"
+          },
+          "payload_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "payload": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "observation_id",
+          "payload_sha256",
+          "payload"
+        ],
+        "additionalProperties": true
+      }
+    }
+  },
+  "required": [
+    "protocol",
+    "schema_version",
+    "subject_key",
+    "identity_revision",
+    "perimeter_sha256",
+    "decision_id",
+    "anchor_version",
+    "manifest_raw_sha256",
+    "module_package_id",
+    "module_release_id",
+    "module_locks",
+    "aggregation_policy",
+    "provider",
+    "model",
+    "scope",
+    "scope_id",
+    "information_cutoff",
+    "cutoff_policy",
+    "ttl_hours",
+    "now",
+    "fields",
+    "totals",
+    "module_changes",
+    "comparison",
+    "dispatch_started",
+    "model_API_requests",
+    "history_rewritten",
+    "paid_execution_binding_required",
+    "refresh_id"
+  ],
+  "additionalProperties": false,
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:iqs:quick-scan:module-refresh:1",
+  "description": "W15 read-only planner/wire shape. Does not authenticate input, verify financial accuracy, or reserve paid work. refresh_id excludes CLI reused_observations."
+}

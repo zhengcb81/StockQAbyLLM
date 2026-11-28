@@ -26,19 +26,21 @@ repos:
       - id: mixed-line-ending
         args: ['--fix=lf']
         # This frozen source above is matched by its original SHA-256.
-        exclude: ^tests/fixtures/quick_scan_c06_manifest_v2_fixture\.json$
+        exclude: ^tests/fixtures/(quick_scan_c06_manifest_v2_fixture\.json|iqs_public_wire/schemas/quick_scan/[^/]+\.schema\.json)$
 
   # Python code formatting with black（版本与 requirements-lock.txt 同步）
   - repo: https://github.com/psf/black
     rev: 26.5.1
     hooks:
       - id: black
+        exclude: ^tools/anti_trick_gate_spec/
 
   # Import sorting with isort（版本与 requirements-lock.txt 同步）
   - repo: https://github.com/PyCQA/isort
     rev: 7.0.0
     hooks:
       - id: isort
+        exclude: ^tools/anti_trick_gate_spec/
         args: ['--profile', 'black']
 
   # Type checking with mypy（以 pyproject.toml 单份配置为准，不额外加 --strict）

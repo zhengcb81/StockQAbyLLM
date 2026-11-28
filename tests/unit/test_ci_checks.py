@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import importlib.util
 import os
-import shutil
 import sys
 from pathlib import Path
 
@@ -20,39 +19,8 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CHECKS_PATH = REPO_ROOT / "scripts" / "checks.py"
-SCRATCH_ROOT = REPO_ROOT.parent / "_tmp" / "g2_checks_scratch" / "unit"
 
 SPACE_DIR_NAME = "含 空格"
-
-DAILY_UNIT_FILES = (
-    "tests/unit/test_models.py",
-    "tests/unit/test_config_manager.py",
-    "tests/unit/test_llm_config.py",
-    "tests/unit/test_basic_runner.py",
-    "tests/unit/test_main_with_llm.py",
-    "tests/unit/test_q07_checkpoint.py",
-    "tests/unit/test_s1_p0_provider_and_subprocess_logging.py",
-    "tests/unit/test_quick_scan_budget.py",
-    "tests/unit/test_owner_refresh_charge_boundaries.py",
-    "tests/unit/test_question_pack_presend_recovery.py",
-    "tests/unit/test_quick_scan_operational_readiness.py",
-    "tests/unit/test_q09_budget_concurrency.py",
-    "tests/unit/test_ci_checks.py",
-    "tests/unit/test_sql_scope_queries.py",
-)
-
-PUBLIC_CLI_NODES = (
-    "tests/integration/test_quick_scan_cli.py"
-    "::test_public_cli_exports_eight_score_entity_timestamp_model_and_search_receipt",
-    "tests/integration/test_quick_scan_cli.py::test_public_cli_refuses_to_infer_question_id",
-    "tests/integration/test_quick_scan_cli.py"
-    "::test_public_cli_persists_every_failed_transport_retry_without_error_details",
-    "tests/integration/test_quick_scan_cli.py"
-    "::test_public_cli_does_not_retry_uncertain_server_error_without_reconciliation",
-    "tests/integration/test_quick_scan_cli.py::test_public_cli_fake_health_schema_rejects_before_http",
-    "tests/integration/test_quick_scan_cli.py"
-    "::test_public_cli_pauses_after_unpriced_attempt_without_sending_backup",
-)
 
 
 def _load_checks():
@@ -74,10 +42,9 @@ def checks():
 
 
 @pytest.fixture(scope="module")
-def scratch():
+def scratch(tmp_path_factory):
     """本卡短临时目录：通过 / 真失败 / 收集失败 / 空格中文路径四种节点。"""
-    root = SCRATCH_ROOT
-    shutil.rmtree(root, ignore_errors=True)
+    root = tmp_path_factory.mktemp("g2-checks-unit")
     space = root / SPACE_DIR_NAME
     space.mkdir(parents=True, exist_ok=True)
     (root / "test_ok.py").write_text("def test_ok():\n    assert True\n", encoding="utf-8")
@@ -87,8 +54,7 @@ def scratch():
         encoding="utf-8",
     )
     (space / "test_ok.py").write_text("def test_ok():\n    assert True\n", encoding="utf-8")
-    yield root
-    shutil.rmtree(root, ignore_errors=True)
+    return root
 
 
 # --------------------------------------------------------------------------------------
@@ -167,9 +133,9 @@ def test_default_plan_is_offline_and_excludes_live(checks):
     assert payload["offline"] is True
     args = payload["pytest"]["args"]
     assert "no:base_url" in args, "未禁用环境未声明的 pytest-base-url 插件"
-    assert "not live and not benchmark" in args
+    assert any(arg.startswith("not live and not owner_composition") for arg in args)
     assert "--ignore=tests/live" in args
-    assert "--ignore=tests/benchmarks" in args
+    assert "--ignore=tests/composition" in args
     assert payload["pytest"]["env"]["STOCKQA_RUN_LIVE_E2E"] == "0", "默认未强制离线"
     for arg in args:
         assert not arg.startswith("--cov"), f"默认 pytest 注入了覆盖率产物：{arg}"
@@ -179,8 +145,10 @@ def test_default_plan_is_offline_and_excludes_live(checks):
     assert "tests/benchmarks" not in joined
 
 
-def test_default_daily_targets_include_quick_scan_module_boundary_suite(checks):
-    assert "tests/unit/test_quick_scan_module_boundaries.py" in checks.DAILY_TEST_TARGETS
+def test_default_test_selection_uses_the_smoke_directory(checks):
+    plan = checks.build_plan("default")
+    assert plan.pytest_targets == ("tests/smoke",)
+    assert all((REPO_ROOT / target).is_dir() for target in plan.pytest_targets)
 
 
 def test_build_env_forces_offline_even_when_inherited(checks, monkeypatch):
@@ -194,28 +162,21 @@ def test_run_pytest_command_carries_offline_guards(checks, scratch):
     result = checks.run_pytest(REPO_ROOT, [str(scratch / "test_ok.py")], capture=True)
     command = " ".join(result.command)
     assert "no:base_url" in command
-    assert "not live and not benchmark" in command
+    assert "not live and not owner_composition" in command
     assert "tests/live" in command
     assert "--cov" not in command
     assert result.exit_code == 0, result.output
 
 
-def test_default_targets_cover_required_daily_nodes(checks):
-    plan = checks.build_plan("default")
-    targets = tuple(plan.to_json_dict()["pytest"]["targets"])
-    for node in DAILY_UNIT_FILES + PUBLIC_CLI_NODES:
-        assert node in targets, f"日常责任包缺少节点：{node}"
-
-
-def test_full_plan_targets_are_offline_unit_and_integration(checks):
+def test_full_plan_uses_configured_offline_discovery(checks):
     plan = checks.build_plan("full")
     payload = plan.to_json_dict()
     assert payload["pytest"]["scope"] == "full"
-    assert payload["pytest"]["targets"] == ["tests/unit", "tests/integration"]
+    assert payload["pytest"]["targets"] == []
     assert payload["pytest"]["env"]["STOCKQA_RUN_LIVE_E2E"] == "0"
     args = payload["pytest"]["args"]
     assert "--ignore=tests/live" in args
-    assert "--ignore=tests/benchmarks" in args
+    assert "--ignore=tests/composition" in args
     assert "no:base_url" in args
 
 
@@ -387,18 +348,6 @@ def test_ensure_output_dir_supports_spaces_and_chinese(checks, tmp_path):
 # --------------------------------------------------------------------------------------
 # 业务责任节点必须仍在日常包内（防"删用例凑绿"）
 # --------------------------------------------------------------------------------------
-
-
-def test_daily_unit_files_exist(checks):
-    for rel in DAILY_UNIT_FILES:
-        assert (REPO_ROOT / rel).is_file(), f"日常责任文件缺失：{rel}"
-
-
-def test_public_cli_nodes_exist(checks):
-    source = (REPO_ROOT / "tests/integration/test_quick_scan_cli.py").read_text(encoding="utf-8")
-    for node in PUBLIC_CLI_NODES:
-        name = node.split("::", 1)[1]
-        assert f"def {name}(" in source, f"公开 CLI 节点缺失：{name}"
 
 
 def test_cross_process_budget_node_exists(checks):

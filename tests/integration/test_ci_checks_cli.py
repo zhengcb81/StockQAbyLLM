@@ -25,7 +25,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 CHECKS_SCRIPT = REPO_ROOT / "scripts" / "checks.py"
 SH_WRAPPER = REPO_ROOT / "scripts" / "run_ci.sh"
 BAT_WRAPPER = REPO_ROOT / "scripts" / "run_ci.bat"
-SCRATCH_ROOT = REPO_ROOT.parent / "_tmp" / "g2_checks_scratch" / "integration"
 
 SPACE_DIR_NAME = "含 空格"
 FAST_REPO_TARGET = "tests/unit/test_search_service.py"
@@ -36,6 +35,12 @@ COVERAGE_DATA_PREFIX = ".coverage"
 
 
 def _find_bash() -> str:
+    if os.name == "nt":
+        git = shutil.which("git")
+        if git:
+            git_bash = Path(git).resolve().parents[1] / "bin" / "bash.exe"
+            if git_bash.is_file():
+                return str(git_bash)
     bash = shutil.which("bash")
     assert bash, "本机缺少 bash，无法验证 scripts/run_ci.sh"
     return bash
@@ -50,12 +55,26 @@ def _find_cmd() -> str:
 
 
 def _run(cmd, *, cwd, timeout=900):
-    env = dict(os.environ)
-    env.setdefault("PYTHONIOENCODING", "utf-8")
+    keys = {
+        "SYSTEMROOT",
+        "WINDIR",
+        "SYSTEMDRIVE",
+        "COMSPEC",
+        "PATH",
+        "PATHEXT",
+        "TEMP",
+        "TMP",
+        "TMPDIR",
+    }
+    env = {key: value for key, value in os.environ.items() if key.upper() in keys}
+    # Git Bash and cmd must exercise the selected Python, not PATH's user install.
+    env.update(PYTHON=sys.executable, PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
     return subprocess.run(
         list(cmd),
         cwd=str(cwd),
         env=env,
+        stdin=subprocess.DEVNULL,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -75,9 +94,8 @@ def _report_residue() -> set[str]:
 
 
 @pytest.fixture(scope="module")
-def scratch():
-    root = SCRATCH_ROOT
-    shutil.rmtree(root, ignore_errors=True)
+def scratch(tmp_path_factory):
+    root = tmp_path_factory.mktemp("g2-checks-integration")
     space = root / SPACE_DIR_NAME
     space.mkdir(parents=True, exist_ok=True)
     (root / "test_broken.py").write_text(
@@ -85,8 +103,7 @@ def scratch():
         encoding="utf-8",
     )
     (space / "test_ok.py").write_text("def test_ok():\n    assert True\n", encoding="utf-8")
-    yield root
-    shutil.rmtree(root, ignore_errors=True)
+    return root
 
 
 # --------------------------------------------------------------------------------------
@@ -166,6 +183,7 @@ def test_sh_wrapper_pytest_target_with_spaces_and_chinese(tmp_path, scratch):
 # --------------------------------------------------------------------------------------
 
 
+@pytest.mark.windows_only
 def test_bat_wrapper_returns_zero_for_list_steps(tmp_path):
     outside = tmp_path / "outside"
     outside.mkdir()
@@ -174,6 +192,7 @@ def test_bat_wrapper_returns_zero_for_list_steps(tmp_path):
     assert json.loads(proc.stdout)["mode"] == "default"
 
 
+@pytest.mark.windows_only
 def test_bat_wrapper_forwards_unknown_flag_as_two(tmp_path):
     outside = tmp_path / "outside"
     outside.mkdir()
@@ -181,6 +200,7 @@ def test_bat_wrapper_forwards_unknown_flag_as_two(tmp_path):
     assert proc.returncode == 2, f"bat wrapper 吞掉了退出码：{proc.returncode}"
 
 
+@pytest.mark.windows_only
 def test_bat_wrapper_forwards_unknown_step_as_nonzero(tmp_path):
     outside = tmp_path / "outside"
     outside.mkdir()

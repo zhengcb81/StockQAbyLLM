@@ -285,12 +285,13 @@ class TestLLM16AnswerSerializationBoundary:
         ):
             assert forged_key not in out, f"LLM-16: {forged_key} 不得通过序列化边界"
 
-    def test_llm16_description_is_length_capped(self):
+    def test_llm16_exchange_keeps_existing_long_answer_without_truncation(self):
+        description = "长文本" * 3000
         out = serialize_answer_for_exchange(
             "CORE_01",
-            {"status": "scored", "score": 8, "description": "长文本" * 3000},
+            {"status": "scored", "score": 8, "description": description},
         )
-        assert len(out["description"]) <= 5000
+        assert out["description"] == description
 
     def test_llm16_envelope_from_forged_metadata_has_no_authority_fields(self):
         batch = QABatchResult(total_questions=1)

@@ -25,8 +25,8 @@ from stockwiki.quick_scan_subject_dispatch import SubjectBoundObservationStore
 
 from src.config.llm_config import LLMConfig
 from src.utils.quick_scan_refresh_admission import RefreshAdmissionService
-from tests.integration.test_c06_refresh_admission import setup_admission
-from tests.integration.test_c06_subject_public_e2e import OWN, actual, utc
+from tests.composition.test_c06_refresh_admission import setup_admission
+from tests.composition.test_c06_subject_public_e2e import OWN, actual, utc
 from tests.unit.test_llm_config import _quick_scan_policy
 from tests.unit.test_quick_scan_work_transport import _http_response
 

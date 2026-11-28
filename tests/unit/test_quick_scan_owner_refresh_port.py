@@ -309,6 +309,7 @@ def _original_iqs_root_or_skip(monkeypatch):
 
 
 @pytest.mark.parametrize("version", ["1.1.0", "1.1.1", "1.2.0"])
+@pytest.mark.owner_composition
 def test_semantic_resources_are_resolved_from_owner_config_without_returning_paths(
     monkeypatch, tmp_path, version
 ):

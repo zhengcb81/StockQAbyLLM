@@ -332,6 +332,46 @@ def test_job_04_recovery_partitions_all_states_no_silent_loss(tmp_path: Path) ->
     assert report.get("q10_import_ack_note"), "pre-ACK crash point must be annotated toward Q10"
 
 
+def test_corrupt_saved_checkpoint_is_never_reported_as_missing(tmp_path, monkeypatch):
+    from src.runners.llm_runner import recovery_report
+
+    inbox = tmp_path / "feedback"
+    monkeypatch.setenv("RESEARCH_FEEDBACK_DIR", str(inbox))
+    store = _store(tmp_path)
+    seeded = _seed_checkpoint(store, _lifecycle(store), "IQS_07")
+    work = seeded["handle"]["work_item_id"]
+    with sqlite3.connect(store.path) as connection:
+        trigger = connection.execute(
+            "SELECT sql FROM sqlite_master WHERE name='answer_checkpoint_no_update'"
+        ).fetchone()[0]
+        # Inject a storage fault into this disposable SQLite database, then
+        # restore the normal immutability trigger before any recovery read.
+        connection.execute("DROP TRIGGER answer_checkpoint_no_update")
+        connection.execute(
+            "UPDATE answer_checkpoint SET payload_json=? WHERE work_item_id=?",
+            ("{broken-synthetic-q07-value", work),
+        )
+        connection.execute(trigger)
+    connection.close()
+
+    report = recovery_report(store, run_id="RUN_1", scan_id="SCAN_1")
+
+    assert report["checkpoint_unavailable"] == [work]
+    assert not report["pre_dispatch"]
+    assert not report["import_ack_pending"]
+    assert not report["persisted"]
+    (observation_file,) = inbox.glob("feedback-*.jsonl")
+    observation = json.loads(observation_file.read_text(encoding="utf-8"))
+    (detail_file,) = inbox.glob("feedback-*.cause.json")
+    wire = detail_file.read_text(encoding="utf-8")
+    detail = json.loads(wire)
+    assert observation["details_ref"] == detail["observation"]["details_ref"]
+    assert detail["diagnostic"]["stage"] == "recovery.checkpoint_read"
+    assert detail["diagnostic"]["root_type"] == "JSONDecodeError"
+    assert detail["diagnostic"]["references"]["work_item_id"] == work
+    assert "broken-synthetic-q07-value" not in wire
+
+
 def test_job_05_cancel_is_state_change_and_history_survives(tmp_path: Path) -> None:
     """JOB-05: at cap with in-flight work, cancelling a not-yet-run object is
     a state change — pending stays visible as cancelled, history is not

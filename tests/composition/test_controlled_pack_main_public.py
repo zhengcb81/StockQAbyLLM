@@ -13,8 +13,8 @@ from unittest.mock import Mock
 import pytest
 
 from src.config.llm_config import LLMConfig
-from tests.integration.test_c06_subject_public_e2e import actual, utc
-from tests.integration.test_controlled_refresh_public import controlled_public_fixture
+from tests.composition.test_c06_subject_public_e2e import actual, utc
+from tests.composition.test_controlled_refresh_public import controlled_public_fixture
 from tests.unit.test_llm_config import _quick_scan_policy
 from tests.unit.test_q09_budget_concurrency import hide_lifecycle_field
 from tests.unit.test_quick_scan_observation_context import content
